@@ -18,9 +18,15 @@ class FormulaCalculator {
             if (value === null || value === '' || value === 'null' || value === undefined) {
                 nullVars.push(symbol);
             } else {
-                const numValue = parseFloat(value);
-                if (isNaN(numValue)) {
-                    throw new Error(`Invalid number for ${symbol}: ${value}`);
+                // If already a number, use it; otherwise try to parse
+                let numValue;
+                if (typeof value === 'number' && !isNaN(value) && isFinite(value)) {
+                    numValue = value;
+                } else {
+                    numValue = parseFloat(value);
+                    if (isNaN(numValue)) {
+                        throw new Error(`Invalid number for ${symbol}: ${value}`);
+                    }
                 }
                 providedVars[symbol] = numValue;
             }
@@ -132,6 +138,87 @@ class FormulaCalculator {
             
             case 'magnitude_flux_relation':
                 return this.solveMagnitudeFluxRelation(unknownVar, vars);
+            
+            case 'inverse_square_law_brightness':
+                return this.solveInverseSquareLawBrightness(unknownVar, vars);
+            
+            case 'doppler_shift':
+                return this.solveDopplerShift(unknownVar, vars);
+            
+            case 'doppler_shift_approx':
+                return this.solveDopplerShiftApprox(unknownVar, vars);
+            
+            case 'flux_temperature':
+                return this.solveFluxTemperature(unknownVar, vars);
+            
+            case 'light_gathering_power':
+                return this.solveLightGatheringPower(unknownVar, vars);
+            
+            case 'magnification':
+                return this.solveMagnification(unknownVar, vars);
+            
+            case 'f_ratio':
+                return this.solveFRatio(unknownVar, vars);
+            
+            case 'angular_resolution':
+                return this.solveAngularResolution(unknownVar, vars);
+            
+            case 'kepler_third_law_solar':
+                return this.solveKeplerThirdLawSolar(unknownVar, vars);
+            
+            case 'tidal_force':
+                return this.solveTidalForce(unknownVar, vars);
+            
+            case 'roche_limit':
+                return this.solveRocheLimit(unknownVar, vars);
+            
+            case 'orbital_energy':
+                return this.solveOrbitalEnergy(unknownVar, vars);
+            
+            case 'vis_viva':
+                return this.solveVisViva(unknownVar, vars);
+            
+            case 'center_of_mass':
+                return this.solveCenterOfMass(unknownVar, vars);
+            
+            case 'stellar_lifetime':
+                return this.solveStellarLifetime(unknownVar, vars);
+            
+            case 'mass_luminosity_relation':
+                return this.solveMassLuminosityRelation(unknownVar, vars);
+            
+            case 'hr_color_index':
+                return this.solveHRColorIndex(unknownVar, vars);
+            
+            case 'hr_absolute_magnitude':
+                return this.solveHRAbsoluteMagnitude(unknownVar, vars);
+            
+            case 'friedmann_equation':
+                return this.solveFriedmannEquation(unknownVar, vars);
+            
+            case 'critical_density':
+                return this.solveCriticalDensity(unknownVar, vars);
+            
+            case 'schwarzschild_radius':
+                return this.solveSchwarzschildRadius(unknownVar, vars);
+            
+            case 'time_dilation':
+                return this.solveTimeDilation(unknownVar, vars);
+            
+            case 'length_contraction':
+                return this.solveLengthContraction(unknownVar, vars);
+            
+            case 'planetary_equilibrium_temperature':
+                return this.solvePlanetaryEquilibriumTemperature(unknownVar, vars);
+            
+            case 'greenhouse_effect':
+                return this.solveGreenhouseEffect(unknownVar, vars);
+            
+            case 'albedo':
+                return this.solveAlbedo(unknownVar, vars);
+            
+            case 'blackbody_radiation':
+                return this.solveBlackbodyRadiation(unknownVar, vars);
             
             default:
                 throw new Error(`Solver not implemented for formula: ${formulaId}`);
@@ -565,6 +652,403 @@ class FormulaCalculator {
         } else if (unknownVar === 'F2') {
             // F2 = F1 × 10^((m1 - m2) / 2.5)
             return F1 * Math.pow(10, (m1 - m2) / 2.5);
+        }
+    }
+
+    solveInverseSquareLawBrightness(unknownVar, vars) {
+        const { b, L, d, pi } = vars;
+        const p = pi || Math.PI;
+        
+        if (unknownVar === 'b') {
+            return L / (4 * p * d * d);
+        } else if (unknownVar === 'L') {
+            return b * 4 * p * d * d;
+        } else if (unknownVar === 'd') {
+            return Math.sqrt(L / (4 * p * b));
+        }
+    }
+
+    solveDopplerShift(unknownVar, vars) {
+        const lambda_obs = vars['λ_obs'] || vars.lambda_obs;
+        const lambda_rest = vars['λ_rest'] || vars.lambda_rest;
+        const v = vars.v;
+        const c = vars.c || 2.998e8;
+        
+        if (unknownVar === 'λ_obs' || unknownVar === 'lambda_obs') {
+            return lambda_rest * (1 + v / c);
+        } else if (unknownVar === 'λ_rest' || unknownVar === 'lambda_rest') {
+            return lambda_obs / (1 + v / c);
+        } else if (unknownVar === 'v') {
+            return c * ((lambda_obs - lambda_rest) / lambda_rest);
+        }
+    }
+
+    solveDopplerShiftApprox(unknownVar, vars) {
+        const v = vars.v;
+        const c = vars.c || 2.998e8;
+        const deltaLambda = vars['Δλ'] || vars.deltaLambda;
+        const lambda = vars['λ'] || vars.lambda;
+        
+        if (unknownVar === 'v') {
+            return c * (deltaLambda / lambda);
+        } else if (unknownVar === 'Δλ' || unknownVar === 'deltaLambda') {
+            return v * lambda / c;
+        } else if (unknownVar === 'λ' || unknownVar === 'lambda') {
+            return c * deltaLambda / v;
+        }
+    }
+
+    solveFluxTemperature(unknownVar, vars) {
+        const F = vars.F;
+        const T = vars.T;
+        const sigma = vars['σ'] || vars.sigma || 5.670e-8;
+        
+        if (unknownVar === 'F') {
+            return sigma * Math.pow(T, 4);
+        } else if (unknownVar === 'T') {
+            return Math.pow(F / sigma, 0.25);
+        }
+    }
+
+    solveLightGatheringPower(unknownVar, vars) {
+        const { LGP, D_obj, D_eye } = vars;
+        
+        if (unknownVar === 'LGP') {
+            return Math.pow(D_obj / D_eye, 2);
+        } else if (unknownVar === 'D_obj') {
+            return D_eye * Math.sqrt(LGP);
+        } else if (unknownVar === 'D_eye') {
+            return D_obj / Math.sqrt(LGP);
+        }
+    }
+
+    solveMagnification(unknownVar, vars) {
+        const { M, f_obj, f_eye } = vars;
+        
+        if (unknownVar === 'M') {
+            return f_obj / f_eye;
+        } else if (unknownVar === 'f_obj') {
+            return M * f_eye;
+        } else if (unknownVar === 'f_eye') {
+            return f_obj / M;
+        }
+    }
+
+    solveFRatio(unknownVar, vars) {
+        const { f_ratio, f, D } = vars;
+        
+        if (unknownVar === 'f_ratio') {
+            return f / D;
+        } else if (unknownVar === 'f') {
+            return f_ratio * D;
+        } else if (unknownVar === 'D') {
+            return f / f_ratio;
+        }
+    }
+
+    solveAngularResolution(unknownVar, vars) {
+        const theta = vars['θ'] || vars.theta;
+        const lambda = vars['λ'] || vars.lambda;
+        const D = vars.D;
+        const factor = vars.factor || 1.22;
+        
+        if (unknownVar === 'θ' || unknownVar === 'theta') {
+            return factor * (lambda / D);
+        } else if (unknownVar === 'λ' || unknownVar === 'lambda') {
+            return theta * D / factor;
+        } else if (unknownVar === 'D') {
+            return factor * lambda / theta;
+        }
+    }
+
+    solveKeplerThirdLawSolar(unknownVar, vars) {
+        const { P, a } = vars;
+        
+        if (unknownVar === 'P') {
+            return Math.sqrt(a * a * a);
+        } else if (unknownVar === 'a') {
+            return Math.cbrt(P * P);
+        }
+    }
+
+    solveTidalForce(unknownVar, vars) {
+        const { F_tidal, G, M, m, R, d } = vars;
+        const grav = G || 6.67430e-11;
+        
+        if (unknownVar === 'F_tidal') {
+            return (2 * grav * M * m * R) / (d * d * d);
+        } else if (unknownVar === 'd') {
+            return Math.cbrt((2 * grav * M * m * R) / F_tidal);
+        } else if (unknownVar === 'M') {
+            return (F_tidal * d * d * d) / (2 * grav * m * R);
+        } else if (unknownVar === 'm') {
+            return (F_tidal * d * d * d) / (2 * grav * M * R);
+        } else if (unknownVar === 'R') {
+            return (F_tidal * d * d * d) / (2 * grav * M * m);
+        }
+    }
+
+    solveRocheLimit(unknownVar, vars) {
+        const { d, R, ρ_M, ρ_m, factor } = vars;
+        const fac = factor || 2;
+        
+        if (unknownVar === 'd') {
+            return R * Math.cbrt(fac * (ρ_M / ρ_m));
+        } else if (unknownVar === 'R') {
+            return d / Math.cbrt(fac * (ρ_M / ρ_m));
+        } else if (unknownVar === 'ρ_M') {
+            return ρ_m * Math.pow(d / (R * Math.cbrt(fac)), 3);
+        } else if (unknownVar === 'ρ_m') {
+            return ρ_M / Math.pow(d / (R * Math.cbrt(fac)), 3);
+        }
+    }
+
+    solveOrbitalEnergy(unknownVar, vars) {
+        const { E, G, M, m, a } = vars;
+        const grav = G || 6.67430e-11;
+        
+        if (unknownVar === 'E') {
+            return -(grav * M * m) / (2 * a);
+        } else if (unknownVar === 'a') {
+            return -(grav * M * m) / (2 * E);
+        } else if (unknownVar === 'M') {
+            return -(2 * E * a) / (grav * m);
+        } else if (unknownVar === 'm') {
+            return -(2 * E * a) / (grav * M);
+        }
+    }
+
+    solveVisViva(unknownVar, vars) {
+        const { v, G, M, r, a } = vars;
+        const grav = G || 6.67430e-11;
+        
+        if (unknownVar === 'v') {
+            return Math.sqrt(grav * M * ((2 / r) - (1 / a)));
+        } else if (unknownVar === 'a') {
+            return 1 / ((2 / r) - (v * v / (grav * M)));
+        } else if (unknownVar === 'r') {
+            return 2 / ((v * v / (grav * M)) + (1 / a));
+        } else if (unknownVar === 'M') {
+            return (v * v) / (grav * ((2 / r) - (1 / a)));
+        }
+    }
+
+    solveCenterOfMass(unknownVar, vars) {
+        const { M1, M2, r1, r2, a } = vars;
+        
+        if (unknownVar === 'r1') {
+            return (M2 * r2) / M1;
+        } else if (unknownVar === 'r2') {
+            return (M1 * r1) / M2;
+        } else if (unknownVar === 'a') {
+            return r1 + r2;
+        } else if (unknownVar === 'M1') {
+            return (M2 * r2) / r1;
+        } else if (unknownVar === 'M2') {
+            return (M1 * r1) / r2;
+        }
+    }
+
+    solveStellarLifetime(unknownVar, vars) {
+        const tau = vars['τ'] || vars.tau;
+        const M_sun = vars['M_sun'] || vars.M_sun || 1.989e30;
+        const M = vars.M;
+        const factor = vars.factor || 1e10;
+        const exponent = vars.exponent || 2.5;
+        
+        if (unknownVar === 'τ' || unknownVar === 'tau') {
+            return factor * Math.pow(M_sun / M, exponent);
+        } else if (unknownVar === 'M') {
+            return M_sun / Math.pow(tau / factor, 1 / exponent);
+        }
+    }
+
+    solveMassLuminosityRelation(unknownVar, vars) {
+        const { L, M, exponent } = vars;
+        const exp = exponent || 3.5;
+        
+        if (unknownVar === 'L') {
+            return Math.pow(M, exp);
+        } else if (unknownVar === 'M') {
+            return Math.pow(L, 1 / exp);
+        }
+    }
+
+    solveHRColorIndex(unknownVar, vars) {
+        const B_V = vars['B_V'] || vars.B_V;
+        const F_B = vars['F_B'] || vars.F_B;
+        const F_V = vars['F_V'] || vars.F_V;
+        const C = vars.C;
+        const factor = vars.factor || -2.5;
+        
+        if (unknownVar === 'B_V' || unknownVar === 'B_V') {
+            return factor * Math.log10(F_B / F_V) + C;
+        } else if (unknownVar === 'F_B' || unknownVar === 'F_B') {
+            return F_V * Math.pow(10, (B_V - C) / factor);
+        } else if (unknownVar === 'F_V' || unknownVar === 'F_V') {
+            return F_B / Math.pow(10, (B_V - C) / factor);
+        } else if (unknownVar === 'C') {
+            return B_V - factor * Math.log10(F_B / F_V);
+        }
+    }
+
+    solveHRAbsoluteMagnitude(unknownVar, vars) {
+        const M_V = vars['M_V'] || vars.M_V;
+        const L = vars.L;
+        const L_sun = vars['L_sun'] || vars.L_sun || 3.828e26;
+        const factor = vars.factor || -2.5;
+        const offset = vars.offset || 4.83;
+        
+        if (unknownVar === 'M_V' || unknownVar === 'M_V') {
+            return factor * Math.log10(L / L_sun) + offset;
+        } else if (unknownVar === 'L') {
+            return L_sun * Math.pow(10, (M_V - offset) / factor);
+        }
+    }
+
+    solveFriedmannEquation(unknownVar, vars) {
+        const H = vars.H;
+        const H0 = vars.H0;
+        const Omega_m = vars['Ω_m'] || vars.Omega_m;
+        const Omega_r = vars['Ω_r'] || vars.Omega_r;
+        const Omega_Lambda = vars['Ω_Λ'] || vars.Omega_Lambda;
+        const a = vars.a;
+        
+        if (unknownVar === 'H') {
+            return H0 * Math.sqrt(Omega_m * Math.pow(a, -3) + Omega_r * Math.pow(a, -4) + Omega_Lambda);
+        } else if (unknownVar === 'H0' || unknownVar === 'H0') {
+            return H / Math.sqrt(Omega_m * Math.pow(a, -3) + Omega_r * Math.pow(a, -4) + Omega_Lambda);
+        }
+        // Note: Solving for other variables requires more complex algebra
+    }
+
+    solveCriticalDensity(unknownVar, vars) {
+        const rho_c = vars['ρ_c'] || vars.rho_c;
+        const H0 = vars.H0;
+        const G = vars.G || 6.67430e-11;
+        const factor = vars.factor || 3;
+        const pi = vars.pi || Math.PI;
+        
+        // Convert H0 from km/(s·Mpc) to 1/s
+        const H0_s = H0 * 1000 / (3.086e22); // Convert Mpc to m
+        
+        if (unknownVar === 'ρ_c' || unknownVar === 'rho_c') {
+            return (factor * H0_s * H0_s) / (8 * pi * G);
+        } else if (unknownVar === 'H0' || unknownVar === 'H0') {
+            return Math.sqrt((8 * pi * G * rho_c) / factor) * (3.086e22 / 1000); // Convert back
+        }
+    }
+
+    solveSchwarzschildRadius(unknownVar, vars) {
+        const R_s = vars['R_s'] || vars.R_s;
+        const G = vars.G || 6.67430e-11;
+        const M = vars.M;
+        const c = vars.c || 2.998e8;
+        const factor = vars.factor || 2;
+        
+        if (unknownVar === 'R_s' || unknownVar === 'R_s') {
+            return (factor * G * M) / (c * c);
+        } else if (unknownVar === 'M') {
+            return (R_s * c * c) / (factor * G);
+        }
+    }
+
+    solveTimeDilation(unknownVar, vars) {
+        const delta_t_prime = vars['Δt\''] || vars['delta_t_prime'] || vars.delta_t_prime;
+        const delta_t = vars['Δt'] || vars.delta_t || vars.delta_t;
+        const v = vars.v;
+        const c = vars.c || 2.998e8;
+        
+        if (unknownVar === 'Δt\'' || unknownVar === 'delta_t_prime' || unknownVar === 'delta_t_prime') {
+            return delta_t / Math.sqrt(1 - (v * v / (c * c)));
+        } else if (unknownVar === 'Δt' || unknownVar === 'delta_t' || unknownVar === 'delta_t') {
+            return delta_t_prime * Math.sqrt(1 - (v * v / (c * c)));
+        } else if (unknownVar === 'v') {
+            return c * Math.sqrt(1 - Math.pow(delta_t / delta_t_prime, 2));
+        }
+    }
+
+    solveLengthContraction(unknownVar, vars) {
+        const L_prime = vars['L\''] || vars['L_prime'] || vars.L_prime;
+        const L = vars.L;
+        const v = vars.v;
+        const c = vars.c || 2.998e8;
+        
+        if (unknownVar === 'L\'' || unknownVar === 'L_prime' || unknownVar === 'L_prime') {
+            return L * Math.sqrt(1 - (v * v / (c * c)));
+        } else if (unknownVar === 'L') {
+            return L_prime / Math.sqrt(1 - (v * v / (c * c)));
+        } else if (unknownVar === 'v') {
+            return c * Math.sqrt(1 - Math.pow(L_prime / L, 2));
+        }
+    }
+
+    solvePlanetaryEquilibriumTemperature(unknownVar, vars) {
+        const T_eq = vars['T_eq'] || vars.T_eq;
+        const T_star = vars['T_star'] || vars.T_star;
+        const R_star = vars['R_star'] || vars.R_star;
+        const a = vars.a;
+        const A = vars.A;
+        const factor = vars.factor || 2;
+        
+        if (unknownVar === 'T_eq' || unknownVar === 'T_eq') {
+            return T_star * Math.sqrt(R_star / (factor * a)) * Math.pow(1 - A, 0.25);
+        } else if (unknownVar === 'T_star' || unknownVar === 'T_star') {
+            return T_eq / (Math.sqrt(R_star / (factor * a)) * Math.pow(1 - A, 0.25));
+        } else if (unknownVar === 'a') {
+            return R_star / (factor * Math.pow(T_eq / (T_star * Math.pow(1 - A, 0.25)), 2));
+        } else if (unknownVar === 'A') {
+            return 1 - Math.pow(T_eq / (T_star * Math.sqrt(R_star / (factor * a))), 4);
+        }
+    }
+
+    solveGreenhouseEffect(unknownVar, vars) {
+        const delta_T_GH = vars['ΔT_GH'] || vars.delta_T_GH || vars.delta_T_GH;
+        const T_surface = vars['T_surface'] || vars.T_surface;
+        const T_eq = vars['T_eq'] || vars.T_eq;
+        
+        if (unknownVar === 'ΔT_GH' || unknownVar === 'delta_T_GH' || unknownVar === 'delta_T_GH') {
+            return T_surface - T_eq;
+        } else if (unknownVar === 'T_surface' || unknownVar === 'T_surface') {
+            return T_eq + delta_T_GH;
+        } else if (unknownVar === 'T_eq' || unknownVar === 'T_eq') {
+            return T_surface - delta_T_GH;
+        }
+    }
+
+    solveAlbedo(unknownVar, vars) {
+        const { A, F_reflected, F_incident } = vars;
+        
+        if (unknownVar === 'A') {
+            return F_reflected / F_incident;
+        } else if (unknownVar === 'F_reflected') {
+            return A * F_incident;
+        } else if (unknownVar === 'F_incident') {
+            return F_reflected / A;
+        }
+    }
+
+    solveBlackbodyRadiation(unknownVar, vars) {
+        const B_lambda = vars['B_λ'] || vars.B_lambda;
+        const h = vars.h || 6.626e-34;
+        const c = vars.c || 2.998e8;
+        const lambda = vars['λ'] || vars.lambda;
+        const k = vars.k || 1.381e-23;
+        const T = vars.T;
+        const factor = vars.factor || 2;
+        
+        // B_λ(T) = (2hc² / λ⁵) × (1 / (e^(hc/(λkT)) - 1))
+        const hc = h * c;
+        const exponent = hc / (lambda * k * T);
+        
+        if (unknownVar === 'B_λ' || unknownVar === 'B_lambda') {
+            return (factor * hc * c / Math.pow(lambda, 5)) * (1 / (Math.exp(exponent) - 1));
+        } else if (unknownVar === 'T') {
+            // Requires iterative solution, use approximation
+            const numerator = factor * hc * c / Math.pow(lambda, 5);
+            const target = B_lambda / numerator;
+            // Approximate: T ≈ hc / (λk * ln(1 + 1/target))
+            return hc / (lambda * k * Math.log(1 + 1 / target));
         }
     }
 }
