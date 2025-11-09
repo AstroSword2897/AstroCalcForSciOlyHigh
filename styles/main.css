@@ -6,26 +6,167 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #050810;
     min-height: 100vh;
     padding: 20px;
     color: #333;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Dramatic white dwarf star background */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        /* Intense white core */
+        radial-gradient(circle at 20% 25%, 
+            rgba(255, 255, 255, 1) 0%,
+            rgba(255, 255, 255, 0.95) 1%,
+            rgba(240, 250, 255, 0.9) 2%,
+            rgba(200, 240, 255, 0.8) 3%,
+            rgba(150, 220, 255, 0.7) 5%,
+            rgba(100, 200, 255, 0.6) 8%,
+            rgba(80, 180, 255, 0.5) 12%,
+            rgba(60, 160, 255, 0.4) 18%,
+            rgba(40, 140, 255, 0.3) 25%,
+            rgba(30, 120, 255, 0.2) 35%,
+            rgba(20, 100, 255, 0.15) 50%,
+            transparent 70%
+        ),
+        /* Electric blue outer halo */
+        radial-gradient(circle at 20% 25%, 
+            rgba(150, 220, 255, 0.4) 0%,
+            rgba(100, 200, 255, 0.3) 20%,
+            rgba(80, 180, 255, 0.2) 40%,
+            rgba(60, 160, 255, 0.15) 60%,
+            transparent 80%
+        ),
+        /* Turbulent surface flares */
+        radial-gradient(ellipse 80px 120px at 18% 23%, rgba(255, 255, 255, 0.8) 0%, transparent 40%),
+        radial-gradient(ellipse 60px 100px at 22% 27%, rgba(200, 240, 255, 0.7) 0%, transparent 35%),
+        radial-gradient(ellipse 70px 90px at 19% 26%, rgba(180, 220, 255, 0.6) 0%, transparent 30%),
+        /* Scattered background stars */
+        radial-gradient(circle at 75% 15%, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+        radial-gradient(circle at 85% 35%, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+        radial-gradient(circle at 60% 50%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 90% 60%, rgba(255, 255, 255, 0.7) 1px, transparent 1px),
+        radial-gradient(circle at 70% 75%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 50% 85%, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+        radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 40% 30%, rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+        radial-gradient(circle at 95% 80%, rgba(255, 255, 255, 0.6) 1px, transparent 1px),
+        radial-gradient(circle at 10% 60%, rgba(255, 255, 255, 0.5) 1px, transparent 1px);
+    background-size: 
+        500px 500px,
+        800px 800px,
+        200px 300px,
+        150px 250px,
+        175px 225px,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%;
+    pointer-events: none;
+    z-index: 0;
+    animation: whiteDwarfPulse 3s ease-in-out infinite;
+}
+
+/* Horizontal jets of light extending from white dwarf */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        /* Left jet - horizontal ellipse extending left from white dwarf */
+        radial-gradient(ellipse 300px 40px at 5% 25%, 
+            rgba(255, 255, 255, 0.9) 0%,
+            rgba(240, 250, 255, 0.8) 5%,
+            rgba(200, 240, 255, 0.6) 15%,
+            rgba(150, 220, 255, 0.4) 30%,
+            rgba(100, 200, 255, 0.3) 50%,
+            rgba(80, 180, 255, 0.2) 70%,
+            transparent 100%
+        ),
+        /* Right jet - horizontal ellipse extending right from white dwarf */
+        radial-gradient(ellipse 300px 40px at 35% 25%, 
+            rgba(255, 255, 255, 0.9) 0%,
+            rgba(240, 250, 255, 0.8) 5%,
+            rgba(200, 240, 255, 0.6) 15%,
+            rgba(150, 220, 255, 0.4) 30%,
+            rgba(100, 200, 255, 0.3) 50%,
+            rgba(80, 180, 255, 0.2) 70%,
+            transparent 100%
+        ),
+        /* Additional scattered particles/light around jets */
+        radial-gradient(circle at 8% 25%, rgba(255, 255, 255, 0.7) 2px, transparent 2px),
+        radial-gradient(circle at 12% 24%, rgba(200, 240, 255, 0.6) 1.5px, transparent 1.5px),
+        radial-gradient(circle at 32% 25%, rgba(255, 255, 255, 0.7) 2px, transparent 2px),
+        radial-gradient(circle at 28% 26%, rgba(200, 240, 255, 0.6) 1.5px, transparent 1.5px);
+    background-size: 
+        600px 80px,
+        600px 80px,
+        100% 100%,
+        100% 100%,
+        100% 100%,
+        100% 100%;
+    background-position: 0 0;
+    pointer-events: none;
+    z-index: 0;
+    animation: jetPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes whiteDwarfPulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.95;
+        transform: scale(1.08);
+    }
+}
+
+@keyframes jetPulse {
+    0%, 100% {
+        opacity: 0.8;
+    }
+    50% {
+        opacity: 1;
+    }
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
-    background: white;
+    background: transparent;
     border-radius: 20px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
+    box-shadow: none;
+    overflow: visible;
+    position: relative;
+    z-index: 1;
 }
 
 header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: rgba(10, 14, 39, 0.9);
     color: white;
     padding: 30px;
     text-align: center;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 header h1 {
@@ -69,6 +210,300 @@ header h1 {
     background: #5568d3;
 }
 
+.formula-search-container {
+    position: relative;
+    margin-bottom: 20px;
+    padding: 0 20px;
+}
+
+.formula-search-input {
+    width: 100%;
+    padding: 12px 45px 12px 15px;
+    font-size: 1em;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    background: rgba(10, 14, 39, 0.85);
+    color: white;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.formula-search-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.formula-search-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.clear-search-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.search-results-header {
+    padding: 12px 20px;
+    background: rgba(102, 126, 234, 0.1);
+    border-left: 3px solid #667eea;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95em;
+}
+
+.search-results-header strong {
+    color: #667eea;
+    font-weight: 600;
+}
+
+/* Accuracy Metrics Styles */
+.accuracy-metrics {
+    margin: 12px 0;
+    padding: 12px;
+    background: rgba(102, 126, 234, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid rgba(102, 126, 234, 0.3);
+}
+
+.confidence-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 2px solid;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.confidence-percent {
+    font-size: 1.1em;
+    font-weight: 700;
+}
+
+.confidence-level {
+    text-transform: uppercase;
+    font-size: 0.75em;
+    letter-spacing: 0.5px;
+}
+
+.match-details {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.6;
+}
+
+.match-count {
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 6px;
+}
+
+.match-indicators {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.match-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    background: rgba(102, 126, 234, 0.2);
+    border: 1px solid rgba(102, 126, 234, 0.4);
+    border-radius: 4px;
+    font-size: 0.75em;
+    color: #a8c7ff;
+}
+
+.matched-concepts,
+.matched-variables {
+    margin-top: 6px;
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.matched-concepts strong,
+.matched-variables strong {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.match-reasons {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.75);
+    font-style: italic;
+}
+
+.concept-hierarchy {
+    margin-top: 6px;
+    padding: 6px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 4px;
+    font-size: 0.75em;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+}
+
+.hierarchy-link {
+    display: block;
+    margin: 2px 0;
+    padding: 2px 4px;
+    border-left: 2px solid rgba(102, 126, 234, 0.4);
+    padding-left: 6px;
+}
+
+.hierarchy-link:hover {
+    background: rgba(102, 126, 234, 0.15);
+    border-left-color: rgba(102, 126, 234, 0.6);
+}
+
+/* Related Formulas Styles */
+.related-formulas-container {
+    margin-top: 30px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: rgba(10, 14, 39, 0.85);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: none;
+}
+
+.related-formulas-header {
+    margin-bottom: 15px;
+}
+
+.related-formulas-header h4 {
+    color: #667eea;
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.related-formulas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.relationship-group {
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+    border-left: 3px solid #667eea;
+}
+
+.relationship-type {
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.related-formulas-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.related-formula-item {
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.related-formula-item:hover {
+    background: rgba(102, 126, 234, 0.2);
+    border-color: #667eea;
+    transform: translateX(4px);
+}
+
+.related-formula-name {
+    display: block;
+    color: #a8c7ff;
+    font-weight: 500;
+    font-size: 0.95em;
+    margin-bottom: 4px;
+}
+
+.related-formula-preview {
+    display: block;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85em;
+    font-family: 'Courier New', monospace;
+}
+
+.reinforcement-badge {
+    display: inline-block;
+    background: rgba(102, 126, 234, 0.3);
+    color: #a8c7ff;
+    font-size: 0.7em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 500;
+}
+
+.related-formulas-header h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.related-formulas-header h4::after {
+    content: '🔗';
+    font-size: 0.8em;
+    opacity: 0.7;
+}
+
+/* Responsive search bar */
+@media (max-width: 768px) {
+    .formula-search-container {
+        padding: 0 10px;
+    }
+    
+    .formula-search-input {
+        font-size: 0.9em;
+        padding: 10px 40px 10px 12px;
+    }
+    
+    .clear-search-btn {
+        right: 20px;
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+    }
+}
+
 .formula-list {
     padding: 20px 0;
 }
@@ -88,6 +523,17 @@ header h1 {
     font-size: 1.5em;
     margin: 0;
     font-weight: 600;
+    display: inline-block;
+}
+
+.category-score {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.85em;
+    font-weight: 400;
+    margin-left: 15px;
+    padding: 4px 10px;
+    background: rgba(102, 126, 234, 0.2);
+    border-radius: 6px;
 }
 
 .formula-category {
@@ -98,14 +544,30 @@ header h1 {
 }
 
 .formula-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border: 2px solid #e0e0e0;
+    background: rgba(10, 14, 39, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 16px;
     padding: 24px;
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
+    backdrop-filter: blur(10px);
+    color: white;
+}
+
+.formula-score-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(102, 126, 234, 0.3);
+    color: #a8c7ff;
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 0.85em;
+    font-weight: 600;
+    border: 1px solid rgba(102, 126, 234, 0.5);
+    z-index: 10;
 }
 
 .formula-card::before {
@@ -118,6 +580,8 @@ header h1 {
     background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
     transform: scaleX(0);
     transition: transform 0.3s ease;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .formula-card:hover::before {
@@ -167,19 +631,19 @@ header h1 {
 
 .formula-card .formula-preview {
     font-family: 'Courier New', monospace;
-    background: white;
+    background: rgba(255, 255, 255, 0.1);
     padding: 14px;
     border-radius: 8px;
     margin: 12px 0;
     font-size: 1.15em;
     text-align: center;
-    color: #333;
-    border: 1px solid #e0e0e0;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     font-weight: 500;
 }
 
 .formula-card .description {
-    color: #666;
+    color: rgba(255, 255, 255, 0.9);
     font-size: 0.95em;
     margin: 12px 0;
     line-height: 1.5;
@@ -188,9 +652,9 @@ header h1 {
 .formula-variables {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
     font-size: 0.9em;
-    color: #555;
+    color: rgba(255, 255, 255, 0.8);
 }
 
 .formula-variables strong {
@@ -210,24 +674,90 @@ header h1 {
     font-weight: 500;
 }
 
+.calculator-instructions {
+    background: rgba(10, 14, 39, 0.85);
+    border: 2px solid rgba(139, 179, 255, 0.5);
+    border-radius: 12px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95em;
+    line-height: 1.6;
+    backdrop-filter: blur(10px);
+}
+
+.calculator-instructions strong {
+    color: #8bb3ff;
+}
+
+.global-constants-info {
+    background: rgba(10, 14, 39, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    backdrop-filter: blur(10px);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.global-constants-info summary {
+    cursor: pointer;
+    color: #8bb3ff;
+    font-weight: 600;
+    user-select: none;
+    padding: 5px 0;
+}
+
+.global-constants-info summary:hover {
+    color: #a8c7ff;
+}
+
+.global-constants-info details[open] summary {
+    margin-bottom: 10px;
+}
+
+.constants-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.constant-item-global {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.9);
+    border-left: 3px solid #8bb3ff;
+}
+
+.constant-item-global strong {
+    color: #8bb3ff;
+    margin-right: 5px;
+}
+
 .formula-display {
-    background: #f8f9fa;
+    background: rgba(10, 14, 39, 0.85);
     padding: 20px;
     border-radius: 12px;
     margin-bottom: 25px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .formula-display #formula-equation {
     font-family: 'Courier New', monospace;
     font-size: 1.5em;
     text-align: center;
-    color: #667eea;
+    color: #8bb3ff;
     font-weight: bold;
     margin-bottom: 10px;
 }
 
 .formula-display .description {
-    color: #666;
+    color: rgba(255, 255, 255, 0.9);
     font-size: 1em;
     text-align: center;
 }
@@ -294,11 +824,138 @@ header h1 {
     margin-top: 3px;
 }
 
+.variable-main-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.solve-hint {
+    font-size: 0.85em;
+    color: #999;
+    font-weight: normal;
+    font-style: italic;
+    margin-left: auto;
+    display: none;
+}
+
+.solve-hint.will-solve {
+    color: #667eea;
+    font-weight: 600;
+    font-style: normal;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
 .variable-input .var-description {
     color: #888;
     font-size: 0.85em;
     margin-top: 5px;
     font-style: italic;
+}
+
+.na-option {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e0e0e0;
+}
+
+.na-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #666;
+    user-select: none;
+}
+
+.na-checkbox-label:hover {
+    color: #667eea;
+}
+
+.na-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #667eea;
+}
+
+.symbolic-result {
+    font-size: 1.3em;
+    color: #8bb3ff;
+    padding: 15px;
+    background: rgba(139, 179, 255, 0.1);
+    border-radius: 8px;
+    border: 2px solid rgba(139, 179, 255, 0.5);
+    text-align: center;
+    margin: 15px 0;
+}
+
+.math-display {
+    font-size: 1.2em;
+    line-height: 1.6;
+}
+
+.formula-preview.math-display {
+    font-size: 1.15em;
+    padding: 14px;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.system-of-equations {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin: 15px 0;
+}
+
+.equation-item {
+    padding: 15px;
+    background: rgba(139, 179, 255, 0.1);
+    border-radius: 8px;
+    border: 2px solid rgba(139, 179, 255, 0.5);
+}
+
+.equation-item .result-value {
+    margin-bottom: 8px;
+}
+
+.equation-item .result-unit {
+    font-size: 0.9em;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+}
+
+.symbolic-note {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255, 200, 100, 0.2);
+    border-left: 4px solid #ffa500;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+
+.symbolic-note p {
+    margin: 5px 0;
+}
+
+.symbolic-note strong {
+    color: #ffa500;
 }
 
 .variable-main-label {
@@ -586,10 +1243,11 @@ header h1 {
 }
 
 .graph-container {
-    background: white;
+    background: rgba(10, 14, 39, 0.85);
     border-radius: 12px;
     padding: 20px;
     margin-top: 20px;
+    backdrop-filter: blur(10px);
 }
 
 .graph-header {
@@ -886,6 +1544,200 @@ header h1 {
     margin-right: 5px;
 }
 
+/* Graph Interpretation Styles */
+.graph-interpretation-container {
+    padding: 20px 0;
+}
+
+.graph-interpretation-header {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.graph-interpretation-header h3 {
+    color: #8bb3ff;
+    font-size: 1.8em;
+    margin: 0 0 10px 0;
+}
+
+.graph-interpretation-subtitle {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1em;
+    margin: 0;
+}
+
+.graph-interpretation-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+.graph-interpretation-graph-section {
+    background: rgba(10, 14, 39, 0.9);
+    border-radius: 16px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(139, 179, 255, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.graph-interpretation-graph-section .graph-header h4 {
+    color: #8bb3ff;
+    font-size: 1.4em;
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.graph-interpretation-graph-section .graph-description {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.95em;
+    margin: 0 0 20px 0;
+    line-height: 1.6;
+}
+
+.graph-interpretation-graph-section .desmos-graph {
+    min-height: 400px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(139, 179, 255, 0.2);
+}
+
+.graph-interpretation-content {
+    max-width: 100%;
+}
+
+.interpretation-section {
+    background: rgba(10, 14, 39, 0.9);
+    border-radius: 16px;
+    padding: 35px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(139, 179, 255, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.interpretation-section h4 {
+    color: #8bb3ff;
+    font-size: 1.8em;
+    margin: 0 0 25px 0;
+    padding-bottom: 15px;
+    border-bottom: 2px solid rgba(139, 179, 255, 0.5);
+    font-weight: 600;
+}
+
+.formula-display-interpretation {
+    background: rgba(139, 179, 255, 0.15);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    border-left: 5px solid #8bb3ff;
+    font-size: 1.2em;
+    color: rgba(255, 255, 255, 0.95);
+    line-height: 1.8;
+}
+
+.formula-display-interpretation strong {
+    color: #8bb3ff;
+    font-size: 1.1em;
+    margin-right: 10px;
+}
+
+.interpretation-guide,
+.interpretation-formula-specific,
+.interpretation-tips {
+    background: rgba(139, 179, 255, 0.1);
+    padding: 25px;
+    border-radius: 12px;
+    margin-bottom: 25px;
+    border: 1px solid rgba(139, 179, 255, 0.3);
+    backdrop-filter: blur(5px);
+}
+
+.interpretation-guide h5,
+.interpretation-formula-specific h5,
+.interpretation-tips h5 {
+    color: #8bb3ff;
+    font-size: 1.4em;
+    margin: 0 0 20px 0;
+    font-weight: 600;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(139, 179, 255, 0.3);
+}
+
+.interpretation-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.interpretation-list li {
+    padding: 16px 0;
+    padding-left: 35px;
+    position: relative;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.8;
+    font-size: 1.05em;
+    border-bottom: 1px solid rgba(139, 179, 255, 0.15);
+    transition: background-color 0.2s;
+}
+
+.interpretation-list li:hover {
+    background-color: rgba(139, 179, 255, 0.05);
+    border-radius: 6px;
+    padding-left: 40px;
+    margin: 0 -10px;
+    padding-left: 45px;
+}
+
+.interpretation-list li:last-child {
+    border-bottom: none;
+}
+
+.interpretation-list li::before {
+    content: "▸";
+    position: absolute;
+    left: 10px;
+    color: #8bb3ff;
+    font-weight: bold;
+    font-size: 1.2em;
+}
+
+.interpretation-list li strong {
+    color: #a8c7ff;
+    font-weight: 600;
+    display: inline-block;
+    min-width: 100px;
+}
+
+.interpretation-formula-specific p {
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.9;
+    margin: 0 0 15px 0;
+    font-size: 1.05em;
+}
+
+.interpretation-formula-specific ul {
+    margin: 15px 0 0 0;
+    padding-left: 0;
+}
+
+.interpretation-formula-specific ul li {
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.8;
+    margin-bottom: 10px;
+}
+
+.interpretation-formula-specific h6 {
+    color: #a8c7ff;
+    font-size: 1.2em;
+    margin: 20px 0 12px 0;
+    font-weight: 600;
+    padding-top: 15px;
+    border-top: 1px solid rgba(139, 179, 255, 0.2);
+}
+
 /* Responsive design for classification tab */
 @media (max-width: 768px) {
     .classification-container {
@@ -899,6 +1751,56 @@ header h1 {
     
     .classification-value {
         font-size: 2em;
+    }
+    
+    .graph-interpretation-layout {
+        grid-template-columns: 1fr;
+        gap: 20px;
+        padding: 0 15px;
+    }
+    
+    .graph-interpretation-graph-section {
+        padding: 20px;
+    }
+    
+    .graph-interpretation-graph-section .desmos-graph {
+        min-height: 300px;
+    }
+    
+    .graph-interpretation-content {
+        padding: 0;
+    }
+    
+    .interpretation-section {
+        padding: 20px;
+    }
+    
+    .interpretation-section h4 {
+        font-size: 1.5em;
+    }
+    
+    .interpretation-guide h5,
+    .interpretation-formula-specific h5,
+    .interpretation-tips h5 {
+        font-size: 1.2em;
+    }
+    
+    .interpretation-list li {
+        font-size: 1em;
+        padding: 14px 0;
+        padding-left: 30px;
+    }
+    
+    .formula-display-interpretation {
+        font-size: 1.1em;
+        padding: 15px;
+    }
+    
+    .interpretation-formula-specific h6 {
+        font-size: 1.1em;
+        color: #a8c7ff;
+        margin: 15px 0 10px 0;
+        font-weight: 600;
     }
 }
 

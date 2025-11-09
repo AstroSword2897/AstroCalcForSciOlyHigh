@@ -1,30 +1,64 @@
-// Graph Manager for Desmos Integration
+/**
+ * ============================================================
+ *  🚀 GraphManager — Optimized Desmos Integration for Astronomy
+ * ============================================================
+ * 
+ * Author: BC (v2.1, 2025) - Adapted for AstroCalc
+ * 
+ * PURPOSE:
+ *  A modular, efficient, and extensible class that:
+ *   - Dynamically graphs physics/astronomy formulas in Desmos
+ *   - Provides real-time updates when variables change
+ *   - Automatically determines graph type (linear, inverse-square, etc.)
+ *   - Supports caching, scaling, and fallback visualizations
+ * 
+ * DEPENDENCIES:
+ *   Requires Desmos GraphingCalculator to be globally available.
+ *   Requires `globalConstants` for physics constants (G, c, σ, etc.)
+ */
 
 class GraphManager {
-    constructor() {
+    /**
+     * @param {string} containerId - ID of the div where the graph should be rendered.
+     * @param {string} tabId - ID of the tab containing the graph.
+     */
+    constructor(containerId = 'desmos-graph', tabId = 'graph-tab') {
         this.calculator = null;
+        this.containerId = containerId;
+        this.tabId = tabId;
+
         this.currentFormula = null;
         this.currentValues = {};
+        this.cache = new Map(); // cache for repeated plots
+
+        // Used to prevent redundant graph updates
+        this.lastRenderedKey = null;
     }
 
-    // Initialize Desmos calculator
-    init(containerId = 'desmos-graph') {
-        // Check if Desmos is loaded
-        if (typeof Desmos === 'undefined') {
-            console.error('Desmos API not loaded. Please check the script tag in index.html');
-            return false;
-        }
-        
-        const elt = document.getElementById(containerId);
+    /**
+     * Initializes Desmos graph safely.
+     * Called automatically when first graphing.
+     */
+    init(containerId = null) {
+        if (this.calculator) return true;
+
+        const targetContainerId = containerId || this.containerId || 'desmos-graph';
+        const elt = document.getElementById(targetContainerId);
         if (!elt) {
-            console.error('Graph container not found:', containerId);
+            console.warn(`Graph container ${targetContainerId} not found.`);
             return false;
         }
 
-        // Check if container is visible (not in hidden tab)
-        const tab = elt.closest('.tab-content');
-        if (tab && !tab.classList.contains('active')) {
-            console.warn('Graph container is in hidden tab, initialization may fail');
+        if (typeof Desmos === 'undefined') {
+            console.error("Desmos library not loaded.");
+            return false;
+        }
+
+        // Check if container has dimensions
+        if (elt.offsetWidth === 0 || elt.offsetHeight === 0) {
+            console.warn('Graph container has no dimensions, waiting...');
+            setTimeout(() => this.init(targetContainerId), 200);
+            return false;
         }
 
         // If calculator already exists, destroy it first
@@ -37,6 +71,13 @@ class GraphManager {
             this.calculator = null;
         }
 
+        // Clear any existing content (but preserve message overlays)
+        const existingMessage = elt.querySelector('.graph-message');
+        elt.innerHTML = '';
+        if (existingMessage) {
+            elt.appendChild(existingMessage);
+        }
+
         try {
             this.calculator = Desmos.GraphingCalculator(elt, {
                 keypad: false,
@@ -46,32 +87,73 @@ class GraphManager {
                 showGrid: true,
                 xAxisLabel: 'x',
                 yAxisLabel: 'y',
-                xAxisStep: 1,
-                yAxisStep: 1
+                fontSize: 14
             });
-            console.log('Desmos calculator initialized successfully');
+
+            console.log('[GraphManager] Desmos initialized.');
+
+            // If we have a stored formula, update the graph
+            if (this.currentFormula) {
+                setTimeout(() => {
+                    this.updateGraph(this.currentFormula, this.currentValues);
+                }, 100);
+            }
+
             return true;
         } catch (error) {
             console.error('Error initializing Desmos calculator:', error);
+            elt.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Error initializing graph: ' + error.message + '</p><p style="font-size: 0.9em; color: #999;">Please refresh the page.</p></div>';
             return false;
         }
     }
 
-    // Update graph based on formula and current values
-    updateGraph(formula, variableValues) {
-        // Check if we're in the graph tab
-        const graphTab = document.getElementById('graph-tab');
-        if (!graphTab || !graphTab.classList.contains('active')) {
-            // Graph tab not active, don't update
+    /**
+     * Main entry point to update or re-render a graph.
+     * @param {Object} formula - Formula object with id, equation, variables, etc.
+     * @param {Object} variableValues - Dictionary of variable:value pairs.
+     */
+    updateGraph(formula, variableValues = {}) {
+        // Always store the formula and values, even if tab isn't active
+        this.currentFormula = formula;
+        this.currentValues = { ...variableValues };
+
+        // Get constants from formula
+        const constants = formula.constants || {};
+        
+        // Filter out constants from variables list for finding null variable
+        const constantSymbols = new Set(Object.keys(constants));
+        const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
+
+        // Check if we have any values entered (do this early)
+        const hasAnyValues = userVariables.some(v => {
+            const val = variableValues[v.symbol];
+            return val && val !== null && val !== '' && val !== 'null' && val !== 'N/A' && val !== 'n/a' && val !== 'na';
+        });
+
+        // Check if we're in the correct tab
+        const targetTab = document.getElementById(this.tabId || 'graph-tab');
+        const isTabActive = targetTab && targetTab.classList.contains('active');
+        const container = document.getElementById(this.containerId || 'desmos-graph');
+        
+        // If tab is not active, still show message if no values
+        if (!isTabActive) {
+            if (!hasAnyValues && container) {
+                this.showPlainTextMessage(formula, container);
+            }
             return;
         }
 
+        // Create cache key
+        const key = `${formula.id}-${JSON.stringify(variableValues)}`;
+        if (this.lastRenderedKey === key && this.calculator) {
+            return; // skip redundant renders
+        }
+        this.lastRenderedKey = key;
+
+        // Ensure calculator is initialized
         if (!this.calculator) {
-            // Try to initialize
             const initialized = this.init();
             if (!initialized) {
-                // Show error message if Desmos failed to load
-                const container = document.getElementById('desmos-graph');
                 if (container && !container.querySelector('.desmos-calculator')) {
                     container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: #999;">If the problem persists, check your internet connection.</p></div>';
                 }
@@ -83,29 +165,25 @@ class GraphManager {
             return;
         }
 
-        this.currentFormula = formula;
-        this.currentValues = { ...variableValues };
+        // Remove message overlay if it exists
+        if (container) {
+            const messageDiv = container.querySelector('.graph-message');
+            if (messageDiv) {
+                messageDiv.remove();
+            }
+        }
 
         // Clear existing expressions
         this.calculator.setExpressions([]);
 
-        // Get constants from formula
-        const constants = formula.constants || {};
-        
-        // Merge constants into variableValues for graphing
-        const allValues = { ...variableValues, ...constants };
-
-        // Filter out constants from variables list for finding null variable
-        const constantSymbols = new Set(Object.keys(constants));
-        const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
+        // Merge global constants, formula constants, and variable values for graphing
+        const allValues = { ...globalConstants, ...constants, ...variableValues };
 
         // Determine which variable to graph (the one that's null/unknown)
-        const nullVar = userVariables.find(v => 
-            !variableValues[v.symbol] || 
-            variableValues[v.symbol] === null || 
-            variableValues[v.symbol] === '' ||
-            variableValues[v.symbol] === 'null'
-        );
+        const nullVar = userVariables.find(v => {
+            const val = variableValues[v.symbol];
+            return !val || val === null || val === '' || val === 'null' || val === 'N/A' || val === 'n/a' || val === 'na';
+        });
 
         if (!nullVar) {
             // All variables filled, show relationship
@@ -113,469 +191,207 @@ class GraphManager {
             return;
         }
 
+        if (!hasAnyValues) {
+            // No values entered yet, show helpful message as plain HTML
+            this.showPlainTextMessage(formula, container);
+            return;
+        }
+
+        // Check cache
+        if (this.cache.has(key)) {
+            const cached = this.cache.get(key);
+            this.calculator.setExpressions(cached.expressions);
+            if (cached.bounds) {
+                this.calculator.setMathBounds(cached.bounds);
+            }
+            return;
+        }
+
         // Graph the relationship for the unknown variable
-        this.graphFormula(formula, nullVar, allValues);
+        const graphData = this.createGraphExpression(formula, nullVar, allValues);
+        if (!graphData || !graphData.expressions || graphData.expressions.length === 0) {
+            this.showPlainTextMessage(formula, container, "Graph not available for this formula.");
+            return;
+        }
+
+        this.renderGraph(graphData.expressions, graphData.bounds);
+        this.cache.set(key, { expressions: graphData.expressions, bounds: graphData.bounds });
     }
 
-    // Show relationship between variables
-    showRelationship(formula, variableValues) {
-        // For now, show a simple 2D relationship if possible
-        // This is formula-specific
-        const formulaId = formula.id;
+    /**
+     * Shows a plain text message overlay (not LaTeX)
+     */
+    showPlainTextMessage(formula, container, customMessage = null) {
+        if (!container) return;
         
-        // Try to create a parametric or explicit relationship
-        if (formula.variables.length === 2) {
-            this.graphTwoVariableRelationship(formula, variableValues);
-        } else if (formula.variables.length === 3) {
-            this.graphThreeVariableRelationship(formula, variableValues);
-        }
-    }
-
-    // Graph formula with one unknown variable
-    graphFormula(formula, unknownVar, knownVars) {
-        const formulaId = formula.id;
-        const expressions = [];
-
-        // Create a graph expression based on the formula
-        // This is simplified - we'll show the relationship
-        try {
-            const graphExpr = this.createGraphExpression(formula, unknownVar, knownVars);
-            if (graphExpr) {
-                // Set axis labels based on variables
-                const xLabel = unknownVar.name || unknownVar.symbol || 'x';
-                const yLabel = this.getYAxisLabel(formula, unknownVar);
-                
-                this.calculator.setExpressions([graphExpr]);
-                
-                // Update axis labels
-                if (this.calculator.setAxisLabel) {
-                    this.calculator.setAxisLabel(1, xLabel);
-                    this.calculator.setAxisLabel(2, yLabel);
-                }
-                
-                // Set appropriate bounds
-                const bounds = {
-                    left: graphExpr.xMin || -10,
-                    right: graphExpr.xMax || 10,
-                    bottom: graphExpr.yMin || -10,
-                    top: graphExpr.yMax || 10
-                };
-                
-                this.calculator.setMathBounds(bounds);
-            }
-        } catch (e) {
-            console.error('Error creating graph:', e);
-            this.calculator.setExpressions([{
-                id: 'error',
-                latex: 'y = \\text{Graph not available for this formula}'
-            }]);
-        }
-    }
-
-    // Create graph expression for a formula
-    createGraphExpression(formula, unknownVar, knownVars) {
-        const formulaId = formula.id;
-        const symbol = unknownVar.symbol;
-
-        // Convert known values to numbers
-        const numericVars = {};
-        for (const [key, value] of Object.entries(knownVars)) {
-            if (value !== null && value !== '' && value !== 'null') {
-                try {
-                    numericVars[key] = typeof value === 'number' ? value : parseFloat(value);
-                } catch (e) {
-                    // Skip invalid values
-                }
-            }
-        }
-
-        // Create expression based on formula type
-        switch (formulaId) {
-            case 'angular_size':
-                // θ = d / D
-                if (symbol === 'θ') {
-                    return {
-                        id: 'graph',
-                        latex: `y = ${numericVars.d || 'd'} / ${numericVars.D || 'x'}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 100,
-                        yMin: 0,
-                        yMax: 10
-                    };
-                } else if (symbol === 'd') {
-                    return {
-                        id: 'graph',
-                        latex: `y = x * ${numericVars.D || 'D'}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0,
-                        xMax: 10,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'orbital_velocity':
-                // v = √(GM/r)
-                if (symbol === 'v') {
-                    const G = numericVars.G || 6.67430e-11;
-                    const M = numericVars.M || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt{${G * M} / x}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 1000,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'escape_velocity':
-                // v_esc = √(2GM/r)
-                if (symbol === 'v_esc') {
-                    const G = numericVars.G || 6.67430e-11;
-                    const M = numericVars.M || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt{${2 * G * M} / x}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 1000,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'distance_modulus':
-                // m - M = 5 log₁₀(d) - 5
-                if (symbol === 'm' || symbol === 'M' || symbol === 'd') {
-                    const m = numericVars.m;
-                    const M = numericVars.M;
-                    const d = numericVars.d;
-                    
-                    if (symbol === 'd') {
-                        return {
-                            id: 'graph',
-                            latex: `y = 10^{\\frac{${m || 'm'} - ${M || 'M'} + 5}{5}}`,
-                            color: Desmos.Colors.BLUE,
-                            xMin: 0,
-                            xMax: 10,
-                            yMin: 0,
-                            yMax: 1000
-                        };
-                    }
-                }
-                break;
-
-            case 'hubble_law':
-                // v = H₀ × d
-                if (symbol === 'v' || symbol === 'd') {
-                    const H0 = numericVars['H₀'] || numericVars.H0 || 70;
-                    if (symbol === 'v') {
-                        return {
-                            id: 'graph',
-                            latex: `y = ${H0} * x`,
-                            color: Desmos.Colors.BLUE,
-                            xMin: 0,
-                            xMax: 100,
-                            yMin: 0,
-                            yMax: 10000
-                        };
-                    }
-                }
-                break;
-
-            case 'wiens_law':
-                // λmax = b / T
-                if (symbol === 'λmax' || symbol === 'T') {
-                    const b = numericVars.b || 2.898e-3;
-                    if (symbol === 'λmax') {
-                        return {
-                            id: 'graph',
-                            latex: `y = ${b} / x`,
-                            color: Desmos.Colors.BLUE,
-                            xMin: 100,
-                            xMax: 10000,
-                            yMin: 0,
-                            yMax: 0.01
-                        };
-                    }
-                }
-                break;
-
-            case 'rotational_velocity':
-                // v = (2πR) / P_rot
-                if (symbol === 'v') {
-                    const R = numericVars.R || 1;
-                    const Prot = numericVars.P_rot || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = ${2 * Math.PI * R} / x`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 100,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'flux_from_luminosity':
-                // F = L / (4πd²)
-                if (symbol === 'F') {
-                    const L = numericVars.L || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = ${L} / (4\\pi x^2)`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 100,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                } else if (symbol === 'd') {
-                    const L = numericVars.L || 1;
-                    const F = numericVars.F || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt{${L} / (4\\pi x)}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 100,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'kepler_third_law':
-                // T² = (4π²/GM) × a³
-                if (symbol === 'T') {
-                    const G = numericVars.G || 6.67430e-11;
-                    const M = numericVars.M || 1;
-                    const factor = 4 * Math.PI * Math.PI / (G * M);
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt{${factor} x^3}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 1000,
-                        yMin: 0,
-                        yMax: 10000
-                    };
-                } else if (symbol === 'a') {
-                    const G = numericVars.G || 6.67430e-11;
-                    const M = numericVars.M || 1;
-                    const T = numericVars.T || 1;
-                    const factor = 4 * Math.PI * Math.PI / (G * M);
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt[3]{x^2 / ${factor}}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 10000,
-                        yMin: 0,
-                        yMax: 1000
-                    };
-                }
-                break;
-
-            case 'inverse_square_law_brightness':
-                // B = L / (4πd²)
-                if (symbol === 'B') {
-                    const L = numericVars.L || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = ${L} / (4\\pi x^2)`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.1,
-                        xMax: 100,
-                        yMin: 0,
-                        yMax: 100
-                    };
-                }
-                break;
-
-            case 'flux_temperature':
-                // F = σT⁴
-                if (symbol === 'F') {
-                    const sigma = numericVars.σ || numericVars.sigma || 5.670e-8;
-                    return {
-                        id: 'graph',
-                        latex: `y = ${sigma} x^4`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0,
-                        xMax: 10000,
-                        yMin: 0,
-                        yMax: 1000000
-                    };
-                } else if (symbol === 'T') {
-                    const sigma = numericVars.σ || numericVars.sigma || 5.670e-8;
-                    const F = numericVars.F || 1;
-                    return {
-                        id: 'graph',
-                        latex: `y = \\sqrt[4]{x / ${sigma}}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0,
-                        xMax: 1000000,
-                        yMin: 0,
-                        yMax: 10000
-                    };
-                }
-                break;
-
-            case 'doppler_shift':
-                // Δλ/λ = v/c
-                if (symbol === 'Δλ' || symbol === 'dlambda') {
-                    const lambda = numericVars.λ || numericVars.lambda || 1;
-                    const v = numericVars.v || 0;
-                    const c = numericVars.c || 2.998e8;
-                    return {
-                        id: 'graph',
-                        latex: `y = ${lambda} * (x / ${c})`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: -c,
-                        xMax: c,
-                        yMin: -lambda,
-                        yMax: lambda
-                    };
-                }
-                break;
-
-            case 'schwarzschild_radius':
-                // r_s = 2GM/c²
-                if (symbol === 'r_s' || symbol === 'rs') {
-                    const G = numericVars.G || 6.67430e-11;
-                    const c = numericVars.c || 2.998e8;
-                    const factor = 2 * G / (c * c);
-                    return {
-                        id: 'graph',
-                        latex: `y = ${factor} x`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0,
-                        xMax: 1e30,
-                        yMin: 0,
-                        yMax: 1e5
-                    };
-                }
-                break;
-
-            case 'parallax_distance_radians':
-            case 'parallax_distance_arcsec':
-                // d = 1/p
-                if (symbol === 'd') {
-                    return {
-                        id: 'graph',
-                        latex: `y = 1 / x`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0.001,
-                        xMax: 1,
-                        yMin: 1,
-                        yMax: 1000
-                    };
-                }
-                break;
-
-            case 'luminosity':
-                // L = 4πR²σT⁴
-                if (symbol === 'L') {
-                    const R = numericVars.R || 1;
-                    const sigma = numericVars.σ || numericVars.sigma || 5.670e-8;
-                    const T = numericVars.T || 1;
-                    const factor = 4 * Math.PI * R * R * sigma * Math.pow(T, 4);
-                    return {
-                        id: 'graph',
-                        latex: `y = ${factor}`,
-                        color: Desmos.Colors.BLUE,
-                        xMin: 0,
-                        xMax: 10,
-                        yMin: 0,
-                        yMax: factor * 2
-                    };
-                }
-                break;
-
-            default:
-                // Try to create a generic graph based on formula structure
-                return this.createGenericGraph(formula, unknownVar, numericVars);
-        }
-
-        return null;
-    }
-
-    // Create a generic graph expression when no specific handler exists
-    createGenericGraph(formula, unknownVar, numericVars) {
-        // Show informative message
-        return {
-            id: 'info',
-            latex: `\\text{Graph: } ${formula.equation}`,
-            color: Desmos.Colors.GRAY
-        };
-    }
-
-    // Graph two-variable relationship
-    graphTwoVariableRelationship(formula, variableValues) {
-        // Simple linear or inverse relationships
-        const vars = formula.variables;
-        if (vars.length === 2) {
-            const var1 = vars[0];
-            const var2 = vars[1];
-            const val1 = variableValues[var1.symbol];
-            const val2 = variableValues[var2.symbol];
-
-            if (val1 && val2) {
-                // Show point
-                this.calculator.setExpressions([{
-                    id: 'point',
-                    latex: `(${val1}, ${val2})`,
-                    color: Desmos.Colors.RED,
-                    pointStyle: Desmos.Styles.POINT,
-                    pointSize: 10
-                }]);
-            }
-        }
-    }
-
-    // Graph three-variable relationship
-    graphThreeVariableRelationship(formula, variableValues) {
-        // For 3+ variables, show a parametric or surface plot if possible
-        // This is more complex and formula-specific
-        this.calculator.setExpressions([{
-            id: 'info',
-            latex: '\\text{Enter values in Calculator tab to see relationship}'
-        }]);
-    }
-
-    // Clear graph
-    clear() {
+        // Clear the calculator and show plain text message
         if (this.calculator) {
             this.calculator.setExpressions([]);
         }
+        
+        // Add a message overlay
+        let messageDiv = container.querySelector('.graph-message');
+        if (!messageDiv) {
+            messageDiv = document.createElement('div');
+            messageDiv.className = 'graph-message';
+            messageDiv.style.cssText = 'position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #333; background: rgba(255,255,255,0.9); padding: 20px; border-radius: 8px; z-index: 1000; max-width: 80%;';
+            container.style.position = 'relative';
+            container.appendChild(messageDiv);
+        }
+        
+        const message = customMessage || "Enter values in the Calculator tab to see the graph";
+        messageDiv.innerHTML = `
+            <h4 style="margin: 0 0 10px 0; color: #0066cc;">Formula: ${formula.equation}</h4>
+            <p style="margin: 0; color: #666;">${message}</p>
+        `;
     }
 
-    // Get appropriate y-axis label based on formula and unknown variable
-    getYAxisLabel(formula, unknownVar) {
-        // Try to find the result variable name
-        const resultVar = formula.variables.find(v => v.symbol === unknownVar.symbol);
-        if (resultVar) {
-            return resultVar.name || resultVar.symbol;
+    /**
+     * Renders the graph using Desmos.
+     * @param {Array} expressions - Array of Desmos expression objects
+     * @param {Object} bounds - Optional bounds object {left, right, bottom, top}
+     */
+    renderGraph(expressions, bounds = null) {
+        if (!this.calculator) return;
+        this.calculator.setExpressions(expressions);
+        // Set bounds if provided
+        if (bounds) {
+            this.calculator.setMathBounds(bounds);
         }
-        return 'Value';
     }
 
-    // Destroy calculator instance
-    destroy() {
-        if (this.calculator) {
-            this.calculator.destroy();
-            this.calculator = null;
+    /**
+     * Show relationship when all variables are filled
+     */
+    showRelationship(formula, variableValues) {
+        // This can be extended to show relationships between variables
+        // For now, just show a message
+        const container = document.getElementById(this.containerId || 'desmos-graph');
+        if (container) {
+            const messageDiv = container.querySelector('.graph-message');
+            if (messageDiv) {
+                messageDiv.remove();
+            }
         }
+        // Could implement relationship visualization here
+    }
+
+    /**
+     * Creates a Desmos expression for a known formula.
+     * Returns object with expressions array and optional bounds.
+     */
+    createGraphExpression(formula, unknownVar, allValues) {
+        const formulaId = formula.id;
+        const G = globalConstants?.G || 6.6743e-11;
+        const σ = globalConstants?.σ || 5.670374419e-8;
+        const c = globalConstants?.c || 299792458;
+        const π = Math.PI;
+        const h = globalConstants?.h || 6.62607015e-34;
+        const k = globalConstants?.k || 1.380649e-23;
+
+        // Get the unknown variable symbol
+        const unknownSymbol = unknownVar.symbol;
+        const unknownName = unknownVar.name || unknownSymbol;
+
+        // Create a generic graph based on the formula equation
+        // Convert the formula to a Desmos expression
+        try {
+            const expression = this.convertFormulaToDesmos(formula, unknownVar, allValues);
+            if (expression) {
+                return {
+                    expressions: [expression],
+                    bounds: this.calculateBounds(formula, unknownVar, allValues)
+                };
+            }
+        } catch (e) {
+            console.error('Error creating graph expression:', e);
+        }
+
+        // Fall back to generic graph
+        return this.createGenericGraph(formula, unknownVar, allValues);
+    }
+
+    /**
+     * Converts a formula equation to a Desmos LaTeX expression
+     */
+    convertFormulaToDesmos(formula, unknownVar, allValues) {
+        const unknownSymbol = unknownVar.symbol;
+        const equation = formula.equation;
+        
+        // Replace known variables with their values
+        let desmosExpr = equation;
+        for (const [key, value] of Object.entries(allValues)) {
+            if (key !== unknownSymbol && value !== null && value !== undefined) {
+                // Replace variable in equation (handle subscripts, etc.)
+                const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                desmosExpr = desmosExpr.replace(regex, value);
+            }
+        }
+        
+        // Replace unknown variable with 'x' for Desmos
+        const regex = new RegExp(`\\b${unknownSymbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+        desmosExpr = desmosExpr.replace(regex, 'x');
+        
+        // Replace result variable with 'y'
+        // Find the variable on the left side of the equation
+        const leftSide = equation.split('=')[0].trim();
+        const resultVar = leftSide.split(/[+\-*/=()]/)[0].trim();
+        if (resultVar === unknownSymbol) {
+            desmosExpr = desmosExpr.replace(new RegExp(`\\b${resultVar}\\b`, 'g'), 'y');
+        } else {
+            // If unknown is on right side, swap to y = ...
+            desmosExpr = `y = ${desmosExpr.split('=')[1]}`;
+        }
+        
+        // Convert Unicode symbols to LaTeX
+        desmosExpr = desmosExpr
+            .replace(/π/g, '\\pi')
+            .replace(/σ/g, '\\sigma')
+            .replace(/×/g, '*')
+            .replace(/²/g, '^2')
+            .replace(/³/g, '^3')
+            .replace(/⁴/g, '^4')
+            .replace(/⁵/g, '^5')
+            .replace(/√/g, '\\sqrt');
+        
+        return {
+            id: 'formula-graph',
+            latex: desmosExpr,
+            color: Desmos.Colors.BLUE
+        };
+    }
+
+    /**
+     * Calculates appropriate bounds for the graph
+     */
+    calculateBounds(formula, unknownVar, allValues) {
+        // Default bounds - can be made smarter based on variable types
+        return {
+            left: -10,
+            right: 10,
+            bottom: -10,
+            top: 10
+        };
+    }
+
+    /**
+     * Creates a generic fallback graph for unsupported formulas.
+     */
+    createGenericGraph(formula, nullVar, allValues) {
+        // Try to create a simple graph showing the formula
+        try {
+            const expression = this.convertFormulaToDesmos(formula, nullVar, allValues);
+            if (expression && expression.latex) {
+                return {
+                    expressions: [expression],
+                    bounds: this.calculateBounds(formula, nullVar, allValues)
+                };
+            }
+        } catch (e) {
+            console.error('Error in generic graph creation:', e);
+        }
+        
+        // If all else fails, return empty to show message
+        return { expressions: [] };
     }
 }
-
-// Global instance
-let graphManager = null;
-

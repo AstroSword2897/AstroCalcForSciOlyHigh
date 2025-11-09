@@ -25,6 +25,10 @@
             
             <!-- Formulas Tab -->
             <div id="main-formulas-tab" class="main-tab-content active">
+                <div class="formula-search-container">
+                    <input type="text" id="formula-search" class="formula-search-input" placeholder="🔍 Search formulas or ask a question (e.g., 'how to calculate escape velocity', 'what is the distance to a star')...">
+                    <button id="clear-search" class="clear-search-btn" style="display: none;">✕</button>
+                </div>
                 <div id="formula-list" class="formula-list">
                     <!-- Formulas will be populated by JavaScript -->
                 </div>
@@ -142,12 +146,31 @@
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="calculator">Calculator</button>
                     <button class="tab-btn" data-tab="graph">Graph</button>
+                    <button class="tab-btn" data-tab="graph-interpretation">Graph Interpretation</button>
                     <button class="tab-btn" data-tab="classification">Classification</button>
                 </div>
             </div>
             
             <!-- Calculator Tab -->
             <div id="calculator-tab" class="tab-content active">
+                <div id="calculator-instructions" class="calculator-instructions">
+                    <p>💡 <strong>How to use:</strong> Enter values for all variables except one. Leave one variable empty (or type "null") to solve for it. The variable that will be solved is highlighted in blue.</p>
+                </div>
+                <div class="global-constants-info">
+                    <details>
+                        <summary>📐 Global Constants (automatically applied to all formulas)</summary>
+                        <div class="constants-grid">
+                            <div class="constant-item-global"><strong>G:</strong> 6.67430×10⁻¹¹ m³/(kg·s²)</div>
+                            <div class="constant-item-global"><strong>c:</strong> 2.998×10⁸ m/s</div>
+                            <div class="constant-item-global"><strong>σ:</strong> 5.670×10⁻⁸ W/(m²·K⁴)</div>
+                            <div class="constant-item-global"><strong>M☉:</strong> 1.989×10³⁰ kg</div>
+                            <div class="constant-item-global"><strong>L☉:</strong> 3.828×10²⁶ W</div>
+                            <div class="constant-item-global"><strong>R☉:</strong> 6.96×10⁸ m</div>
+                            <div class="constant-item-global"><strong>AU:</strong> 1.496×10¹¹ m</div>
+                            <div class="constant-item-global"><strong>π:</strong> 3.14159...</div>
+                        </div>
+                    </details>
+                </div>
                 <div class="formula-display">
                     <p id="formula-equation"></p>
                     <p id="formula-description" class="description"></p>
@@ -160,6 +183,9 @@
                     <button id="clear-btn" class="btn btn-secondary">Clear</button>
                 </div>
                 <div id="result-display" class="result-display"></div>
+                <div id="related-formulas-container" class="related-formulas-container">
+                    <!-- Related formulas will be populated by JavaScript -->
+                </div>
             </div>
             
             <!-- Graph Tab -->
@@ -172,6 +198,28 @@
                     <div id="desmos-graph" class="desmos-graph"></div>
                     <div class="graph-controls">
                         <p class="graph-note">💡 <strong>Tip:</strong> Leave one variable as "null" in the Calculator tab to see how it varies with the other variables.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Graph Interpretation Tab -->
+            <div id="graph-interpretation-tab" class="tab-content">
+                <div class="graph-interpretation-container">
+                    <div class="graph-interpretation-header">
+                        <h3>Graph Interpretation Guide</h3>
+                        <p class="graph-interpretation-subtitle">Interactive graph and interpretation guide for this formula</p>
+                    </div>
+                    <div class="graph-interpretation-layout">
+                        <div class="graph-interpretation-graph-section">
+                            <div class="graph-header">
+                                <h4>Interactive Formula Graph</h4>
+                                <p class="graph-description">Enter values in the Calculator tab to see the graph update. The graph shows how variables relate to each other.</p>
+                            </div>
+                            <div id="graph-interpretation-desmos" class="desmos-graph"></div>
+                        </div>
+                        <div id="graph-interpretation-content" class="graph-interpretation-content">
+                            <!-- Content will be populated by JavaScript based on current formula -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -265,6 +313,23 @@
         </div>
     </div>
 
+    <!-- MathJax for beautiful math rendering -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
     <!-- Desmos API -->
     <!-- Using demo key for development. For production, get your own API key from Desmos -->
     <!-- Replace the apiKey parameter below with your own key (contact info@desmos.com) -->
