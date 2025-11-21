@@ -2,7 +2,8 @@
 
 let currentFormula = null;
 let calculator = null;
-let graphManager = null; // Graph manager for the Graph tab
+let graphManager = null; // Graph manager for the Graph tab (Desmos or Offline)
+let offlineGraphManager = null; // Offline graph manager (Canvas-based)
 let graphInterpretationManager = null; // Graph manager for the Graph Interpretation tab
 let mainGraphManager = null; // Separate graph manager for main page Desmos tab
 let mainDesmosCalculator = null; // Standalone Desmos calculator for main page
@@ -693,11 +694,25 @@ var semanticSearchSystem = {
         let score = 0;
         const queryLower = query.toLowerCase();
         
+        // Ensure embeddings are initialized
+        if (!this.conceptEmbeddings || Object.keys(this.conceptEmbeddings).length === 0) {
+            // If embeddings not initialized, fall back to simple matching
+            if (formula.concepts) {
+                formula.concepts.forEach(concept => {
+                    const conceptLower = concept.toLowerCase();
+                    if (queryLower.includes(conceptLower) || conceptLower.includes(queryLower)) {
+                        score += 100; // Reduced score for fallback matching
+                    }
+                });
+            }
+            return score;
+        }
+        
         // Expand query with synonyms
         const expandedQuery = this.expandWithSynonyms(queryLower);
         
         // Check formula concepts against expanded query
-        if (formula.concepts) {
+        if (formula.concepts && Array.isArray(formula.concepts)) {
             formula.concepts.forEach(concept => {
                 const conceptLower = concept.toLowerCase();
                 
@@ -709,10 +724,17 @@ var semanticSearchSystem = {
                     const queryVector = this.buildQueryVector(queryLower);
                     const conceptVector = this.conceptEmbeddings[conceptLower];
                     
-                    if (conceptVector) {
-                        const similarity = this.cosineSimilarity(queryVector, conceptVector);
-                        if (similarity > 0.4) {
-                            score += similarity * 150; // Weighted by similarity
+                    if (conceptVector && typeof conceptVector === 'object') {
+                        try {
+                            const similarity = this.cosineSimilarity(queryVector, conceptVector);
+                            if (similarity > 0.4 && !isNaN(similarity)) {
+                                score += similarity * 150; // Weighted by similarity
+                            }
+                        } catch (e) {
+                            // Fallback to simple matching if similarity calculation fails
+                            if (queryLower.includes(conceptLower) || conceptLower.includes(queryLower)) {
+                                score += 50;
+                            }
                         }
                     }
                 }
@@ -720,7 +742,7 @@ var semanticSearchSystem = {
         }
         
         // Check formula keywords
-        if (formula.keywords) {
+        if (formula.keywords && Array.isArray(formula.keywords)) {
             formula.keywords.forEach(keyword => {
                 const keywordLower = keyword.toLowerCase();
                 
@@ -730,10 +752,17 @@ var semanticSearchSystem = {
                     const queryVector = this.buildQueryVector(queryLower);
                     const keywordVector = this.conceptEmbeddings[keywordLower];
                     
-                    if (keywordVector) {
-                        const similarity = this.cosineSimilarity(queryVector, keywordVector);
-                        if (similarity > 0.4) {
-                            score += similarity * 80;
+                    if (keywordVector && typeof keywordVector === 'object') {
+                        try {
+                            const similarity = this.cosineSimilarity(queryVector, keywordVector);
+                            if (similarity > 0.4 && !isNaN(similarity)) {
+                                score += similarity * 80;
+                            }
+                        } catch (e) {
+                            // Fallback to simple matching
+                            if (queryLower.includes(keywordLower) || keywordLower.includes(queryLower)) {
+                                score += 30;
+                            }
                         }
                     }
                 }
@@ -741,14 +770,16 @@ var semanticSearchSystem = {
         }
         
         // Check description with semantic matching
-        const descLower = formula.description.toLowerCase();
-        expandedQuery.forEach(expandedTerm => {
-            if (descLower.includes(expandedTerm)) {
-                score += 80;
-            }
-        });
+        if (formula.description) {
+            const descLower = formula.description.toLowerCase();
+            expandedQuery.forEach(expandedTerm => {
+                if (descLower.includes(expandedTerm)) {
+                    score += 80;
+                }
+            });
+        }
         
-        return score;
+        return Math.max(0, score); // Ensure non-negative
     }
 };
 
@@ -810,11 +841,17 @@ function setupSearchFunctionality() {
         console.log('=== filterAndRenderFormulas START ===');
         console.log('Search term:', searchTerm);
         
-        if (!searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
             // Show all formulas
             renderFormulaList();
             console.log('=== filterAndRenderFormulas END (empty search) ===');
             return;
+        }
+        
+        // Ensure allFormulas is populated
+        if (!allFormulas || allFormulas.length === 0) {
+            console.error('allFormulas is empty or undefined!');
+            allFormulas = [...formulas];
         }
         
         // Track usage for dynamic prioritization
@@ -822,8 +859,13 @@ function setupSearchFunctionality() {
             semanticSearchSystem.trackUsage(searchTerm);
         }
         
-        const searchLower = searchTerm.toLowerCase();
+        const searchLower = searchTerm.toLowerCase().trim();
         const searchWords = searchLower.split(/\s+/).filter(w => w.length > 0);
+        
+        if (searchWords.length === 0) {
+            renderFormulaList();
+            return;
+        }
         
         console.log('Searching through', allFormulas.length, 'formulas');
         
@@ -832,50 +874,92 @@ function setupSearchFunctionality() {
             const scoreData = calculateSearchScore(formula, searchLower, searchWords);
             
             // Add contextual semantic matching score
-            if (typeof semanticSearchSystem !== 'undefined') {
-                const semanticScore = semanticSearchSystem.semanticMatch(searchTerm, formula);
-                scoreData.score += semanticScore;
-                
-                if (semanticScore > 0) {
-                    scoreData.metrics.semanticMatch = true;
-                    scoreData.metrics.matchReasons.push('Semantic similarity match');
-                    
-                    // Check if synonym expansion was used
-                    const expandedQuery = semanticSearchSystem.expandWithSynonyms(searchLower);
-                    if (expandedQuery.length > 1) {
-                        scoreData.metrics.synonymMatch = true;
-                        scoreData.metrics.matchReasons.push(`Synonym expansion: ${expandedQuery.length} variants`);
+            if (typeof semanticSearchSystem !== 'undefined' && semanticSearchSystem) {
+                try {
+                    const semanticScore = semanticSearchSystem.semanticMatch(searchTerm, formula);
+                    if (semanticScore && !isNaN(semanticScore) && semanticScore > 0) {
+                        scoreData.score += semanticScore;
+                        
+                        scoreData.metrics.semanticMatch = true;
+                        scoreData.metrics.matchReasons.push('Semantic similarity match');
+                        
+                        // Check if synonym expansion was used
+                        try {
+                            const expandedQuery = semanticSearchSystem.expandWithSynonyms(searchLower);
+                            if (expandedQuery && expandedQuery.length > 1) {
+                                scoreData.metrics.synonymMatch = true;
+                                scoreData.metrics.matchReasons.push(`Synonym expansion: ${expandedQuery.length} variants`);
+                            }
+                        } catch (e) {
+                            // Ignore synonym expansion errors
+                        }
                     }
+                    
+                    // Apply dynamic term prioritization
+                    try {
+                        const dynamicWeight = semanticSearchSystem.getDynamicWeight(searchTerm);
+                        if (dynamicWeight && !isNaN(dynamicWeight) && dynamicWeight > 0) {
+                            const boost = dynamicWeight / 100;
+                            scoreData.score *= (1 + boost);
+                            scoreData.metrics.dynamicBoost = Math.round(boost * 100);
+                            scoreData.metrics.matchReasons.push(`Dynamic boost: +${scoreData.metrics.dynamicBoost}% (usage frequency)`);
+                        }
+                    } catch (e) {
+                        // Ignore dynamic weight errors
+                    }
+                } catch (e) {
+                    console.warn('Error in semantic matching:', e);
                 }
-                
-                // Apply dynamic term prioritization
-                const dynamicWeight = semanticSearchSystem.getDynamicWeight(searchTerm);
-                if (dynamicWeight > 0) {
-                    const boost = dynamicWeight / 100;
-                    scoreData.score *= (1 + boost);
-                    scoreData.metrics.dynamicBoost = Math.round(boost * 100);
-                    scoreData.metrics.matchReasons.push(`Dynamic boost: +${scoreData.metrics.dynamicBoost}% (usage frequency)`);
-                }
+            }
+            
+            // Ensure score is valid and non-negative
+            scoreData.score = Math.max(0, scoreData.score || 0);
+            if (isNaN(scoreData.score)) {
+                scoreData.score = 0;
             }
             
             return { formula, score: scoreData.score, metrics: scoreData.metrics };
         }).filter(item => {
-            // STRICT FILTERING: Only show formulas with meaningful relevance
-            // Must have at least 100 points OR be a strong match (name/question pattern)
-            const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch;
-            const hasGoodScore = item.score >= 100;
-            const hasPrecisionMatch = item.score >= 200; // Precision/directionality matches
+            // VERY lenient filtering: Show formulas with ANY score > 0 OR any match type
+            const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
+            const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
             
-            return hasGoodScore || (hasStrongMatch && item.score >= 50) || hasPrecisionMatch;
+            // Show if: ANY score > 0 OR any match type (even with score 0)
+            return item.score > 0 || hasStrongMatch || hasAnyMatch;
         })
           .sort((a, b) => b.score - a.score) // Sort by relevance (highest to lowest)
-          .slice(0, 30); // LIMIT TO TOP 30 RESULTS ONLY
+          .slice(0, 50); // Increased limit to 50 results
         
         console.log('Scored formulas:', scoredFormulas.length);
         console.log('First 3 results:', scoredFormulas.slice(0, 3).map(f => ({
             name: f.formula.name,
-            score: f.score
+            score: f.score,
+            metrics: {
+                nameMatch: f.metrics.nameMatch,
+                conceptMatch: f.metrics.conceptMatch,
+                descriptionMatch: f.metrics.descriptionMatch,
+                variableMatch: f.metrics.variableMatch,
+                categoryMatch: f.metrics.categoryMatch
+            }
         })));
+        
+        // ALWAYS show at least top 10 results, even if they have low scores
+        if (scoredFormulas.length === 0 && allFormulas.length > 0) {
+            console.warn('⚠️ No formulas passed filter, showing top 10 by score anyway');
+            const allScored = allFormulas.map(formula => {
+                const scoreData = calculateSearchScore(formula, searchLower, searchWords);
+                return { formula, score: Math.max(0, scoreData.score || 0), metrics: scoreData.metrics };
+            }).sort((a, b) => b.score - a.score).slice(0, 10);
+            scoredFormulas = allScored;
+        } else if (scoredFormulas.length < 5) {
+            // If we have very few results, show more
+            console.log('📊 Few results, expanding to show more...');
+            const allScored = allFormulas.map(formula => {
+                const scoreData = calculateSearchScore(formula, searchLower, searchWords);
+                return { formula, score: Math.max(0, scoreData.score || 0), metrics: scoreData.metrics };
+            }).sort((a, b) => b.score - a.score).slice(0, Math.max(10, scoredFormulas.length + 5));
+            scoredFormulas = allScored;
+        }
         
         // Calculate max score for normalization
         const maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
@@ -960,6 +1044,8 @@ function setupSearchFunctionality() {
         // ENHANCED: Context-aware penalties for overly generic matches
         const penalty = calculateGenericPenalty(formula, parsedQuery, score);
         score -= penalty;
+        // Ensure score never goes negative
+        score = Math.max(0, score);
         if (penalty > 0) {
             metrics.matchReasons.push(`Generic match penalty: -${penalty} points`);
         }
@@ -1755,38 +1841,47 @@ function setupSearchFunctionality() {
         return Array.from(expanded);
     }
     
-    // Helper function to extract concepts from text
+    // Helper function to extract concepts from text using comprehensive physics terms
     function extractConceptsFromText(text) {
         const concepts = [];
         const lowerText = text.toLowerCase();
         
-        // Use comprehensive physics terms (will be defined in parseNaturalLanguageQuery)
-        // For now, use a simplified but comprehensive list
+        // Get the comprehensive physics terms dictionary (defined in parseNaturalLanguageQuery)
+        // We'll use a simplified version here, but the full matching happens in parseNaturalLanguageQuery
         const keyTerms = [
-            'temperature', 'temp', 'hot', 'thermal',
+            'temperature', 'temp', 'hot', 'thermal', 'effective temperature', 'surface temperature',
             'spectrum', 'spectral', 'light', 'wavelength', 'color', 'colour', 'peak wavelength',
-            'flux', 'luminosity', 'brightness', 'radiance',
-            'distance', 'parallax', 'modulus',
-            'velocity', 'speed', 'orbital velocity', 'escape velocity',
-            'period', 'time', 'orbital period',
-            'mass', 'weight', 'stellar mass',
-            'radius', 'size', 'diameter',
-            'gravity', 'gravitational', 'surface gravity',
-            'energy', 'photon energy',
-            'magnitude', 'apparent magnitude', 'absolute magnitude',
-            'redshift', 'doppler', 'doppler shift',
-            'blackbody', 'black body', 'wien', 'wien law', 'stefan', 'planck',
-            'kepler', 'orbital', 'orbit',
-            'white dwarf', 'star', 'stellar', 'planet'
+            'flux', 'luminosity', 'brightness', 'radiance', 'magnitude', 'apparent magnitude', 'absolute magnitude',
+            'distance', 'parallax', 'modulus', 'parallax distance', 'distance modulus', 'luminosity distance',
+            'velocity', 'speed', 'orbital velocity', 'escape velocity', 'rotational velocity',
+            'period', 'time', 'orbital period', 'rotational period', 'synodic period',
+            'mass', 'weight', 'stellar mass', 'planetary mass', 'solar mass', 'chandrasekhar limit',
+            'radius', 'size', 'diameter', 'semi-major axis', 'orbital distance',
+            'gravity', 'gravitational', 'surface gravity', 'gravitational acceleration',
+            'energy', 'photon energy', 'orbital energy', 'vis viva',
+            'redshift', 'doppler', 'doppler shift', 'cosmic redshift',
+            'blackbody', 'black body', 'wien', 'wien law', 'stefan', 'planck', 'blackbody radiation',
+            'kepler', 'orbital', 'orbit', 'kepler third law',
+            'white dwarf', 'star', 'stellar', 'planet', 'binary', 'binary system',
+            'telescope', 'angular resolution', 'light gathering power', 'magnification',
+            'hubble', 'hubble law', 'cosmology', 'cosmic expansion',
+            'tidal', 'tidal force', 'roche limit', 'hill radius'
         ];
         
+        // Match terms with word boundaries for better accuracy
         keyTerms.forEach(term => {
-            if (lowerText.includes(term)) {
+            const termLower = term.toLowerCase();
+            // Word boundary match (better accuracy)
+            const wordBoundaryRegex = new RegExp(`\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (wordBoundaryRegex.test(lowerText)) {
+                concepts.push(term);
+            } else if (lowerText.includes(termLower) && termLower.length >= 3) {
+                // Partial match for longer terms
                 concepts.push(term);
             }
         });
         
-        return concepts;
+        return [...new Set(concepts)]; // Remove duplicates
     }
     
     // Parse natural language query to extract intent and concepts
@@ -3886,14 +3981,26 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         maxScore 
     });
     
+    // Clear the list
     formulaList.innerHTML = '';
     
-    // Add result count header
+    // Ensure formula-list is visible
+    const formulaSelection = document.getElementById('formula-selection');
+    if (formulaSelection && !formulaSelection.classList.contains('active')) {
+        formulaSelection.classList.add('active');
+    }
+    const inputScreen = document.getElementById('input-screen');
+    if (inputScreen && inputScreen.classList.contains('active')) {
+        inputScreen.classList.remove('active');
+    }
+    
+    // Add result count header FIRST (before any categories)
     if (searchTerm && scoredFormulas.length > 0) {
         const resultHeader = document.createElement('div');
         resultHeader.className = 'search-results-header';
         resultHeader.innerHTML = `Found <strong>${scoredFormulas.length}</strong> relevant formula${scoredFormulas.length !== 1 ? 's' : ''} matching "${searchTerm}" (sorted by relevance, highest score first)`;
         formulaList.appendChild(resultHeader);
+        console.log('✅ Added result header');
     }
     
     if (scoredFormulas.length === 0) {
@@ -3911,13 +4018,16 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             `;
         }
         
-        formulaList.innerHTML = `
-            <div style="text-align: center; padding: 60px 20px; color: rgba(255, 255, 255, 0.7);">
-                <p style="font-size: 1.2em; margin-bottom: 10px;">No formulas found</p>
-                <p style="font-size: 0.9em; margin-bottom: 15px;">Try searching for a different term</p>
-                ${suggestionsHTML}
-            </div>
+        // Don't overwrite if header was already added - append instead
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.style.cssText = 'text-align: center; padding: 60px 20px; color: rgba(255, 255, 255, 0.7);';
+        noResultsDiv.innerHTML = `
+            <p style="font-size: 1.2em; margin-bottom: 10px;">No formulas found</p>
+            <p style="font-size: 0.9em; margin-bottom: 15px;">Try searching for a different term</p>
+            ${suggestionsHTML}
         `;
+        formulaList.appendChild(noResultsDiv);
+        console.log('⚠️ No results found, showing suggestions');
         return;
     }
     
@@ -3947,6 +4057,13 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         categorizedFormulas[category].sort((a, b) => b.score - a.score);
     });
     uncategorized.sort((a, b) => b.score - a.score);
+    
+    console.log('📊 Rendering breakdown:', {
+        totalScored: scoredFormulas.length,
+        categories: Object.keys(categorizedFormulas).length,
+        uncategorized: uncategorized.length,
+        firstFormula: scoredFormulas[0] ? scoredFormulas[0].formula.name : 'none'
+    });
     
     // Sort categories by highest score in category
     const categoryScores = {};
@@ -3995,17 +4112,27 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             header.innerHTML = `<h2>${category}</h2><span class="category-score">Top score: ${Math.round(maxScoreInCategory)}</span>`;
             categoryContainer.appendChild(header);
             
+            let cardsAdded = 0;
             categorizedFormulas[category].forEach(({ formula, score, metrics, maxScore }, index) => {
+                console.log(`Creating card ${index + 1}/${categorizedFormulas[category].length} for:`, formula.name);
                 const card = createFormulaCard(formula, score, metrics, maxScore);
                 if (card) {
                     categoryContainer.appendChild(card);
+                    cardsAdded++;
+                    console.log(`✅ Card created and appended: ${formula.name}`);
                 } else {
-                    console.warn('createFormulaCard returned null for:', formula.id);
+                    console.error('❌ createFormulaCard returned null for:', formula.id, formula.name);
                 }
             });
             
-            if (categoryContainer.children.length > 1) { // More than just the header
+            // Always append if we have cards, even if only header + 1 card
+            if (cardsAdded > 0) {
                 formulaList.appendChild(categoryContainer);
+                console.log(`✅ Added category "${category}" with ${cardsAdded} cards to DOM`);
+                // Force a reflow
+                categoryContainer.offsetHeight;
+            } else {
+                console.warn(`⚠️ Category "${category}" has no valid cards`);
             }
         }
     });
@@ -4020,32 +4147,77 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         header.innerHTML = `<h2>Other</h2>`;
         categoryContainer.appendChild(header);
         
+        let cardsAdded = 0;
         uncategorized.forEach(({ formula, score, metrics, maxScore }) => {
+            console.log(`Creating uncategorized card for:`, formula.name);
             const card = createFormulaCard(formula, score, metrics, maxScore);
             if (card) {
                 categoryContainer.appendChild(card);
+                cardsAdded++;
+                console.log(`✅ Uncategorized card created and appended: ${formula.name}`);
             } else {
-                console.warn('createFormulaCard returned null for uncategorized:', formula.id);
+                console.error('❌ createFormulaCard returned null for uncategorized:', formula.id, formula.name);
             }
         });
         
-        if (categoryContainer.children.length > 1) { // More than just the header
+        // Always append if we have cards
+        if (cardsAdded > 0) {
             formulaList.appendChild(categoryContainer);
-            console.log(`Appended "Other" category with ${categoryContainer.children.length - 1} formulas`);
+            console.log(`✅ Appended "Other" category with ${cardsAdded} formulas to DOM`);
+            // Force a reflow
+            categoryContainer.offsetHeight;
         }
     }
     
     // Final check - ensure we have content
-    if (formulaList.children.length === 0 && scoredFormulas.length > 0) {
-        console.error('Warning: No content was appended to formulaList despite having results!');
+    const totalChildren = formulaList.children.length;
+    const totalCards = formulaList.querySelectorAll('.formula-card').length;
+    
+    console.log('📊 Final render stats:', {
+        totalChildren: totalChildren,
+        totalCards: totalCards,
+        scoredFormulas: scoredFormulas.length,
+        categories: Object.keys(categorizedFormulas).length,
+        uncategorized: uncategorized.length
+    });
+    
+    if (totalChildren === 0 && scoredFormulas.length > 0) {
+        console.error('❌ Warning: No content was appended to formulaList despite having results!');
+        console.error('Debug info:', {
+            scoredFormulasCount: scoredFormulas.length,
+            categorizedCount: Object.keys(categorizedFormulas).length,
+            uncategorizedCount: uncategorized.length,
+            formulaListExists: !!formulaList,
+            formulaListVisible: formulaList.offsetParent !== null,
+            formulaListDisplay: window.getComputedStyle(formulaList).display
+        });
+    } else if (totalCards === 0 && scoredFormulas.length > 0) {
+        console.error('❌ Warning: No cards found in formulaList despite having results!');
+        console.error('formulaList.innerHTML length:', formulaList.innerHTML.length);
+        console.error('formulaList children:', Array.from(formulaList.children).map(c => c.tagName + '.' + c.className));
     } else {
-        console.log(`Successfully rendered ${formulaList.children.length} elements to formulaList`);
+        console.log(`✅ Successfully rendered ${totalChildren} elements (${totalCards} cards) to formulaList`);
+    }
+    
+    // Force a reflow to ensure rendering
+    formulaList.offsetHeight;
+    
+    // Scroll to top of results if we have a search term
+    if (searchTerm && totalCards > 0) {
+        formulaList.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     
     // Highlight search term in results
     if (searchTerm) {
         highlightSearchTerm(searchTerm);
     }
+    
+    // Trigger a repaint
+    requestAnimationFrame(() => {
+        formulaList.style.display = 'none';
+        formulaList.offsetHeight; // Force reflow
+        formulaList.style.display = '';
+    });
 }
 
 // Get search suggestions based on common terms
@@ -4421,6 +4593,23 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         }
     });
     
+    // Final validation - ensure card has content
+    if (!card || !card.innerHTML || card.innerHTML.trim().length === 0) {
+        console.error('❌ Card creation failed for:', formula.id, formula.name);
+        // Return a minimal card instead of null
+        const fallbackCard = document.createElement('div');
+        fallbackCard.className = 'formula-card';
+        fallbackCard.setAttribute('data-formula-id', formula.id);
+        fallbackCard.innerHTML = `
+            <div class="formula-card-header">
+                <h3>${formula.name || 'Unknown Formula'}</h3>
+            </div>
+            <p class="description">${formula.description || 'No description'}</p>
+        `;
+        fallbackCard.onclick = () => selectFormula(formula);
+        return fallbackCard;
+    }
+    
     return card;
 }
 
@@ -4775,11 +4964,24 @@ function renderVariableInputs(formula) {
                     clearTimeout(input.graphUpdateTimeout);
                     input.graphUpdateTimeout = setTimeout(() => {
                         updateGraph();
-            // Also update interpretation graph if it exists
-            if (graphInterpretationManager && graphInterpretationManager.calculator && currentFormula) {
-                const currentValues = getCurrentVariableValues();
-                graphInterpretationManager.updateGraph(currentFormula, currentValues);
-            }
+                        // Also update interpretation graph if it exists
+                        if (currentFormula) {
+                            const currentValues = getCurrentVariableValues();
+                            // Check if Desmos is available for interpretation graph
+                            if (typeof Desmos !== 'undefined' && !window.desmosUnavailable) {
+                                if (graphInterpretationManager && graphInterpretationManager.calculator) {
+                                    graphInterpretationManager.updateGraph(currentFormula, currentValues);
+                                }
+                            } else {
+                                // Use offline graph manager for interpretation
+                                if (!offlineGraphManager) {
+                                    offlineGraphManager = new OfflineGraphManager('graph-interpretation-desmos', 'graph-interpretation-tab');
+                                }
+                                if (offlineGraphManager) {
+                                    offlineGraphManager.updateGraph(currentFormula, currentValues);
+                                }
+                            }
+                        }
                     }, 500);
                 });
             }
@@ -4972,6 +5174,12 @@ function switchMainTab(tabName) {
     
     if (tabName === 'formulas') {
         document.getElementById('main-formulas-tab').classList.add('active');
+    } else if (tabName === 'explorer') {
+        document.getElementById('main-explorer-tab').classList.add('active');
+        // Initialize Formula Explorer
+        if (typeof initFormulaExplorer === 'function') {
+            initFormulaExplorer();
+        }
     } else if (tabName === 'classification') {
         document.getElementById('main-classification-tab').classList.add('active');
         // Initialize classifier if needed
@@ -5183,10 +5391,29 @@ function getCurrentVariableValues() {
 
 // Update graph based on current inputs
 function updateGraph() {
-    if (!currentFormula || !graphManager) return;
+    if (!currentFormula) return;
     
     const variableValues = getCurrentVariableValues();
-    graphManager.updateGraph(currentFormula, variableValues);
+    
+    // Check if Desmos is available
+    if (typeof Desmos !== 'undefined' && !window.desmosUnavailable) {
+        // Use Desmos graph manager
+        if (!graphManager) {
+            graphManager = new GraphManager();
+            initializeGraphManager(graphManager);
+        }
+        if (graphManager) {
+            graphManager.updateGraph(currentFormula, variableValues);
+        }
+    } else {
+        // Use offline graph manager
+        if (!offlineGraphManager) {
+            offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
+        }
+        if (offlineGraphManager) {
+            offlineGraphManager.updateGraph(currentFormula, variableValues);
+        }
+    }
 }
 
 // Perform the calculation

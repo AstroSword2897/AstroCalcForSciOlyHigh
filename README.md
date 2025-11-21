@@ -66,28 +66,56 @@ A comprehensive, interactive web application for calculating astronomy and astro
 
 ### Prerequisites
 - A modern web browser (Chrome, Firefox, Safari, Edge)
+- Internet connection (for MathJax and Desmos API)
 - No installation required - runs entirely in the browser
 
-### Installation
+### Quick Download & Use (Recommended)
+
+**Easiest Method:**
+1. Download the entire project folder as a ZIP file
+2. Extract it to any location on your computer
+3. Double-click `index.html` to open in your browser
+4. That's it! The calculator works immediately
+
+**For Best Experience (Optional):**
+Use a local web server for optimal performance:
+
+```bash
+# Navigate to the project folder, then:
+
+# Python 3
+python -m http.server 8000
+
+# Python 2
+python -m SimpleHTTPServer 8000
+
+# Node.js
+npx http-server
+
+# PHP
+php -S localhost:8000
+```
+
+Then open `http://localhost:8000` in your browser.
+
+### Sharing the Calculator
+
+To share with others:
+1. Create a ZIP file containing all project files
+2. Share the ZIP file (via email, cloud storage, etc.)
+3. Recipients extract and open `index.html`
+
+**See `DOWNLOAD_INSTRUCTIONS.md` for detailed sharing guide.**
+
+### Installation (For Developers)
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/AstroCalcForSciOlyHigh.git
 cd AstroCalcForSciOlyHigh
 ```
 
-2. Open `index.html` in your web browser, or serve it using a local web server:
-```bash
-# Using Python 3
-python -m http.server 8000
-
-# Using Node.js (http-server)
-npx http-server
-
-# Using PHP
-php -S localhost:8000
-```
-
-3. Navigate to `http://localhost:8000` (or the port you chose)
+2. Open `index.html` in your web browser, or serve it using a local web server (see above)
 
 ## 📖 Usage
 

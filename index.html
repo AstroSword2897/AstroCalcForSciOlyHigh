@@ -18,6 +18,7 @@
             <div class="main-tab-container">
                 <div class="main-tabs">
                     <button class="main-tab-btn active" data-main-tab="formulas">Formulas</button>
+                    <button class="main-tab-btn" data-main-tab="explorer">Explorer</button>
                     <button class="main-tab-btn" data-main-tab="classification">Classification</button>
                     <button class="main-tab-btn" data-main-tab="desmos">Desmos</button>
                 </div>
@@ -31,6 +32,13 @@
                 </div>
                 <div id="formula-list" class="formula-list">
                     <!-- Formulas will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Formula Explorer Tab -->
+            <div id="main-explorer-tab" class="main-tab-content">
+                <div id="formula-explorer-container">
+                    <!-- Formula Explorer will be populated by JavaScript -->
                 </div>
             </div>
             
@@ -313,7 +321,7 @@
         </div>
     </div>
 
-    <!-- MathJax for beautiful math rendering -->
+    <!-- MathJax for beautiful math rendering (OFFLINE VERSION) -->
     <script>
         window.MathJax = {
             tex: {
@@ -324,22 +332,66 @@
             },
             options: {
                 skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            },
+            // Configure for offline use - don't load fonts from CDN
+            loader: {
+                load: ['[tex]/require', '[tex]/autoload', '[tex]/configmacros']
+            },
+            startup: {
+                typeset: false
             }
         };
     </script>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
-    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <!-- Local MathJax (works offline) -->
+    <script id="MathJax-script" async src="libs/mathjax/es5/tex-mml-chtml.js"></script>
     
-    <!-- Desmos API -->
+    <!-- Desmos API (with offline detection) -->
     <!-- Using demo key for development. For production, get your own API key from Desmos -->
     <!-- Replace the apiKey parameter below with your own key (contact info@desmos.com) -->
-    <script src="https://www.desmos.com/api/v1.7/calculator.js?apiKey=0b5490317d764f8f810b5195b435a878"></script>
+    <script>
+        // Load Desmos only if online, otherwise show graceful message
+        function loadDesmos() {
+            if (navigator.onLine !== false) {
+                const script = document.createElement('script');
+                script.src = 'https://www.desmos.com/api/v1.7/calculator.js?apiKey=0b5490317d764f8f810b5195b435a878';
+                script.onerror = function() {
+                    console.warn('Desmos API failed to load. Graphs will be unavailable.');
+                    window.desmosUnavailable = true;
+                };
+                document.head.appendChild(script);
+            } else {
+                console.warn('Offline mode: Desmos graphs unavailable.');
+                window.desmosUnavailable = true;
+            }
+        }
+        
+        // Try to load Desmos when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadDesmos);
+        } else {
+            loadDesmos();
+        }
+        
+        // Also listen for online/offline events
+        window.addEventListener('online', function() {
+            if (!window.Desmos && !window.desmosLoading) {
+                window.desmosLoading = true;
+                loadDesmos();
+            }
+        });
+        
+        window.addEventListener('offline', function() {
+            window.desmosUnavailable = true;
+        });
+    </script>
     <script src="scripts/formulas.js"></script>
     <script src="scripts/calculator.js"></script>
     <script src="scripts/unitConverter.js"></script>
     <script src="scripts/expressionParser.js"></script>
     <script src="scripts/graphManager.js"></script>
+    <script src="scripts/offlineGraphManager.js"></script>
     <script src="scripts/classification.js"></script>
+    <script src="scripts/formulaExplorer.js"></script>
     <script src="scripts/ui.js"></script>
 </body>
 </html>

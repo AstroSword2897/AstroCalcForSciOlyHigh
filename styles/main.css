@@ -270,6 +270,11 @@ header h1 {
     margin-bottom: 15px;
     color: rgba(255, 255, 255, 0.9);
     font-size: 0.95em;
+    position: relative;
+    z-index: 1; /* Ensure header appears above background */
+    display: block; /* Ensure header is displayed */
+    opacity: 1; /* Ensure visibility */
+    visibility: visible; /* Ensure visibility */
 }
 
 .search-results-header strong {
@@ -506,6 +511,9 @@ header h1 {
 
 .formula-list {
     padding: 20px 0;
+    min-height: 100px; /* Ensure space for content */
+    position: relative;
+    z-index: 1; /* Ensure cards appear above background */
 }
 
 .formula-category-header {
@@ -541,6 +549,10 @@ header h1 {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
     margin-bottom: 30px;
+    position: relative;
+    z-index: 1; /* Ensure cards appear above background */
+    opacity: 1; /* Ensure visibility */
+    visibility: visible; /* Ensure visibility */
 }
 
 .formula-card {
@@ -554,6 +566,10 @@ header h1 {
     overflow: visible;
     backdrop-filter: blur(10px);
     color: white;
+    display: block; /* Ensure card is displayed */
+    opacity: 1; /* Ensure visibility */
+    visibility: visible; /* Ensure visibility */
+    z-index: 2; /* Ensure cards appear above background and category container */
 }
 
 .formula-score-badge {
@@ -1801,6 +1817,613 @@ header h1 {
         color: #a8c7ff;
         margin: 15px 0 10px 0;
         font-weight: 600;
+    }
+}
+
+/* ============================================================
+   Formula Explorer Styles
+   ============================================================ */
+#formula-explorer-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.explorer-header {
+    margin-bottom: 30px;
+}
+
+.explorer-title-section h2 {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.explorer-subtitle {
+    color: #94a3b8;
+    font-size: 1.1em;
+}
+
+.explorer-view-modes {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.explorer-view-mode-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+.explorer-view-mode-btn:hover {
+    background: #334155;
+}
+
+.explorer-view-mode-btn.active {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.explorer-layout {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.explorer-left-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.explorer-search-panel,
+.explorer-categories-panel,
+.explorer-relationships-panel {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.explorer-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.explorer-panel-header h3 {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #fff;
+}
+
+.explorer-icon {
+    font-size: 1.2em;
+}
+
+.explorer-search-input {
+    width: 100%;
+    padding: 12px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1em;
+}
+
+.explorer-search-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.explorer-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.explorer-category-btn {
+    width: 100%;
+    text-align: left;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: #0f172a;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.explorer-category-btn:hover {
+    background: #1e293b;
+}
+
+.explorer-category-btn.active {
+    background: #3b82f6;
+    color: #fff;
+}
+
+.explorer-help-text {
+    color: #94a3b8;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+
+.explorer-results-panel {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.explorer-results-title {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 15px;
+}
+
+.explorer-count {
+    color: #94a3b8;
+    font-weight: normal;
+}
+
+.explorer-formula-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.explorer-formula-item {
+    padding: 12px;
+    border-radius: 8px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.explorer-formula-item:hover {
+    background: #1e293b;
+    border-color: #475569;
+}
+
+.explorer-formula-item.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.explorer-formula-name {
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+    font-size: 0.95em;
+}
+
+.explorer-formula-item.active .explorer-formula-name {
+    color: #fff;
+}
+
+.explorer-formula-equation {
+    font-size: 0.85em;
+    color: #94a3b8;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.explorer-formula-item.active .explorer-formula-equation {
+    color: #e2e8f0;
+}
+
+.explorer-empty {
+    color: #64748b;
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+}
+
+.explorer-right-panel {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 30px;
+    min-height: 500px;
+}
+
+.explorer-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #64748b;
+}
+
+.explorer-empty-icon {
+    font-size: 4em;
+    margin-bottom: 20px;
+    opacity: 0.5;
+}
+
+.explorer-empty-text {
+    font-size: 1.1em;
+}
+
+.explorer-formula-details {
+    color: #fff;
+}
+
+.explorer-details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    gap: 20px;
+}
+
+.explorer-formula-title {
+    font-size: 2em;
+    font-weight: bold;
+    color: #fff;
+    margin: 0;
+}
+
+.explorer-use-formula-btn {
+    padding: 10px 20px;
+    background: #3b82f6;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.explorer-use-formula-btn:hover {
+    background: #2563eb;
+}
+
+.explorer-formula-description {
+    color: #94a3b8;
+    font-size: 1.1em;
+    line-height: 1.6;
+    margin-bottom: 25px;
+}
+
+.explorer-equation-box {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 25px;
+}
+
+.explorer-equation-label {
+    font-size: 0.9em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.explorer-equation-text {
+    font-size: 1.3em;
+    font-family: 'Courier New', monospace;
+    color: #60a5fa;
+    word-break: break-all;
+}
+
+.explorer-section {
+    margin-bottom: 25px;
+}
+
+.explorer-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 15px;
+}
+
+.explorer-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.explorer-tag {
+    padding: 6px 12px;
+    background: #1e40af;
+    color: #bfdbfe;
+    border-radius: 20px;
+    font-size: 0.9em;
+}
+
+.explorer-variables-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.explorer-variable-item {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.explorer-variable-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.explorer-variable-symbol {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2em;
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.explorer-variable-unit {
+    font-size: 0.85em;
+    color: #94a3b8;
+}
+
+.explorer-variable-name {
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+    font-size: 0.95em;
+}
+
+.explorer-variable-description {
+    font-size: 0.9em;
+    color: #94a3b8;
+    line-height: 1.5;
+}
+
+.explorer-constants-box {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.explorer-constant-item {
+    font-family: 'Courier New', monospace;
+    font-size: 0.95em;
+    margin-bottom: 8px;
+}
+
+.explorer-constant-name {
+    color: #60a5fa;
+}
+
+.explorer-constant-equals {
+    color: #94a3b8;
+}
+
+.explorer-constant-value {
+    color: #4ade80;
+}
+
+.explorer-related-formulas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.explorer-related-formula-btn {
+    padding: 8px 16px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9em;
+}
+
+.explorer-related-formula-btn:hover {
+    background: #1e293b;
+    border-color: #475569;
+    color: #fff;
+}
+
+.explorer-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.explorer-stat-card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.explorer-stat-value {
+    font-size: 2em;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.explorer-stat-card:nth-child(1) .explorer-stat-value {
+    color: #60a5fa;
+}
+
+.explorer-stat-card:nth-child(2) .explorer-stat-value {
+    color: #4ade80;
+}
+
+.explorer-stat-card:nth-child(3) .explorer-stat-value {
+    color: #a78bfa;
+}
+
+.explorer-stat-card:nth-child(4) .explorer-stat-value {
+    color: #fb923c;
+}
+
+.explorer-stat-label {
+    font-size: 0.9em;
+    color: #94a3b8;
+}
+
+/* Calculator Panel Styles */
+.explorer-calculator-panel {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.explorer-calculator-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.explorer-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.explorer-input-label {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: #fff;
+}
+
+.explorer-variable-input {
+    padding: 10px;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 1em;
+}
+
+.explorer-variable-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+.explorer-input-hint {
+    font-size: 0.8em;
+    color: #94a3b8;
+    margin: 0;
+}
+
+.explorer-calculate-btn {
+    width: 100%;
+    padding: 12px;
+    background: #22c55e;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 10px;
+}
+
+.explorer-calculate-btn:hover {
+    background: #16a34a;
+}
+
+.explorer-calculate-btn:active {
+    transform: scale(0.98);
+}
+
+/* Result Display Styles */
+.explorer-result-box {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.explorer-result-error {
+    color: #ef4444;
+    font-weight: 500;
+}
+
+.explorer-result-symbolic {
+    color: #fff;
+}
+
+.explorer-result-success {
+    color: #fff;
+}
+
+.explorer-result-label {
+    font-size: 0.9em;
+    color: #94a3b8;
+    margin-bottom: 8px;
+}
+
+.explorer-result-value {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2em;
+    color: #4ade80;
+    margin-bottom: 12px;
+    word-break: break-all;
+}
+
+.explorer-result-unit {
+    font-size: 0.9em;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+.explorer-copy-btn {
+    padding: 8px 16px;
+    background: #334155;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.explorer-copy-btn:hover {
+    background: #475569;
+    color: #fff;
+}
+
+@media (max-width: 1024px) {
+    .explorer-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .explorer-results-panel {
+        max-height: 400px;
     }
 }
 

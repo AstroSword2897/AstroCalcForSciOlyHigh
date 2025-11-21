@@ -49,8 +49,12 @@ class GraphManager {
             return false;
         }
 
-        if (typeof Desmos === 'undefined') {
-            console.error("Desmos library not loaded.");
+        if (typeof Desmos === 'undefined' || window.desmosUnavailable) {
+            console.warn("Desmos library not available (offline mode or failed to load).");
+            // Show user-friendly offline message
+            if (elt) {
+                elt.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+            }
             return false;
         }
 
@@ -150,12 +154,24 @@ class GraphManager {
         }
         this.lastRenderedKey = key;
 
+        // Check if Desmos is available before initializing
+        if (window.desmosUnavailable || (typeof Desmos === 'undefined' && !this.calculator)) {
+            if (container) {
+                container.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+            }
+            return;
+        }
+
         // Ensure calculator is initialized
         if (!this.calculator) {
             const initialized = this.init();
             if (!initialized) {
                 if (container && !container.querySelector('.desmos-calculator')) {
-                    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: #999;">If the problem persists, check your internet connection.</p></div>';
+                    if (window.desmosUnavailable || typeof Desmos === 'undefined') {
+                        container.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+                    } else {
+                        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: #999;">If the problem persists, check your internet connection.</p></div>';
+                    }
                 }
                 return;
             }
@@ -289,14 +305,14 @@ class GraphManager {
         const h = globalConstants?.h || 6.62607015e-34;
         const k = globalConstants?.k || 1.380649e-23;
 
-        // Get the unknown variable symbol
+        // Get the unknown variable symbol and name
         const unknownSymbol = unknownVar.symbol;
         const unknownName = unknownVar.name || unknownSymbol;
 
         // Create a generic graph based on the formula equation
         // Convert the formula to a Desmos expression
         try {
-            const expression = this.convertFormulaToDesmos(formula, unknownVar, allValues);
+            const expression = this.convertFormulaToDesmos(formula, unknownVar, allValues, unknownName);
             if (expression) {
                 return {
                     expressions: [expression],
@@ -304,7 +320,7 @@ class GraphManager {
                 };
             }
         } catch (e) {
-            console.error('Error creating graph expression:', e);
+            console.error(`Error creating graph expression for ${unknownName}:`, e);
         }
 
         // Fall back to generic graph
@@ -314,9 +330,10 @@ class GraphManager {
     /**
      * Converts a formula equation to a Desmos LaTeX expression
      */
-    convertFormulaToDesmos(formula, unknownVar, allValues) {
+    convertFormulaToDesmos(formula, unknownVar, allValues, unknownName = null) {
         const unknownSymbol = unknownVar.symbol;
         const equation = formula.equation;
+        const varName = unknownName || unknownVar.name || unknownSymbol;
         
         // Replace known variables with their values
         let desmosExpr = equation;
@@ -357,7 +374,8 @@ class GraphManager {
         return {
             id: 'formula-graph',
             latex: desmosExpr,
-            color: Desmos.Colors.BLUE
+            color: Desmos.Colors.BLUE,
+            label: `${varName} (${unknownSymbol})`
         };
     }
 
@@ -379,8 +397,9 @@ class GraphManager {
      */
     createGenericGraph(formula, nullVar, allValues) {
         // Try to create a simple graph showing the formula
+        const unknownName = nullVar.name || nullVar.symbol;
         try {
-            const expression = this.convertFormulaToDesmos(formula, nullVar, allValues);
+            const expression = this.convertFormulaToDesmos(formula, nullVar, allValues, unknownName);
             if (expression && expression.latex) {
                 return {
                     expressions: [expression],
@@ -388,7 +407,7 @@ class GraphManager {
                 };
             }
         } catch (e) {
-            console.error('Error in generic graph creation:', e);
+            console.error(`Error in generic graph creation for ${unknownName}:`, e);
         }
         
         // If all else fails, return empty to show message
