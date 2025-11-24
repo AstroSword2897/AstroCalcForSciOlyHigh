@@ -850,11 +850,11 @@ function setupSearchFunctionality() {
             clearBtn.style.display = 'none';
         }
         
-        // Debounce search
+        // FASTER: Reduced debounce from 150ms to 50ms for instant feel
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             filterAndRenderFormulas(searchTerm);
-        }, 150);
+        }, 50);
     });
     
     // Clear button handler
