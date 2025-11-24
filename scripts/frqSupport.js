@@ -128,23 +128,37 @@ function getConfidenceLevel(confidence) {
  * @returns {Object} Breakdown object with components array and total
  */
 function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1) {
-    const normalizedScore = normalizeScore(score, maxScore);
-    const baseConfidence = clamp(normalizedScore / 10, 0, 70);
+    if (!maxScore || maxScore === 0) {
+        return {
+            components: [],
+            total: 0
+        };
+    }
+    
+    const scoreRatio = score / maxScore;
+    let baseConfidence = 0;
+    
+    if (scoreRatio >= 0.9) baseConfidence = 60;
+    else if (scoreRatio >= 0.7) baseConfidence = 50;
+    else if (scoreRatio >= 0.5) baseConfidence = 40;
+    else if (scoreRatio >= 0.3) baseConfidence = 30;
+    else if (scoreRatio >= 0.1) baseConfidence = 20;
+    else baseConfidence = Math.max(0, Math.round(scoreRatio * 100));
     
     const components = [];
     
     // Base score contribution
     components.push({
         label: 'Base Relevance Score',
-        value: Math.round(baseConfidence),
-        description: `Based on search relevance (${Math.round(normalizedScore)} normalized points)`
+        value: baseConfidence,
+        description: `Based on search relevance (${(scoreRatio * 100).toFixed(1)}% of top match)`
     });
     
     // Name match boost
     if (metrics.nameMatch) {
         components.push({
             label: 'Name Match',
-            value: 15,
+            value: 20,
             description: 'Formula name matches your search query'
         });
     }
@@ -153,38 +167,53 @@ function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1
     if (metrics.questionPatternMatch) {
         components.push({
             label: 'Question Pattern Match',
-            value: 10,
+            value: 15,
             description: 'Matches natural language question patterns'
         });
     }
     
     // Concept match boost
     if (metrics.conceptMatch) {
-        components.push({
-            label: 'Concept Match',
-            value: 5,
-            description: 'Matches key astrophysics concepts'
-        });
+        const conceptCount = metrics.matchedConcepts?.length || 0;
+        if (conceptCount >= 3) {
+            components.push({
+                label: 'Multiple Concept Matches',
+                value: 10,
+                description: `Matched ${conceptCount} key concepts`
+            });
+        } else if (conceptCount >= 2) {
+            components.push({
+                label: 'Concept Matches',
+                value: 5,
+                description: `Matched ${conceptCount} concepts`
+            });
+        } else {
+            components.push({
+                label: 'Concept Match',
+                value: 3,
+                description: 'Matches key astrophysics concepts'
+            });
+        }
     }
     
     // Semantic similarity boost
-    if (metrics.semanticSimilarityScore) {
-        const semanticBoost = clamp(metrics.semanticSimilarityScore * 10, 0, 10);
+    if (metrics.semanticSimilarityScore && metrics.semanticSimilarityScore > 0.5) {
+        const semanticBoost = Math.round(metrics.semanticSimilarityScore * 10);
         if (semanticBoost > 0) {
             components.push({
                 label: 'Semantic Similarity',
-                value: Math.round(semanticBoost),
+                value: semanticBoost,
                 description: `Meaning similarity: ${(metrics.semanticSimilarityScore * 100).toFixed(0)}%`
             });
         }
     }
     
-    // Multiple concepts boost
-    if (metrics.matchedConcepts && metrics.matchedConcepts.length > 2) {
+    // Weak match penalty
+    if (!metrics.nameMatch && !metrics.questionPatternMatch && !metrics.conceptMatch) {
         components.push({
-            label: 'Multiple Concept Matches',
-            value: 2,
-            description: `${metrics.matchedConcepts.length} related concepts matched`
+            label: 'Weak Match Penalty',
+            value: -10,
+            description: 'No strong matches (name, pattern, or concept)'
         });
     }
     
