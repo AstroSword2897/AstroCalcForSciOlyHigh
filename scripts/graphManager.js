@@ -51,9 +51,26 @@ class GraphManager {
 
         if (typeof Desmos === 'undefined' || window.desmosUnavailable) {
             console.warn("Desmos library not available (offline mode or failed to load).");
-            // Show user-friendly offline message
+            // Automatically fallback to offline graph manager
+            if (typeof OfflineGraphManager !== 'undefined') {
+                console.log('[GraphManager] Falling back to OfflineGraphManager');
+                // Create offline manager instance for this container
+                const offlineManager = new OfflineGraphManager(targetContainerId, this.tabId);
+                if (offlineManager.init(targetContainerId)) {
+                    // Store reference for updates
+                    this.offlineManager = offlineManager;
+                    // If we have a stored formula, update the graph
+                    if (this.currentFormula) {
+                        setTimeout(() => {
+                            offlineManager.updateGraph(this.currentFormula, this.currentValues);
+                        }, 100);
+                    }
+                    return true;
+                }
+            }
+            // Fallback message if offline manager also fails
             if (elt) {
-                elt.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+                elt.innerHTML = '<div style="padding: 40px; text-align: center; color: rgba(255, 255, 255, 0.7); background: rgba(10, 14, 39, 0.8); border-radius: 8px;"><h4 style="color: #667eea; margin-bottom: 10px;">📊 Offline Graph Mode</h4><p style="margin: 10px 0;">Using offline canvas-based graphing.</p><p style="margin: 10px 0; font-size: 0.9em; color: rgba(255, 255, 255, 0.5);">All calculator features work offline!</p></div>';
             }
             return false;
         }

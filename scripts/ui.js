@@ -5092,7 +5092,18 @@ function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
     }
     
     // Initialize immediately if Desmos is available
-    return manager.init(containerId);
+    const initResult = manager.init(containerId);
+    
+    // If Desmos init failed, wait a bit then check for offline fallback
+    if (!initResult && attempts >= maxAttempts) {
+        // Check if manager has offline fallback
+        if (manager.offlineManager) {
+            console.log('[initializeGraphManager] Using offline graph manager');
+            return true;
+        }
+    }
+    
+    return initResult;
 }
 
 function selectFormula(formula) {
