@@ -1,6 +1,26 @@
-// User Interface Controller
+/**
+ * User Interface Controller
+ * 
+ * Main UI controller for the AstroCalc application. Handles:
+ * - Formula search and filtering with advanced matching algorithms
+ * - Formula card rendering with confidence scores
+ * - Tab navigation (Formulas, Explorer, Classification, Desmos)
+ * - Calculator interface and result display
+ * - Graph visualization integration
+ * - FRQ (Free Response Question) support system integration
+ * - Search results display with Explorer-style two-panel layout
+ * 
+ * Key Features:
+ * - Multi-layer search scoring (name, description, concepts, patterns, semantic)
+ * - Concept hierarchy expansion for remote matching
+ * - Dynamic confidence scoring with visual indicators
+ * - Usage instructions and contextual hints generation
+ * - Graph interpretation guides
+ * - Responsive design with mobile support
+ */
 
-let currentFormula = null;
+// Global state variables
+let currentFormula = null; // Currently selected formula for calculator
 let calculator = null;
 let graphManager = null; // Graph manager for the Graph tab (Desmos or Offline)
 let offlineGraphManager = null; // Offline graph manager (Canvas-based)
@@ -8,7 +28,25 @@ let graphInterpretationManager = null; // Graph manager for the Graph Interpreta
 let mainGraphManager = null; // Separate graph manager for main page Desmos tab
 let mainDesmosCalculator = null; // Standalone Desmos calculator for main page
 
-// Convert Unicode math symbols to LaTeX for MathJax rendering
+/**
+ * Convert Unicode math symbols to LaTeX for MathJax rendering
+ * 
+ * Handles conversion of Unicode mathematical symbols (π, σ, λ, subscripts, superscripts, etc.)
+ * to LaTeX format for proper rendering in MathJax. Supports:
+ * - Greek letters (π, σ, λ, θ, Δ, α, β, etc.)
+ * - Subscripts (M₁, M₂, P_rot, λ_max, etc.)
+ * - Superscripts (x², x³, etc.)
+ * - Special operators (×, ÷, √, ∛, etc.)
+ * - Variable names with subscripts (P_rot, B_λ, M_sun, etc.)
+ * 
+ * @param {string} text - Input text containing Unicode math symbols
+ * @returns {string} LaTeX-formatted string ready for MathJax rendering
+ * 
+ * @example
+ * convertToLaTeX("L = 4πR²σT⁴") // Returns "L = 4\\pi R^{2}\\sigma T^{4}"
+ * convertToLaTeX("M₁ + M₂") // Returns "M_{1} + M_{2}"
+ * convertToLaTeX("λ_max = b/T") // Returns "\\lambda_{\\max} = b/T"
+ */
 function convertToLaTeX(text) {
     if (!text) return '';
     
@@ -4486,7 +4524,23 @@ function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore =
     }
 }
 
-// Render formula details in the right panel
+/**
+ * Render formula details in the right panel
+ * 
+ * Displays comprehensive information about a selected formula in the
+ * Explorer-style search results view. Shows:
+ * - Formula name and "Use This Formula" button
+ * - Confidence score badge
+ * - Description
+ * - Equation (formatted)
+ * - Concepts (as clickable tags)
+ * - Variables (with descriptions and units)
+ * 
+ * @param {Object} formula - Formula object to display
+ * @param {number} score - Relevance score
+ * @param {Object} metrics - Match metrics object
+ * @param {number} maxScore - Maximum score for normalization
+ */
 function renderSearchResultDetails(formula, score, metrics, maxScore) {
     const detailsPanel = document.getElementById('search-results-details');
     if (!detailsPanel) return;
@@ -4568,7 +4622,18 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
     detailsPanel.innerHTML = detailsHTML;
 }
 
-// Helper function to escape HTML
+/**
+ * Helper function to escape HTML
+ * 
+ * Prevents XSS attacks by escaping HTML special characters in user input.
+ * Used when displaying user-generated content or formula data in HTML.
+ * 
+ * @param {string} text - Text to escape
+ * @returns {string} HTML-escaped text
+ * 
+ * @example
+ * escapeHtml("<script>alert('xss')</script>") // Returns: "&lt;script&gt;alert('xss')&lt;/script&gt;"
+ */
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -4576,7 +4641,22 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Get search suggestions based on common terms
+/**
+ * Get search suggestions based on common terms
+ * 
+ * Provides alternative search terms when no results are found.
+ * Suggests related terms based on:
+ * - Partial matches with common astrophysics terms
+ * - Variable symbols that match the search
+ * - Concept expansions
+ * 
+ * @param {string} searchTerm - The search term that returned no results
+ * @returns {Array<string>} Array of suggested search terms (max 5)
+ * 
+ * @example
+ * getSearchSuggestions("vel") // Returns: ["velocity", "escape velocity", "orbital velocity"]
+ * getSearchSuggestions("temp") // Returns: ["temperature", "wien", "stefan"]
+ */
 function getSearchSuggestions(searchTerm) {
     const suggestions = [];
     const searchLower = searchTerm.toLowerCase();
@@ -4930,6 +5010,11 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
             </div>
         `;
         card.innerHTML = cardContent;
+        
+        // Add quick links to related formulas (if function exists)
+        if (typeof addQuickLinksToCard === 'function') {
+            addQuickLinksToCard(card, formula);
+        }
         
         // Verify content was set
         if (card.innerHTML.trim().length === 0) {
