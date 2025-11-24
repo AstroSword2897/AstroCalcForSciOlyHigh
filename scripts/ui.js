@@ -5112,9 +5112,9 @@ function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
     // If already initialized, return true
     if (manager.calculator) return true;
     
-    // Check if Desmos is available
-    if (typeof Desmos === 'undefined' || window.desmosUnavailable) {
-        // Desmos unavailable, try to use offline manager
+    // Offline-first: Always use offline graph manager (no external API calls)
+    if (typeof Desmos === 'undefined' || window.desmosUnavailable || window.offlineMode) {
+        // Use offline manager - this is the default for offline-first operation
         if (typeof OfflineGraphManager !== 'undefined') {
             if (!manager.offlineManager) {
                 manager.offlineManager = new OfflineGraphManager(containerId, tabId);
@@ -5127,36 +5127,11 @@ function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
                     }
                 }
                 if (manager.offlineManager.canvas) {
-                    console.log('[initializeGraphManager] Using offline graph manager');
+                    console.log('[initializeGraphManager] Using offline graph manager (offline-first mode)');
                     return true;
                 }
             }
         }
-        
-        // Wait for Desmos to load (async, returns false immediately)
-        if (typeof Desmos === 'undefined' && !window.desmosUnavailable) {
-            let attempts = 0;
-            const checkDesmos = setInterval(() => {
-                attempts++;
-                if (typeof Desmos !== 'undefined' && manager) {
-                    manager.init(containerId);
-                    clearInterval(checkDesmos);
-                } else if (attempts >= maxAttempts) {
-                    console.warn('Desmos API failed to load after multiple attempts');
-                    // Try offline fallback
-                    if (typeof OfflineGraphManager !== 'undefined' && !manager.offlineManager) {
-                        manager.offlineManager = new OfflineGraphManager(containerId, tabId);
-                        const graphContainer = document.getElementById(containerId);
-                        if (graphContainer && manager.offlineManager) {
-                            manager.offlineManager.init(containerId);
-                        }
-                    }
-                    clearInterval(checkDesmos);
-                }
-            }, 200);
-            return false; // Will be initialized asynchronously
-        }
-        
         return false;
     }
     

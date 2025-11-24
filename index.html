@@ -376,69 +376,61 @@
     <!-- Local MathJax (works offline) -->
     <script id="MathJax-script" async src="libs/mathjax/es5/tex-mml-chtml.js"></script>
     
-    <!-- Desmos API (with automatic offline fallback) -->
-    <!-- Using demo key for development. For production, get your own API key from Desmos -->
-    <!-- Replace the apiKey parameter below with your own key (contact info@desmos.com) -->
-    <!-- NOTE: If Desmos fails to load, the app automatically uses OfflineGraphManager for canvas-based graphing -->
+    <!-- Offline-First Configuration -->
+    <!-- NOTE: This app is designed to work completely offline. No external API calls are made. -->
+    <!-- All graphing uses the built-in OfflineGraphManager (canvas-based) -->
     <script>
-        // Load Desmos only if online, otherwise use offline graph manager
+        // Set offline mode immediately - no external API calls
+        // This ensures the app works completely offline from the start
+        window.desmosUnavailable = true;
+        window.offlineMode = true;
+        
+        console.log('[App] Offline-first mode: All features work without internet connection');
+        console.log('[App] Using offline canvas-based graph manager');
+        
+        // Dispatch event to notify that we're in offline mode
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('desmosUnavailable'));
+        }
+        
+        // Optional: Only attempt to load Desmos if explicitly online AND user wants it
+        // For now, we skip Desmos entirely for true offline operation
         function loadDesmos() {
-            if (navigator.onLine !== false) {
+            // Check if we're actually online and want to use Desmos
+            if (navigator.onLine && !window.offlineMode) {
+                // Only load if explicitly not in offline mode
                 const script = document.createElement('script');
                 script.src = 'https://www.desmos.com/api/v1.7/calculator.js?apiKey=0b5490317d764f8f810b5195b435a878';
                 script.onerror = function() {
-                    console.warn('Desmos API failed to load. Using offline graph manager.');
+                    console.warn('[App] Desmos API failed. Using offline graph manager.');
                     window.desmosUnavailable = true;
-                    // Trigger offline mode initialization
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new Event('desmosUnavailable'));
-                    }
+                    window.dispatchEvent(new Event('desmosUnavailable'));
                 };
                 script.onload = function() {
-                    console.log('Desmos API loaded successfully');
+                    console.log('[App] Desmos API loaded (online mode)');
                     window.desmosUnavailable = false;
-                    // Trigger Desmos available event
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new Event('desmosAvailable'));
-                    }
+                    window.dispatchEvent(new Event('desmosAvailable'));
                 };
                 document.head.appendChild(script);
             } else {
-                console.log('Offline mode detected. Using offline graph manager.');
-                window.desmosUnavailable = true;
-                window.dispatchEvent(new Event('desmosUnavailable'));
+                // Offline mode - don't attempt to load
+                console.log('[App] Skipping Desmos API load - offline mode enabled');
             }
         }
         
-        // Try to load Desmos when page loads
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', loadDesmos);
-        } else {
-            loadDesmos();
-        }
-        
-        // Also listen for online/offline events
+        // Listen for online events (if user wants to enable online features later)
         window.addEventListener('online', function() {
-            if (!window.Desmos && !window.desmosLoading) {
-                window.desmosLoading = true;
-                loadDesmos();
-            }
+            console.log('[App] Connection restored, but staying in offline mode');
+            // Optionally: if user wants, can enable Desmos here
+            // For now, we stay in offline mode
         });
         
         window.addEventListener('offline', function() {
-            console.log('Network went offline. Switching to offline graph manager.');
+            console.log('[App] Connection lost - already in offline mode');
             window.desmosUnavailable = true;
+            window.offlineMode = true;
             window.dispatchEvent(new Event('desmosUnavailable'));
         });
-        
-        // Set timeout to mark Desmos as unavailable if it doesn't load within 5 seconds
-        setTimeout(function() {
-            if (typeof Desmos === 'undefined' && !window.desmosUnavailable) {
-                console.warn('Desmos API did not load within timeout. Using offline graph manager.');
-                window.desmosUnavailable = true;
-                window.dispatchEvent(new Event('desmosUnavailable'));
-            }
-        }, 5000);
     </script>
     <script src="scripts/formulas.js"></script>
     <script src="scripts/calculator.js"></script>
@@ -517,4 +509,5 @@
     </script>
 </body>
 </html>
+
 

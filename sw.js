@@ -72,23 +72,9 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-    // Skip cross-origin requests (like Desmos API)
-    if (!event.request.url.startsWith(self.location.origin) && 
-        !event.request.url.includes('desmos.com')) {
-        return;
-    }
-
-    // Handle Desmos API requests - don't cache, just pass through
-    if (event.request.url.includes('desmos.com')) {
-        event.respondWith(
-            fetch(event.request)
-                .catch(() => {
-                    // If offline and Desmos fails, return a response indicating offline mode
-                    return new Response(JSON.stringify({ offline: true }), {
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                })
-        );
+    // Skip ALL cross-origin requests - we don't make any external API calls
+    if (!event.request.url.startsWith(self.location.origin)) {
+        // Don't intercept external requests - app is offline-first
         return;
     }
 
