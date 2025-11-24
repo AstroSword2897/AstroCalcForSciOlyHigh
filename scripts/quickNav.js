@@ -21,7 +21,107 @@ function initQuickNav() {
     setupCommandPalette();
     setupCardKeyboardNavigation();
     setupRelatedFormulasQuickAccess();
+    setupHelpOverlay();
 }
+
+/**
+ * Setup help overlay showing all keyboard shortcuts
+ */
+function setupHelpOverlay() {
+    const helpOverlay = document.createElement('div');
+    helpOverlay.id = 'help-overlay';
+    helpOverlay.className = 'help-overlay';
+    helpOverlay.innerHTML = `
+        <div class="help-overlay-content">
+            <div class="help-overlay-header">
+                <h2>Keyboard Shortcuts</h2>
+                <button class="help-overlay-close" onclick="closeHelpOverlay()">✕</button>
+            </div>
+            <div class="help-shortcuts-grid">
+                <div class="help-shortcut-group">
+                    <h3>Navigation</h3>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>⌘</kbd><kbd>K</kbd> or <kbd>Ctrl</kbd><kbd>K</kbd></div>
+                        <div class="help-shortcut-desc">Focus search</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>⌘</kbd><kbd>/</kbd> or <kbd>Ctrl</kbd><kbd>/</kbd></div>
+                        <div class="help-shortcut-desc">Open command palette</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>1</kbd> - <kbd>4</kbd></div>
+                        <div class="help-shortcut-desc">Switch tabs (Formulas, Explorer, Classification, Desmos)</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>↑</kbd> <kbd>↓</kbd></div>
+                        <div class="help-shortcut-desc">Navigate formula cards</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>Enter</kbd></div>
+                        <div class="help-shortcut-desc">Open selected formula</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys"><kbd>Esc</kbd></div>
+                        <div class="help-shortcut-desc">Go back / Close modals</div>
+                    </div>
+                </div>
+                <div class="help-shortcut-group">
+                    <h3>Quick Access</h3>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys">Type letters</div>
+                        <div class="help-shortcut-desc">Start typing to search instantly</div>
+                    </div>
+                    <div class="help-shortcut-item">
+                        <div class="help-shortcut-keys">Click quick links</div>
+                        <div class="help-shortcut-desc">Jump to related formulas on cards</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(helpOverlay);
+    
+    // Add help button to header
+    const header = document.querySelector('header');
+    if (header) {
+        const helpBtn = document.createElement('button');
+        helpBtn.className = 'help-btn';
+        helpBtn.innerHTML = '?';
+        helpBtn.title = 'Show keyboard shortcuts (Press ?)';
+        helpBtn.onclick = () => toggleHelpOverlay();
+        header.appendChild(helpBtn);
+    }
+}
+
+/**
+ * Toggle help overlay
+ */
+function toggleHelpOverlay() {
+    const overlay = document.getElementById('help-overlay');
+    if (!overlay) return;
+    overlay.classList.toggle('active');
+}
+
+/**
+ * Close help overlay
+ */
+function closeHelpOverlay() {
+    const overlay = document.getElementById('help-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('active');
+}
+
+// Add ? key to open help
+document.addEventListener('keydown', (e) => {
+    if (e.key === '?' && !e.metaKey && !e.ctrlKey) {
+        const activeElement = document.activeElement;
+        const isInput = activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA';
+        if (!isInput) {
+            e.preventDefault();
+            toggleHelpOverlay();
+        }
+    }
+});
 
 /**
  * Setup global keyboard shortcuts
@@ -534,5 +634,7 @@ if (typeof window !== 'undefined') {
     window.addQuickLinksToCard = addQuickLinksToCard;
     window.getRelatedFormulas = getRelatedFormulas;
     window.navigateCards = navigateCards;
+    window.toggleHelpOverlay = toggleHelpOverlay;
+    window.closeHelpOverlay = closeHelpOverlay;
 }
 

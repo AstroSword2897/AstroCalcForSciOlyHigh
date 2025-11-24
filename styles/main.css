@@ -901,6 +901,157 @@ header h1 {
     transform: translateY(-4px) scale(1.02);
 }
 
+/* Help Overlay */
+.help-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    z-index: 10001;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.help-overlay.active {
+    display: flex;
+}
+
+.help-overlay-content {
+    background: rgba(10, 14, 39, 0.98);
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 700px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: helpOverlaySlideIn 0.2s ease-out;
+}
+
+@keyframes helpOverlaySlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.help-overlay-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.help-overlay-header h2 {
+    color: #667eea;
+    margin: 0;
+    font-size: 1.8em;
+}
+
+.help-overlay-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.help-overlay-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.help-shortcuts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 30px;
+}
+
+.help-shortcut-group h3 {
+    color: #a8c7ff;
+    margin: 0 0 15px 0;
+    font-size: 1.2em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+}
+
+.help-shortcut-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.help-shortcut-item:last-child {
+    border-bottom: none;
+}
+
+.help-shortcut-keys {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.help-shortcut-keys kbd {
+    background: rgba(0, 0, 0, 0.4);
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace;
+    font-size: 0.85em;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.help-shortcut-desc {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.9em;
+    text-align: right;
+    flex: 1;
+    margin-left: 20px;
+}
+
+.help-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(102, 126, 234, 0.2);
+    border: 1px solid rgba(102, 126, 234, 0.4);
+    color: #667eea;
+    font-size: 1.2em;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.help-btn:hover {
+    background: rgba(102, 126, 234, 0.3);
+    border-color: #667eea;
+    transform: scale(1.1);
+}
+
 /* Related Topics Quick Access */
 .related-topics-panel {
     position: fixed;
