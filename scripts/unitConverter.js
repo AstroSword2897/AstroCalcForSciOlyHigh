@@ -1,7 +1,44 @@
-// Unit Conversion Utilities
+/**
+ * Unit Conversion Utilities
+ * 
+ * Provides unit conversion functionality for astronomical calculations.
+ * Handles conversions between different unit systems (SI, astronomical units, etc.)
+ * and automatically selects the most appropriate unit for display.
+ * 
+ * Supported conversions:
+ * - Distance: m, km, AU, pc, ly, etc.
+ * - Mass: kg, M☉ (solar masses), etc.
+ * - Time: s, min, hr, day, yr, etc.
+ * - Temperature: K, °C, °F (with offset handling)
+ * - Energy: J, erg, eV, etc.
+ * - And many more...
+ */
 
+/**
+ * UnitConverter Class
+ * 
+ * Static utility class for unit conversions. All methods are static.
+ */
 class UnitConverter {
-    // Convert and format a value with its unit
+    /**
+     * Convert and format a value with its unit
+     * 
+     * Automatically selects the best unit for display based on the value's magnitude.
+     * For example, a very large distance will be converted to parsecs or light-years
+     * instead of meters.
+     * 
+     * @param {number} value - The numerical value to convert
+     * @param {string} unit - The current unit of the value (e.g., "m", "kg", "s")
+     * @returns {Object} Object with:
+     *                   - value: converted numerical value
+     *                   - unit: new unit string
+     *                   - factor: conversion factor used (if conversion occurred)
+     *                   - original: original value and unit (if conversion occurred)
+     * 
+     * @example
+     * UnitConverter.convertAndFormat(1.496e11, "m")
+     * // Returns: { value: 1, unit: "AU", factor: 1.496e11, original: { value: 1.496e11, unit: "m" } }
+     */
     static convertAndFormat(value, unit) {
         const conversions = this.getConversions(unit);
         if (!conversions || conversions.length === 0) {

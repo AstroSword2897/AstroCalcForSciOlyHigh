@@ -1,11 +1,57 @@
-// Calculation Engine
+/**
+ * Calculation Engine
+ * 
+ * Core calculation engine for solving astronomical formulas. Provides:
+ * - Numerical solving for single unknown variables
+ * - Symbolic expression generation for multiple unknowns
+ * - Automatic constant substitution (G, c, σ, M☉, etc.)
+ * - Unit conversion support
+ * - Error handling and validation
+ * - Support for "N/A" variables (for symbolic expressions)
+ * 
+ * The calculator uses the formula's solveFunction to perform calculations,
+ * automatically handling unit conversions and constant substitutions.
+ */
 
+/**
+ * FormulaCalculator Class
+ * 
+ * Handles calculation logic for a specific formula. Can solve for:
+ * - Single unknown variable (numerical result)
+ * - Multiple unknown variables (symbolic expression)
+ * - Variables marked as "N/A" (excluded from calculation)
+ * 
+ * @param {Object} formula - Formula object from formulas.js with solveFunction
+ */
 class FormulaCalculator {
     constructor(formula) {
         this.formula = formula;
     }
 
-    // Solve for a specific variable given the other values
+    /**
+     * Solve for a specific variable given the other values
+     * 
+     * Determines which variable to solve for based on which ones are null/empty.
+     * If exactly one variable is null, solves numerically.
+     * If multiple variables are null or any are "N/A", returns symbolic expression.
+     * 
+     * @param {Object} variableValues - Object mapping variable symbols to their values
+     *                                  Values can be: number, string (parsed), null, "N/A"
+     * @returns {Object} Result object with:
+     *                   - result: numerical value or symbolic expression string
+     *                   - solvedFor: symbol of variable that was solved
+     *                   - isSymbolic: boolean indicating if result is symbolic
+     * @throws {Error} If no variables are unknown, or if calculation fails
+     * 
+     * @example
+     * // Numerical solve
+     * calculator.solve({ M: 1.989e30, a: 1.496e11, P: null })
+     * // Returns: { result: 3.156e7, solvedFor: 'P', isSymbolic: false }
+     * 
+     * // Symbolic solve
+     * calculator.solve({ M: 1.989e30, a: null, P: null })
+     * // Returns: { result: "P = 2π√(a³/(GM))", solvedFor: null, isSymbolic: true }
+     */
     solve(variableValues) {
         const nullVars = [];
         const naVars = [];

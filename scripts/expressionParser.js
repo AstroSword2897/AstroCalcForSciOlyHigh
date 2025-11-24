@@ -1,7 +1,46 @@
-// Expression Parser for mathematical inputs
+/**
+ * Expression Parser for Mathematical Inputs
+ * 
+ * Parses and evaluates mathematical expressions entered by users.
+ * Supports:
+ * - Direct numbers (integers and decimals)
+ * - Scientific notation (1e10, 2.5e-3)
+ * - Fractions (1/2, pi/4, 3/2)
+ * - Mathematical constants (pi, e, π)
+ * - Basic operations (+, -, *, /, ^, **)
+ * - Trigonometric functions (sin, cos, tan, etc.)
+ * - Degree to radian conversion
+ * - Complex nested expressions
+ * 
+ * Used by the calculator to parse user input before calculations.
+ */
 
+/**
+ * ExpressionParser Class
+ * 
+ * Static utility class for parsing mathematical expressions. All methods are static.
+ */
 class ExpressionParser {
-    // Parse and evaluate mathematical expressions
+    /**
+     * Parse and evaluate mathematical expressions
+     * 
+     * Converts string input into a numerical value. Handles various formats:
+     * - Numbers: "123", "3.14", "1e10"
+     * - Fractions: "1/2", "pi/4"
+     * - Expressions: "2*pi", "sqrt(16)", "sin(pi/2)"
+     * - Degrees: "90°", "45deg" (converts to radians if unit is radians)
+     * 
+     * @param {string|number} value - Input value to parse (string or number)
+     * @param {string} unit - Optional unit hint (e.g., "rad" triggers degree conversion)
+     * @returns {number|null} Parsed numerical value, or null if input is empty/null
+     * @throws {Error} If expression is invalid or cannot be evaluated
+     * 
+     * @example
+     * ExpressionParser.parse("3.14159") // Returns: 3.14159
+     * ExpressionParser.parse("pi/2") // Returns: 1.5707963267948966
+     * ExpressionParser.parse("90°", "rad") // Returns: 1.5707963267948966 (converted from degrees)
+     * ExpressionParser.parse("2*pi*6371000") // Returns: 40030173.59204109
+     */
     static parse(value, unit = null) {
         if (!value || value === '' || value.toLowerCase() === 'null') {
             return null;

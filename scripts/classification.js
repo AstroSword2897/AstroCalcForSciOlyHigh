@@ -1,5 +1,29 @@
-// Stellar Classification Module
+/**
+ * Stellar Classification Module
+ * 
+ * Implements the Harvard Spectral Classification system for stars.
+ * Classifies stars based on:
+ * - Effective temperature (primary classification)
+ * - Luminosity class (Roman numeral: I-V)
+ * - Special cases (protostars, white dwarfs)
+ * 
+ * Classification System:
+ * - OBAFGKM: Main sequence temperature classes (hottest to coolest)
+ * - L, T, Y: Extended classes for brown dwarfs and very cool objects
+ * - Luminosity classes: I (supergiants), II (bright giants), III (giants),
+ *                       IV (subgiants), V (main sequence), VI (subdwarfs)
+ * 
+ * Special Classifications:
+ * - Protostars/YSOs: Classified separately based on temperature ranges
+ * - White Dwarfs: Use DA, DB, etc. notation with temperature-based spectral class
+ */
 
+/**
+ * StellarClassifier Class
+ * 
+ * Provides methods for classifying stars based on their physical properties.
+ * Uses the Harvard Classification system with extensions for cool objects.
+ */
 class StellarClassifier {
     constructor() {
         // Harvard Classification temperature ranges (in Kelvin)
@@ -17,7 +41,26 @@ class StellarClassifier {
         ];
     }
 
-    // Classify a star based on temperature, luminosity class, protostar status, and white dwarf status
+    /**
+     * Classify a star based on temperature, luminosity class, protostar status, and white dwarf status
+     * 
+     * Main classification method that determines the spectral type of a star.
+     * Handles special cases (white dwarfs, protostars) before standard classification.
+     * 
+     * @param {number} temperature - Effective temperature in Kelvin (must be > 0)
+     * @param {string} luminosityClass - Luminosity class: "I", "II", "III", "IV", "V", "VI", or null
+     * @param {boolean} isProtostar - Whether the object is a protostar/young stellar object
+     * @param {boolean} isWhiteDwarf - Whether the object is a white dwarf
+     * @param {string} whiteDwarfType - White dwarf type if applicable (e.g., "DA", "DB", "DC")
+     * @returns {string} Spectral classification (e.g., "G2V", "B5III", "DA4", "T Tauri")
+     * @throws {Error} If temperature is invalid or outside valid range
+     * 
+     * @example
+     * classifier.classify(5778, "V", false, false, null) // Returns: "G2V"
+     * classifier.classify(30000, "I", false, false, null) // Returns: "O5I"
+     * classifier.classify(10000, null, false, true, "DA") // Returns: "DA5"
+     * classifier.classify(4000, null, true, false, null) // Returns: "T Tauri"
+     */
     classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
         if (!temperature || temperature <= 0) {
             throw new Error('Temperature must be a positive number');
