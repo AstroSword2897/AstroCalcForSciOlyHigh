@@ -4276,7 +4276,12 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         totalCards: totalCards,
         scoredFormulas: scoredFormulas.length,
         categories: Object.keys(categorizedFormulas).length,
-        uncategorized: uncategorized.length
+        uncategorized: uncategorized.length,
+        formulaListDisplay: window.getComputedStyle(formulaList).display,
+        formulaListVisibility: window.getComputedStyle(formulaList).visibility,
+        formulaListOpacity: window.getComputedStyle(formulaList).opacity,
+        mainTabActive: mainFormulasTab ? mainFormulasTab.classList.contains('active') : 'N/A',
+        mainTabDisplay: mainFormulasTab ? window.getComputedStyle(mainFormulasTab).display : 'N/A'
     });
     
     if (totalChildren === 0 && scoredFormulas.length > 0) {
@@ -4287,18 +4292,36 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             uncategorizedCount: uncategorized.length,
             formulaListExists: !!formulaList,
             formulaListVisible: formulaList.offsetParent !== null,
-            formulaListDisplay: window.getComputedStyle(formulaList).display
+            formulaListDisplay: window.getComputedStyle(formulaList).display,
+            mainTabActive: mainFormulasTab ? mainFormulasTab.classList.contains('active') : false
         });
     } else if (totalCards === 0 && scoredFormulas.length > 0) {
         console.error('❌ Warning: No cards found in formulaList despite having results!');
         console.error('formulaList.innerHTML length:', formulaList.innerHTML.length);
-        console.error('formulaList children:', Array.from(formulaList.children).map(c => c.tagName + '.' + c.className));
+        console.error('formulaList children:', Array.from(formulaList.children).map(c => `${c.tagName}.${c.className}`));
+        
+        // Try to force visibility
+        if (mainFormulasTab) {
+            mainFormulasTab.classList.add('active');
+            mainFormulasTab.style.display = 'block';
+        }
+        formulaList.style.display = 'block';
+        formulaList.style.visibility = 'visible';
+        formulaList.style.opacity = '1';
     } else {
         console.log(`✅ Successfully rendered ${totalChildren} elements (${totalCards} cards) to formulaList`);
     }
     
     // Force a reflow to ensure rendering
     formulaList.offsetHeight;
+    
+    // Ensure all cards are visible
+    const allCards = formulaList.querySelectorAll('.formula-card');
+    allCards.forEach(card => {
+        card.style.display = 'block';
+        card.style.visibility = 'visible';
+        card.style.opacity = '1';
+    });
     
     // Scroll to top of results if we have a search term
     if (searchTerm && totalCards > 0) {
