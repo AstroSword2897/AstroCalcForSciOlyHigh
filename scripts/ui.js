@@ -994,22 +994,24 @@ function setupSearchFunctionality() {
         })));
         
         // ALWAYS show at least top 10 results, even if they have low scores
+        // Note: All formulas were already scored in allScoredFormulas above
         if (scoredFormulas.length === 0 && allFormulas.length > 0) {
             console.warn('⚠️ No formulas passed filter, showing top 10 by score anyway');
-            const allScored = allFormulas.map(formula => {
-                const scoreData = calculateSearchScore(formula, searchLower, searchWords);
-                return { formula, score: Math.max(0, scoreData.score || 0), metrics: scoreData.metrics };
-            }).sort((a, b) => b.score - a.score).slice(0, 10);
-            scoredFormulas = allScored;
+            // Use already-scored formulas instead of re-scoring
+            scoredFormulas = allScoredFormulas
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 10);
         } else if (scoredFormulas.length < 5) {
-            // If we have very few results, show more
+            // If we have very few results, show more (already scored above)
             console.log('📊 Few results, expanding to show more...');
-            const allScored = allFormulas.map(formula => {
-                const scoreData = calculateSearchScore(formula, searchLower, searchWords);
-                return { formula, score: Math.max(0, scoreData.score || 0), metrics: scoreData.metrics };
-            }).sort((a, b) => b.score - a.score).slice(0, Math.max(10, scoredFormulas.length + 5));
-            scoredFormulas = allScored;
+            scoredFormulas = allScoredFormulas
+                .sort((a, b) => b.score - a.score)
+                .slice(0, Math.max(10, scoredFormulas.length + 5));
         }
+        
+        // Log that all formulas were scored for confidence calculation
+        console.log(`✅ All ${allFormulas.length} formulas scored for confidence calculation`);
+        console.log(`📊 Displaying top ${scoredFormulas.length} results from ${allScoredFormulas.length} total scored formulas`);
         
         // Calculate max score for normalization
         const maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;

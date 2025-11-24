@@ -475,8 +475,12 @@ var conceptMatchingSystem = {
         const matchedFormulas = [];
         
         if (typeof formulas === 'undefined' || !Array.isArray(formulas)) {
+            console.warn('[findFormulasByConcepts] Formulas array not available');
             return matchedFormulas;
         }
+        
+        // Process ALL formulas in the database for concept matching
+        console.log(`[findFormulasByConcepts] Processing all ${formulas.length} formulas for concept matching`);
         
         formulas.forEach(formula => {
             let matchScore = 0;
