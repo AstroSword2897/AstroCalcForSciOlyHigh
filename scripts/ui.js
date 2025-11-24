@@ -4081,6 +4081,17 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         inputScreen.classList.remove('active');
     }
     
+    // Ensure the Formulas tab is active
+    const mainFormulasTab = document.getElementById('main-formulas-tab');
+    if (mainFormulasTab && !mainFormulasTab.classList.contains('active')) {
+        mainFormulasTab.classList.add('active');
+    }
+    
+    // Ensure formula-list is visible
+    formulaList.style.display = '';
+    formulaList.style.visibility = 'visible';
+    formulaList.style.opacity = '1';
+    
     // Add result count header FIRST (before any categories)
     if (searchTerm && scoredFormulas.length > 0) {
         const resultHeader = document.createElement('div');
