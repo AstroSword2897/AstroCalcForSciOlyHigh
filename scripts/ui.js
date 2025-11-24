@@ -5113,31 +5113,74 @@ function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
     if (manager.calculator) return true;
     
     // Check if Desmos is available
-    if (typeof Desmos === 'undefined') {
+    if (typeof Desmos === 'undefined' || window.desmosUnavailable) {
+        // Desmos unavailable, try to use offline manager
+        if (typeof OfflineGraphManager !== 'undefined') {
+            if (!manager.offlineManager) {
+                manager.offlineManager = new OfflineGraphManager(containerId, tabId);
+            }
+            if (manager.offlineManager) {
+                if (!manager.offlineManager.canvas) {
+                    const graphContainer = document.getElementById(containerId);
+                    if (graphContainer) {
+                        manager.offlineManager.init(containerId);
+                    }
+                }
+                if (manager.offlineManager.canvas) {
+                    console.log('[initializeGraphManager] Using offline graph manager');
+                    return true;
+                }
+            }
+        }
+        
         // Wait for Desmos to load (async, returns false immediately)
+        if (typeof Desmos === 'undefined' && !window.desmosUnavailable) {
             let attempts = 0;
             const checkDesmos = setInterval(() => {
                 attempts++;
-            if (typeof Desmos !== 'undefined' && manager) {
-                manager.init(containerId);
+                if (typeof Desmos !== 'undefined' && manager) {
+                    manager.init(containerId);
                     clearInterval(checkDesmos);
                 } else if (attempts >= maxAttempts) {
                     console.warn('Desmos API failed to load after multiple attempts');
+                    // Try offline fallback
+                    if (typeof OfflineGraphManager !== 'undefined' && !manager.offlineManager) {
+                        manager.offlineManager = new OfflineGraphManager(containerId, tabId);
+                        const graphContainer = document.getElementById(containerId);
+                        if (graphContainer && manager.offlineManager) {
+                            manager.offlineManager.init(containerId);
+                        }
+                    }
                     clearInterval(checkDesmos);
                 }
             }, 200);
-        return false; // Will be initialized asynchronously
+            return false; // Will be initialized asynchronously
+        }
+        
+        return false;
     }
     
     // Initialize immediately if Desmos is available
     const initResult = manager.init(containerId);
     
-    // If Desmos init failed, wait a bit then check for offline fallback
-    if (!initResult && attempts >= maxAttempts) {
-        // Check if manager has offline fallback
-        if (manager.offlineManager) {
-            console.log('[initializeGraphManager] Using offline graph manager');
-            return true;
+    // If Desmos init failed, try offline fallback
+    if (!initResult) {
+        if (typeof OfflineGraphManager !== 'undefined') {
+            if (!manager.offlineManager) {
+                manager.offlineManager = new OfflineGraphManager(containerId, tabId);
+            }
+            if (manager.offlineManager) {
+                const graphContainer = document.getElementById(containerId);
+                if (graphContainer) {
+                    if (!manager.offlineManager.canvas) {
+                        manager.offlineManager.init(containerId);
+                    }
+                    if (manager.offlineManager.canvas) {
+                        console.log('[initializeGraphManager] Using offline graph manager as fallback');
+                        return true;
+                    }
+                }
+            }
         }
     }
     
