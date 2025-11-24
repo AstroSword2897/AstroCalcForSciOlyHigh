@@ -4099,10 +4099,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
                 <div class="search-suggestions">
                     <div class="search-suggestions-title">Try searching for:</div>
                     <div class="search-suggestions-list">
-                <div style="margin-top: 20px;">
-                    <p style="font-size: 0.95em; margin-bottom: 10px; color: rgba(255, 255, 255, 0.6);">Did you mean:</p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
-                        ${suggestions.map(s => `<span style="background: rgba(102, 126, 234, 0.2); padding: 6px 12px; border-radius: 6px; cursor: pointer; border: 1px solid rgba(102, 126, 234, 0.3); transition: all 0.2s;" onclick="document.getElementById('formula-search').value='${s}'; document.getElementById('formula-search').dispatchEvent(new Event('input'));">${s}</span>`).join('')}
+                        ${suggestions.map(s => `<span class="search-suggestion-item" onclick="document.getElementById('formula-search').value='${s}'; document.getElementById('formula-search').dispatchEvent(new Event('input'));">${s}</span>`).join('')}
                     </div>
                 </div>
             `;
