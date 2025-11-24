@@ -590,10 +590,19 @@ var conceptMatchingSystem = {
 function findFormulasForQuestion(questionText) {
     const results = [];
     
+    // Ensure we have access to all formulas
+    if (typeof formulas === 'undefined' || !Array.isArray(formulas) || formulas.length === 0) {
+        console.warn('[findFormulasForQuestion] Formulas array not available');
+        return results;
+    }
+    
+    console.log(`[findFormulasForQuestion] Searching through ${formulas.length} formulas for: "${questionText}"`);
+    
     // Extract concepts from question
     const extractedConcepts = conceptMatchingSystem.extractConceptsFromQuestion(questionText);
     
     // Find formulas by concepts (including remote matches, uses cache)
+    // This processes ALL formulas in the formulas array
     const conceptMatches = conceptMatchingSystem.findFormulasByConcepts(extractedConcepts, true);
     conceptMatches.forEach(match => {
         results.push({
@@ -605,7 +614,7 @@ function findFormulasForQuestion(questionText) {
         });
     });
     
-    // Find formulas using semantic search
+    // Find formulas using semantic search (processes ALL formulas)
     const semanticMatches = conceptMatchingSystem.findFormulasSemantically(questionText);
     semanticMatches.forEach(match => {
         // Avoid duplicates
@@ -625,6 +634,8 @@ function findFormulasForQuestion(questionText) {
     
     // Sort by score
     results.sort((a, b) => b.score - a.score);
+    
+    console.log(`[findFormulasForQuestion] Found ${results.length} matching formulas from ${formulas.length} total formulas`);
     
     return results;
 }

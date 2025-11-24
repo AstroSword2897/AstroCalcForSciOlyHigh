@@ -886,9 +886,16 @@ function setupSearchFunctionality() {
             return;
         }
         
-        // Ensure allFormulas is populated
-        if (!allFormulas || allFormulas.length === 0) {
-            console.error('allFormulas is empty or undefined!');
+        // Ensure allFormulas is populated with ALL formulas
+        if (!allFormulas || allFormulas.length === 0 || allFormulas.length !== formulas.length) {
+            console.log(`Initializing allFormulas: ${formulas.length} formulas available`);
+            allFormulas = [...formulas];
+            console.log(`allFormulas initialized with ${allFormulas.length} formulas`);
+        }
+        
+        // Validate that all formulas are included
+        if (allFormulas.length !== formulas.length) {
+            console.warn(`⚠️ Formula count mismatch: allFormulas has ${allFormulas.length}, formulas has ${formulas.length}. Re-syncing...`);
             allFormulas = [...formulas];
         }
         
@@ -957,7 +964,14 @@ function setupSearchFunctionality() {
             }
             
             return { formula, score: scoreData.score, metrics: scoreData.metrics };
-        }).filter(item => {
+        });
+        
+        // IMPORTANT: All formulas are scored, but we filter for display
+        // Keep ALL scored formulas for confidence calculation, but only show top matches
+        const allScoredFormulas = scoredFormulas; // Keep reference to all scored formulas
+        
+        // Filter for display (lenient - show formulas with any relevance)
+        const displayedFormulas = scoredFormulas.filter(item => {
             // VERY lenient filtering: Show formulas with ANY score > 0 OR any match type
             const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
             const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
@@ -967,6 +981,9 @@ function setupSearchFunctionality() {
         })
           .sort((a, b) => b.score - a.score) // Sort by relevance (highest to lowest)
           .slice(0, 50); // Increased limit to 50 results
+        
+        // Use displayed formulas but ensure all were scored
+        let scoredFormulas = displayedFormulas;
         
         console.log('Scored formulas:', scoredFormulas.length);
         console.log('First 3 results:', scoredFormulas.slice(0, 3).map(f => ({
