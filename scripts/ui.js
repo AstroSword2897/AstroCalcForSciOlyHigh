@@ -4561,8 +4561,46 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
                     Use This Formula →
                 </button>
             </div>
-            <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 8px 16px; border-radius: 6px; display: inline-block; margin-bottom: 15px; font-weight: 600;">
-                ${confidenceScore}% Match - ${confidenceLevel.level}
+            <div style="margin-bottom: 15px;">
+                <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 8px 16px; border-radius: 6px; display: inline-block; font-weight: 600; margin-bottom: 10px;">
+                    ${confidenceScore}% Match - ${confidenceLevel.level}
+                </div>
+                ${(typeof getConfidenceBreakdown === 'function' && metrics && maxScore > 0) ? `
+                <details style="margin-top: 10px; cursor: pointer;">
+                    <summary style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; user-select: none; padding: 5px 0;">
+                        📊 Why this confidence level?
+                    </summary>
+                    <div style="margin-top: 10px; padding: 15px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.3);">
+                        ${(() => {
+                            const breakdown = getConfidenceBreakdown(score, maxScore, metrics, 1);
+                            let html = '<div style="font-size: 0.9em;">';
+                            breakdown.components.forEach(comp => {
+                                const sign = comp.isAdjustment ? (comp.value >= 0 ? '+' : '') : '+';
+                                const color = comp.value > 0 ? '#4ade80' : comp.value < 0 ? '#f87171' : 'rgba(255, 255, 255, 0.7)';
+                                html += `
+                                    <div style="display: flex; justify-content: space-between; align-items: start; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                                        <div style="flex: 1;">
+                                            <div style="color: #a8c7ff; font-weight: 600; margin-bottom: 3px;">${comp.label}</div>
+                                            <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.85em;">${comp.description}</div>
+                                        </div>
+                                        <div style="color: ${color}; font-weight: 600; margin-left: 15px; min-width: 50px; text-align: right;">
+                                            ${sign}${comp.value}%
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            html += `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-top: 8px; border-top: 2px solid rgba(102, 126, 234, 0.5);">
+                                    <div style="color: #a8c7ff; font-weight: 700; font-size: 1.05em;">Total Confidence</div>
+                                    <div style="color: ${confidenceLevel.color}; font-weight: 700; font-size: 1.1em;">${breakdown.total}%</div>
+                                </div>
+                            `;
+                            html += '</div>';
+                            return html;
+                        })()}
+                    </div>
+                </details>
+                ` : ''}
             </div>
         </div>
         

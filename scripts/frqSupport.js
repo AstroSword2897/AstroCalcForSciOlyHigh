@@ -87,6 +87,100 @@ function getConfidenceLevel(confidence) {
     return { level: 'Very Low', color: '#f87171', icon: '??' };
 }
 
+/**
+ * Generate a breakdown of why the confidence score is what it is
+ * @param {number} score - Relevance score
+ * @param {number} maxScore - Maximum score
+ * @param {Object} metrics - Match metrics object
+ * @param {number} historyFactor - Historical performance factor (default: 1)
+ * @returns {Object} Breakdown object with components array and total
+ */
+function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1) {
+    const normalizedScore = normalizeScore(score, maxScore);
+    const baseConfidence = clamp(normalizedScore / 10, 0, 70);
+    
+    const components = [];
+    
+    // Base score contribution
+    components.push({
+        label: 'Base Relevance Score',
+        value: Math.round(baseConfidence),
+        description: `Based on search relevance (${Math.round(normalizedScore)} normalized points)`
+    });
+    
+    // Name match boost
+    if (metrics.nameMatch) {
+        components.push({
+            label: 'Name Match',
+            value: 15,
+            description: 'Formula name matches your search query'
+        });
+    }
+    
+    // Question pattern match boost
+    if (metrics.questionPatternMatch) {
+        components.push({
+            label: 'Question Pattern Match',
+            value: 10,
+            description: 'Matches natural language question patterns'
+        });
+    }
+    
+    // Concept match boost
+    if (metrics.conceptMatch) {
+        components.push({
+            label: 'Concept Match',
+            value: 5,
+            description: 'Matches key astrophysics concepts'
+        });
+    }
+    
+    // Semantic similarity boost
+    if (metrics.semanticSimilarityScore) {
+        const semanticBoost = clamp(metrics.semanticSimilarityScore * 10, 0, 10);
+        if (semanticBoost > 0) {
+            components.push({
+                label: 'Semantic Similarity',
+                value: Math.round(semanticBoost),
+                description: `Meaning similarity: ${(metrics.semanticSimilarityScore * 100).toFixed(0)}%`
+            });
+        }
+    }
+    
+    // Multiple concepts boost
+    if (metrics.matchedConcepts && metrics.matchedConcepts.length > 2) {
+        components.push({
+            label: 'Multiple Concept Matches',
+            value: 2,
+            description: `${metrics.matchedConcepts.length} related concepts matched`
+        });
+    }
+    
+    // Calculate total before history factor
+    const totalBeforeHistory = components.reduce((sum, comp) => sum + comp.value, 0);
+    
+    // History factor (if not 1.0)
+    if (historyFactor !== 1.0) {
+        const historyAdjustment = totalBeforeHistory * (historyFactor - 1);
+        components.push({
+            label: 'Historical Performance',
+            value: Math.round(historyAdjustment),
+            description: `Based on past usage patterns (${(historyFactor * 100).toFixed(0)}% factor)`,
+            isAdjustment: true
+        });
+    }
+    
+    // Calculate final total
+    const finalTotal = clamp(Math.round(totalBeforeHistory * historyFactor), 0, 100);
+    
+    return {
+        components,
+        total: finalTotal,
+        baseScore: Math.round(baseConfidence),
+        boosts: components.filter(c => c.value > 0 && !c.isAdjustment).reduce((sum, c) => sum + c.value, 0)
+    };
+}
+
 //////////////////////////////
 // Caching System
 //////////////////////////////
