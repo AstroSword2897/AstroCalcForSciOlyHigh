@@ -56,17 +56,49 @@ function normalizeScore(score, maxScore, scale = 1000) {
  * @returns {number} Confidence score (0-100)
  */
 function calculateConfidenceScore(score, maxScore, metrics = {}, historyFactor = 1) {
-    const normalizedScore = normalizeScore(score, maxScore);
+    if (!maxScore || maxScore === 0) return 0;
     
-    // Base confidence 0-70%
-    let confidence = clamp(normalizedScore / 10, 0, 70);
+    // Calculate base confidence from score ratio (0-60%)
+    // Use logarithmic scaling to better differentiate between matches
+    const scoreRatio = score / maxScore;
+    let baseConfidence = 0;
     
-    // Adaptive boosts based on matching metrics
-    if (metrics.nameMatch) confidence += 15;
-    if (metrics.questionPatternMatch) confidence += 10;
-    if (metrics.conceptMatch) confidence += 5;
-    if (metrics.semanticSimilarityScore) confidence += clamp(metrics.semanticSimilarityScore * 10, 0, 10);
-    if (metrics.matchedConcepts?.length > 2) confidence += 2;
+    if (scoreRatio >= 0.9) baseConfidence = 60; // Top 10% of scores
+    else if (scoreRatio >= 0.7) baseConfidence = 50; // Top 30%
+    else if (scoreRatio >= 0.5) baseConfidence = 40; // Top 50%
+    else if (scoreRatio >= 0.3) baseConfidence = 30; // Top 70%
+    else if (scoreRatio >= 0.1) baseConfidence = 20; // Top 90%
+    else baseConfidence = Math.max(0, Math.round(scoreRatio * 100)); // Bottom 10%
+    
+    // Adaptive boosts based on matching metrics (more conservative)
+    let boosts = 0;
+    
+    // Name match is strongest indicator
+    if (metrics.nameMatch) boosts += 20;
+    
+    // Question pattern match indicates good relevance
+    if (metrics.questionPatternMatch) boosts += 15;
+    
+    // Concept match indicates relatedness
+    if (metrics.conceptMatch) {
+        // More concepts matched = higher confidence
+        const conceptCount = metrics.matchedConcepts?.length || 0;
+        if (conceptCount >= 3) boosts += 10;
+        else if (conceptCount >= 2) boosts += 5;
+        else boosts += 3;
+    }
+    
+    // Semantic similarity (if high)
+    if (metrics.semanticSimilarityScore && metrics.semanticSimilarityScore > 0.5) {
+        boosts += Math.round(metrics.semanticSimilarityScore * 10);
+    }
+    
+    // Penalize if no strong matches (name or question pattern)
+    if (!metrics.nameMatch && !metrics.questionPatternMatch && !metrics.conceptMatch) {
+        baseConfidence = Math.max(0, baseConfidence - 10); // Penalty for weak matches
+    }
+    
+    let confidence = baseConfidence + boosts;
     
     // Historical performance factor (0.8-1.2)
     confidence *= historyFactor;
@@ -419,7 +451,14 @@ var conceptMatchingSystem = {
             'standard candle', 'cepheid', 'supernova distance', 'redshift distance',
             // Magnitude and extinction
             'apparent magnitude', 'absolute magnitude', 'extinction', 'absorption', 'reddening',
-            'interstellar medium', 'ism', 'dust', 'gas'
+            'interstellar medium', 'ism', 'dust', 'gas',
+            // Binary and multiple system terms
+            'binary', 'binary system', 'multiple system', 'triple system', 'quadruple system',
+            'binary star', 'multiple star', 'triple star', 'quadruple star',
+            'binary orbit', 'multiple orbit', 'triple orbit', 'quadruple orbit',
+            'binary separation', 'multiple separation', 'triple separation', 'quadruple separation',
+            'binary period', 'multiple period', 'triple period', 'quadruple period',
+            'binary eccentricity', 'multiple eccentricity', 'triple eccentricity', 'quadruple eccentricity',
         ];
         
         astrophysicsTerms.forEach(term => {
