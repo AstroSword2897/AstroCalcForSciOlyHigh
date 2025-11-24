@@ -6645,7 +6645,7 @@ function addUsageInstructions(formula) {
         instructionsHTML += '<div class="usage-steps" style="margin-top: 15px;">';
         instructions.steps.forEach(step => {
             instructionsHTML += `
-                <div style="margin-bottom: 15px; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; border-left: 3px solid #667eea;">
+                <div style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.8); border-radius: 6px; border-left: 3px solid #667eea; border: 1px solid rgba(102, 126, 234, 0.3);">
                     <strong style="color: #a8c7ff;">Step ${step.step}: ${step.title}</strong>
                     <p style="margin-top: 5px; color: rgba(255, 255, 255, 0.8);">${step.description}</p>
                 </div>
