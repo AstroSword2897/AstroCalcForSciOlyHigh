@@ -5966,31 +5966,50 @@ function updateGraph() {
     
     const variableValues = getCurrentVariableValues();
     
-    // Check if Desmos is available
-    if (typeof Desmos !== 'undefined' && !window.desmosUnavailable) {
-        // Use Desmos graph manager
+    // Offline-first: Always use offline graph manager (no external API calls)
+    // Only use Desmos if explicitly available AND not in offline mode
+    if (typeof Desmos !== 'undefined' && !window.desmosUnavailable && !window.offlineMode) {
+        // Use Desmos graph manager (only if online mode is explicitly enabled)
         if (!graphManager) {
             graphManager = new GraphManager();
             initializeGraphManager(graphManager);
         }
-        if (graphManager) {
+        if (graphManager && graphManager.calculator) {
             graphManager.updateGraph(currentFormula, variableValues);
-        }
-    } else {
-        // Use offline graph manager
-        if (!offlineGraphManager) {
-            offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
-        }
-        if (offlineGraphManager) {
-            // Ensure offline graph manager is initialized
-            if (!offlineGraphManager.canvas) {
-                const graphContainer = document.getElementById('desmos-graph');
-                if (graphContainer) {
-                    offlineGraphManager.init('desmos-graph');
+        } else {
+            // Fallback to offline if Desmos init failed
+            if (typeof OfflineGraphManager !== 'undefined') {
+                if (!offlineGraphManager) {
+                    offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
+                }
+                if (offlineGraphManager && !offlineGraphManager.canvas) {
+                    const graphContainer = document.getElementById('desmos-graph');
+                    if (graphContainer) {
+                        offlineGraphManager.init('desmos-graph');
+                    }
+                }
+                if (offlineGraphManager && offlineGraphManager.canvas) {
+                    offlineGraphManager.updateGraph(currentFormula, variableValues);
                 }
             }
-            if (offlineGraphManager.canvas) {
-                offlineGraphManager.updateGraph(currentFormula, variableValues);
+        }
+    } else {
+        // Use offline graph manager (default for offline-first operation)
+        if (typeof OfflineGraphManager !== 'undefined') {
+            if (!offlineGraphManager) {
+                offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
+            }
+            if (offlineGraphManager) {
+                // Ensure offline graph manager is initialized
+                if (!offlineGraphManager.canvas) {
+                    const graphContainer = document.getElementById('desmos-graph');
+                    if (graphContainer) {
+                        offlineGraphManager.init('desmos-graph');
+                    }
+                }
+                if (offlineGraphManager.canvas) {
+                    offlineGraphManager.updateGraph(currentFormula, variableValues);
+                }
             }
         }
     }
