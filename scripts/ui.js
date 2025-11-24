@@ -5766,9 +5766,13 @@ function switchTab(tabName) {
     });
     
     if (tabName === 'calculator') {
-        document.getElementById('calculator-tab').classList.add('active');
+        const calculatorTab = document.getElementById('calculator-tab');
+        calculatorTab.classList.add('active');
+        calculatorTab.setAttribute('aria-hidden', 'false');
     } else if (tabName === 'graph') {
-        document.getElementById('graph-tab').classList.add('active');
+        const graphTab = document.getElementById('graph-tab');
+        graphTab.classList.add('active');
+        graphTab.setAttribute('aria-hidden', 'false');
         
         // Ensure graph manager is initialized
         if (!graphManager) {
@@ -5800,31 +5804,57 @@ function switchTab(tabName) {
             }
         }, 150);
     } else if (tabName === 'graph-interpretation') {
-        document.getElementById('graph-interpretation-tab').classList.add('active');
-        // Initialize graph in interpretation tab if not already done
+        const interpretationTab = document.getElementById('graph-interpretation-tab');
+        interpretationTab.classList.add('active');
+        interpretationTab.setAttribute('aria-hidden', 'false');
+        
+        // Update graph interpretation content
+        updateGraphInterpretation();
+        
+        // Initialize graph interpretation manager if not already done
         if (!graphInterpretationManager) {
             graphInterpretationManager = new GraphManager('graph-interpretation-desmos', 'graph-interpretation-tab');
         }
-        // Update interpretation content and graph when tab is switched
+        
+        // Wait for tab to be visible before initializing
         setTimeout(() => {
-            updateGraphInterpretation();
-            // Initialize or update the Desmos graph in interpretation tab
-            if (currentFormula) {
-                const graphContainer = document.getElementById('graph-interpretation-desmos');
-                if (graphContainer) {
-                    const initialized = initializeGraphManager(graphInterpretationManager, 'graph-interpretation-desmos', 'graph-interpretation-tab');
-                    // Update graph with current values
-                    if (initialized || graphInterpretationManager.calculator) {
-                        setTimeout(() => {
-                            const currentValues = getCurrentVariableValues();
+            const graphContainer = document.getElementById('graph-interpretation-desmos');
+            const graphStatus = document.getElementById('graph-status');
+            if (graphContainer) {
+                // Update status for screen readers
+                if (graphStatus) {
+                    graphStatus.textContent = 'Initializing graph...';
+                }
+                
+                const initialized = initializeGraphManager(graphInterpretationManager, 'graph-interpretation-desmos', 'graph-interpretation-tab');
+                
+                // Update status after initialization
+                if (graphStatus) {
+                    if (initialized || graphInterpretationManager?.offlineManager) {
+                        graphStatus.textContent = 'Graph ready. Use arrow keys to navigate, Enter to interact.';
+                    } else {
+                        graphStatus.textContent = 'Graph initialization in progress...';
+                    }
+                }
+                
+                // Setup graph controls
+                setupGraphControls();
+                
+                // Update graph with current values if formula is selected
+                if (currentFormula) {
+                    setTimeout(() => {
+                        const currentValues = getCurrentVariableValues();
+                        if (graphInterpretationManager) {
                             graphInterpretationManager.updateGraph(currentFormula, currentValues);
+                        }
                     }, 200);
                 }
             }
-            }
         }, 100);
     } else if (tabName === 'classification') {
-        document.getElementById('classification-tab').classList.add('active');
+        const classificationTab = document.getElementById('classification-tab');
+        classificationTab.classList.add('active');
+        classificationTab.setAttribute('aria-hidden', 'false');
         // Initialize classifier if needed
         if (!stellarClassifier) {
             stellarClassifier = new StellarClassifier();
