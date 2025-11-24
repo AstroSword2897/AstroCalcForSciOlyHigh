@@ -4215,9 +4215,17 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
                 console.log(`Creating card ${index + 1}/${categorizedFormulas[category].length} for:`, formula.name);
                 const card = createFormulaCard(formula, score, metrics, maxScore);
                 if (card) {
+                    // Force visibility on card before appending
+                    card.style.display = 'block';
+                    card.style.visibility = 'visible';
+                    card.style.opacity = '1';
+                    
                     categoryContainer.appendChild(card);
                     cardsAdded++;
-                    console.log(`✅ Card created and appended: ${formula.name}`);
+                    console.log(`✅ Card created and appended: ${formula.name}`, {
+                        cardDisplay: window.getComputedStyle(card).display,
+                        cardVisible: card.offsetParent !== null
+                    });
                 } else {
                     console.error('❌ createFormulaCard returned null for:', formula.id, formula.name);
                 }
@@ -4342,12 +4350,38 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         highlightSearchTerm(searchTerm);
     }
     
-    // Trigger a repaint
-    requestAnimationFrame(() => {
-        formulaList.style.display = 'none';
-        formulaList.offsetHeight; // Force reflow
-        formulaList.style.display = '';
-    });
+    // Final visibility enforcement
+    console.log('🔍 Final check - ensuring all elements are visible');
+    const finalCheck = () => {
+        formulaList.style.display = 'block';
+        formulaList.style.visibility = 'visible';
+        formulaList.style.opacity = '1';
+        
+        const allCategories = formulaList.querySelectorAll('.formula-category');
+        allCategories.forEach(cat => {
+            cat.style.display = 'grid';
+            cat.style.visibility = 'visible';
+            cat.style.opacity = '1';
+        });
+        
+        const allCards = formulaList.querySelectorAll('.formula-card');
+        allCards.forEach(card => {
+            card.style.display = 'block';
+            card.style.visibility = 'visible';
+            card.style.opacity = '1';
+        });
+        
+        console.log('✅ Visibility enforced:', {
+            categories: allCategories.length,
+            cards: allCards.length,
+            formulaListDisplay: window.getComputedStyle(formulaList).display
+        });
+    };
+    
+    // Run immediately and after a short delay
+    finalCheck();
+    setTimeout(finalCheck, 50);
+    setTimeout(finalCheck, 200);
 }
 
 // Get search suggestions based on common terms
