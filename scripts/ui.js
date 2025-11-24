@@ -4096,6 +4096,9 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         let suggestionsHTML = '';
         if (suggestions.length > 0) {
             suggestionsHTML = `
+                <div class="search-suggestions">
+                    <div class="search-suggestions-title">Try searching for:</div>
+                    <div class="search-suggestions-list">
                 <div style="margin-top: 20px;">
                     <p style="font-size: 0.95em; margin-bottom: 10px; color: rgba(255, 255, 255, 0.6);">Did you mean:</p>
                     <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
@@ -4107,10 +4110,10 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         
         // Don't overwrite if header was already added - append instead
         const noResultsDiv = document.createElement('div');
-        noResultsDiv.style.cssText = 'text-align: center; padding: 60px 20px; color: rgba(255, 255, 255, 0.7);';
+        noResultsDiv.className = 'no-results-container';
         noResultsDiv.innerHTML = `
-            <p style="font-size: 1.2em; margin-bottom: 10px;">No formulas found</p>
-            <p style="font-size: 0.9em; margin-bottom: 15px;">Try searching for a different term</p>
+            <p class="no-results-title">No formulas found</p>
+            <p class="no-results-subtitle">Try searching for a different term</p>
             ${suggestionsHTML}
         `;
         formulaList.appendChild(noResultsDiv);
