@@ -289,6 +289,83 @@ function getFormulaMetadata(formulaId) {
  */
 var conceptMatchingSystem = {
     /**
+     * Detect problem domain from question text
+     * @param {string} questionText - Question text
+     * @returns {Object} Domain information with domain name and related concepts
+     */
+    detectProblemDomain: function(questionText) {
+        const questionLower = questionText.toLowerCase();
+        const domains = {
+            distance: {
+                keywords: ['distance', 'parallax', 'modulus', 'apparent magnitude', 'absolute magnitude', 
+                          'luminosity distance', 'angular size', 'redshift distance', 'extinction',
+                          'how far', 'how distant', 'distance to', 'away from'],
+                relatedConcepts: ['distance modulus', 'parallax', 'angular size', 'redshift', 
+                                'luminosity distance', 'angular diameter distance', 'comoving distance',
+                                'extinction', 'apparent magnitude', 'absolute magnitude', 'standard candle'],
+                boost: 1.5
+            },
+            temperature: {
+                keywords: ['temperature', 'wien', 'wavelength', 'peak wavelength', 'spectrum peak',
+                          'blackbody', 'stefan-boltzmann', 'luminosity', 'effective temperature',
+                          'surface temperature', 'how hot', 'temperature of'],
+                relatedConcepts: ['wien displacement law', 'stefan-boltzmann law', 'blackbody radiation',
+                                'effective temperature', 'surface temperature', 'color temperature',
+                                'spectral type', 'luminosity class'],
+                boost: 1.5
+            },
+            orbital: {
+                keywords: ['orbital', 'orbit', 'period', 'semi-major axis', 'kepler', 'orbital velocity',
+                          'orbital energy', 'orbital decay', 'binary', 'eccentricity', 'periapsis',
+                          'apoapsis', 'orbital distance', 'how does it orbit'],
+                relatedConcepts: ['kepler third law', 'orbital period', 'semi-major axis', 'orbital velocity',
+                                'orbital energy', 'vis viva', 'escape velocity', 'orbital decay',
+                                'binary system', 'eccentricity'],
+                boost: 1.5
+            },
+            transit: {
+                keywords: ['transit', 'transit depth', 'inclination', 'orbital inclination', 'transit method',
+                          'planet radius', 'star radius', 'impact parameter', 'transit duration'],
+                relatedConcepts: ['transit depth', 'orbital inclination', 'semi-major axis', 'planet radius',
+                                'star radius', 'impact parameter', 'transit duration', 'orbital period'],
+                boost: 1.5
+            },
+            magnitude: {
+                keywords: ['magnitude', 'apparent magnitude', 'absolute magnitude', 'brightness', 'flux',
+                          'luminosity', 'distance modulus', 'extinction', 'absorption'],
+                relatedConcepts: ['apparent magnitude', 'absolute magnitude', 'distance modulus', 'flux',
+                                'luminosity', 'extinction', 'absorption', 'standard candle'],
+                boost: 1.4
+            },
+            whiteDwarf: {
+                keywords: ['white dwarf', 'white dwarf', 'wd', 'degenerate', 'chandrasekhar',
+                          'white dwarf mass', 'white dwarf radius', 'white dwarf merger'],
+                relatedConcepts: ['white dwarf', 'chandrasekhar limit', 'degenerate matter', 'white dwarf mass',
+                                'white dwarf radius', 'white dwarf merger', 'type ia supernova'],
+                boost: 1.5
+            }
+        };
+        
+        const detectedDomains = [];
+        for (const [domainName, domainInfo] of Object.entries(domains)) {
+            const matchCount = domainInfo.keywords.filter(keyword => questionLower.includes(keyword)).length;
+            if (matchCount > 0) {
+                detectedDomains.push({
+                    domain: domainName,
+                    matchCount: matchCount,
+                    relatedConcepts: domainInfo.relatedConcepts,
+                    boost: domainInfo.boost
+                });
+            }
+        }
+        
+        // Sort by match count (most relevant first)
+        detectedDomains.sort((a, b) => b.matchCount - a.matchCount);
+        
+        return detectedDomains;
+    },
+    
+    /**
      * Extract all concepts from a question text
      * @param {string} questionText - Question text to analyze
      * @returns {Array<string>} Array of extracted concepts
@@ -296,6 +373,16 @@ var conceptMatchingSystem = {
     extractConceptsFromQuestion: function(questionText) {
         const concepts = new Set();
         const questionLower = questionText.toLowerCase();
+        
+        // Detect problem domain first (e.g., distance, temperature, orbital)
+        const detectedDomains = this.detectProblemDomain(questionText);
+        
+        // Add domain-related concepts with high priority
+        detectedDomains.forEach(domain => {
+            domain.relatedConcepts.forEach(concept => {
+                concepts.add(concept);
+            });
+        });
         
         // Get concept hierarchy if available
         const hierarchy = typeof getConceptHierarchy === 'function' ? getConceptHierarchy() : {};
@@ -326,7 +413,13 @@ var conceptMatchingSystem = {
             'transit', 'transit depth', 'inclination', 'orbital inclination', 'orbital distance',
             'semi-major axis', 'eccentricity', 'orbital plane', 'line of sight',
             'transit method', 'radial velocity', 'exoplanet detection', 'planet radius',
-            'star radius', 'impact parameter', 'transit duration', 'transit timing'
+            'star radius', 'impact parameter', 'transit duration', 'transit timing',
+            // Distance-related terms
+            'distance modulus', 'luminosity distance', 'angular diameter distance', 'comoving distance',
+            'standard candle', 'cepheid', 'supernova distance', 'redshift distance',
+            // Magnitude and extinction
+            'apparent magnitude', 'absolute magnitude', 'extinction', 'absorption', 'reddening',
+            'interstellar medium', 'ism', 'dust', 'gas'
         ];
         
         astrophysicsTerms.forEach(term => {
@@ -602,19 +695,31 @@ function findFormulasForQuestion(questionText) {
     
     console.log(`[findFormulasForQuestion] Searching through ${formulas.length} formulas for: "${questionText}"`);
     
-    // Extract concepts from question
+    // Extract concepts from question (includes domain detection)
     const extractedConcepts = conceptMatchingSystem.extractConceptsFromQuestion(questionText);
     
-    // Find formulas by concepts (including remote matches, uses cache)
+    // Detect problem domain for domain-based boosting
+    const detectedDomains = conceptMatchingSystem.detectProblemDomain(questionText);
+    if (detectedDomains.length > 0) {
+        console.log(`[findFormulasForQuestion] Detected problem domains: ${detectedDomains.map(d => d.domain).join(', ')}`);
+    }
+    
+    // Find formulas by concepts (including remote matches, uses cache, includes domain detection)
     // This processes ALL formulas in the formulas array
-    const conceptMatches = conceptMatchingSystem.findFormulasByConcepts(extractedConcepts, true);
+    const conceptMatches = conceptMatchingSystem.findFormulasByConcepts(extractedConcepts, true, questionText);
     conceptMatches.forEach(match => {
+        let matchType = match.isRemoteMatch ? 'remote_concept' : 'direct_concept';
+        if (match.isDomainMatch) {
+            matchType += '_domain';
+        }
+        
         results.push({
             formula: match.formula,
             score: match.score,
-            matchType: match.isRemoteMatch ? 'remote_concept' : 'direct_concept',
+            matchType: matchType,
             matchedConcepts: match.matchedConcepts,
-            source: 'concept_matching'
+            source: 'concept_matching',
+            isDomainMatch: match.isDomainMatch || false
         });
     });
     

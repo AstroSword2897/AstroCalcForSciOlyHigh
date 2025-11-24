@@ -1053,6 +1053,24 @@ function setupSearchFunctionality() {
         // Store original concepts for display
         metrics.originalConcepts = [...parsedQuery.concepts];
         
+        // Detect problem domain (e.g., distance, temperature, orbital)
+        if (typeof conceptMatchingSystem !== 'undefined' && conceptMatchingSystem.detectProblemDomain) {
+            const detectedDomains = conceptMatchingSystem.detectProblemDomain(searchLower);
+            if (detectedDomains.length > 0) {
+                const primaryDomain = detectedDomains[0];
+                metrics.domain = primaryDomain.domain;
+                metrics.domainBoost = primaryDomain.boost;
+                metrics.matchReasons.push(`Problem domain: ${primaryDomain.domain} (${primaryDomain.matchCount} matches)`);
+                
+                // Add domain-related concepts to search
+                primaryDomain.relatedConcepts.forEach(concept => {
+                    if (!parsedQuery.concepts.includes(concept)) {
+                        parsedQuery.concepts.push(concept);
+                    }
+                });
+            }
+        }
+        
         // Expand concepts using hierarchical network
         const expandedConcepts = expandConceptsWithHierarchy(parsedQuery.concepts);
         parsedQuery.concepts = expandedConcepts;
