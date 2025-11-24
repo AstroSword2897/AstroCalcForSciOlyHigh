@@ -665,23 +665,63 @@ var conceptMatchingSystem = {
             let matchScore = 0;
             const matchedConcepts = [];
             
-            // Check formula concepts
+            // Check formula concepts with context awareness
             if (formula.concepts && Array.isArray(formula.concepts)) {
                 formula.concepts.forEach(concept => {
                     const conceptLower = concept.toLowerCase();
+                    
+                    // Exact match (highest priority)
                     if (conceptSet.has(conceptLower)) {
                         matchScore += 10;
                         matchedConcepts.push(concept);
-    } else {
-                        // Check for partial matches
+                    } else {
+                        // Check for compound concept matches (preserves context)
                         searchConcepts.forEach(searchConcept => {
                             const searchLower = searchConcept.toLowerCase();
-                            if (conceptLower.includes(searchLower) || 
-                                searchLower.includes(conceptLower) ||
-                                conceptLower.split(/\s+/).some(word => searchLower.includes(word))) {
-                                matchScore += 5;
+                            
+                            // Exact compound match (e.g., "emission power" matches "emission power")
+                            if (conceptLower === searchLower) {
+                                matchScore += 10;
                                 if (!matchedConcepts.includes(concept)) {
                                     matchedConcepts.push(concept);
+                                }
+                            }
+                            // Compound contains search concept (e.g., "synchrotron power" contains "emission power" - but this is weak)
+                            else if (conceptLower.includes(searchLower) && searchLower.split(/\s+/).length > 1) {
+                                // Only if it's a meaningful compound match
+                                matchScore += 3;
+                                if (!matchedConcepts.includes(concept)) {
+                                    matchedConcepts.push(concept);
+                                }
+                            }
+                            // Single word matches (lower priority, requires context check)
+                            else if (searchLower.split(/\s+/).length === 1) {
+                                // Only match single words if they appear in compound context
+                                const isCompoundContext = searchConcepts.some(sc => 
+                                    sc.toLowerCase().split(/\s+/).length > 1 && 
+                                    sc.toLowerCase().includes(searchLower)
+                                );
+                                
+                                // If it's a compound context (e.g., "emission power"), be more strict
+                                if (isCompoundContext) {
+                                    // Only match if the formula concept is also compound and related
+                                    if (conceptLower.split(/\s+/).length > 1 && 
+                                        (conceptLower.includes(searchLower) || searchLower.includes(conceptLower.split(/\s+/)[0]))) {
+                                        matchScore += 2; // Lower score for compound context
+                                        if (!matchedConcepts.includes(concept)) {
+                                            matchedConcepts.push(concept);
+                                        }
+                                    }
+                                } else {
+                                    // Regular single-word partial match
+                                    if (conceptLower.includes(searchLower) || 
+                                        searchLower.includes(conceptLower) ||
+                                        conceptLower.split(/\s+/).some(word => searchLower.includes(word))) {
+                                        matchScore += 5;
+                                        if (!matchedConcepts.includes(concept)) {
+                                            matchedConcepts.push(concept);
+                                        }
+                                    }
                                 }
                             }
                         });
