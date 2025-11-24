@@ -4390,6 +4390,192 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     setTimeout(finalCheck, 200);
 }
 
+// Render search results in Explorer-style two-panel layout
+function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore = 1) {
+    const formulaList = document.getElementById('formula-list');
+    if (!formulaList) return;
+    
+    // Store selected formula in a variable
+    let selectedFormulaId = null;
+    
+    // Create Explorer-style layout
+    const layoutHTML = `
+        <div class="search-results-explorer-layout" style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-top: 20px;">
+            <!-- Left Panel: Search Results List -->
+            <div class="search-results-left-panel" style="background: rgba(10, 14, 39, 0.85); border-radius: 12px; padding: 20px; max-height: 600px; overflow-y: auto;">
+                <div class="search-results-header" style="margin-bottom: 15px;">
+                    <h3 style="color: #667eea; margin: 0 0 5px 0;">Search Results</h3>
+                    <p style="color: rgba(255, 255, 255, 0.7); margin: 0; font-size: 0.9em;">
+                        Found <strong>${scoredFormulas.length}</strong> formula${scoredFormulas.length !== 1 ? 's' : ''} matching "${searchTerm}"
+                    </p>
+                </div>
+                <div class="search-results-list">
+                    ${scoredFormulas.map(({ formula, score, metrics }, index) => {
+                        const confidenceScore = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
+                            ? calculateConfidenceScore(score, maxScore, metrics) 
+                            : Math.min(100, Math.round((score / maxScore) * 100));
+                        const confidenceLevel = (typeof getConfidenceLevel === 'function') 
+                            ? getConfidenceLevel(confidenceScore) 
+                            : { level: 'Medium', color: '#fde047' };
+                        
+                        return `
+                            <div class="search-result-item" 
+                                 data-formula-id="${formula.id}"
+                                 style="padding: 12px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: pointer; border: 2px solid rgba(255, 255, 255, 0.1); transition: all 0.2s;"
+                                 onclick="selectSearchResultFormula('${formula.id}')">
+                                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                    <div style="font-weight: 600; color: #a8c7ff; font-size: 0.95em;">${formula.name}</div>
+                                    <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;">
+                                        ${confidenceScore}%
+                                    </div>
+                                </div>
+                                <div style="font-family: 'Courier New', monospace; color: rgba(255, 255, 255, 0.7); font-size: 0.85em; margin-top: 4px;">
+                                    ${formula.equation}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+            
+            <!-- Right Panel: Formula Details -->
+            <div class="search-results-right-panel" id="search-results-details" style="background: rgba(10, 14, 39, 0.85); border-radius: 12px; padding: 30px; min-height: 500px;">
+                <div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 60px 20px;">
+                    <div style="font-size: 3em; margin-bottom: 20px;">📚</div>
+                    <p style="font-size: 1.1em;">Select a formula from the list to view details</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    formulaList.innerHTML = layoutHTML;
+    
+    // Store formulas for access in selectSearchResultFormula
+    window.searchResultsData = { scoredFormulas, maxScore };
+    
+    // Make selectSearchResultFormula available globally
+    window.selectSearchResultFormula = function(formulaId) {
+        const data = window.searchResultsData;
+        if (!data) return;
+        
+        const formulaData = data.scoredFormulas.find(f => f.formula.id === formulaId);
+        if (!formulaData) return;
+        
+        selectedFormulaId = formulaId;
+        
+        // Update active state
+        document.querySelectorAll('.search-result-item').forEach(item => {
+            if (item.dataset.formulaId === formulaId) {
+                item.style.background = 'rgba(102, 126, 234, 0.2)';
+                item.style.borderColor = '#667eea';
+            } else {
+                item.style.background = 'rgba(255, 255, 255, 0.05)';
+                item.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            }
+        });
+        
+        // Render formula details
+        renderSearchResultDetails(formulaData.formula, formulaData.score, formulaData.metrics, data.maxScore);
+    };
+    
+    // Auto-select first formula
+    if (scoredFormulas.length > 0) {
+        setTimeout(() => {
+            window.selectSearchResultFormula(scoredFormulas[0].formula.id);
+        }, 100);
+    }
+}
+
+// Render formula details in the right panel
+function renderSearchResultDetails(formula, score, metrics, maxScore) {
+    const detailsPanel = document.getElementById('search-results-details');
+    if (!detailsPanel) return;
+    
+    const confidenceScore = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
+        ? calculateConfidenceScore(score, maxScore, metrics) 
+        : Math.min(100, Math.round((score / maxScore) * 100));
+    const confidenceLevel = (typeof getConfidenceLevel === 'function') 
+        ? getConfidenceLevel(confidenceScore) 
+        : { level: 'Medium', color: '#fde047' };
+    
+    const detailsHTML = `
+        <div style="margin-bottom: 25px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                <h2 style="color: #667eea; margin: 0; font-size: 2em;">${escapeHtml(formula.name)}</h2>
+                <button onclick="selectFormula(${JSON.stringify(formula).replace(/"/g, '&quot;')})" 
+                        style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap;">
+                    Use This Formula →
+                </button>
+            </div>
+            <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 8px 16px; border-radius: 6px; display: inline-block; margin-bottom: 15px; font-weight: 600;">
+                ${confidenceScore}% Match - ${confidenceLevel.level}
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 25px;">
+            <p style="color: rgba(255, 255, 255, 0.9); line-height: 1.6; font-size: 1.05em;">
+                ${escapeHtml(formula.description || 'No description available.')}
+            </p>
+        </div>
+        
+        <div style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+            <div style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; margin-bottom: 8px;">Equation:</div>
+            <div style="font-family: 'Courier New', monospace; font-size: 1.3em; color: #60a5fa; word-break: break-all;">
+                ${escapeHtml(formula.equation)}
+            </div>
+        </div>
+        
+        ${formula.concepts && formula.concepts.length > 0 ? `
+            <div style="margin-bottom: 25px;">
+                <h3 style="color: #667eea; margin: 0 0 12px 0; font-size: 1.2em;">Concepts</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                    ${formula.concepts.map(concept => `
+                        <span style="padding: 6px 12px; background: #1e40af; color: #bfdbfe; border-radius: 20px; font-size: 0.9em;">
+                            ${escapeHtml(concept)}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
+        
+        ${formula.variables && formula.variables.length > 0 ? `
+            <div style="margin-bottom: 25px;">
+                <h3 style="color: #667eea; margin: 0 0 12px 0; font-size: 1.2em;">Variables</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    ${formula.variables.map(v => `
+                        <div style="background: rgba(0, 0, 0, 0.3); border-radius: 8px; padding: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                                <div style="font-family: 'Courier New', monospace; font-size: 1.2em; color: #60a5fa; font-weight: 600;">
+                                    ${escapeHtml(v.symbol)}
+                                </div>
+                                <div style="font-size: 0.85em; color: rgba(255, 255, 255, 0.6);">
+                                    ${escapeHtml(v.unit || 'N/A')}
+                                </div>
+                            </div>
+                            <div style="font-weight: 600; color: #fff; margin-bottom: 4px; font-size: 0.95em;">
+                                ${escapeHtml(v.name || 'Unknown')}
+                            </div>
+                            <div style="font-size: 0.9em; color: rgba(255, 255, 255, 0.7); line-height: 1.5;">
+                                ${escapeHtml(v.description || 'No description available.')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        ` : ''}
+    `;
+    
+    detailsPanel.innerHTML = detailsHTML;
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // Get search suggestions based on common terms
 function getSearchSuggestions(searchTerm) {
     const suggestions = [];
