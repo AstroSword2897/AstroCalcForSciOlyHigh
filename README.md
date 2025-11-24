@@ -19,7 +19,8 @@ A comprehensive, interactive web application for calculating astronomy and astro
 - **50ms Search**: Ultra-fast search with minimal delay
 
 ### 🎯 **Free Response Question (FRQ) Support System**
-- **Confidence Scoring**: Visual confidence badges (0-100%) for search results
+- **Confidence Scoring**: Visual confidence badges (0-100%) for search results with detailed breakdown
+- **Domain Detection**: Automatically detects problem domains (distance, temperature, orbital, transit, magnitude, white dwarf) and includes ALL related formulas
 - **Dynamic Usage Instructions**: Step-by-step guidance tailored to each formula
 - **Contextual Hints**: Problem type detection, key concepts, approach steps
 - **Graph Interpretation**: Formula-specific graph reading guides
@@ -27,16 +28,22 @@ A comprehensive, interactive web application for calculating astronomy and astro
 - **Multi-Part Problem Handling**: Detects and guides through interconnected sub-questions (a, b, c, d, e)
 - **Calculus Support**: Guidance for derivatives, chain rule, and integration problems
 - **Concept Matching**: Universal matching for ANY astrophysics question, even remotely related concepts
+- **Complex Problem Support**: Distance problems automatically find all distance formulas (modulus, parallax, angular size, redshift, etc.)
 
 ### 🔍 **Advanced Natural Language Search**
 - **Smart Question Matching**: Ask questions in natural language (e.g., "what is the distance to a star", "how to calculate escape velocity")
-- **Confidence Scores**: Each result shows match confidence with detailed metrics
+- **Confidence Scores**: Each result shows match confidence with detailed metrics and breakdown
+- **Domain-Based Matching**: Complex problems automatically detect domains and boost all related formulas
+  - Distance problems → finds all distance formulas (modulus, parallax, angular size, redshift, extinction)
+  - Temperature problems → finds all temperature formulas (Wien's law, Stefan-Boltzmann, blackbody)
+  - Orbital problems → finds all orbital formulas (Kepler, velocity, energy, decay)
 - **Explorer-Style Results**: Two-panel layout with formula list and detailed view
 - **Intent Detection**: Understands what you're trying to find (calculate, find, determine, etc.)
 - **Question Pattern Matching**: 250+ question patterns mapped to specific formulas
 - **Concept Extraction**: Automatically identifies physics/astronomy concepts
 - **Hierarchical Concept Network**: Expands queries using parent-child-sibling relationships
 - **Semantic Matching**: Lightweight NLP with cosine similarity for conceptual matching
+- **Complete Database Coverage**: ALL 193+ formulas are included in search database for confidence scoring
 - **Result Limiting**: Shows only top 50 most relevant formulas, sorted by confidence
 
 ### 📊 **Formula Calculator**
@@ -50,12 +57,13 @@ A comprehensive, interactive web application for calculating astronomy and astro
 - **Example Values**: Placeholders show example values for each variable
 
 ### 📈 **Interactive Graphing**
-- **Desmos Integration**: Real-time formula visualization using Desmos Graphing Calculator
+- **Offline-First Graphing**: Canvas-based graph visualization that works completely offline
 - **Dynamic Updates**: Graphs update automatically as you change input values
 - **Formula-Specific Graphs**: Custom graph types for different formula categories
 - **Graph Interpretation**: Formula-specific tips and guidance for understanding graphs
 - **Dual Graph Support**: Separate graphs for main calculator and interpretation sections
 - **Auto-Scaling**: Automatic bounds calculation for optimal graph display
+- **Graph Controls**: Reset view, export graph, keyboard navigation
 
 ### 🔗 **Formula Interlinking & Quick Access**
 - **Related Formulas**: Shows formulas related through:
@@ -88,8 +96,9 @@ A comprehensive, interactive web application for calculating astronomy and astro
 
 ### Prerequisites
 - A modern web browser (Chrome, Firefox, Safari, Edge)
-- Internet connection (for MathJax and Desmos API)
+- **Fully Offline Capable**: Works completely offline with no internet connection required
 - No installation required - runs entirely in the browser
+- **Progressive Web App (PWA)**: Can be installed as an app on mobile/desktop
 
 ### Quick Download & Use (Recommended)
 
@@ -236,6 +245,9 @@ AstroCalcForSciOlyHigh/
 - **Accumulation**: Graph interpretations accumulate for multi-feature formulas
 - **Intermediate Results**: Stores computed values for multi-step problems
 - **Priority System**: Metadata → Formula-specific → Structure-based → Generic
+- **Domain Detection**: Automatically detects problem domains and includes all related formulas
+  - Example: Distance problems boost confidence for all distance measurement methods
+  - Complex problems (spectrum analysis, white dwarfs) find all relevant formulas across domains
 
 ### Formula Metadata
 Each formula includes:
@@ -254,11 +266,12 @@ Each formula includes:
 - `frqMetadata`: FRQ support data (instructions, hints, graph interpretation)
 
 ### Graph System
-- Uses Desmos Graphing Calculator API
-- Automatically converts formulas to Desmos expressions
+- **Offline Canvas-Based**: HTML5 Canvas graphing that works completely offline
+- Automatically converts formulas to graph expressions
 - Handles Unicode symbols (π, σ, √, etc.)
 - Calculates appropriate bounds for visualization
 - Supports caching for performance
+- **Accessibility**: ARIA attributes, keyboard navigation, screen reader support
 
 ## 📝 Formula List
 
@@ -279,9 +292,10 @@ The application includes **193+ astronomy and astrophysics formulas** covering:
 - "find temperature from spectrum" → Wien's Displacement Law (high confidence)
 - "how fast does a planet orbit" → Orbital Velocity formula
 - "what velocity to escape" → Escape Velocity formula
-- "distance to star" → Parallax Distance, Distance Modulus formulas
+- "distance to star" → Parallax Distance, Distance Modulus, Angular Size, Redshift Distance (all distance formulas boosted)
 - "orbital decay rate" → White Dwarf Orbital Decay (with calculus guidance)
 - "transit depth inclination" → Transit Depth with application problem support
+- "complex distance problem with extinction" → Finds ALL distance formulas (modulus, parallax, angular size, redshift) with domain boost
 
 ### FRQ Problem Types Supported
 - **Direct Questions**: "What is the period?"
@@ -316,6 +330,17 @@ When viewing a formula, you'll see:
 - **Debounced Rendering**: Smooth UI updates
 - **Virtual Scrolling**: Efficient rendering of large lists
 - **Memoization**: Cached function results
+- **Service Worker**: PWA caching for offline support
+- **Complete Database Search**: All 193+ formulas included in confidence scoring
+
+## 🌐 Offline Support
+
+- **Fully Offline Capable**: Works completely without internet connection
+- **Service Worker**: Caches all application files for offline use
+- **PWA Manifest**: Can be installed as a Progressive Web App
+- **Offline Graphing**: Canvas-based graph visualization (no external APIs)
+- **No External Dependencies**: All functionality works offline
+- **Offline-First Design**: Built from the ground up for offline use
 
 ## 🐛 Known Issues
 
@@ -331,7 +356,6 @@ This project is open source and available for educational use.
 
 ## 🙏 Acknowledgments
 
-- Desmos Graphing Calculator for graph visualization
 - Science Olympiad Astronomy community for formula requirements
 - All contributors and testers
 
@@ -341,8 +365,8 @@ For questions or suggestions, please open an issue on GitHub.
 
 ---
 
-**Version**: 3.0  
+**Version**: 3.1  
 **Last Updated**: 2025  
 **Status**: Active Development  
 **Formulas**: 193+  
-**Features**: FRQ Support, Quick Navigation, Advanced Search, Graph Interpretation
+**Features**: FRQ Support, Domain Detection, Offline Support, Quick Navigation, Advanced Search, Graph Interpretation, Accessibility
