@@ -199,11 +199,24 @@ class GraphManager {
         if (!this.calculator) {
             const initialized = this.init();
             if (!initialized) {
+                // If init failed, check if we now have offline manager
+                if (this.offlineManager) {
+                    this.offlineManager.updateGraph(formula, variableValues);
+                    return;
+                }
                 if (container && !container.querySelector('.desmos-calculator')) {
                     if (window.desmosUnavailable || typeof Desmos === 'undefined') {
-                        container.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+                        // Try one more time to use offline manager
+                        if (typeof OfflineGraphManager !== 'undefined') {
+                            this.offlineManager = new OfflineGraphManager(this.containerId, this.tabId);
+                            if (this.offlineManager.init(this.containerId)) {
+                                this.offlineManager.updateGraph(formula, variableValues);
+                                return;
+                            }
+                        }
+                        container.innerHTML = '<div style="padding: 40px; text-align: center; color: rgba(255, 255, 255, 0.7); background: rgba(10, 14, 39, 0.8); border-radius: 8px;"><h4 style="color: #667eea; margin-bottom: 10px;">📊 Offline Graph Mode</h4><p style="margin: 10px 0;">Using offline canvas-based graphing.</p><p style="margin: 10px 0; font-size: 0.9em; color: rgba(255, 255, 255, 0.5);">All calculator features work offline!</p></div>';
                     } else {
-                        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: #999;">If the problem persists, check your internet connection.</p></div>';
+                        container.innerHTML = '<div style="padding: 20px; text-align: center; color: rgba(255, 255, 255, 0.7);"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: rgba(255, 255, 255, 0.5);">If the problem persists, check your internet connection.</p></div>';
                     }
                 }
                 return;
