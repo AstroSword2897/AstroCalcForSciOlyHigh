@@ -452,6 +452,69 @@
     <script src="scripts/frqSupport.js"></script>
     <script src="scripts/quickNav.js"></script>
     <script src="scripts/ui.js"></script>
+    
+    <!-- Service Worker Registration for Offline Support -->
+    <script>
+        // Register service worker for offline support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then((registration) => {
+                        console.log('[Service Worker] Registered successfully:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New service worker available
+                                    console.log('[Service Worker] New version available');
+                                    // Optionally show update notification to user
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.warn('[Service Worker] Registration failed:', error);
+                    });
+                
+                // Listen for service worker updates
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('[Service Worker] Controller changed, reloading...');
+                    // Optionally reload page when new service worker takes control
+                    // window.location.reload();
+                });
+            });
+            
+            // Handle online/offline events
+            window.addEventListener('online', () => {
+                console.log('[App] Online - connection restored');
+                // Optionally show notification
+                if (typeof logger !== 'undefined') {
+                    logger.info('Connection restored');
+                }
+            });
+            
+            window.addEventListener('offline', () => {
+                console.log('[App] Offline - working in offline mode');
+                // Optionally show notification
+                if (typeof logger !== 'undefined') {
+                    logger.info('Working offline - all features available except Desmos graphs');
+                }
+            });
+        } else {
+            console.warn('[Service Worker] Not supported in this browser');
+        }
+        
+        // Check if we're offline on page load
+        if (!navigator.onLine) {
+            console.log('App started offline - using offline mode');
+            window.desmosUnavailable = true;
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('desmosUnavailable'));
+            }
+        }
+    </script>
 </body>
 </html>
 
