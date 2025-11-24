@@ -9,22 +9,23 @@ const RUNTIME_CACHE = 'astrocalc-runtime-v1.0.0';
 
 // Resources to cache on install
 const PRECACHE_RESOURCES = [
-    '/',
-    '/index.html',
-    '/styles/main.css',
-    '/scripts/formulas.js',
-    '/scripts/calculator.js',
-    '/scripts/ui.js',
-    '/scripts/unitConverter.js',
-    '/scripts/expressionParser.js',
-    '/scripts/classification.js',
-    '/scripts/graphManager.js',
-    '/scripts/offlineGraphManager.js',
-    '/scripts/formulaExplorer.js',
-    '/scripts/frqSupport.js',
-    '/scripts/quickNav.js',
-    '/scripts/utils.js',
-    '/libs/mathjax/es5/tex-mml-chtml.js'
+    './',
+    './index.html',
+    './styles/main.css',
+    './scripts/formulas.js',
+    './scripts/calculator.js',
+    './scripts/ui.js',
+    './scripts/unitConverter.js',
+    './scripts/expressionParser.js',
+    './scripts/classification.js',
+    './scripts/graphManager.js',
+    './scripts/offlineGraphManager.js',
+    './scripts/formulaExplorer.js',
+    './scripts/frqSupport.js',
+    './scripts/quickNav.js',
+    './scripts/utils.js',
+    './libs/mathjax/es5/tex-mml-chtml.js',
+    './manifest.json'
 ];
 
 // Install event - cache resources
@@ -121,7 +122,7 @@ self.addEventListener('fetch', (event) => {
                     .catch(() => {
                         // Network failed, check if we have a fallback
                         if (event.request.destination === 'document') {
-                            return caches.match('/index.html');
+                            return caches.match('./index.html');
                         }
                         // Return a basic offline response for other requests
                         return new Response('Offline', {
