@@ -5490,7 +5490,16 @@ function renderVariableInputs(formula) {
                                     offlineGraphManager = new OfflineGraphManager('graph-interpretation-desmos', 'graph-interpretation-tab');
                                 }
                                 if (offlineGraphManager) {
-                                    offlineGraphManager.updateGraph(currentFormula, currentValues);
+                                    // Ensure offline graph manager is initialized
+                                    if (!offlineGraphManager.canvas) {
+                                        const graphContainer = document.getElementById('graph-interpretation-desmos');
+                                        if (graphContainer) {
+                                            offlineGraphManager.init('graph-interpretation-desmos');
+                                        }
+                                    }
+                                    if (offlineGraphManager.canvas) {
+                                        offlineGraphManager.updateGraph(currentFormula, currentValues);
+                                    }
                                 }
                             }
                         }
@@ -5955,7 +5964,16 @@ function updateGraph() {
             offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
         }
         if (offlineGraphManager) {
-            offlineGraphManager.updateGraph(currentFormula, variableValues);
+            // Ensure offline graph manager is initialized
+            if (!offlineGraphManager.canvas) {
+                const graphContainer = document.getElementById('desmos-graph');
+                if (graphContainer) {
+                    offlineGraphManager.init('desmos-graph');
+                }
+            }
+            if (offlineGraphManager.canvas) {
+                offlineGraphManager.updateGraph(currentFormula, variableValues);
+            }
         }
     }
 }
