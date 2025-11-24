@@ -171,10 +171,26 @@ class GraphManager {
         }
         this.lastRenderedKey = key;
 
+        // Check if we should use offline manager (Desmos unavailable)
+        if (this.offlineManager) {
+            this.offlineManager.updateGraph(formula, variableValues);
+            return;
+        }
+        
         // Check if Desmos is available before initializing
         if (window.desmosUnavailable || (typeof Desmos === 'undefined' && !this.calculator)) {
+            // Try to initialize offline manager
+            if (typeof OfflineGraphManager !== 'undefined') {
+                console.log('[GraphManager.updateGraph] Desmos unavailable, using offline manager');
+                this.offlineManager = new OfflineGraphManager(this.containerId, this.tabId);
+                if (this.offlineManager.init(this.containerId)) {
+                    this.offlineManager.updateGraph(formula, variableValues);
+                    return;
+                }
+            }
+            // Fallback message if offline manager also fails
             if (container) {
-                container.innerHTML = '<div style="padding: 40px; text-align: center; color: #666; background: #f5f5f5; border-radius: 8px;"><h4 style="color: #333; margin-bottom: 10px;">📊 Graph Visualization</h4><p style="margin: 10px 0;">Graphs require an internet connection to load the Desmos API.</p><p style="margin: 10px 0; font-size: 0.9em; color: #999;">All other calculator features work offline!</p></div>';
+                container.innerHTML = '<div style="padding: 40px; text-align: center; color: rgba(255, 255, 255, 0.7); background: rgba(10, 14, 39, 0.8); border-radius: 8px;"><h4 style="color: #667eea; margin-bottom: 10px;">📊 Offline Graph Mode</h4><p style="margin: 10px 0;">Using offline canvas-based graphing.</p><p style="margin: 10px 0; font-size: 0.9em; color: rgba(255, 255, 255, 0.5);">All calculator features work offline!</p></div>';
             }
             return;
         }
