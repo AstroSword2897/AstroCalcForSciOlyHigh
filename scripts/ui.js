@@ -5755,8 +5755,10 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.getAttribute('data-tab') === tabName) {
             btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
         } else {
             btn.classList.remove('active');
+            btn.setAttribute('aria-selected', 'false');
         }
     });
     
