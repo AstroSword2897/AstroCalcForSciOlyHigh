@@ -4225,10 +4225,19 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             
             // Always append if we have cards, even if only header + 1 card
             if (cardsAdded > 0) {
+                // Force visibility on category container
+                categoryContainer.style.display = 'grid';
+                categoryContainer.style.visibility = 'visible';
+                categoryContainer.style.opacity = '1';
+                
                 formulaList.appendChild(categoryContainer);
                 console.log(`✅ Added category "${category}" with ${cardsAdded} cards to DOM`);
                 // Force a reflow
                 categoryContainer.offsetHeight;
+                
+                // Log for debugging
+                console.log(`Category container display:`, window.getComputedStyle(categoryContainer).display);
+                console.log(`Category container children:`, categoryContainer.children.length);
             } else {
                 console.warn(`⚠️ Category "${category}" has no valid cards`);
             }

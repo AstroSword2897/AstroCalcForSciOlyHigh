@@ -730,14 +730,14 @@ header h1 {
 }
 
 .formula-category {
-    display: grid;
+    display: grid !important;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
     margin-bottom: 30px;
     position: relative;
     z-index: 1; /* Ensure cards appear above background */
-    opacity: 1; /* Ensure visibility */
-    visibility: visible; /* Ensure visibility */
+    opacity: 1 !important; /* Ensure visibility */
+    visibility: visible !important; /* Ensure visibility */
 }
 
 .formula-card {
