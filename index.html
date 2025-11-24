@@ -211,23 +211,50 @@
             </div>
             
             <!-- Graph Interpretation Tab -->
-            <div id="graph-interpretation-tab" class="tab-content">
+            <div id="graph-interpretation-tab" class="tab-content" role="tabpanel" aria-labelledby="graph-interpretation-tab-btn">
                 <div class="graph-interpretation-container">
-                    <div class="graph-interpretation-header">
-                        <h3>Graph Interpretation Guide</h3>
-                        <p class="graph-interpretation-subtitle">Interactive graph and interpretation guide for this formula</p>
-                    </div>
+                    <header class="graph-interpretation-header">
+                        <h3 id="graph-interpretation-title">Graph Interpretation Guide</h3>
+                        <p class="graph-interpretation-subtitle" id="graph-interpretation-subtitle">Interactive graph and interpretation guide for this formula</p>
+                    </header>
                     <div class="graph-interpretation-layout">
-                        <div class="graph-interpretation-graph-section">
+                        <section class="graph-interpretation-graph-section" aria-labelledby="graph-header-title">
                             <div class="graph-header">
-                                <h4>Interactive Formula Graph</h4>
-                                <p class="graph-description">Enter values in the Calculator tab to see the graph update. The graph shows how variables relate to each other.</p>
+                                <h4 id="graph-header-title">Interactive Formula Graph</h4>
+                                <p class="graph-description" id="graph-description-text">Enter values in the Calculator tab to see the graph update. The graph shows how variables relate to each other.</p>
                             </div>
-                            <div id="graph-interpretation-desmos" class="desmos-graph"></div>
-                        </div>
-                        <div id="graph-interpretation-content" class="graph-interpretation-content">
+                            <div 
+                                id="graph-interpretation-desmos" 
+                                class="desmos-graph"
+                                role="img"
+                                aria-label="Interactive formula graph visualization"
+                                aria-describedby="graph-description-text graph-status"
+                                tabindex="0"
+                            >
+                                <div id="graph-status" class="sr-only" aria-live="polite" aria-atomic="true">Graph loading...</div>
+                            </div>
+                            <div class="graph-controls" role="toolbar" aria-label="Graph controls">
+                                <button 
+                                    id="graph-reset-btn" 
+                                    class="graph-control-btn"
+                                    aria-label="Reset graph view"
+                                    title="Reset graph view to default"
+                                >
+                                    🔄 Reset View
+                                </button>
+                                <button 
+                                    id="graph-export-btn" 
+                                    class="graph-control-btn"
+                                    aria-label="Export graph as image"
+                                    title="Download graph as PNG image"
+                                >
+                                    💾 Export Graph
+                                </button>
+                            </div>
+                        </section>
+                        <section id="graph-interpretation-content" class="graph-interpretation-content" aria-labelledby="interpretation-title">
                             <!-- Content will be populated by JavaScript based on current formula -->
-                        </div>
+                        </section>
                     </div>
                 </div>
             </div>

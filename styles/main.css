@@ -2262,6 +2262,21 @@ header h1 {
     padding: 0 20px;
 }
 
+@media (max-width: 1024px) {
+    .graph-interpretation-layout {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .graph-interpretation-graph-section {
+        order: 1;
+    }
+    
+    .graph-interpretation-content {
+        order: 2;
+    }
+}
+
 .graph-interpretation-graph-section {
     background: rgba(10, 14, 39, 0.9);
     border-radius: 16px;
@@ -2290,6 +2305,60 @@ header h1 {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 8px;
     border: 1px solid rgba(139, 179, 255, 0.2);
+    position: relative;
+    outline: none;
+}
+
+.graph-interpretation-graph-section .desmos-graph:focus {
+    outline: 3px solid rgba(102, 126, 234, 0.6);
+    outline-offset: 2px;
+}
+
+.graph-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.graph-control-btn {
+    padding: 8px 16px;
+    background: rgba(102, 126, 234, 0.2);
+    border: 1px solid rgba(102, 126, 234, 0.4);
+    border-radius: 6px;
+    color: #a8c7ff;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.graph-control-btn:hover {
+    background: rgba(102, 126, 234, 0.3);
+    border-color: rgba(102, 126, 234, 0.6);
+    color: #c5d5ff;
+}
+
+.graph-control-btn:focus {
+    outline: 2px solid rgba(102, 126, 234, 0.6);
+    outline-offset: 2px;
+}
+
+.graph-control-btn:active {
+    transform: scale(0.98);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
 }
 
 .graph-interpretation-content {

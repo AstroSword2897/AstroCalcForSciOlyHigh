@@ -6781,12 +6781,113 @@ function addContextualHints(formula, questionText = null) {
     }
 }
 
+/**
+ * Setup graph control buttons (reset, export)
+ */
+function setupGraphControls() {
+    const resetBtn = document.getElementById('graph-reset-btn');
+    const exportBtn = document.getElementById('graph-export-btn');
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (graphInterpretationManager) {
+                if (graphInterpretationManager.calculator) {
+                    // Reset Desmos graph view
+                    graphInterpretationManager.calculator.setMathBounds({
+                        left: -10,
+                        right: 10,
+                        bottom: -10,
+                        top: 10
+                    });
+                } else if (graphInterpretationManager.offlineManager) {
+                    // Reset offline graph
+                    graphInterpretationManager.offlineManager.bounds = {
+                        left: -10,
+                        right: 10,
+                        bottom: -10,
+                        top: 10
+                    };
+                    if (currentFormula) {
+                        const currentValues = getCurrentVariableValues();
+                        graphInterpretationManager.offlineManager.updateGraph(currentFormula, currentValues);
+                    }
+                }
+                // Announce to screen readers
+                const status = document.getElementById('graph-status');
+                if (status) {
+                    status.textContent = 'Graph view reset to default';
+                }
+            }
+        });
+    }
+    
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => {
+            exportGraph();
+        });
+    }
+}
+
+/**
+ * Export graph as PNG image
+ */
+function exportGraph() {
+    const graphContainer = document.getElementById('graph-interpretation-desmos');
+    if (!graphContainer) return;
+    
+    try {
+        // Try Desmos export first
+        if (graphInterpretationManager?.calculator) {
+            const calculator = graphInterpretationManager.calculator;
+            const png = calculator.screenshot({
+                width: 1200,
+                height: 800,
+                targetPixelRatio: 2
+            });
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = `graph-${currentFormula?.id || 'formula'}-${Date.now()}.png`;
+            link.href = png;
+            link.click();
+            
+            // Announce success
+            const status = document.getElementById('graph-status');
+            if (status) {
+                status.textContent = 'Graph exported successfully';
+            }
+        } else if (graphInterpretationManager?.offlineManager?.canvas) {
+            // Export offline canvas graph
+            const canvas = graphInterpretationManager.offlineManager.canvas;
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `graph-${currentFormula?.id || 'formula'}-${Date.now()}.png`;
+                link.href = url;
+                link.click();
+                URL.revokeObjectURL(url);
+                
+                // Announce success
+                const status = document.getElementById('graph-status');
+                if (status) {
+                    status.textContent = 'Graph exported successfully';
+                }
+            }, 'image/png');
+        } else {
+            alert('Graph not available for export. Please wait for the graph to load.');
+        }
+    } catch (error) {
+        console.error('Error exporting graph:', error);
+        alert('Failed to export graph. Please try again.');
+    }
+}
+
 // Update graph interpretation content
 function updateGraphInterpretation() {
     const contentDiv = document.getElementById('graph-interpretation-content');
     if (!contentDiv || !currentFormula) {
         if (contentDiv) {
-            contentDiv.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No formula selected. Please select a formula from the main page.</p>';
+            contentDiv.innerHTML = '<p style="text-align: center; color: rgba(255, 255, 255, 0.7); padding: 40px;" role="status" aria-live="polite">No formula selected. Please select a formula from the main page.</p>';
         }
         return;
     }
@@ -6798,26 +6899,26 @@ function updateGraphInterpretation() {
     }
     
     // Generate interpretation content based on the formula
-    let interpretationHTML = '<div class="interpretation-section">';
-    interpretationHTML += `<h4>Understanding the Graph for: ${currentFormula.name}</h4>`;
-    interpretationHTML += `<div class="formula-display-interpretation"><strong>Formula:</strong> ${currentFormula.equation}</div>`;
+    let interpretationHTML = '<div class="interpretation-section" role="article" aria-labelledby="interpretation-title">';
+    interpretationHTML += `<h4 id="interpretation-title">Understanding the Graph for: ${escapeHtml(currentFormula.name)}</h4>`;
+    interpretationHTML += `<div class="formula-display-interpretation" role="math" aria-label="Formula: ${escapeHtml(currentFormula.equation)}"><strong>Formula:</strong> ${escapeHtml(currentFormula.equation)}</div>`;
     
     // Use enhanced interpretation if available
     if (interpretationData && interpretationData.overview) {
         interpretationHTML += `<div class="interpretation-overview"><p>${interpretationData.overview}</p></div>`;
         
         if (interpretationData.keyFeatures.length > 0) {
-            interpretationHTML += '<div class="interpretation-features"><h5>Key Features:</h5><ul class="interpretation-list">';
+            interpretationHTML += '<div class="interpretation-features" role="region" aria-labelledby="features-title"><h5 id="features-title">Key Features:</h5><ul class="interpretation-list" role="list">';
             interpretationData.keyFeatures.forEach(feature => {
-                interpretationHTML += `<li>${feature}</li>`;
+                interpretationHTML += `<li role="listitem">${escapeHtml(feature)}</li>`;
             });
             interpretationHTML += '</ul></div>';
         }
         
         if (interpretationData.howToUse.length > 0) {
-            interpretationHTML += '<div class="interpretation-usage"><h5>How to Use This Graph:</h5><ul class="interpretation-list">';
+            interpretationHTML += '<div class="interpretation-usage" role="region" aria-labelledby="usage-title"><h5 id="usage-title">How to Use This Graph:</h5><ul class="interpretation-list" role="list">';
             interpretationData.howToUse.forEach(usage => {
-                interpretationHTML += `<li>${usage}</li>`;
+                interpretationHTML += `<li role="listitem">${escapeHtml(usage)}</li>`;
             });
             interpretationHTML += '</ul></div>';
         }
