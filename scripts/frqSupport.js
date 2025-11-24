@@ -1,19 +1,43 @@
 /**
  * Enhanced FRQ (Free Response Question) Support System
- * Provides adaptive confidence scoring, dynamic usage instructions, graph interpretation, and contextual guidance
- * Upgraded for research-grade astronomy and physics problem solving
+ * 
+ * REFACTORED VERSION - Addresses all identified issues:
+ * 1. Fixed step numbering with dedicated stepCounter
+ * 2. Centralized formula-specific logic (no duplication)
+ * 3. Accumulates graph interpretation (no overwriting)
+ * 4. Caches concept expansion results
+ * 5. Unified logic flow (less fragmentation)
+ * 6. Intermediate results storage for multi-step problems
+ * 7. Prioritizes metadata over generic fallbacks
+ * 8. Cleaned up unused variables, uses optional chaining
+ * 
+ * Provides adaptive confidence scoring, dynamic usage instructions, 
+ * graph interpretation, and contextual guidance for research-grade 
+ * astronomy and physics problem solving.
  */
 
 //////////////////////////////
 // Helper Utilities
 //////////////////////////////
 
-// Clamp a value between min and max
+/**
+ * Clamp a value between min and max
+ * @param {number} value - Value to clamp
+ * @param {number} min - Minimum value
+ * @param {number} max - Maximum value
+ * @returns {number} Clamped value
+ */
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
 
-// Normalize score to percentage
+/**
+ * Normalize score to percentage
+ * @param {number} score - Raw score
+ * @param {number} maxScore - Maximum possible score
+ * @param {number} scale - Scale factor (default: 1000)
+ * @returns {number} Normalized score
+ */
 function normalizeScore(score, maxScore, scale = 1000) {
     if (!maxScore || maxScore === 0) return 0;
     return (score / maxScore) * scale;
@@ -23,6 +47,14 @@ function normalizeScore(score, maxScore, scale = 1000) {
 // Confidence Scoring
 //////////////////////////////
 
+/**
+ * Calculate confidence score based on match metrics
+ * @param {number} score - Relevance score
+ * @param {number} maxScore - Maximum score
+ * @param {Object} metrics - Match metrics object
+ * @param {number} historyFactor - Historical performance factor (default: 1)
+ * @returns {number} Confidence score (0-100)
+ */
 function calculateConfidenceScore(score, maxScore, metrics = {}, historyFactor = 1) {
     const normalizedScore = normalizeScore(score, maxScore);
     
@@ -34,7 +66,7 @@ function calculateConfidenceScore(score, maxScore, metrics = {}, historyFactor =
     if (metrics.questionPatternMatch) confidence += 10;
     if (metrics.conceptMatch) confidence += 5;
     if (metrics.semanticSimilarityScore) confidence += clamp(metrics.semanticSimilarityScore * 10, 0, 10);
-    if (metrics.matchedConcepts && metrics.matchedConcepts.length > 2) confidence += 2;
+    if (metrics.matchedConcepts?.length > 2) confidence += 2;
     
     // Historical performance factor (0.8-1.2)
     confidence *= historyFactor;
@@ -42,6 +74,11 @@ function calculateConfidenceScore(score, maxScore, metrics = {}, historyFactor =
     return clamp(Math.round(confidence), 0, 100);
 }
 
+/**
+ * Get confidence level descriptor
+ * @param {number} confidence - Confidence score (0-100)
+ * @returns {Object} Level object with level, color, and icon
+ */
 function getConfidenceLevel(confidence) {
     if (confidence >= 85) return { level: 'Very High', color: '#4ade80', icon: '✓✓' };
     if (confidence >= 70) return { level: 'High', color: '#86efac', icon: '✓' };
@@ -51,15 +88,117 @@ function getConfidenceLevel(confidence) {
 }
 
 //////////////////////////////
+// Caching System
+//////////////////////////////
+
+/**
+ * Cache for concept expansion results
+ * Key: question text or formula ID, Value: expanded concepts array
+ */
+const conceptExpansionCache = new Map();
+
+/**
+ * Cache for formula metadata lookups
+ * Key: formula ID, Value: metadata object
+ */
+const metadataCache = new Map();
+
+/**
+ * Cache for question analysis results
+ * Key: question text, Value: analysis object
+ */
+const questionAnalysisCache = new Map();
+
+/**
+ * Clear all caches (useful for testing or memory management)
+ */
+function clearCaches() {
+    conceptExpansionCache.clear();
+    metadataCache.clear();
+    questionAnalysisCache.clear();
+}
+
+//////////////////////////////
 // Formula Metadata Storage (Data-Driven Approach)
 //////////////////////////////
 
-// Formula metadata for FRQ support - dynamically loaded from formulas.js
+/**
+ * Formula metadata for FRQ support - dynamically loaded from formulas.js
+ */
 var formulaFRQMetadata = {};
 
-// Concept extraction and matching system for ANY astrophysics question
+/**
+ * Initialize metadata from formulas array
+ * Called when formulas.js is loaded
+ */
+function initializeFRQMetadata() {
+    if (typeof formulas === 'undefined' || !Array.isArray(formulas)) {
+        if (typeof logger !== 'undefined') {
+            logger.warn('Formulas array not available for FRQ metadata initialization');
+        } else {
+            console.warn('Formulas array not available for FRQ metadata initialization');
+        }
+        return;
+    }
+    
+    formulas.forEach(formula => {
+        if (!formula.id) return;
+        
+        // Extract metadata from formula object
+        const metadata = {
+            id: formula.id,
+            name: formula.name || '',
+            concepts: formula.concepts || [],
+            keywords: formula.keywords || [],
+            variables: (formula.variables || []).map(v => v.symbol),
+            // FRQ-specific metadata (can be extended in formulas.js)
+            frqMetadata: formula.frqMetadata || {},
+            // Store full formula reference for structure analysis
+            formula: formula
+        };
+        
+        formulaFRQMetadata[formula.id] = metadata;
+        metadataCache.set(formula.id, metadata);
+    });
+    
+    if (typeof logger !== 'undefined') {
+        logger.log(`Initialized FRQ metadata for ${Object.keys(formulaFRQMetadata).length} formulas`);
+    }
+}
+
+/**
+ * Get metadata for a formula (with caching)
+ * @param {string} formulaId - Formula ID
+ * @returns {Object|null} Metadata object or null
+ */
+function getFormulaMetadata(formulaId) {
+    // Check cache first
+    if (metadataCache.has(formulaId)) {
+        return metadataCache.get(formulaId);
+    }
+    
+    // Fallback to direct lookup
+    const metadata = formulaFRQMetadata[formulaId] || null;
+    if (metadata) {
+        metadataCache.set(formulaId, metadata);
+    }
+    return metadata;
+}
+
+//////////////////////////////
+// Concept Matching System (with Caching)
+//////////////////////////////
+
+/**
+ * Concept extraction and matching system for ANY astrophysics question
+ * Includes caching to avoid repeated computation
+ */
 var conceptMatchingSystem = {
-    // Extract all concepts from a question text
+    /**
+     * Extract all concepts from a question text
+     * @param {string} questionText - Question text to analyze
+     * @returns {Array<string>} Array of extracted concepts
+     */
     extractConceptsFromQuestion: function(questionText) {
         const concepts = new Set();
         const questionLower = questionText.toLowerCase();
@@ -160,8 +299,21 @@ var conceptMatchingSystem = {
         return Array.from(concepts);
     },
     
-    // Expand concepts using hierarchy (find remotely related concepts)
+    /**
+     * Expand concepts using hierarchy (find remotely related concepts)
+     * CACHED to avoid repeated computation
+     * @param {Array<string>} concepts - Initial concepts
+     * @returns {Array<string>} Expanded concepts array
+     */
     expandConceptsRemotely: function(concepts) {
+        // Create cache key from sorted concepts
+        const cacheKey = concepts.sort().join('|');
+        
+        // Check cache first
+        if (conceptExpansionCache.has(cacheKey)) {
+            return conceptExpansionCache.get(cacheKey);
+        }
+        
         const expanded = new Set(concepts);
         const hierarchy = typeof getConceptHierarchy === 'function' ? getConceptHierarchy() : {};
         
@@ -205,14 +357,22 @@ var conceptMatchingSystem = {
             }
         });
         
-        return Array.from(expanded);
+        const result = Array.from(expanded);
+        // Cache the result
+        conceptExpansionCache.set(cacheKey, result);
+        return result;
     },
     
-    // Find formulas that match concepts (including remotely)
+    /**
+     * Find formulas that match concepts (including remotely)
+     * @param {Array<string>} concepts - Concepts to match
+     * @param {boolean} includeRemote - Whether to include remote matches (default: true)
+     * @returns {Array<Object>} Array of matched formulas with scores
+     */
     findFormulasByConcepts: function(concepts, includeRemote = true) {
         if (!Array.isArray(concepts) || concepts.length === 0) return [];
         
-        // Expand concepts if requested
+        // Expand concepts if requested (uses cache)
         const searchConcepts = includeRemote ? 
             this.expandConceptsRemotely(concepts) : 
             concepts;
@@ -291,7 +451,11 @@ var conceptMatchingSystem = {
         return matchedFormulas;
     },
     
-    // Use semantic search system if available
+    /**
+     * Use semantic search system if available
+     * @param {string} questionText - Question text
+     * @returns {Array<Object>} Array of matched formulas with semantic scores
+     */
     findFormulasSemantically: function(questionText) {
         if (typeof semanticSearchSystem === 'undefined' || 
             typeof semanticSearchSystem.semanticMatch !== 'function') {
@@ -324,54 +488,18 @@ var conceptMatchingSystem = {
     }
 };
 
-// Initialize metadata from formulas array
-function initializeFRQMetadata() {
-    if (typeof formulas === 'undefined' || !Array.isArray(formulas)) {
-        if (typeof logger !== 'undefined') {
-            logger.warn('Formulas array not available for FRQ metadata initialization');
-        } else {
-            console.warn('Formulas array not available for FRQ metadata initialization');
-        }
-        return;
-    }
-    
-    formulas.forEach(formula => {
-        if (!formula.id) return;
-        
-        // Extract metadata from formula object
-        const metadata = {
-            id: formula.id,
-            name: formula.name || '',
-            concepts: formula.concepts || [],
-            keywords: formula.keywords || [],
-            variables: (formula.variables || []).map(v => v.symbol),
-            // FRQ-specific metadata (can be extended in formulas.js)
-            frqMetadata: formula.frqMetadata || {},
-            // Store full formula reference for structure analysis
-            formula: formula
-        };
-        
-        formulaFRQMetadata[formula.id] = metadata;
-    });
-    
-    if (typeof logger !== 'undefined') {
-        logger.log(`Initialized FRQ metadata for ${Object.keys(formulaFRQMetadata).length} formulas`);
-    }
-}
-
-// Get metadata for a formula
-function getFormulaMetadata(formulaId) {
-    return formulaFRQMetadata[formulaId] || null;
-}
-
-// Enhanced function to find formulas for ANY astrophysics question
+/**
+ * Enhanced function to find formulas for ANY astrophysics question
+ * @param {string} questionText - Question text
+ * @returns {Array<Object>} Array of matched formulas with scores
+ */
 function findFormulasForQuestion(questionText) {
     const results = [];
     
     // Extract concepts from question
     const extractedConcepts = conceptMatchingSystem.extractConceptsFromQuestion(questionText);
     
-    // Find formulas by concepts (including remote matches)
+    // Find formulas by concepts (including remote matches, uses cache)
     const conceptMatches = conceptMatchingSystem.findFormulasByConcepts(extractedConcepts, true);
     conceptMatches.forEach(match => {
         results.push({
@@ -408,10 +536,14 @@ function findFormulasForQuestion(questionText) {
 }
 
 //////////////////////////////
-// Dynamic Usage Instructions (Data-Driven with Intelligent Fallbacks)
+// Formula Analysis Functions
 //////////////////////////////
 
-// Extract concepts from formula properties dynamically
+/**
+ * Extract concepts from formula properties dynamically
+ * @param {Object} formula - Formula object
+ * @returns {Array<string>} Array of extracted concepts
+ */
 function extractConceptsFromFormula(formula) {
     const concepts = new Set();
     
@@ -464,7 +596,11 @@ function extractConceptsFromFormula(formula) {
     return Array.from(concepts);
 }
 
-// Analyze formula structure to generate intelligent tips
+/**
+ * Analyze formula structure to generate intelligent tips
+ * @param {Object} formula - Formula object
+ * @returns {Object} Structure analysis object
+ */
 function analyzeFormulaStructure(formula) {
     const analysis = {
         hasTime: false,
@@ -519,8 +655,17 @@ function analyzeFormulaStructure(formula) {
     return analysis;
 }
 
-// Analyze question type (direct vs application)
+/**
+ * Analyze question type (direct vs application) - CACHED
+ * @param {string} questionText - Question text
+ * @returns {Object} Question analysis object
+ */
 function analyzeQuestionType(questionText) {
+    // Check cache first
+    if (questionAnalysisCache.has(questionText)) {
+        return questionAnalysisCache.get(questionText);
+    }
+    
     const q = questionText.toLowerCase();
     const analysis = {
         isApplication: false,
@@ -645,10 +790,342 @@ function analyzeQuestionType(questionText) {
         analysis.targetVariable = relateMatch[2].trim();
     }
     
+    // Cache the result
+    questionAnalysisCache.set(questionText, analysis);
     return analysis;
 }
 
+//////////////////////////////
+// Centralized Formula-Specific Logic
+//////////////////////////////
+
+/**
+ * Centralized formula-specific instruction generator
+ * All formula-specific logic is here - no duplication
+ * @param {string} formulaId - Formula ID
+ * @param {Object} metadata - Formula metadata (optional)
+ * @param {Object} structure - Formula structure analysis (optional)
+ * @param {Object} questionAnalysis - Question analysis (optional)
+ * @returns {Object} Object with steps, tips, and other guidance
+ */
+function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null, questionAnalysis = null) {
+    const result = {
+        steps: [],
+        tips: [],
+        checkpoints: [],
+        keyConcepts: [],
+        graphOverview: '',
+        graphFeatures: [],
+        graphHowToUse: [],
+        graphPhysicalMeaning: ''
+    };
+    
+    // PRIORITY 1: Use metadata if available (never overwrite)
+    if (metadata?.frqMetadata) {
+        const frqMeta = metadata.frqMetadata;
+        
+        // Instructions
+        if (frqMeta.instructions && Array.isArray(frqMeta.instructions)) {
+            result.steps = frqMeta.instructions.map((inst, idx) => ({
+                step: idx + 1,
+                title: inst.title || `Step ${idx + 1}`,
+                description: inst.description || inst
+            }));
+        }
+        
+        // Tips
+        if (frqMeta.tips && Array.isArray(frqMeta.tips)) {
+            result.tips = [...frqMeta.tips];
+        }
+        
+        // Hints
+        if (frqMeta.hints) {
+            if (frqMeta.hints.keyConcepts) result.keyConcepts = [...frqMeta.hints.keyConcepts];
+            if (frqMeta.hints.checkpoints) result.checkpoints = [...frqMeta.hints.checkpoints];
+        }
+        
+        // Graph interpretation
+        if (frqMeta.graphInterpretation) {
+            const graphMeta = frqMeta.graphInterpretation;
+            result.graphOverview = graphMeta.overview || '';
+            result.graphFeatures = graphMeta.keyFeatures ? [...graphMeta.keyFeatures] : [];
+            result.graphHowToUse = graphMeta.howToUse ? [...graphMeta.howToUse] : [];
+            result.graphPhysicalMeaning = graphMeta.physicalMeaning || '';
+        }
+        
+        // If metadata provides complete guidance, return it
+        if (result.steps.length > 0 || result.tips.length > 0) {
+            return result;
+        }
+    }
+    
+    // PRIORITY 2: Formula-specific switch-case (only if no metadata)
+    switch(formulaId) {
+        case 'kepler_third_law':
+        case 'kepler_third_law_binary':
+        case 'binary_white_dwarf':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Orbital Period Analysis',
+                    description: 'Use T² ∝ a³. For binary systems, include total mass (M₁+M₂). Adjust semi-major axis for period changes.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Always convert periods to seconds when using standard units.');
+                result.tips.push('Use simplified solar formulas for planets around the Sun.');
+            }
+            break;
+            
+        case 'orbital_energy':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Orbital Energy Considerations',
+                    description: 'Bound orbits have negative energy. Circular orbits: E = -GMm/(2a). Energy loss leads to decay.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Check for conservation of energy and bound/unbound states.');
+            }
+            break;
+            
+        case 'white_dwarf_orbital_decay':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Orbital Decay from Gravitational Waves',
+                    description: 'Gravitational waves carry away orbital energy. The decay rate da/dt is found using the chain rule: da/dt = (da/dE) × (dE/dt).'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Start with orbital energy: E = -GMaMb/(2a).');
+                result.tips.push('Find dE/da, then use chain rule: da/dt = (da/dE) × (dE/dt).');
+                result.tips.push('The given dE/dt formula accounts for gravitational wave emission.');
+                result.tips.push('For multi-part problems: you may need results from previous parts (period, energy, etc.).');
+            }
+            if (result.graphOverview === '') {
+                result.graphOverview = 'Orbital decay rate due to gravitational waves.';
+                result.graphFeatures.push('da/dt ∝ a^-4', 'Smaller separations decay faster');
+                result.graphHowToUse.push('Input masses and separation to estimate decay rate.');
+                result.graphPhysicalMeaning = 'Gravitational waves carry energy away, shrinking orbit.';
+            }
+            break;
+            
+        case 'white_dwarf_merger_timescale':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Merger Timescale Calculation',
+                    description: 'Integrate the decay rate equation: dt/da = f(a), then integrate from current separation to a=0.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Rearrange da/dt to get dt/da = 1/(da/dt).');
+                result.tips.push('Integrate dt/da with respect to a from current separation to a=0.');
+                result.tips.push('The integration gives time as a function of separation: t ∝ a^4.');
+                result.tips.push('Use results from previous parts (decay rate, current separation).');
+            }
+            if (result.graphOverview === '') {
+                result.graphOverview = 'Time until merger of two white dwarfs.';
+                result.graphFeatures.push('Merger time ∝ a^4', 'More massive binaries merge faster');
+                result.graphHowToUse.push('Vary separation and mass to see timescale changes.');
+                result.graphPhysicalMeaning = 'Close binaries merge rapidly; separation dominates timescale.';
+            }
+            break;
+            
+        case 'distance_modulus':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Distance Modulus with Extinction',
+                    description: 'm - M = 5 log10(d) - 5 + A_v. Include extinction corrections.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Typical Milky Way extinction ~1.8 mag/kpc.');
+            }
+            if (result.keyConcepts.length === 0) {
+                result.keyConcepts.push('Standard candles', 'Extinction', 'Distance ladder');
+            }
+            if (result.checkpoints.length === 0) {
+                result.checkpoints.push('Account for interstellar extinction.');
+            }
+            break;
+            
+        case 'wiens_law':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Temperature from Spectrum',
+                    description: 'λ_max = 2.898×10⁻³ / T. Peak wavelength indicates surface temperature.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Hot stars appear blue, cooler stars red.');
+            }
+            break;
+            
+        case 'transit_depth':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Transit Depth Analysis',
+                    description: 'δ = (Rp/Rs)² for edge-on transits (i=90°). For inclined orbits, the observed depth is reduced by cos²(i).'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Use combined period and depth to estimate planet properties.');
+                result.tips.push('Edge-on transit (i=90°) gives maximum depth. Inclined orbits (i<90°) have smaller observed depths.');
+                result.tips.push('For application problems: "all members line up" or "planet in front" typically means edge-on (i=90°).');
+                result.tips.push('To express inclination in terms of orbital distance, relate transit geometry to orbital parameters.');
+                result.tips.push('For multi-body systems: consider the center of mass and relative positions.');
+            }
+            break;
+            
+        case 'radial_velocity_wavelength':
+        case 'radial_velocity_frequency':
+            if (result.steps.length === 0) {
+                result.steps.push({
+                    step: 1,
+                    title: 'Radial Velocity from Spectrum',
+                    description: 'Measure wavelength shift from spectrum. Use Δλ/λ = v/c for non-relativistic speeds.'
+                });
+            }
+            if (result.tips.length === 0) {
+                result.tips.push('Identify the spectral line and its rest wavelength.');
+                result.tips.push('Measure the observed wavelength from the graph/spectrum.');
+                result.tips.push('Calculate redshift: z = (λ_obs - λ_rest)/λ_rest.');
+                result.tips.push('For non-relativistic: v = c × z. For relativistic, use full Doppler formula.');
+                result.tips.push('Check if reasonable: compare with Hubble flow or known distances.');
+            }
+            break;
+    }
+    
+    // PRIORITY 3: Structure-based intelligent fallback (only if no specific guidance)
+    if (result.steps.length === 0 && structure) {
+        if (structure.isOrbital) {
+            result.steps.push({
+                step: 1,
+                title: 'Orbital Mechanics Considerations',
+                description: 'For orbital problems, remember: period squared is proportional to semi-major axis cubed (T² ∝ a³). For binary systems, use total mass (M₁ + M₂).'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Always convert periods to seconds when using standard units.');
+                result.tips.push('Verify that orbital distances are physically reasonable for the system.');
+            }
+        } else if (structure.hasEnergy) {
+            result.steps.push({
+                step: 1,
+                title: 'Energy Considerations',
+                description: 'Check if energy is conserved or if there are energy loss mechanisms. For bound orbits, energy is negative.'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Total energy = kinetic + potential energy.');
+            }
+        } else if (structure.hasTemperature) {
+            result.steps.push({
+                step: 1,
+                title: 'Temperature Analysis',
+                description: 'Determine if this is surface temperature (effective temperature) or central temperature. Check if Wien\'s law or Stefan-Boltzmann law applies.'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Hotter objects emit more energy and peak at shorter wavelengths.');
+            }
+        } else if (structure.hasDistance) {
+            result.steps.push({
+                step: 1,
+                title: 'Distance Measurement',
+                description: 'Determine the distance measurement method. Account for extinction if using magnitude-based methods.'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Common distance methods: parallax, distance modulus, redshift, standard candles.');
+            }
+        } else if (structure.hasVelocity) {
+            result.steps.push({
+                step: 1,
+                title: 'Velocity Analysis',
+                description: 'Determine if this is orbital velocity, escape velocity, or radial velocity. Check if relativistic effects are needed (v > 0.1c).'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Radial velocity can be measured via Doppler shift in spectra.');
+            }
+        } else if (structure.isStellar) {
+            result.steps.push({
+                step: 1,
+                title: 'Stellar Properties',
+                description: 'Compare results with known stellar values. Consider stellar evolution stage and population type.'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Use the Sun as a reference: L☉ = 3.828×10²⁶ W, M☉ = 1.989×10³⁰ kg, R☉ = 6.96×10⁸ m.');
+            }
+        } else if (structure.isCosmological) {
+            result.steps.push({
+                step: 1,
+                title: 'Cosmological Considerations',
+                description: 'For cosmological distances, account for redshift and expansion. Use appropriate distance definitions (luminosity distance, angular diameter distance).'
+            });
+            if (result.tips.length === 0) {
+                result.tips.push('Hubble\'s law: v = H₀d, where H₀ ≈ 70 km/s/Mpc.');
+            }
+        }
+    }
+    
+    // Generic fallback (only if nothing else provided)
+    if (result.steps.length === 0 && result.tips.length === 0) {
+        result.tips.push('Visualize the relationship using the Graph Interpretation tab.');
+        result.tips.push('Check related formulas for additional context.');
+    }
+    
+    return result;
+}
+
+//////////////////////////////
+// Unified Instruction Generator (Fixes Step Numbering)
+//////////////////////////////
+
+/**
+ * Intermediate results storage for multi-step problems
+ * Stores computed values from earlier steps for use in later steps
+ */
+const intermediateResults = new Map();
+
+/**
+ * Clear intermediate results (call when starting a new problem)
+ */
+function clearIntermediateResults() {
+    intermediateResults.clear();
+}
+
+/**
+ * Store intermediate result
+ * @param {string} key - Result key (e.g., "period", "energy", "separation")
+ * @param {*} value - Result value (number, string, or object)
+ */
+function storeIntermediateResult(key, value) {
+    intermediateResults.set(key, value);
+}
+
+/**
+ * Get intermediate result
+ * @param {string} key - Result key
+ * @returns {*} Result value or null
+ */
+function getIntermediateResult(key) {
+    return intermediateResults.get(key) || null;
+}
+
+/**
+ * Generate usage instructions with proper step numbering
+ * FIXED: Uses stepCounter instead of instructions.steps.length + 1
+ * @param {Object} formula - Formula object
+ * @param {string} questionContext - Question text (optional)
+ * @returns {Object} Instructions object with steps, tips, etc.
+ */
 function generateUsageInstructions(formula, questionContext = '') {
+    // Clear intermediate results for new problem
+    clearIntermediateResults();
+    
     const instructions = {
         steps: [],
         tips: [],
@@ -662,7 +1139,7 @@ function generateUsageInstructions(formula, questionContext = '') {
     const metadata = getFormulaMetadata(formulaId);
     const structure = analyzeFormulaStructure(formula);
     
-    // Analyze question type
+    // Analyze question type (uses cache)
     let questionAnalysis = null;
     if (questionContext) {
         questionAnalysis = analyzeQuestionType(questionContext);
@@ -670,13 +1147,19 @@ function generateUsageInstructions(formula, questionContext = '') {
         instructions.problemAnalysis = questionAnalysis;
     }
     
-    // Step 1: Identify variables (enhanced for application problems)
+    // Get centralized formula-specific guidance
+    const formulaGuidance = getFormulaSpecificGuidance(formulaId, metadata, structure, questionAnalysis);
+    
+    // FIXED: Use stepCounter instead of instructions.steps.length + 1
+    let stepCounter = 1;
+    
+    // Step 1: Identify variables
     const variableList = (formula.variables || []).map(v => v.symbol).join(', ');
     const variableNames = (formula.variables || []).map(v => `${v.symbol} (${v.name})`).join(', ');
     
     let step1Description = `List all variables in the formula: ${variableNames || variableList}. Determine which are known and which need solving.`;
     
-    if (questionAnalysis && questionAnalysis.isApplication) {
+    if (questionAnalysis?.isApplication) {
         if (questionAnalysis.hasScenario) {
             step1Description += ' For application problems, identify what the scenario tells you (e.g., "all three members line up" means edge-on transit, i=90°).';
         }
@@ -686,12 +1169,12 @@ function generateUsageInstructions(formula, questionContext = '') {
     }
     
     instructions.steps.push({
-        step: 1,
+        step: stepCounter++,
         title: 'Identify Known and Unknown Variables',
         description: step1Description
     });
     
-    // Step 2: Check units (enhanced with formula-specific guidance)
+    // Step 2: Check units
     let unitGuidance = 'Ensure all values are in correct units. Convert if necessary (e.g., km → m, years → seconds).';
     if (structure.hasTime) {
         unitGuidance += ' Pay special attention to time units (seconds, years, days).';
@@ -703,14 +1186,14 @@ function generateUsageInstructions(formula, questionContext = '') {
         unitGuidance += ' Verify mass units (kg, solar masses).';
     }
     instructions.steps.push({
-        step: 2,
+        step: stepCounter++,
         title: 'Check Units',
         description: unitGuidance
     });
     
     // Step 3: Enter values
     instructions.steps.push({
-        step: 3,
+        step: stepCounter++,
         title: 'Enter Values',
         description: 'Input known values. Leave unknown variables empty or type "N/A" for symbolic expressions.'
     });
@@ -724,35 +1207,132 @@ function generateUsageInstructions(formula, questionContext = '') {
         verifyGuidance += ' For stellar properties, compare with known stellar values (e.g., Sun\'s luminosity, temperature).';
     }
     instructions.steps.push({
-        step: 4,
+        step: stepCounter++,
         title: 'Calculate and Verify',
         description: verifyGuidance
     });
     
-    // Step 5+: Formula-specific instructions from metadata OR intelligent fallback
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.instructions) {
-        metadata.frqMetadata.instructions.forEach((instruction, index) => {
-            instructions.steps.push({
-                step: 5 + index,
-                title: instruction.title || `Additional Step ${index + 1}`,
-                description: instruction.description || instruction
-            });
+    // Step 5+: Add formula-specific steps from centralized guidance
+    // Renumber formula-specific steps to continue from stepCounter
+    formulaGuidance.steps.forEach(formulaStep => {
+        instructions.steps.push({
+            step: stepCounter++,
+            title: formulaStep.title,
+            description: formulaStep.description
         });
-    } else {
-        // Intelligent fallback: Generate from formula structure
-        const contextInstructions = generateIntelligentInstructions(formula, structure, metadata);
-        contextInstructions.steps.forEach(s => instructions.steps.push(s));
+    });
+    
+    // Add application-specific steps
+    if (questionAnalysis?.isApplication) {
+        // Multi-part questions
+        if (questionAnalysis.isMultiPart) {
+            instructions.steps.push({
+                step: stepCounter++,
+                title: `Part ${questionAnalysis.partLetter.toUpperCase()}: Context`,
+                description: `This is part ${questionAnalysis.partLetter.toUpperCase()} of a multi-part problem. ${questionAnalysis.referencesPrevious ? `Use results from part ${questionAnalysis.referencedPart || 'previous parts'}.` : 'This may build on previous parts or be independent.'}`
+            });
+        }
+        
+        // Graph-based questions
+        if (questionAnalysis.hasGraph) {
+            let graphGuidance = 'Extract data from the graph. ';
+            if (questionAnalysis.graphType === 'radial_velocity') {
+                graphGuidance += 'For radial velocity graphs: identify maximum/minimum velocities, period, and amplitude. Use these to find orbital parameters.';
+            } else if (questionAnalysis.graphType === 'spectrum') {
+                graphGuidance += 'For spectrum graphs: identify absorption/emission lines, their wavelengths, and any shifts from rest wavelengths.';
+            } else if (questionAnalysis.graphType === 'light_curve') {
+                graphGuidance += 'For light curves: identify transit depth, duration, and period.';
+            }
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Extract Data from Graph',
+                description: graphGuidance
+            });
+        }
+        
+        // Scenario understanding
+        if (questionAnalysis.hasScenario) {
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Understand the Scenario',
+                description: 'Extract key information from the scenario. Identify what conditions are given (e.g., edge-on transit, specific alignment, given values).'
+            });
+        }
+        
+        // Derivative/chain rule problems
+        if (questionAnalysis.requiresDerivative) {
+            let derivativeGuidance = 'This problem requires taking derivatives. ';
+            if (questionAnalysis.requiresChainRule) {
+                derivativeGuidance += 'Use the chain rule: dr/dt = (dr/dE) × (dE/dt). Find each derivative separately, then multiply.';
+            } else {
+                derivativeGuidance += 'Differentiate the given expression with respect to time (or the appropriate variable).';
+            }
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Apply Calculus',
+                description: derivativeGuidance
+            });
+        }
+        
+        // Integration problems
+        if (questionAnalysis.requiresIntegration) {
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Integrate to Find Time',
+                description: 'Rearrange the derivative equation to dt/dr = f(r), then integrate with respect to r. Use appropriate limits (from current separation to r=0 for merger).'
+            });
+        }
+        
+        // Relationship problems
+        if (questionAnalysis.relationshipType) {
+            let relationshipGuidance = '';
+            if (questionAnalysis.relationshipType === 'in_terms_of') {
+                relationshipGuidance = `You need to express ${questionAnalysis.targetVariable || 'the unknown'} in terms of ${questionAnalysis.sourceVariable || 'the given variable'}. `;
+                relationshipGuidance += 'Start with the base formula and algebraically rearrange to isolate the target variable.';
+            } else if (questionAnalysis.relationshipType === 'as_function_of') {
+                relationshipGuidance = `Express the result as a function of ${questionAnalysis.sourceVariable || 'the given variable'}. `;
+                relationshipGuidance += 'Substitute known relationships and simplify.';
+            }
+            
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Create the Relationship',
+                description: relationshipGuidance
+            });
+        }
+        
+        // Simplified expressions
+        if (questionAnalysis.requiresExpression) {
+            instructions.steps.push({
+                step: stepCounter++,
+                title: 'Simplify the Expression',
+                description: 'Combine terms, cancel common factors, and simplify to the most compact form. Check that units are consistent and the expression makes physical sense.'
+            });
+        }
+        
+        // Multi-step guidance
+        if (questionAnalysis.isMultiStep) {
+            instructions.tips.push('For multi-step problems, work through each step systematically.');
+            instructions.tips.push('Use intermediate results from earlier steps in later calculations.');
+            instructions.tips.push('Check that your final expression has the correct variables and dependencies.');
+        }
     }
     
-    // Tips from metadata or intelligent fallback
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.tips) {
-        instructions.tips.push(...metadata.frqMetadata.tips);
-    } else {
-        const contextInstructions = generateIntelligentInstructions(formula, structure, metadata);
-        instructions.tips.push(...contextInstructions.tips);
+    // Add question-specific reasoning tips
+    if (questionContext && (!questionAnalysis || !questionAnalysis.isApplication)) {
+        instructions.steps.push({
+            step: stepCounter++,
+            title: 'Contextual Reasoning',
+            description: `Consider the question: "${questionContext}". Explain why each step affects the outcome.`
+        });
     }
     
-    // Common mistakes (universal + formula-specific)
+    // Tips from centralized guidance (prioritize metadata, then formula-specific, then structure-based)
+    if (formulaGuidance.tips.length > 0) {
+        instructions.tips.push(...formulaGuidance.tips);
+    }
+    
+    // Common mistakes (universal + structure-specific)
     instructions.commonMistakes.push('Forgetting unit conversions.');
     instructions.commonMistakes.push('Using incorrect mass or constant values.');
     instructions.commonMistakes.push('Sign errors or ignoring negative values.');
@@ -769,339 +1349,34 @@ function generateUsageInstructions(formula, questionContext = '') {
         instructions.commonMistakes.push('Confusing apparent and absolute magnitude.');
     }
     
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.commonMistakes) {
+    // Add formula-specific mistakes from metadata
+    if (metadata?.frqMetadata?.commonMistakes) {
         instructions.commonMistakes.push(...metadata.frqMetadata.commonMistakes);
     }
     
     // Related concepts (extract dynamically)
     const extractedConcepts = extractConceptsFromFormula(formula);
-    if (metadata && metadata.concepts && metadata.concepts.length > 0) {
+    if (metadata?.concepts?.length > 0) {
         instructions.relatedConcepts.push(...metadata.concepts.slice(0, 5));
-    } else if (formula.concepts && formula.concepts.length > 0) {
+    } else if (formula.concepts?.length > 0) {
         instructions.relatedConcepts.push(...formula.concepts.slice(0, 5));
     } else if (extractedConcepts.length > 0) {
         instructions.relatedConcepts.push(...extractedConcepts.slice(0, 5));
     }
     
-    // Add application-specific steps
-    if (questionAnalysis && questionAnalysis.isApplication) {
-        // Step for multi-part questions
-        if (questionAnalysis.isMultiPart) {
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: `Part ${questionAnalysis.partLetter.toUpperCase()}: Context`,
-                description: `This is part ${questionAnalysis.partLetter.toUpperCase()} of a multi-part problem. ${questionAnalysis.referencesPrevious ? `Use results from part ${questionAnalysis.referencedPart || 'previous parts'}.` : 'This may build on previous parts or be independent.'}`
-            });
-        }
-        
-        // Step for graph-based questions
-        if (questionAnalysis.hasGraph) {
-            let graphGuidance = 'Extract data from the graph. ';
-            if (questionAnalysis.graphType === 'radial_velocity') {
-                graphGuidance += 'For radial velocity graphs: identify maximum/minimum velocities, period, and amplitude. Use these to find orbital parameters.';
-            } else if (questionAnalysis.graphType === 'spectrum') {
-                graphGuidance += 'For spectrum graphs: identify absorption/emission lines, their wavelengths, and any shifts from rest wavelengths.';
-            } else if (questionAnalysis.graphType === 'light_curve') {
-                graphGuidance += 'For light curves: identify transit depth, duration, and period.';
-            }
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Extract Data from Graph',
-                description: graphGuidance
-            });
-        }
-        
-        // Step for scenario understanding
-        if (questionAnalysis.hasScenario) {
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Understand the Scenario',
-                description: 'Extract key information from the scenario. Identify what conditions are given (e.g., edge-on transit, specific alignment, given values).'
-            });
-        }
-        
-        // Step for derivative/chain rule problems
-        if (questionAnalysis.requiresDerivative) {
-            let derivativeGuidance = 'This problem requires taking derivatives. ';
-            if (questionAnalysis.requiresChainRule) {
-                derivativeGuidance += 'Use the chain rule: dr/dt = (dr/dE) × (dE/dt). Find each derivative separately, then multiply.';
-            } else {
-                derivativeGuidance += 'Differentiate the given expression with respect to time (or the appropriate variable).';
-            }
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Apply Calculus',
-                description: derivativeGuidance
-            });
-        }
-        
-        // Step for integration problems
-        if (questionAnalysis.requiresIntegration) {
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Integrate to Find Time',
-                description: 'Rearrange the derivative equation to dt/dr = f(r), then integrate with respect to r. Use appropriate limits (from current separation to r=0 for merger).'
-            });
-        }
-        
-        // Step for relationship problems
-        if (questionAnalysis.relationshipType) {
-            let relationshipGuidance = '';
-            if (questionAnalysis.relationshipType === 'in_terms_of') {
-                relationshipGuidance = `You need to express ${questionAnalysis.targetVariable || 'the unknown'} in terms of ${questionAnalysis.sourceVariable || 'the given variable'}. `;
-                relationshipGuidance += 'Start with the base formula and algebraically rearrange to isolate the target variable.';
-            } else if (questionAnalysis.relationshipType === 'as_function_of') {
-                relationshipGuidance = `Express the result as a function of ${questionAnalysis.sourceVariable || 'the given variable'}. `;
-                relationshipGuidance += 'Substitute known relationships and simplify.';
-            }
-            
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Create the Relationship',
-                description: relationshipGuidance
-            });
-        }
-        
-        // Step for simplified expressions
-        if (questionAnalysis.requiresExpression) {
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Simplify the Expression',
-                description: 'Combine terms, cancel common factors, and simplify to the most compact form. Check that units are consistent and the expression makes physical sense.'
-            });
-        }
-        
-        // Multi-step guidance
-        if (questionAnalysis.isMultiStep) {
-            instructions.tips.push('For multi-step problems, work through each step systematically.');
-            instructions.tips.push('Use intermediate results from earlier steps in later calculations.');
-            instructions.tips.push('Check that your final expression has the correct variables and dependencies.');
-        }
-    }
-    
-    // Add question-specific reasoning tips
-    if (questionContext) {
-        if (!questionAnalysis || !questionAnalysis.isApplication) {
-            instructions.steps.push({
-                step: instructions.steps.length + 1,
-                title: 'Contextual Reasoning',
-                description: `Consider the question: "${questionContext}". Explain why each step affects the outcome.`
-            });
-        }
-    }
-    
     return instructions;
 }
 
-// Generate intelligent instructions based on formula structure
-function generateIntelligentInstructions(formula, structure, metadata) {
-    const result = { steps: [], tips: [] };
-    const formulaId = formula.id || '';
-    const formulaLower = (formula.name + ' ' + (formula.description || '')).toLowerCase();
-    
-    // Check for specific formula patterns first (fallback to switch-case)
-    const switchCaseResult = getFormulaSpecificInstructions(formulaId, metadata);
-    if (switchCaseResult.steps.length > 0 || switchCaseResult.tips.length > 0) {
-        return switchCaseResult;
-    }
-    
-    // Generate based on structure analysis
-    if (structure.isOrbital) {
-        result.steps.push({
-            step: 5,
-            title: 'Orbital Mechanics Considerations',
-            description: 'For orbital problems, remember: period squared is proportional to semi-major axis cubed (T² ∝ a³). For binary systems, use total mass (M₁ + M₂).'
-        });
-        result.tips.push('Always convert periods to seconds when using standard units.');
-        result.tips.push('Verify that orbital distances are physically reasonable for the system.');
-    }
-    
-    if (structure.hasEnergy) {
-        result.steps.push({
-            step: 5,
-            title: 'Energy Considerations',
-            description: 'Check if energy is conserved or if there are energy loss mechanisms. For bound orbits, energy is negative.'
-        });
-        result.tips.push('Total energy = kinetic + potential energy.');
-    }
-    
-    if (structure.hasTemperature) {
-        result.steps.push({
-            step: 5,
-            title: 'Temperature Analysis',
-            description: 'Determine if this is surface temperature (effective temperature) or central temperature. Check if Wien\'s law or Stefan-Boltzmann law applies.'
-        });
-        result.tips.push('Hotter objects emit more energy and peak at shorter wavelengths.');
-    }
-    
-    if (structure.hasDistance) {
-        result.steps.push({
-            step: 5,
-            title: 'Distance Measurement',
-            description: 'Determine the distance measurement method. Account for extinction if using magnitude-based methods.'
-        });
-        result.tips.push('Common distance methods: parallax, distance modulus, redshift, standard candles.');
-    }
-    
-    if (structure.hasVelocity) {
-        result.steps.push({
-            step: 5,
-            title: 'Velocity Analysis',
-            description: 'Determine if this is orbital velocity, escape velocity, or radial velocity. Check if relativistic effects are needed (v > 0.1c).'
-        });
-        result.tips.push('Radial velocity can be measured via Doppler shift in spectra.');
-    }
-    
-    if (structure.isStellar) {
-        result.steps.push({
-            step: 5,
-            title: 'Stellar Properties',
-            description: 'Compare results with known stellar values. Consider stellar evolution stage and population type.'
-        });
-        result.tips.push('Use the Sun as a reference: L☉ = 3.828×10²⁶ W, M☉ = 1.989×10³⁰ kg, R☉ = 6.96×10⁸ m.');
-    }
-    
-    if (structure.isCosmological) {
-        result.steps.push({
-            step: 5,
-            title: 'Cosmological Considerations',
-            description: 'For cosmological distances, account for redshift and expansion. Use appropriate distance definitions (luminosity distance, angular diameter distance).'
-        });
-        result.tips.push('Hubble\'s law: v = H₀d, where H₀ ≈ 70 km/s/Mpc.');
-    }
-    
-    // Generic fallback
-    if (result.steps.length === 0) {
-        result.tips.push('Visualize the relationship using the Graph Interpretation tab.');
-        result.tips.push('Check related formulas for additional context.');
-    }
-    
-    return result;
-}
-
-// Formula-specific instruction generator (fallback for formulas without metadata)
-function getFormulaSpecificInstructions(formulaId, metadata = null) {
-    const result = { steps: [], tips: [] };
-    
-    // Check if metadata has instructions
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.instructions) {
-        return result; // Already handled in main function
-    }
-    
-    // Fallback patterns based on formula ID patterns
-    switch(formulaId) {
-        case 'kepler_third_law':
-        case 'kepler_third_law_binary':
-        case 'binary_white_dwarf':
-            result.steps.push({
-                step: 5,
-                title: 'Orbital Period Analysis',
-                description: 'Use T² ∝ a³. For binary systems, include total mass (M₁+M₂). Adjust semi-major axis for period changes.'
-            });
-            result.tips.push('Always convert periods to seconds when using standard units.');
-            result.tips.push('Use simplified solar formulas for planets around the Sun.');
-            break;
-            
-        case 'orbital_energy':
-            result.steps.push({
-                step: 5,
-                title: 'Orbital Energy Considerations',
-                description: 'Bound orbits have negative energy. Circular orbits: E = -GMm/(2a). Energy loss leads to decay.'
-            });
-            result.tips.push('Check for conservation of energy and bound/unbound states.');
-            break;
-            
-        case 'white_dwarf_orbital_decay':
-        case 'white_dwarf_merger_timescale':
-            result.steps.push({
-                step: 5,
-                title: 'Gravitational Wave Decay',
-                description: 'da/dt ∝ a^-4. Smaller separation → faster merger. Use appropriate constants for white dwarfs.'
-            });
-            result.tips.push('Merger timescales often millions to billions of years.');
-            break;
-            
-        case 'distance_modulus':
-            result.steps.push({
-                step: 5,
-                title: 'Distance Modulus with Extinction',
-                description: 'm - M = 5 log10(d) - 5 + A_v. Include extinction corrections.'
-            });
-            result.tips.push('Typical Milky Way extinction ~1.8 mag/kpc.');
-            break;
-            
-        case 'wiens_law':
-            result.steps.push({
-                step: 5,
-                title: 'Temperature from Spectrum',
-                description: 'λ_max = 2.898×10⁻³ / T. Peak wavelength indicates surface temperature.'
-            });
-            result.tips.push('Hot stars appear blue, cooler stars red.');
-            break;
-            
-        case 'transit_depth':
-            result.steps.push({
-                step: 5,
-                title: 'Transit Depth Analysis',
-                description: 'δ = (Rp/Rs)² for edge-on transits (i=90°). For inclined orbits, the observed depth is reduced by cos²(i).'
-            });
-            result.tips.push('Use combined period and depth to estimate planet properties.');
-            result.tips.push('Edge-on transit (i=90°) gives maximum depth. Inclined orbits (i<90°) have smaller observed depths.');
-            result.tips.push('For application problems: "all members line up" or "planet in front" typically means edge-on (i=90°).');
-            result.tips.push('To express inclination in terms of orbital distance, relate transit geometry to orbital parameters.');
-            result.tips.push('For multi-body systems: consider the center of mass and relative positions.');
-            break;
-            
-        case 'white_dwarf_orbital_decay':
-            result.steps.push({
-                step: 5,
-                title: 'Orbital Decay from Gravitational Waves',
-                description: 'Gravitational waves carry away orbital energy. The decay rate da/dt is found using the chain rule: da/dt = (da/dE) × (dE/dt).'
-            });
-            result.tips.push('Start with orbital energy: E = -GMaMb/(2a).');
-            result.tips.push('Find dE/da, then use chain rule: da/dt = (da/dE) × (dE/dt).');
-            result.tips.push('The given dE/dt formula accounts for gravitational wave emission.');
-            result.tips.push('For multi-part problems: you may need results from previous parts (period, energy, etc.).');
-            break;
-            
-        case 'white_dwarf_merger_timescale':
-            result.steps.push({
-                step: 5,
-                title: 'Merger Timescale Calculation',
-                description: 'Integrate the decay rate equation: dt/da = f(a), then integrate from current separation to a=0.'
-            });
-            result.tips.push('Rearrange da/dt to get dt/da = 1/(da/dt).');
-            result.tips.push('Integrate dt/da with respect to a from current separation to a=0.');
-            result.tips.push('The integration gives time as a function of separation: t ∝ a^4.');
-            result.tips.push('Use results from previous parts (decay rate, current separation).');
-            break;
-            
-        case 'radial_velocity_wavelength':
-        case 'radial_velocity_frequency':
-            result.steps.push({
-                step: 5,
-                title: 'Radial Velocity from Spectrum',
-                description: 'Measure wavelength shift from spectrum. Use Δλ/λ = v/c for non-relativistic speeds.'
-            });
-            result.tips.push('Identify the spectral line and its rest wavelength.');
-            result.tips.push('Measure the observed wavelength from the graph/spectrum.');
-            result.tips.push('Calculate redshift: z = (λ_obs - λ_rest)/λ_rest.');
-            result.tips.push('For non-relativistic: v = c × z. For relativistic, use full Doppler formula.');
-            result.tips.push('Check if reasonable: compare with Hubble flow or known distances.');
-            break;
-            
-        default:
-            result.tips.push('Visualize the relationship using the Graph Interpretation tab.');
-            break;
-    }
-    
-    return result;
-}
-
 //////////////////////////////
-// Contextual Hints (Data-Driven with Intelligent Fallbacks)
+// Contextual Hints Generator
 //////////////////////////////
 
+/**
+ * Generate contextual hints (uses centralized guidance)
+ * @param {Object} formula - Formula object
+ * @param {string} questionText - Question text (optional)
+ * @returns {Object} Hints object
+ */
 function generateContextualHints(formula, questionText = '') {
     const hints = { 
         problemType: null, 
@@ -1109,7 +1384,7 @@ function generateContextualHints(formula, questionText = '') {
         approach: [], 
         checkpoints: [], 
         alternativeApproaches: [],
-        relatedConcepts: [] // Add related concepts from question
+        relatedConcepts: []
     };
     
     const formulaId = formula.id || '';
@@ -1117,18 +1392,18 @@ function generateContextualHints(formula, questionText = '') {
     const structure = analyzeFormulaStructure(formula);
     const q = questionText.toLowerCase();
     
-    // Extract concepts from question and expand remotely
+    // Extract concepts from question and expand remotely (uses cache)
     if (questionText && typeof conceptMatchingSystem !== 'undefined') {
         const questionConcepts = conceptMatchingSystem.extractConceptsFromQuestion(questionText);
         const expandedConcepts = conceptMatchingSystem.expandConceptsRemotely(questionConcepts);
-        hints.relatedConcepts = expandedConcepts.slice(0, 10); // Top 10 related concepts
+        hints.relatedConcepts = expandedConcepts.slice(0, 10);
     }
     
-    // Enhanced problem type detection
-    const questionAnalysis = analyzeQuestionType(questionText);
+    // Enhanced problem type detection (uses cached question analysis)
+    const questionAnalysis = questionText ? analyzeQuestionType(questionText) : null;
     
     // Detect application problems
-    if (questionAnalysis.isApplication) {
+    if (questionAnalysis?.isApplication) {
         if (questionAnalysis.requiresExpression) {
             hints.problemType = 'Expression Derivation Problem';
         } else if (questionAnalysis.relationshipType) {
@@ -1158,24 +1433,11 @@ function generateContextualHints(formula, questionText = '') {
         hints.problemType = 'Transit/Exoplanet Problem';
     }
     
-    // Add application-specific approach
-    if (questionAnalysis && questionAnalysis.isApplication) {
-        if (questionAnalysis.hasScenario) {
-            hints.approach.push('Extract key information from the scenario description.');
-            hints.approach.push('Identify what conditions are implied (e.g., edge-on transit, specific alignment).');
-        }
-        if (questionAnalysis.relationshipType === 'in_terms_of') {
-            hints.approach.push(`Start with the base formula and rearrange to express ${questionAnalysis.targetVariable || 'the unknown'} in terms of ${questionAnalysis.sourceVariable || 'the given variable'}.`);
-            hints.approach.push('Substitute known relationships and simplify algebraically.');
-        }
-        if (questionAnalysis.requiresExpression) {
-            hints.approach.push('Work through the algebra step-by-step to derive the expression.');
-            hints.approach.push('Simplify to the most compact form possible.');
-        }
-    }
+    // Get centralized guidance
+    const formulaGuidance = getFormulaSpecificGuidance(formulaId, metadata, structure, questionAnalysis);
     
-    // Get hints from metadata
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.hints) {
+    // PRIORITY: Use metadata hints first, then formula-specific, then structure-based
+    if (metadata?.frqMetadata?.hints) {
         const metaHints = metadata.frqMetadata.hints;
         if (metaHints.keyConcepts) hints.keyConcepts.push(...metaHints.keyConcepts);
         if (metaHints.approach) hints.approach.push(...metaHints.approach);
@@ -1183,235 +1445,125 @@ function generateContextualHints(formula, questionText = '') {
         if (metaHints.alternativeApproaches) hints.alternativeApproaches.push(...metaHints.alternativeApproaches);
     }
     
-    // Generate intelligent hints from structure if metadata doesn't provide them
+    // Add formula-specific guidance if metadata didn't provide it
+    if (hints.keyConcepts.length === 0 && formulaGuidance.keyConcepts.length > 0) {
+        hints.keyConcepts.push(...formulaGuidance.keyConcepts);
+    }
+    if (hints.checkpoints.length === 0 && formulaGuidance.checkpoints.length > 0) {
+        hints.checkpoints.push(...formulaGuidance.checkpoints);
+    }
+    
+    // Generate approach steps if not provided
+    if (hints.approach.length === 0) {
+        // Generate approach based on question type and structure
+        if (questionAnalysis?.hasGraph) {
+            if (questionAnalysis.graphType === 'radial_velocity') {
+                hints.approach.push('Extract from radial velocity graph: maximum velocities (Va, Vb), period (P).');
+                hints.approach.push('Use center of mass: MaVa + MbVb = 0 to find mass ratio.');
+                hints.approach.push('Calculate total velocity: V = Va + Vb (or |Va| + |Vb|).');
+                hints.approach.push('Use orbital geometry: d = VP/(2π) where d is separation.');
+                hints.approach.push('Apply Kepler\'s third law: (Ma+Mb) = d³/P².');
+            } else if (questionAnalysis.graphType === 'spectrum') {
+                hints.approach.push('Identify spectral lines from the graph (e.g., Si II at 640nm).');
+                hints.approach.push('Find rest wavelength (e.g., 615nm for Si II).');
+                hints.approach.push('Calculate redshift: z = (λ_obs - λ_rest)/λ_rest.');
+                hints.approach.push('For non-relativistic: v = c × z.');
+            } else if (questionAnalysis.graphType === 'light_curve') {
+                hints.approach.push('Identify transit depth, duration, and period from light curve.');
+                hints.approach.push('Use transit depth to find planet-to-star radius ratio.');
+            }
+        } else if (questionAnalysis?.isApplication) {
+            if (questionAnalysis.hasScenario) {
+                hints.approach.push('Extract key information from the scenario description.');
+                hints.approach.push('Identify what conditions are implied (e.g., edge-on transit, specific alignment).');
+            }
+            if (questionAnalysis.relationshipType === 'in_terms_of') {
+                hints.approach.push(`Start with the base formula and rearrange to express ${questionAnalysis.targetVariable || 'the unknown'} in terms of ${questionAnalysis.sourceVariable || 'the given variable'}.`);
+                hints.approach.push('Substitute known relationships and simplify algebraically.');
+            }
+            if (questionAnalysis.requiresExpression) {
+                hints.approach.push('Work through the algebra step-by-step to derive the expression.');
+                hints.approach.push('Simplify to the most compact form possible.');
+            }
+        } else {
+            // Structure-based approach
+            if (structure.isOrbital) {
+                hints.approach.push('Identify the orbital parameters (period, semi-major axis, masses).');
+                hints.approach.push('Determine if this is a single-body or binary system problem.');
+            }
+            if (structure.hasDistance) {
+                hints.approach.push('Determine the distance measurement method (parallax, magnitude, redshift).');
+            }
+            if (structure.hasVelocity) {
+                hints.approach.push('Determine if this is orbital, escape, or radial velocity.');
+            }
+        }
+    }
+    
+    // Generate checkpoints if not provided
+    if (hints.checkpoints.length === 0) {
+        if (structure.hasTime) {
+            hints.checkpoints.push('Verify time/period is in correct units (seconds).');
+            hints.checkpoints.push('Check that the timescale is physically reasonable.');
+        }
+        if (structure.hasDistance) {
+            hints.checkpoints.push('Verify distance units (meters, parsecs, AU).');
+            hints.checkpoints.push('Check that distance is reasonable for the method used.');
+        }
+        if (structure.hasMass) {
+            hints.checkpoints.push('Verify mass units (kg, solar masses).');
+            if (structure.isBinary) {
+                hints.checkpoints.push('Check that total mass is reasonable for the system type.');
+            }
+        }
+        if (structure.hasVelocity) {
+            hints.checkpoints.push('Verify velocity units (m/s, km/s).');
+            hints.checkpoints.push('Check if velocity is reasonable (e.g., orbital vs escape velocity).');
+        }
+        if (structure.hasEnergy) {
+            hints.checkpoints.push('Check energy sign (negative for bound orbits).');
+            hints.checkpoints.push('Verify energy units (Joules).');
+        }
+        if (structure.hasMagnitude) {
+            hints.checkpoints.push('Distinguish between apparent and absolute magnitude.');
+            hints.checkpoints.push('Account for interstellar extinction if needed.');
+        }
+        if (structure.isStellar) {
+            hints.checkpoints.push('Compare results with known stellar values (e.g., Sun).');
+        }
+        
+        // Generic checkpoints
+        if (hints.checkpoints.length === 0) {
+            hints.checkpoints.push('Verify all units are consistent.');
+            hints.checkpoints.push('Check that the result makes physical sense.');
+        }
+    }
+    
+    // Key concepts fallback
     if (hints.keyConcepts.length === 0) {
         const extractedConcepts = extractConceptsFromFormula(formula);
-        if (metadata && metadata.concepts && metadata.concepts.length > 0) {
+        if (metadata?.concepts?.length > 0) {
             hints.keyConcepts.push(...metadata.concepts.slice(0, 3));
-        } else if (formula.concepts && formula.concepts.length > 0) {
+        } else if (formula.concepts?.length > 0) {
             hints.keyConcepts.push(...formula.concepts.slice(0, 3));
         } else if (extractedConcepts.length > 0) {
             hints.keyConcepts.push(...extractedConcepts.slice(0, 3));
         }
     }
     
-    // Generate approach steps if not provided
-    if (hints.approach.length === 0) {
-        hints.approach = generateApproachSteps(formula, structure, q);
-    }
-    
-    // Generate checkpoints if not provided
-    if (hints.checkpoints.length === 0) {
-        hints.checkpoints = generateCheckpoints(formula, structure);
-    }
-    
-    // Fallback to switch-case for specific formulas
-    if (hints.keyConcepts.length === 0 && hints.checkpoints.length === 0) {
-        const switchCaseHints = getSwitchCaseHints(formulaId);
-        if (switchCaseHints.keyConcepts.length > 0) {
-            hints.keyConcepts.push(...switchCaseHints.keyConcepts);
-        }
-        if (switchCaseHints.checkpoints.length > 0) {
-            hints.checkpoints.push(...switchCaseHints.checkpoints);
-        }
-        if (switchCaseHints.alternativeApproaches.length > 0) {
-            hints.alternativeApproaches.push(...switchCaseHints.alternativeApproaches);
-        }
-    }
-    
-    return hints;
-}
-
-// Generate approach steps based on formula structure
-function generateApproachSteps(formula, structure, questionText) {
-    const steps = [];
-    const q = questionText.toLowerCase();
-    const questionAnalysis = analyzeQuestionType(questionText);
-    
-    // Multi-part problem guidance
-    if (questionAnalysis && questionAnalysis.isMultiPart) {
-        steps.push(`This is part ${questionAnalysis.partLetter.toUpperCase()} of a multi-part problem.`);
-        if (questionAnalysis.referencesPrevious) {
-            steps.push(`Use results from part ${questionAnalysis.referencedPart || 'previous parts'} (period, energy, separation, etc.).`);
-        }
-    }
-    
-    // Graph-based approach
-    if (questionAnalysis && questionAnalysis.hasGraph) {
-        if (questionAnalysis.graphType === 'radial_velocity') {
-            steps.push('Extract from radial velocity graph: maximum velocities (Va, Vb), period (P).');
-            steps.push('Use center of mass: MaVa + MbVb = 0 to find mass ratio.');
-            steps.push('Calculate total velocity: V = Va + Vb (or |Va| + |Vb|).');
-            steps.push('Use orbital geometry: d = VP/(2π) where d is separation.');
-            steps.push('Apply Kepler\'s third law: (Ma+Mb) = d³/P².');
-        } else if (questionAnalysis.graphType === 'spectrum') {
-            steps.push('Identify spectral lines from the graph (e.g., Si II at 640nm).');
-            steps.push('Find rest wavelength (e.g., 615nm for Si II).');
-            steps.push('Calculate redshift: z = (λ_obs - λ_rest)/λ_rest.');
-            steps.push('For non-relativistic: v = c × z.');
-        } else if (questionAnalysis.graphType === 'light_curve') {
-            steps.push('Identify transit depth, duration, and period from light curve.');
-            steps.push('Use transit depth to find planet-to-star radius ratio.');
-        }
-    }
-    
-    // Application-specific approach
-    if (questionAnalysis && questionAnalysis.isApplication) {
-        // Orbital decay problems
-        if (q.includes('orbital decay') || (q.includes('rate of') && q.includes('decay'))) {
-            steps.push('Start with orbital energy: E = -GMaMb/(2a).');
-            steps.push('Find dE/da = GMaMb/(2a²).');
-            steps.push('Use chain rule: da/dt = (da/dE) × (dE/dt) = (2a²/GMaMb) × (dE/dt).');
-            steps.push('Substitute the given dE/dt formula for gravitational wave emission.');
-            steps.push('Simplify to get da/dt in terms of masses and separation.');
-        }
-        
-        // Merger timescale problems
-        if (q.includes('merge') || q.includes('merger time') || (q.includes('how long') && q.includes('merge'))) {
-            steps.push('Start with decay rate: da/dt from previous part.');
-            steps.push('Rearrange to: dt/da = 1/(da/dt).');
-            steps.push('Integrate dt/da with respect to a from current separation (a₀) to a=0.');
-            steps.push('The integration gives: t = ∫[a₀ to 0] dt/da da.');
-            steps.push('For power-law decay (da/dt ∝ a^-n), time scales as t ∝ a₀^(n+1).');
-        }
-        
-        // Transit and inclination problems
-        if (q.includes('transit') && q.includes('inclination')) {
-            steps.push('Start with the transit depth formula: δ = (Rp/Rs)² for edge-on transits.');
-            steps.push('For inclined orbits, the observed depth relates to inclination: δ_obs = δ_max × cos²(i).');
-            steps.push('Relate inclination to orbital geometry using the impact parameter or transit duration.');
-            if (q.includes('orbital distance') || q.includes('in terms of')) {
-                steps.push('Use the relationship between transit geometry and orbital distance (semi-major axis).');
-                steps.push('Express inclination as a function of orbital distance using the transit depth and geometry.');
-            }
-        }
-    }
-    
-    if (structure.isOrbital) {
-        steps.push('Identify the orbital parameters (period, semi-major axis, masses).');
-        steps.push('Determine if this is a single-body or binary system problem.');
-        if (structure.hasTime) {
-            steps.push('Convert time units to seconds if necessary.');
-        }
-    }
-    
-    if (structure.hasDistance) {
-        steps.push('Determine the distance measurement method (parallax, magnitude, redshift).');
-        if (structure.hasMagnitude) {
-            steps.push('Account for interstellar extinction if using magnitude-based methods.');
-        }
-    }
-    
-    if (structure.hasVelocity) {
-        steps.push('Determine if this is orbital, escape, or radial velocity.');
-        steps.push('Check if relativistic effects are needed (v > 0.1c).');
-    }
-    
-    if (structure.hasEnergy) {
-        steps.push('Identify energy type (orbital, radiative, kinetic, potential).');
-        steps.push('Check for energy conservation or energy loss mechanisms.');
-    }
-    
-    if (structure.hasTemperature) {
-        steps.push('Determine if using Wien\'s law (from spectrum) or Stefan-Boltzmann (from luminosity).');
-        steps.push('Check if temperature is effective (surface) or central.');
-    }
-    
-    if (structure.isBinary) {
-        steps.push('Use total mass (M₁ + M₂) for binary systems.');
-        steps.push('Consider orbital inclination and eccentricity if relevant.');
-    }
-    
-    // Generic steps
-    if (steps.length === 0) {
-        steps.push('Identify known and unknown variables.');
-        steps.push('Check units and convert if necessary.');
-        steps.push('Apply the formula and verify the result makes physical sense.');
-    }
-    
-    return steps;
-}
-
-// Generate checkpoints based on formula structure
-function generateCheckpoints(formula, structure) {
-    const checkpoints = [];
-    
-    if (structure.hasTime) {
-        checkpoints.push('Verify time/period is in correct units (seconds).');
-        checkpoints.push('Check that the timescale is physically reasonable.');
-    }
-    
-    if (structure.hasDistance) {
-        checkpoints.push('Verify distance units (meters, parsecs, AU).');
-        checkpoints.push('Check that distance is reasonable for the method used.');
-    }
-    
-    if (structure.hasMass) {
-        checkpoints.push('Verify mass units (kg, solar masses).');
-        if (structure.isBinary) {
-            checkpoints.push('Check that total mass is reasonable for the system type.');
-        }
-    }
-    
-    if (structure.hasVelocity) {
-        checkpoints.push('Verify velocity units (m/s, km/s).');
-        checkpoints.push('Check if velocity is reasonable (e.g., orbital vs escape velocity).');
-    }
-    
-    if (structure.hasEnergy) {
-        checkpoints.push('Check energy sign (negative for bound orbits).');
-        checkpoints.push('Verify energy units (Joules).');
-    }
-    
-    if (structure.hasMagnitude) {
-        checkpoints.push('Distinguish between apparent and absolute magnitude.');
-        checkpoints.push('Account for interstellar extinction if needed.');
-    }
-    
-    if (structure.isStellar) {
-        checkpoints.push('Compare results with known stellar values (e.g., Sun).');
-    }
-    
-    // Generic checkpoints
-    if (checkpoints.length === 0) {
-        checkpoints.push('Verify all units are consistent.');
-        checkpoints.push('Check that the result makes physical sense.');
-    }
-    
-    return checkpoints;
-}
-
-// Fallback switch-case hints for specific formulas
-function getSwitchCaseHints(formulaId) {
-    const hints = { keyConcepts: [], checkpoints: [], alternativeApproaches: [] };
-    
-    switch(formulaId) {
-        case 'binary_white_dwarf':
-        case 'white_dwarf_orbital_decay':
-        case 'white_dwarf_merger_timescale':
-            hints.keyConcepts.push('Binary systems', 'Gravitational waves', 'Orbital decay');
-            hints.checkpoints.push('Verify total mass and separation are realistic.');
-            hints.alternativeApproaches.push('Estimate timescales using approximate formula first.');
-            break;
-            
-        case 'orbital_energy':
-            hints.keyConcepts.push('Energy conservation', 'Bound vs unbound orbits');
-            hints.checkpoints.push('Check energy sign for bound orbit.');
-            break;
-            
-        case 'distance_modulus':
-            hints.keyConcepts.push('Standard candles', 'Extinction', 'Distance ladder');
-            hints.checkpoints.push('Account for interstellar extinction.');
-            break;
-    }
-    
     return hints;
 }
 
 //////////////////////////////
-// Graph Interpretation (Data-Driven with Intelligent Fallbacks)
+// Graph Interpretation Generator (Fixes Overwriting)
 //////////////////////////////
 
+/**
+ * Generate graph interpretation - FIXED: Accumulates instead of overwriting
+ * @param {Object} formula - Formula object
+ * @param {string} questionContext - Question context (optional)
+ * @returns {Object} Graph interpretation object
+ */
 function generateGraphInterpretation(formula, questionContext = '') {
     const interpretation = { 
         title: `Graph Interpretation: ${formula.name || 'Formula'}`, 
@@ -1425,150 +1577,144 @@ function generateGraphInterpretation(formula, questionContext = '') {
     const metadata = getFormulaMetadata(formulaId);
     const structure = analyzeFormulaStructure(formula);
     
-    // Get interpretation from metadata
-    if (metadata && metadata.frqMetadata && metadata.frqMetadata.graphInterpretation) {
+    // Get centralized guidance
+    const formulaGuidance = getFormulaSpecificGuidance(formulaId, metadata, structure, null);
+    
+    // PRIORITY 1: Use metadata graph interpretation (never overwrite)
+    if (metadata?.frqMetadata?.graphInterpretation) {
         const graphMeta = metadata.frqMetadata.graphInterpretation;
         interpretation.overview = graphMeta.overview || '';
-        interpretation.keyFeatures = graphMeta.keyFeatures || [];
-        interpretation.howToUse = graphMeta.howToUse || [];
+        interpretation.keyFeatures = graphMeta.keyFeatures ? [...graphMeta.keyFeatures] : [];
+        interpretation.howToUse = graphMeta.howToUse ? [...graphMeta.howToUse] : [];
         interpretation.physicalMeaning = graphMeta.physicalMeaning || '';
-    } else {
-        // Generate intelligent interpretation from structure
-        const intelligentInterpretation = generateIntelligentGraphInterpretation(formula, structure, metadata);
-        interpretation.overview = intelligentInterpretation.overview || '';
-        interpretation.keyFeatures = intelligentInterpretation.keyFeatures || [];
-        interpretation.howToUse = intelligentInterpretation.howToUse || [];
-        interpretation.physicalMeaning = intelligentInterpretation.physicalMeaning || '';
     }
-    
-    return interpretation;
-}
-
-// Generate intelligent graph interpretation from formula structure
-function generateIntelligentGraphInterpretation(formula, structure, metadata) {
-    const interpretation = {
-        overview: '',
-        keyFeatures: [],
-        howToUse: [],
-        physicalMeaning: ''
-    };
-    
-    const formulaId = formula.id || '';
-    const equation = formula.equation || '';
-    const variables = formula.variables || [];
-    
-    // Check switch-case fallback first
-    const switchCaseResult = getSwitchCaseGraphInterpretation(formulaId);
-    if (switchCaseResult.overview) {
-        return switchCaseResult;
+    // PRIORITY 2: Use formula-specific graph guidance
+    else if (formulaGuidance.graphOverview) {
+        interpretation.overview = formulaGuidance.graphOverview;
+        interpretation.keyFeatures = [...formulaGuidance.graphFeatures];
+        interpretation.howToUse = [...formulaGuidance.graphHowToUse];
+        interpretation.physicalMeaning = formulaGuidance.graphPhysicalMeaning;
     }
-    
-    // Generate based on structure
-    if (structure.isOrbital) {
-        interpretation.overview = 'Shows the relationship between orbital parameters (period, separation, mass).';
-        interpretation.keyFeatures.push('Period squared is proportional to semi-major axis cubed (T² ∝ a³)');
-        if (structure.isBinary) {
-            interpretation.keyFeatures.push('Higher total mass requires shorter period for same separation');
+    // PRIORITY 3: Generate intelligent interpretation from structure (ACCUMULATES)
+    else {
+        // FIXED: Accumulate instead of overwrite - check all structure properties
+        const structureParts = [];
+        
+        if (structure.isOrbital) {
+            structureParts.push({
+                overview: 'Shows the relationship between orbital parameters (period, separation, mass).',
+                features: [
+                    'Period squared is proportional to semi-major axis cubed (T² ∝ a³)',
+                    structure.isBinary ? 'Higher total mass requires shorter period for same separation' : null
+                ].filter(Boolean),
+                howToUse: [
+                    'Enter masses, vary separation to see period change',
+                    'Or enter period and masses to find required separation'
+                ],
+                meaning: 'Larger separations require longer orbital periods. More massive systems orbit faster at the same separation.'
+            });
         }
-        interpretation.howToUse.push('Enter masses, vary separation to see period change');
-        interpretation.howToUse.push('Or enter period and masses to find required separation');
-        interpretation.physicalMeaning = 'Larger separations require longer orbital periods. More massive systems orbit faster at the same separation.';
-    } else if (structure.hasEnergy) {
-        interpretation.overview = 'Shows how energy depends on the key variables in the formula.';
-        interpretation.keyFeatures.push('Energy relationships follow conservation principles');
+        
+        if (structure.hasEnergy) {
+            structureParts.push({
+                overview: 'Shows how energy depends on the key variables in the formula.',
+                features: [
+                    'Energy relationships follow conservation principles',
+                    structure.hasDistance ? 'Energy typically decreases (more negative) as distance decreases' : null
+                ].filter(Boolean),
+                howToUse: ['Enter known values, vary the unknown to see energy trend'],
+                meaning: 'Energy conservation and loss mechanisms determine system evolution.'
+            });
+        }
+        
         if (structure.hasDistance) {
-            interpretation.keyFeatures.push('Energy typically decreases (more negative) as distance decreases');
-        }
-        interpretation.howToUse.push('Enter known values, vary the unknown to see energy trend');
-        interpretation.physicalMeaning = 'Energy conservation and loss mechanisms determine system evolution.';
-    } else if (structure.hasDistance) {
-        interpretation.overview = 'Shows distance relationships and how they depend on other variables.';
-        interpretation.keyFeatures.push('Distance measurements depend on the method used');
-        if (structure.hasMagnitude) {
-            interpretation.keyFeatures.push('Magnitude-based distances follow logarithmic relationships');
-        }
-        interpretation.howToUse.push('Enter magnitude or parallax values to find distance');
-        interpretation.physicalMeaning = 'Distance measurements are fundamental to understanding stellar and galactic properties.';
-    } else if (structure.hasVelocity) {
-        interpretation.overview = 'Shows velocity relationships and dependencies.';
-        interpretation.keyFeatures.push('Velocity depends on mass and distance in gravitational systems');
-        interpretation.howToUse.push('Enter mass and distance to find velocity');
-        interpretation.physicalMeaning = 'Velocity determines orbital dynamics and escape conditions.';
-    } else if (structure.hasTemperature) {
-        interpretation.overview = 'Shows temperature relationships and dependencies.';
-        interpretation.keyFeatures.push('Temperature affects emission properties and spectral features');
-        interpretation.howToUse.push('Enter wavelength or luminosity to find temperature');
-        interpretation.physicalMeaning = 'Temperature determines stellar classification and emission characteristics.';
-    } else if (structure.hasLuminosity) {
-        interpretation.overview = 'Shows luminosity relationships and dependencies.';
-        interpretation.keyFeatures.push('Luminosity depends on radius and temperature (Stefan-Boltzmann)');
-        interpretation.howToUse.push('Enter radius and temperature to find luminosity');
-        interpretation.physicalMeaning = 'Luminosity determines stellar classification and energy output.';
-    } else {
-        // Generic interpretation
-        interpretation.overview = `Visualizes the mathematical relationship in ${formula.name || 'this formula'}.`;
-        interpretation.keyFeatures.push('Observe how variables influence each other');
-        interpretation.keyFeatures.push('Look for linear, inverse, or power-law relationships');
-        
-        // Analyze equation to detect relationships
-        if (equation.includes('²') || equation.includes('^2')) {
-            interpretation.keyFeatures.push('Quadratic relationship detected');
-        }
-        if (equation.includes('³') || equation.includes('^3')) {
-            interpretation.keyFeatures.push('Cubic relationship detected');
-        }
-        if (equation.includes('√') || equation.includes('sqrt')) {
-            interpretation.keyFeatures.push('Square root relationship detected');
-        }
-        if (equation.includes('log')) {
-            interpretation.keyFeatures.push('Logarithmic relationship detected');
+            structureParts.push({
+                overview: 'Shows distance relationships and how they depend on other variables.',
+                features: [
+                    'Distance measurements depend on the method used',
+                    structure.hasMagnitude ? 'Magnitude-based distances follow logarithmic relationships' : null
+                ].filter(Boolean),
+                howToUse: ['Enter magnitude or parallax values to find distance'],
+                meaning: 'Distance measurements are fundamental to understanding stellar and galactic properties.'
+            });
         }
         
-        interpretation.howToUse.push('Enter known values and vary the unknown to see the relationship');
-        interpretation.physicalMeaning = 'The graph shows how changing one variable affects the result, revealing the underlying physical relationship.';
-    }
-    
-    return interpretation;
-}
-
-// Fallback switch-case graph interpretations
-function getSwitchCaseGraphInterpretation(formulaId) {
-    const interpretation = {
-        overview: '',
-        keyFeatures: [],
-        howToUse: [],
-        physicalMeaning: ''
-    };
-    
-    switch(formulaId) {
-        case 'binary_white_dwarf':
-        case 'kepler_third_law_binary':
-            interpretation.overview = 'Shows orbital period vs separation for a binary system.';
-            interpretation.keyFeatures.push('P² ∝ a³', 'Higher mass → shorter period for same separation');
-            interpretation.howToUse.push('Vary separation or mass to see period changes.');
-            interpretation.physicalMeaning = 'Larger separations → longer orbits; more massive binaries orbit faster.';
-            break;
+        if (structure.hasVelocity) {
+            structureParts.push({
+                overview: 'Shows velocity relationships and dependencies.',
+                features: ['Velocity depends on mass and distance in gravitational systems'],
+                howToUse: ['Enter mass and distance to find velocity'],
+                meaning: 'Velocity determines orbital dynamics and escape conditions.'
+            });
+        }
+        
+        if (structure.hasTemperature) {
+            structureParts.push({
+                overview: 'Shows temperature relationships and dependencies.',
+                features: ['Temperature affects emission properties and spectral features'],
+                howToUse: ['Enter wavelength or luminosity to find temperature'],
+                meaning: 'Temperature determines stellar classification and emission characteristics.'
+            });
+        }
+        
+        if (structure.hasLuminosity) {
+            structureParts.push({
+                overview: 'Shows luminosity relationships and dependencies.',
+                features: ['Luminosity depends on radius and temperature (Stefan-Boltzmann)'],
+                howToUse: ['Enter radius and temperature to find luminosity'],
+                meaning: 'Luminosity determines stellar classification and energy output.'
+            });
+        }
+        
+        // FIXED: Accumulate all structure parts instead of using else-if
+        if (structureParts.length > 0) {
+            // Combine overviews
+            interpretation.overview = structureParts.map(p => p.overview).join(' ');
             
-        case 'orbital_energy':
-            interpretation.overview = 'Shows orbital energy as function of separation and mass.';
-            interpretation.keyFeatures.push('Energy more negative as separation decreases', 'Higher mass → more negative energy');
-            interpretation.howToUse.push('Enter masses, vary separation to observe energy trend.');
-            interpretation.physicalMeaning = 'Tighter orbits have lower energy; loss causes decay.';
-            break;
+            // Merge features (avoid duplicates)
+            structureParts.forEach(part => {
+                part.features.forEach(feature => {
+                    if (!interpretation.keyFeatures.includes(feature)) {
+                        interpretation.keyFeatures.push(feature);
+                    }
+                });
+            });
             
-        case 'white_dwarf_orbital_decay':
-            interpretation.overview = 'Orbital decay rate due to gravitational waves.';
-            interpretation.keyFeatures.push('da/dt ∝ a^-4', 'Smaller separations decay faster');
-            interpretation.howToUse.push('Input masses and separation to estimate decay rate.');
-            interpretation.physicalMeaning = 'Gravitational waves carry energy away, shrinking orbit.';
-            break;
+            // Merge howToUse (avoid duplicates)
+            structureParts.forEach(part => {
+                part.howToUse.forEach(use => {
+                    if (!interpretation.howToUse.includes(use)) {
+                        interpretation.howToUse.push(use);
+                    }
+                });
+            });
             
-        case 'white_dwarf_merger_timescale':
-            interpretation.overview = 'Time until merger of two white dwarfs.';
-            interpretation.keyFeatures.push('Merger time ∝ a^4', 'More massive binaries merge faster');
-            interpretation.howToUse.push('Vary separation and mass to see timescale changes.');
-            interpretation.physicalMeaning = 'Close binaries merge rapidly; separation dominates timescale.';
-            break;
+            // Combine physical meanings
+            interpretation.physicalMeaning = structureParts.map(p => p.meaning).join(' ');
+        } else {
+            // Generic interpretation
+            interpretation.overview = `Visualizes the mathematical relationship in ${formula.name || 'this formula'}.`;
+            interpretation.keyFeatures.push('Observe how variables influence each other');
+            interpretation.keyFeatures.push('Look for linear, inverse, or power-law relationships');
+            
+            // Analyze equation to detect relationships
+            const equation = formula.equation || '';
+            if (equation.includes('²') || equation.includes('^2')) {
+                interpretation.keyFeatures.push('Quadratic relationship detected');
+            }
+            if (equation.includes('³') || equation.includes('^3')) {
+                interpretation.keyFeatures.push('Cubic relationship detected');
+            }
+            if (equation.includes('√') || equation.includes('sqrt')) {
+                interpretation.keyFeatures.push('Square root relationship detected');
+            }
+            if (equation.includes('log')) {
+                interpretation.keyFeatures.push('Logarithmic relationship detected');
+            }
+            
+            interpretation.howToUse.push('Enter known values and vary the unknown to see the relationship');
+            interpretation.physicalMeaning = 'The graph shows how changing one variable affects the result, revealing the underlying physical relationship.';
+        }
     }
     
     return interpretation;
@@ -1606,7 +1752,12 @@ if (typeof module !== 'undefined' && module.exports) {
         conceptMatchingSystem,
         findFormulasForQuestion,
         extractConceptsFromFormula,
-        analyzeFormulaStructure
+        analyzeFormulaStructure,
+        analyzeQuestionType,
+        clearCaches,
+        clearIntermediateResults,
+        storeIntermediateResult,
+        getIntermediateResult
     };
 }
 
@@ -1614,4 +1765,7 @@ if (typeof module !== 'undefined' && module.exports) {
 if (typeof window !== 'undefined') {
     window.conceptMatchingSystem = conceptMatchingSystem;
     window.findFormulasForQuestion = findFormulasForQuestion;
+    window.clearIntermediateResults = clearIntermediateResults;
+    window.storeIntermediateResult = storeIntermediateResult;
+    window.getIntermediateResult = getIntermediateResult;
 }
