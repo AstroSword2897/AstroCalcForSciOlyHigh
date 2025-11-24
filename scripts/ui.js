@@ -914,8 +914,9 @@ function setupSearchFunctionality() {
         
         console.log('Searching through', allFormulas.length, 'formulas');
         
-        // Score and filter formulas with detailed metrics
-        const scoredFormulas = allFormulas.map(formula => {
+        // Score ALL formulas with detailed metrics for confidence calculation
+        // This ensures every formula gets a confidence score, even if not displayed
+        const allScoredFormulas = allFormulas.map(formula => {
             const scoreData = calculateSearchScore(formula, searchLower, searchWords);
             
             // Add contextual semantic matching score
@@ -966,12 +967,9 @@ function setupSearchFunctionality() {
             return { formula, score: scoreData.score, metrics: scoreData.metrics };
         });
         
-        // IMPORTANT: All formulas are scored, but we filter for display
-        // Keep ALL scored formulas for confidence calculation, but only show top matches
-        const allScoredFormulas = scoredFormulas; // Keep reference to all scored formulas
-        
+        // IMPORTANT: All formulas are now scored for confidence calculation
         // Filter for display (lenient - show formulas with any relevance)
-        const displayedFormulas = scoredFormulas.filter(item => {
+        let scoredFormulas = allScoredFormulas.filter(item => {
             // VERY lenient filtering: Show formulas with ANY score > 0 OR any match type
             const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
             const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
@@ -981,9 +979,6 @@ function setupSearchFunctionality() {
         })
           .sort((a, b) => b.score - a.score) // Sort by relevance (highest to lowest)
           .slice(0, 50); // Increased limit to 50 results
-        
-        // Use displayed formulas but ensure all were scored
-        let scoredFormulas = displayedFormulas;
         
         console.log('Scored formulas:', scoredFormulas.length);
         console.log('First 3 results:', scoredFormulas.slice(0, 3).map(f => ({
