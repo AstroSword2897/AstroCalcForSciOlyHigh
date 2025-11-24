@@ -2427,3 +2427,258 @@ header h1 {
     }
 }
 
+/* ============================================================
+   FRQ Support System Styles
+   ============================================================ */
+
+/* Usage Instructions Container */
+.usage-instructions-container {
+    margin: 20px 0;
+    padding: 20px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.usage-instructions-container summary {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    color: #a8c7ff;
+    user-select: none;
+}
+
+.usage-instructions-container summary:hover {
+    color: #c5d5ff;
+}
+
+.usage-steps {
+    margin-top: 15px;
+}
+
+.usage-steps > div {
+    margin-bottom: 15px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
+}
+
+.usage-steps strong {
+    color: #a8c7ff;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.usage-steps p {
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.6;
+}
+
+.usage-tips,
+.common-mistakes {
+    margin-top: 20px;
+}
+
+.usage-tips strong,
+.common-mistakes strong {
+    color: #a8c7ff;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.usage-tips ul,
+.common-mistakes ul {
+    margin-top: 10px;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+.usage-tips li,
+.common-mistakes li {
+    margin-bottom: 5px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+}
+
+.common-mistakes strong {
+    color: #ffa94d;
+}
+
+/* Contextual Hints Container */
+.contextual-hints-container {
+    margin: 20px 0;
+    padding: 20px;
+    background: rgba(255, 193, 7, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.contextual-hints-container summary {
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 15px;
+    color: #ffd43b;
+    user-select: none;
+}
+
+.contextual-hints-container summary:hover {
+    color: #ffec8c;
+}
+
+.contextual-hints-container > div {
+    margin-bottom: 15px;
+}
+
+.contextual-hints-container strong {
+    color: #ffd43b;
+    margin-right: 8px;
+}
+
+.contextual-hints-container ul {
+    margin-top: 10px;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+.contextual-hints-container li {
+    margin-bottom: 5px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+}
+
+/* Problem Type Display */
+.problem-type {
+    display: inline-block;
+    padding: 6px 12px;
+    background: rgba(102, 126, 234, 0.2);
+    border-radius: 6px;
+    font-weight: 600;
+    color: #a8c7ff;
+    margin-bottom: 10px;
+}
+
+/* Related Concepts Display */
+.related-concepts-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.related-concept-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 12px;
+    font-size: 0.85em;
+    color: #a8c7ff;
+}
+
+/* Graph Interpretation Enhanced Styles */
+.interpretation-overview {
+    margin: 15px 0;
+    padding: 15px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.6;
+}
+
+.interpretation-features,
+.interpretation-usage {
+    margin-top: 20px;
+}
+
+.interpretation-features h5,
+.interpretation-usage h5 {
+    color: #8bb3ff;
+    font-size: 1.2em;
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.interpretation-meaning {
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 6px;
+}
+
+.interpretation-meaning strong {
+    color: #8bb3ff;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.interpretation-meaning p {
+    color: rgba(255, 255, 255, 0.9);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Application Problem Indicators */
+.application-problem-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    border-radius: 12px;
+    font-size: 0.8em;
+    color: #ffd43b;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.multi-part-indicator {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(102, 126, 234, 0.2);
+    border: 1px solid rgba(102, 126, 234, 0.4);
+    border-radius: 12px;
+    font-size: 0.8em;
+    color: #a8c7ff;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+.graph-based-indicator {
+    display: inline-block;
+    padding: 4px 10px;
+    background: rgba(139, 179, 255, 0.2);
+    border: 1px solid rgba(139, 179, 255, 0.4);
+    border-radius: 12px;
+    font-size: 0.8em;
+    color: #8bb3ff;
+    font-weight: 600;
+    margin-left: 10px;
+}
+
+/* Responsive adjustments for FRQ components */
+@media (max-width: 768px) {
+    .usage-instructions-container,
+    .contextual-hints-container {
+        padding: 15px;
+        margin: 15px 0;
+    }
+    
+    .usage-steps > div {
+        padding: 10px;
+    }
+    
+    .interpretation-section {
+        padding: 20px;
+    }
+    
+    .interpretation-overview,
+    .interpretation-meaning {
+        padding: 12px;
+    }
+}
+

@@ -6272,7 +6272,6 @@ function addUsageInstructions(formula) {
     // Create instructions container
     const instructionsContainer = document.createElement('div');
     instructionsContainer.className = 'usage-instructions-container';
-    instructionsContainer.style.cssText = 'margin: 20px 0; padding: 20px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.3);';
     
     let instructionsHTML = '<details open><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #a8c7ff;">📚 How to Use This Formula - Step-by-Step Guide</summary>';
     
@@ -6340,7 +6339,6 @@ function addContextualHints(formula, questionText = null) {
     // Create hints container
     const hintsContainer = document.createElement('div');
     hintsContainer.className = 'contextual-hints-container';
-    hintsContainer.style.cssText = 'margin: 20px 0; padding: 20px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3);';
     
     let hintsHTML = '<details><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #ffd43b;">🎯 Problem-Solving Context & Hints</summary>';
     
@@ -6403,7 +6401,7 @@ function updateGraphInterpretation() {
     
     // Use enhanced interpretation if available
     if (interpretationData && interpretationData.overview) {
-        interpretationHTML += `<div class="interpretation-overview" style="margin: 15px 0; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;"><p>${interpretationData.overview}</p></div>`;
+        interpretationHTML += `<div class="interpretation-overview"><p>${interpretationData.overview}</p></div>`;
         
         if (interpretationData.keyFeatures.length > 0) {
             interpretationHTML += '<div class="interpretation-features"><h5>Key Features:</h5><ul class="interpretation-list">';
@@ -6422,7 +6420,7 @@ function updateGraphInterpretation() {
         }
         
         if (interpretationData.physicalMeaning) {
-            interpretationHTML += `<div class="interpretation-meaning" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;"><strong>Physical Meaning:</strong> <p>${interpretationData.physicalMeaning}</p></div>`;
+            interpretationHTML += `<div class="interpretation-meaning"><strong>Physical Meaning:</strong> <p>${interpretationData.physicalMeaning}</p></div>`;
         }
     } else {
         // Fallback to original interpretation
