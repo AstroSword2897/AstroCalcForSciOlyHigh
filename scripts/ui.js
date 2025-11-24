@@ -1232,6 +1232,7 @@ function setupSearchFunctionality() {
         });
         
         // Concept and keyword matching (new rich metadata)
+        let domainMatchBonus = 0;
         if (formula.concepts && Array.isArray(formula.concepts)) {
             formula.concepts.forEach(concept => {
                 const conceptLower = concept.toLowerCase();
@@ -1248,6 +1249,17 @@ function setupSearchFunctionality() {
                         metrics.matchedConcepts.push(concept);
                     }
                 }
+                
+                // Check if this concept matches detected domain
+                if (metrics.domain && typeof conceptMatchingSystem !== 'undefined' && conceptMatchingSystem.detectProblemDomain) {
+                    const detectedDomains = conceptMatchingSystem.detectProblemDomain(searchLower);
+                    detectedDomains.forEach(domain => {
+                        if (domain.relatedConcepts.some(dc => dc.toLowerCase() === conceptLower)) {
+                            domainMatchBonus += 30; // Domain match bonus
+                        }
+                    });
+                }
+                
                 // Word-by-word matching in concepts
                 searchWords.forEach(word => {
                     if (word.length >= 3 && conceptLower.includes(word)) {
@@ -1259,6 +1271,12 @@ function setupSearchFunctionality() {
                     }
                 });
             });
+        }
+        
+        // Apply domain match bonus
+        if (domainMatchBonus > 0) {
+            score += domainMatchBonus;
+            metrics.matchReasons.push(`Domain match bonus: +${domainMatchBonus} (${metrics.domain})`);
         }
         
         if (formula.keywords && Array.isArray(formula.keywords)) {
