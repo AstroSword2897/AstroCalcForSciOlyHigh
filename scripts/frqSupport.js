@@ -291,7 +291,7 @@ function initializeFRQMetadata() {
         if (typeof logger !== 'undefined') {
             logger.warn('Formulas array not available for FRQ metadata initialization');
         } else {
-            console.warn('Formulas array not available for FRQ metadata initialization');
+        console.warn('Formulas array not available for FRQ metadata initialization');
         }
         return;
     }
@@ -459,7 +459,40 @@ var conceptMatchingSystem = {
             }
         });
         
-        // Extract from common astrophysics terms
+        // Extract compound concepts FIRST (before single words) to preserve context
+        const compoundConcepts = [
+            // Radiation and emission terms (must come before single words)
+            'emission power', 'synchrotron power', 'radiation power', 'radiative power',
+            'blackbody radiation', 'thermal radiation', 'emission spectrum', 'absorption spectrum',
+            'emission line', 'absorption line', 'spectral line', 'line profile',
+            // Orbital mechanics (compound terms)
+            'orbital mechanics', 'orbital motion', 'orbital dynamics', 'orbital period',
+            'orbital velocity', 'orbital energy', 'orbital decay', 'orbital distance',
+            // Distance-related terms
+            'distance modulus', 'luminosity distance', 'angular diameter distance', 'comoving distance',
+            'standard candle', 'cepheid', 'supernova distance', 'redshift distance',
+            // Magnitude and extinction
+            'apparent magnitude', 'absolute magnitude', 'extinction', 'absorption', 'reddening',
+            // Exoplanet and transit specific terms
+            'transit depth', 'orbital inclination', 'orbital distance', 'semi-major axis',
+            'transit method', 'radial velocity', 'exoplanet detection', 'planet radius',
+            'star radius', 'impact parameter', 'transit duration', 'transit timing',
+            // Binary and multiple system terms
+            'binary system', 'multiple system', 'triple system', 'quadruple system',
+            'binary star', 'multiple star', 'triple star', 'quadruple star',
+            'binary orbit', 'multiple orbit', 'triple orbit', 'quadruple orbit',
+            'binary separation', 'multiple separation', 'triple separation', 'quadruple separation',
+            'binary period', 'multiple period', 'triple period', 'quadruple period',
+        ];
+        
+        // Check for compound concepts first (preserves context)
+        compoundConcepts.forEach(compound => {
+            if (questionLower.includes(compound)) {
+                concepts.add(compound);
+            }
+        });
+        
+        // Extract from common astrophysics terms (single words - only if not part of compound)
         const astrophysicsTerms = [
             'orbital', 'period', 'velocity', 'mass', 'distance', 'energy', 'temperature',
             'luminosity', 'magnitude', 'binary', 'stellar', 'cosmological', 'redshift',
@@ -470,23 +503,8 @@ var conceptMatchingSystem = {
             'exoplanet', 'planet', 'star', 'sun', 'moon', 'asteroid', 'comet',
             'kepler', 'hubble', 'doppler', 'wien', 'stefan', 'boltzmann', 'saha',
             'chandrasekhar', 'schwarzschild', 'einstein', 'relativistic', 'quantum',
-            // Exoplanet and transit specific terms
-            'transit', 'transit depth', 'inclination', 'orbital inclination', 'orbital distance',
-            'semi-major axis', 'eccentricity', 'orbital plane', 'line of sight',
-            'transit method', 'radial velocity', 'exoplanet detection', 'planet radius',
-            'star radius', 'impact parameter', 'transit duration', 'transit timing',
-            // Distance-related terms
-            'distance modulus', 'luminosity distance', 'angular diameter distance', 'comoving distance',
-            'standard candle', 'cepheid', 'supernova distance', 'redshift distance',
-            // Magnitude and extinction
-            'apparent magnitude', 'absolute magnitude', 'extinction', 'absorption', 'reddening',
+            'transit', 'inclination', 'eccentricity', 'orbital plane', 'line of sight',
             'interstellar medium', 'ism', 'dust', 'gas',
-            // Binary and multiple system terms
-            'binary', 'binary system', 'multiple system', 'triple system', 'quadruple system',
-            'binary star', 'multiple star', 'triple star', 'quadruple star',
-            'binary orbit', 'multiple orbit', 'triple orbit', 'quadruple orbit',
-            'binary separation', 'multiple separation', 'triple separation', 'quadruple separation',
-            'binary period', 'multiple period', 'triple period', 'quadruple period',
             'binary eccentricity', 'multiple eccentricity', 'triple eccentricity', 'quadruple eccentricity',
         ];
         
@@ -654,7 +672,7 @@ var conceptMatchingSystem = {
                     if (conceptSet.has(conceptLower)) {
                         matchScore += 10;
                         matchedConcepts.push(concept);
-                    } else {
+    } else {
                         // Check for partial matches
                         searchConcepts.forEach(searchConcept => {
                             const searchLower = searchConcept.toLowerCase();
@@ -799,7 +817,7 @@ function findFormulasForQuestion(questionText) {
         if (existing) {
             existing.score += match.score * 0.5; // Boost score
             existing.matchType = existing.matchType + '_semantic';
-        } else {
+    } else {
             results.push({
                 formula: match.formula,
                 score: match.score,
@@ -1147,28 +1165,28 @@ function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null
         case 'kepler_third_law_binary':
         case 'binary_white_dwarf':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
-                    title: 'Orbital Period Analysis',
-                    description: 'Use T² ∝ a³. For binary systems, include total mass (M₁+M₂). Adjust semi-major axis for period changes.'
-                });
+                title: 'Orbital Period Analysis',
+                description: 'Use T² ∝ a³. For binary systems, include total mass (M₁+M₂). Adjust semi-major axis for period changes.'
+            });
             }
             if (result.tips.length === 0) {
-                result.tips.push('Always convert periods to seconds when using standard units.');
-                result.tips.push('Use simplified solar formulas for planets around the Sun.');
+            result.tips.push('Always convert periods to seconds when using standard units.');
+            result.tips.push('Use simplified solar formulas for planets around the Sun.');
             }
             break;
             
         case 'orbital_energy':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
-                    title: 'Orbital Energy Considerations',
-                    description: 'Bound orbits have negative energy. Circular orbits: E = -GMm/(2a). Energy loss leads to decay.'
-                });
+                title: 'Orbital Energy Considerations',
+                description: 'Bound orbits have negative energy. Circular orbits: E = -GMm/(2a). Energy loss leads to decay.'
+            });
             }
             if (result.tips.length === 0) {
-                result.tips.push('Check for conservation of energy and bound/unbound states.');
+            result.tips.push('Check for conservation of energy and bound/unbound states.');
             }
             break;
             
@@ -1196,7 +1214,7 @@ function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null
             
         case 'white_dwarf_merger_timescale':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
                     title: 'Merger Timescale Calculation',
                     description: 'Integrate the decay rate equation: dt/da = f(a), then integrate from current separation to a=0.'
@@ -1218,14 +1236,14 @@ function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null
             
         case 'distance_modulus':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
-                    title: 'Distance Modulus with Extinction',
-                    description: 'm - M = 5 log10(d) - 5 + A_v. Include extinction corrections.'
-                });
+                title: 'Distance Modulus with Extinction',
+                description: 'm - M = 5 log10(d) - 5 + A_v. Include extinction corrections.'
+            });
             }
             if (result.tips.length === 0) {
-                result.tips.push('Typical Milky Way extinction ~1.8 mag/kpc.');
+            result.tips.push('Typical Milky Way extinction ~1.8 mag/kpc.');
             }
             if (result.keyConcepts.length === 0) {
                 result.keyConcepts.push('Standard candles', 'Extinction', 'Distance ladder');
@@ -1237,27 +1255,27 @@ function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null
             
         case 'wiens_law':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
-                    title: 'Temperature from Spectrum',
-                    description: 'λ_max = 2.898×10⁻³ / T. Peak wavelength indicates surface temperature.'
-                });
+                title: 'Temperature from Spectrum',
+                description: 'λ_max = 2.898×10⁻³ / T. Peak wavelength indicates surface temperature.'
+            });
             }
             if (result.tips.length === 0) {
-                result.tips.push('Hot stars appear blue, cooler stars red.');
+            result.tips.push('Hot stars appear blue, cooler stars red.');
             }
             break;
             
         case 'transit_depth':
             if (result.steps.length === 0) {
-                result.steps.push({
+            result.steps.push({
                     step: 1,
-                    title: 'Transit Depth Analysis',
+                title: 'Transit Depth Analysis',
                     description: 'δ = (Rp/Rs)² for edge-on transits (i=90°). For inclined orbits, the observed depth is reduced by cos²(i).'
-                });
+            });
             }
             if (result.tips.length === 0) {
-                result.tips.push('Use combined period and depth to estimate planet properties.');
+            result.tips.push('Use combined period and depth to estimate planet properties.');
                 result.tips.push('Edge-on transit (i=90°) gives maximum depth. Inclined orbits (i<90°) have smaller observed depths.');
                 result.tips.push('For application problems: "all members line up" or "planet in front" typically means edge-on (i=90°).');
                 result.tips.push('To express inclination in terms of orbital distance, relate transit geometry to orbital parameters.');
@@ -1720,13 +1738,13 @@ function generateContextualHints(formula, questionText = '') {
     
     // PRIORITY: Use metadata hints first, then formula-specific, then structure-based
     if (metadata?.frqMetadata?.hints) {
-        const metaHints = metadata.frqMetadata.hints;
-        if (metaHints.keyConcepts) hints.keyConcepts.push(...metaHints.keyConcepts);
-        if (metaHints.approach) hints.approach.push(...metaHints.approach);
-        if (metaHints.checkpoints) hints.checkpoints.push(...metaHints.checkpoints);
-        if (metaHints.alternativeApproaches) hints.alternativeApproaches.push(...metaHints.alternativeApproaches);
-    }
-    
+            const metaHints = metadata.frqMetadata.hints;
+            if (metaHints.keyConcepts) hints.keyConcepts.push(...metaHints.keyConcepts);
+            if (metaHints.approach) hints.approach.push(...metaHints.approach);
+            if (metaHints.checkpoints) hints.checkpoints.push(...metaHints.checkpoints);
+            if (metaHints.alternativeApproaches) hints.alternativeApproaches.push(...metaHints.alternativeApproaches);
+        }
+        
     // Add formula-specific guidance if metadata didn't provide it
     if (hints.keyConcepts.length === 0 && formulaGuidance.keyConcepts.length > 0) {
         hints.keyConcepts.push(...formulaGuidance.keyConcepts);
@@ -1766,8 +1784,8 @@ function generateContextualHints(formula, questionText = '') {
             if (questionAnalysis.requiresExpression) {
                 hints.approach.push('Work through the algebra step-by-step to derive the expression.');
                 hints.approach.push('Simplify to the most compact form possible.');
-            }
-        } else {
+        }
+    } else {
             // Structure-based approach
             if (structure.isOrbital) {
                 hints.approach.push('Identify the orbital parameters (period, semi-major axis, masses).');
