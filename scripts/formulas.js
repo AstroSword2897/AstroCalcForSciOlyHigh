@@ -300,7 +300,25 @@ var formulas = [
             uses: ["luminosity", "hr_absolute_magnitude"],
             generalizes: [],
             specializes: []
-        }
+        },
+        questionPatterns: [
+            "distance modulus",
+            "distance from magnitude",
+            "magnitude distance",
+            "find distance from magnitude",
+            "calculate distance magnitude",
+            "distance ladder",
+            "standard candle distance",
+            "magnitude to distance",
+            "distance from absolute magnitude",
+            "apparent absolute magnitude distance",
+            "what is the apparent magnitude",
+            "apparent magnitude with extinction",
+            "magnitude after extinction",
+            "apparent magnitude system",
+            "apparent magnitude extinction",
+            "magnitude interstellar extinction"
+        ]
     },
     {
         id: "luminosity",
@@ -339,7 +357,18 @@ var formulas = [
             uses: ["distance_modulus", "magnitude_flux_relation"],
             generalizes: [],
             specializes: []
-        }
+        },
+        questionPatterns: [
+            "what is the luminosity",
+            "stellar luminosity",
+            "luminosity of star",
+            "how bright is the star",
+            "star luminosity",
+            "calculate luminosity",
+            "find luminosity",
+            "luminosity from temperature radius",
+            "stefan boltzmann luminosity"
+        ]
     },
     {
         id: "hubble_law",
@@ -378,7 +407,19 @@ var formulas = [
             uses: ["luminosity_distance", "lookback_time"],
             generalizes: [],
             specializes: []
-        }
+        },
+        questionPatterns: [
+            "hubble law",
+            "hubble constant",
+            "recessional velocity",
+            "velocity from distance",
+            "distance from velocity",
+            "cosmic expansion",
+            "galaxy velocity",
+            "how fast is galaxy moving",
+            "hubble distance",
+            "calculate hubble distance"
+        ]
     },
     {
         id: "surface_gravity",
@@ -409,7 +450,18 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "surface gravity",
+            "what is the gravity",
+            "gravitational acceleration",
+            "gravity at surface",
+            "surface gravitational field",
+            "calculate surface gravity",
+            "find surface gravity",
+            "gravity of planet",
+            "gravity of star"
+        ]
     },
     {
         id: "angular_size",
@@ -437,6 +489,16 @@ var formulas = [
                 unit: "meters",
                 description: "Distance to the object, observer distance, stellar distance, planetary distance. Related to parallax, distance modulus, and luminosity distance. Determines angular size and apparent brightness."
             }
+        ],
+        questionPatterns: [
+            "angular size",
+            "angular diameter",
+            "what is the angular size",
+            "angular size of object",
+            "calculate angular size",
+            "find angular size",
+            "angular diameter distance",
+            "how big does it appear"
         ]
     },
     {
@@ -460,7 +522,15 @@ var formulas = [
         ],
         constants: {
             AU: 1.496e11  // 1 Astronomical Unit in meters
-        }
+        },
+        questionPatterns: [
+            "parallax distance radians",
+            "distance from parallax radians",
+            "parallax to distance",
+            "distance using parallax",
+            "calculate distance parallax",
+            "find distance parallax"
+        ]
     },
     {
         id: "parallax_distance_arcsec",
@@ -480,6 +550,17 @@ var formulas = [
                 unit: "arcseconds",
                 description: "Parallax angle of the star"
             }
+        ],
+        questionPatterns: [
+            "parallax distance",
+            "distance from parallax",
+            "parallax to distance",
+            "distance using parallax arcseconds",
+            "calculate distance parallax",
+            "find distance parallax",
+            "parallax 0.005",
+            "distance from 0.005 parallax",
+            "is parallax reasonable"
         ]
     },
     {
@@ -811,7 +892,16 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "hydrostatic balance",
+            "pressure gradient stellar",
+            "stellar pressure gradient",
+            "pressure balance star",
+            "hydrostatic equilibrium",
+            "stellar structure pressure",
+            "calculate pressure gradient"
+        ]
     },
     {
         id: "kepler_third_law_binary",
@@ -846,7 +936,16 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "kepler third law binary",
+            "orbital period binary",
+            "period binary system",
+            "binary orbital period",
+            "kepler binary",
+            "period from masses binary",
+            "calculate period binary"
+        ]
     },
     {
         id: "rotational_velocity",
@@ -872,6 +971,16 @@ var formulas = [
                 unit: "seconds",
                 description: "Time for one complete rotation"
             }
+        ],
+        questionPatterns: [
+            "rotational velocity",
+            "rotation speed",
+            "how fast does it rotate",
+            "equatorial rotation speed",
+            "rotational speed",
+            "calculate rotational velocity",
+            "find rotational velocity",
+            "rotation velocity"
         ]
     },
     {
@@ -898,6 +1007,16 @@ var formulas = [
                 unit: "meters",
                 description: "Radius of the body"
             }
+        ],
+        questionPatterns: [
+            "average density",
+            "what is the density",
+            "density of object",
+            "calculate density",
+            "find density",
+            "mean density",
+            "bulk density",
+            "density from mass volume"
         ]
     },
     {
@@ -1311,7 +1430,19 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "what is the total orbital energy",
+            "orbital energy of system",
+            "energy of orbit",
+            "total energy binary system",
+            "orbital energy calculation",
+            "energy binary system",
+            "total orbital energy",
+            "calculate orbital energy",
+            "find orbital energy",
+            "orbital energy"
+        ]
     },
     {
         id: "vis_viva",
@@ -1346,7 +1477,16 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "vis viva equation",
+            "velocity elliptical orbit",
+            "velocity at point in orbit",
+            "orbital velocity elliptical",
+            "velocity from distance",
+            "calculate velocity orbit",
+            "find velocity orbit"
+        ]
     },
     {
         id: "center_of_mass",
@@ -1384,6 +1524,15 @@ var formulas = [
                 unit: "meters",
                 description: "Total semi-major axis"
             }
+        ],
+        questionPatterns: [
+            "center of mass binary",
+            "center of mass binary system",
+            "position center of mass",
+            "binary center of mass",
+            "center of mass position",
+            "find center of mass",
+            "calculate center of mass"
         ]
     },
     {
@@ -1415,7 +1564,18 @@ var formulas = [
             "M_sun": 1.989e30,
             factor: 1e10,
             exponent: 2.5
-        }
+        },
+        questionPatterns: [
+            "stellar lifetime",
+            "how long does a star live",
+            "main sequence lifetime",
+            "star lifetime",
+            "how long star lives",
+            "stellar age",
+            "star age",
+            "lifetime of star",
+            "calculate stellar lifetime"
+        ]
     },
     {
         id: "mass_luminosity_relation",
@@ -1438,7 +1598,16 @@ var formulas = [
         ],
         constants: {
             exponent: 3.5
-        }
+        },
+        questionPatterns: [
+            "mass luminosity relation",
+            "luminosity from mass",
+            "mass to luminosity",
+            "luminosity mass relation",
+            "calculate luminosity from mass",
+            "find luminosity from mass",
+            "main sequence luminosity"
+        ]
     },
     {
         id: "hr_color_index",
@@ -1824,7 +1993,19 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11
-        }
+        },
+        questionPatterns: [
+            "what is the period of the white dwarves",
+            "period of white dwarf binary",
+            "orbital period white dwarf",
+            "how long do white dwarves take to orbit",
+            "white dwarf orbital period",
+            "binary white dwarf period",
+            "given total mass what is period",
+            "period binary white dwarf system",
+            "white dwarf binary period",
+            "calculate period white dwarf binary"
+        ]
     },
     {
         id: "white_dwarf_orbital_decay",
@@ -1860,7 +2041,19 @@ var formulas = [
         constants: {
             G: 6.67430e-11,
             c: 2.99792458e8
-        }
+        },
+        questionPatterns: [
+            "what is the rate of orbital decay",
+            "orbital decay rate",
+            "rate of orbital decay",
+            "how fast is orbit shrinking",
+            "orbital decay due to gravitational radiation",
+            "rate of orbital decay white dwarf",
+            "gravitational radiation decay rate",
+            "da dt orbital decay",
+            "orbital shrinking rate",
+            "decay rate binary system"
+        ]
     },
     {
         id: "white_dwarf_merger_timescale",
@@ -1896,7 +2089,21 @@ var formulas = [
         constants: {
             G: 6.67430e-11,
             c: 2.99792458e8
-        }
+        },
+        questionPatterns: [
+            "how long will it take to merge",
+            "merger timescale",
+            "time until merger",
+            "how long until white dwarves merge",
+            "merger time binary",
+            "time until white dwarf merger",
+            "when will white dwarves merge",
+            "merger timescale binary",
+            "coalescence time",
+            "gravitational wave merger time",
+            "how long will these two white dwarves merge",
+            "time to merge white dwarves"
+        ]
     },
     {
         id: "hill_radius",
@@ -6831,7 +7038,13 @@ var formulas = [
             "radial velocity from wavelength",
             "velocity wavelength shift",
             "doppler wavelength velocity",
-            "wavelength doppler velocity"
+            "wavelength doppler velocity",
+            "how fast is the system moving",
+            "how fast is system moving from earth",
+            "velocity from spectrum",
+            "how fast from earth",
+            "system velocity from earth",
+            "radial velocity from spectrum"
         ]
     },
     // ============================================================
@@ -7404,7 +7617,13 @@ var formulas = [
             "transit depth",
             "planetary transit",
             "exoplanet transit",
-            "flux drop transit"
+            "flux drop transit",
+            "transit depth inclination",
+            "inclination from transit depth",
+            "planet inclination",
+            "inclination planet",
+            "transit depth planet",
+            "simplified expression inclination"
         ]
     },
     {

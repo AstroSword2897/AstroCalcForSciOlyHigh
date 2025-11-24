@@ -2532,22 +2532,42 @@ function setupSearchFunctionality() {
             
             // Period questions
             'how long': {
-                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'stellar_lifetime', 'synodic_period'],
+                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'stellar_lifetime', 'synodic_period', 'white_dwarf_merger_timescale'],
                 score: 400
             },
             'what is the period': {
-                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'synodic_period'],
+                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'synodic_period', 'binary_white_dwarf'],
                 score: 400
             },
             'orbital period': {
-                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary'],
+                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary', 'binary_white_dwarf'],
                 score: 500
+            },
+            'period of white dwarves': {
+                formulas: ['binary_white_dwarf'],
+                score: 700
+            },
+            'period of white dwarf': {
+                formulas: ['binary_white_dwarf'],
+                score: 700
+            },
+            'white dwarf period': {
+                formulas: ['binary_white_dwarf'],
+                score: 650
             },
             
             // Temperature questions
             'what is the temperature': {
                 formulas: ['wiens_law', 'flux_temperature', 'planetary_equilibrium_temperature'],
                 score: 400
+            },
+            'temperature of white dwarfs': {
+                formulas: ['wiens_law', 'flux_temperature'],
+                score: 700
+            },
+            'temperature of white dwarf': {
+                formulas: ['wiens_law', 'flux_temperature'],
+                score: 700
             },
             'how hot': {
                 formulas: ['wiens_law', 'flux_temperature', 'planetary_equilibrium_temperature'],
@@ -2607,9 +2627,60 @@ function setupSearchFunctionality() {
                 formulas: ['cosmic_redshift', 'doppler_shift', 'doppler_shift_approx'],
                 score: 500
             },
+            // Orbital decay questions
+            'rate of orbital decay': {
+                formulas: ['white_dwarf_orbital_decay'],
+                score: 700
+            },
+            'orbital decay rate': {
+                formulas: ['white_dwarf_orbital_decay'],
+                score: 700
+            },
+            'how fast is orbit shrinking': {
+                formulas: ['white_dwarf_orbital_decay'],
+                score: 700
+            },
+            // Merger questions
+            'how long will it take to merge': {
+                formulas: ['white_dwarf_merger_timescale'],
+                score: 700
+            },
+            'merger timescale': {
+                formulas: ['white_dwarf_merger_timescale'],
+                score: 700
+            },
+            'time until merger': {
+                formulas: ['white_dwarf_merger_timescale'],
+                score: 700
+            },
+            // Transit questions
+            'transit depth': {
+                formulas: ['transit_depth'],
+                score: 600
+            },
+            'inclination from transit': {
+                formulas: ['transit_depth'],
+                score: 700
+            },
+            'transit depth inclination': {
+                formulas: ['transit_depth'],
+                score: 700
+            },
             'doppler': {
                 formulas: ['doppler_shift', 'doppler_shift_approx'],
                 score: 500
+            },
+            'how fast is the system moving': {
+                formulas: ['radial_velocity_wavelength', 'radial_velocity_frequency', 'doppler_shift'],
+                score: 700
+            },
+            'how fast is system moving from earth': {
+                formulas: ['radial_velocity_wavelength', 'radial_velocity_frequency'],
+                score: 700
+            },
+            'velocity from spectrum': {
+                formulas: ['radial_velocity_wavelength', 'radial_velocity_frequency'],
+                score: 700
             },
             
             // Wavelength questions
@@ -2629,6 +2700,18 @@ function setupSearchFunctionality() {
             },
             'photon energy': {
                 formulas: ['planck_relation'],
+                score: 600
+            },
+            'total orbital energy': {
+                formulas: ['orbital_energy'],
+                score: 700
+            },
+            'orbital energy of system': {
+                formulas: ['orbital_energy'],
+                score: 700
+            },
+            'orbital energy': {
+                formulas: ['orbital_energy'],
                 score: 600
             },
             
@@ -2654,6 +2737,10 @@ function setupSearchFunctionality() {
             'apparent magnitude': {
                 formulas: ['distance_modulus', 'magnitude_flux_relation'],
                 score: 500
+            },
+            'apparent magnitude with extinction': {
+                formulas: ['distance_modulus'],
+                score: 700
             },
             'absolute magnitude': {
                 formulas: ['distance_modulus', 'hr_absolute_magnitude'],
@@ -4435,9 +4522,21 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         selectFormula(formula);
     };
     
-    // Calculate confidence percentage if metrics are provided (improved accuracy)
-    let metricsHTML = '';
-    if (score !== null && metrics && maxScore > 0) {
+        // Calculate confidence score using FRQ support system
+        let confidenceScore = 0;
+        let confidenceLevel = null;
+        if (score !== null && metrics && maxScore > 0) {
+            if (typeof calculateConfidenceScore === 'function') {
+                confidenceScore = calculateConfidenceScore(score, maxScore, metrics);
+                if (typeof getConfidenceLevel === 'function') {
+                    confidenceLevel = getConfidenceLevel(confidenceScore);
+                }
+            }
+        }
+        
+        // Calculate confidence percentage if metrics are provided (improved accuracy)
+        let metricsHTML = '';
+        if (score !== null && metrics && maxScore > 0) {
         // Calculate relative confidence (normalized to max score)
         const relativeConfidence = Math.min(100, Math.round((score / maxScore) * 100));
         
@@ -4685,8 +4784,18 @@ function selectFormula(formula) {
     // Update graph
     updateGraph();
     
-    // Update graph interpretation
+    // Update graph interpretation with enhanced FRQ support
     updateGraphInterpretation();
+    
+    // Add usage instructions if FRQ support is available
+    if (typeof generateUsageInstructions === 'function') {
+        addUsageInstructions(formula);
+    }
+    
+    // Add contextual hints if FRQ support is available
+    if (typeof generateContextualHints === 'function') {
+        addContextualHints(formula);
+    }
     
     // Update instruction banner with initial state
     updateInstructionBanner([], null, 0, currentFormula.variables.filter(v => {
@@ -6146,6 +6255,131 @@ function updateInstructionBanner(variableStates, emptyVar, filledCount, totalVar
     instructionDiv.innerHTML = `<p>${instructionHTML}</p>`;
 }
 
+// Add usage instructions to calculator tab
+function addUsageInstructions(formula) {
+    if (typeof generateUsageInstructions !== 'function') return;
+    
+    const instructions = generateUsageInstructions(formula);
+    const calculatorTab = document.getElementById('calculator-tab');
+    if (!calculatorTab) return;
+    
+    // Remove existing instructions if any
+    const existingInstructions = calculatorTab.querySelector('.usage-instructions-container');
+    if (existingInstructions) {
+        existingInstructions.remove();
+    }
+    
+    // Create instructions container
+    const instructionsContainer = document.createElement('div');
+    instructionsContainer.className = 'usage-instructions-container';
+    instructionsContainer.style.cssText = 'margin: 20px 0; padding: 20px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.3);';
+    
+    let instructionsHTML = '<details open><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #a8c7ff;">📚 How to Use This Formula - Step-by-Step Guide</summary>';
+    
+    // Add steps
+    if (instructions.steps && instructions.steps.length > 0) {
+        instructionsHTML += '<div class="usage-steps" style="margin-top: 15px;">';
+        instructions.steps.forEach(step => {
+            instructionsHTML += `
+                <div style="margin-bottom: 15px; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; border-left: 3px solid #667eea;">
+                    <strong style="color: #a8c7ff;">Step ${step.step}: ${step.title}</strong>
+                    <p style="margin-top: 5px; color: rgba(255, 255, 255, 0.8);">${step.description}</p>
+                </div>
+            `;
+        });
+        instructionsHTML += '</div>';
+    }
+    
+    // Add tips
+    if (instructions.tips && instructions.tips.length > 0) {
+        instructionsHTML += '<div class="usage-tips" style="margin-top: 20px;"><strong style="color: #a8c7ff;">💡 Tips:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
+        instructions.tips.forEach(tip => {
+            instructionsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${tip}</li>`;
+        });
+        instructionsHTML += '</ul></div>';
+    }
+    
+    // Add common mistakes
+    if (instructions.commonMistakes && instructions.commonMistakes.length > 0) {
+        instructionsHTML += '<div class="common-mistakes" style="margin-top: 20px;"><strong style="color: #ffa94d;">⚠️ Common Mistakes to Avoid:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
+        instructions.commonMistakes.forEach(mistake => {
+            instructionsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${mistake}</li>`;
+        });
+        instructionsHTML += '</ul></div>';
+    }
+    
+    instructionsHTML += '</details>';
+    instructionsContainer.innerHTML = instructionsHTML;
+    
+    // Insert after calculator instructions
+    const calcInstructions = document.getElementById('calculator-instructions');
+    if (calcInstructions && calcInstructions.parentNode) {
+        calcInstructions.parentNode.insertBefore(instructionsContainer, calcInstructions.nextSibling);
+    } else {
+        calculatorTab.insertBefore(instructionsContainer, calculatorTab.firstChild);
+    }
+}
+
+// Add contextual hints to calculator tab
+function addContextualHints(formula, questionText = null) {
+    if (typeof generateContextualHints !== 'function') return;
+    
+    const hints = generateContextualHints(formula, questionText);
+    const calculatorTab = document.getElementById('calculator-tab');
+    if (!calculatorTab) return;
+    
+    // Remove existing hints if any
+    const existingHints = calculatorTab.querySelector('.contextual-hints-container');
+    if (existingHints) {
+        existingHints.remove();
+    }
+    
+    // Only show if we have meaningful hints
+    if (!hints.problemType && hints.keyConcepts.length === 0) return;
+    
+    // Create hints container
+    const hintsContainer = document.createElement('div');
+    hintsContainer.className = 'contextual-hints-container';
+    hintsContainer.style.cssText = 'margin: 20px 0; padding: 20px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; border: 1px solid rgba(255, 193, 7, 0.3);';
+    
+    let hintsHTML = '<details><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #ffd43b;">🎯 Problem-Solving Context & Hints</summary>';
+    
+    if (hints.problemType) {
+        hintsHTML += `<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Problem Type:</strong> <span style="color: rgba(255, 255, 255, 0.9);">${hints.problemType}</span></div>`;
+    }
+    
+    if (hints.keyConcepts.length > 0) {
+        hintsHTML += `<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Key Concepts:</strong> <span style="color: rgba(255, 255, 255, 0.9);">${hints.keyConcepts.join(', ')}</span></div>`;
+    }
+    
+    if (hints.approach.length > 0) {
+        hintsHTML += '<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Approach:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
+        hints.approach.forEach(step => {
+            hintsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${step}</li>`;
+        });
+        hintsHTML += '</ul></div>';
+    }
+    
+    if (hints.checkpoints.length > 0) {
+        hintsHTML += '<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Checkpoints:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
+        hints.checkpoints.forEach(checkpoint => {
+            hintsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${checkpoint}</li>`;
+        });
+        hintsHTML += '</ul></div>';
+    }
+    
+    hintsHTML += '</details>';
+    hintsContainer.innerHTML = hintsHTML;
+    
+    // Insert after usage instructions
+    const usageInstructions = calculatorTab.querySelector('.usage-instructions-container');
+    if (usageInstructions && usageInstructions.parentNode) {
+        usageInstructions.parentNode.insertBefore(hintsContainer, usageInstructions.nextSibling);
+    } else {
+        calculatorTab.insertBefore(hintsContainer, calculatorTab.firstChild);
+    }
+}
+
 // Update graph interpretation content
 function updateGraphInterpretation() {
     const contentDiv = document.getElementById('graph-interpretation-content');
@@ -6156,28 +6390,60 @@ function updateGraphInterpretation() {
         return;
     }
     
+    // Try to use enhanced FRQ graph interpretation if available
+    let interpretationData = null;
+    if (typeof generateGraphInterpretation === 'function') {
+        interpretationData = generateGraphInterpretation(currentFormula);
+    }
+    
     // Generate interpretation content based on the formula
     let interpretationHTML = '<div class="interpretation-section">';
     interpretationHTML += `<h4>Understanding the Graph for: ${currentFormula.name}</h4>`;
     interpretationHTML += `<div class="formula-display-interpretation"><strong>Formula:</strong> ${currentFormula.equation}</div>`;
     
-    // Add general interpretation guidance
-    interpretationHTML += '<div class="interpretation-guide">';
-    interpretationHTML += '<h5>How to Read This Graph</h5>';
-    interpretationHTML += '<ul class="interpretation-list">';
-    interpretationHTML += '<li><strong>X-Axis:</strong> Represents the independent variable (the variable you vary).</li>';
-    interpretationHTML += '<li><strong>Y-Axis:</strong> Represents the dependent variable (the result you\'re calculating).</li>';
-    interpretationHTML += '<li><strong>Curve Shape:</strong> Shows how the relationship changes - linear, exponential, inverse, etc.</li>';
-    interpretationHTML += '<li><strong>Steepness:</strong> Indicates how sensitive the result is to changes in the input variable.</li>';
-    interpretationHTML += '</ul>';
-    interpretationHTML += '</div>';
-    
-    // Add formula-specific interpretation
-    const formulaSpecific = getFormulaSpecificInterpretation(currentFormula);
-    if (formulaSpecific) {
-        interpretationHTML += '<div class="interpretation-formula-specific">';
-        interpretationHTML += formulaSpecific;
+    // Use enhanced interpretation if available
+    if (interpretationData && interpretationData.overview) {
+        interpretationHTML += `<div class="interpretation-overview" style="margin: 15px 0; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;"><p>${interpretationData.overview}</p></div>`;
+        
+        if (interpretationData.keyFeatures.length > 0) {
+            interpretationHTML += '<div class="interpretation-features"><h5>Key Features:</h5><ul class="interpretation-list">';
+            interpretationData.keyFeatures.forEach(feature => {
+                interpretationHTML += `<li>${feature}</li>`;
+            });
+            interpretationHTML += '</ul></div>';
+        }
+        
+        if (interpretationData.howToUse.length > 0) {
+            interpretationHTML += '<div class="interpretation-usage"><h5>How to Use This Graph:</h5><ul class="interpretation-list">';
+            interpretationData.howToUse.forEach(usage => {
+                interpretationHTML += `<li>${usage}</li>`;
+            });
+            interpretationHTML += '</ul></div>';
+        }
+        
+        if (interpretationData.physicalMeaning) {
+            interpretationHTML += `<div class="interpretation-meaning" style="margin-top: 15px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 6px;"><strong>Physical Meaning:</strong> <p>${interpretationData.physicalMeaning}</p></div>`;
+        }
+    } else {
+        // Fallback to original interpretation
+        // Add general interpretation guidance
+        interpretationHTML += '<div class="interpretation-guide">';
+        interpretationHTML += '<h5>How to Read This Graph</h5>';
+        interpretationHTML += '<ul class="interpretation-list">';
+        interpretationHTML += '<li><strong>X-Axis:</strong> Represents the independent variable (the variable you vary).</li>';
+        interpretationHTML += '<li><strong>Y-Axis:</strong> Represents the dependent variable (the result you\'re calculating).</li>';
+        interpretationHTML += '<li><strong>Curve Shape:</strong> Shows how the relationship changes - linear, exponential, inverse, etc.</li>';
+        interpretationHTML += '<li><strong>Steepness:</strong> Indicates how sensitive the result is to changes in the input variable.</li>';
+        interpretationHTML += '</ul>';
         interpretationHTML += '</div>';
+        
+        // Add formula-specific interpretation
+        const formulaSpecific = getFormulaSpecificInterpretation(currentFormula);
+        if (formulaSpecific) {
+            interpretationHTML += '<div class="interpretation-formula-specific">';
+            interpretationHTML += formulaSpecific;
+            interpretationHTML += '</div>';
+        }
     }
     
     // Add tips
