@@ -4092,6 +4092,12 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     formulaList.style.visibility = 'visible';
     formulaList.style.opacity = '1';
     
+    // If we have search results, use Explorer-style two-panel layout
+    if (searchTerm && scoredFormulas.length > 0) {
+        renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore);
+        return;
+    }
+    
     // Add result count header FIRST (before any categories)
     if (searchTerm && scoredFormulas.length > 0) {
         const resultHeader = document.createElement('div');
