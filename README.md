@@ -365,7 +365,7 @@ For questions or suggestions, please open an issue on GitHub.
 
 ---
 
-**Version**: 3.1  
+**Version**: 2.0  
 **Last Updated**: 2025  
 **Status**: Active Development  
 **Formulas**: 193+  
