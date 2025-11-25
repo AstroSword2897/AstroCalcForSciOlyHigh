@@ -1,5 +1,7 @@
 # 🌌 AstroCalc - Science Olympiad Astronomy Formula Calculator
 
+**Version 2.0** - Universal Formula Solver with Complete Coverage
+
 ## 📋 Table of Contents
 1. [Executive Summary](#executive-summary)
 2. [Complete Architecture Overview](#complete-architecture-overview)
@@ -16,7 +18,14 @@
 
 ## Executive Summary
 
-**AstroCalc** is a production-grade, fully offline web application for calculating astronomy and astrophysics formulas. Designed specifically for Science Olympiad competitors, it features **193+ formulas** with advanced search, comprehensive FRQ (Free Response Question) support, and zero-time-waste navigation.
+**AstroCalc v2.0** is a production-grade, fully offline web application for calculating astronomy and astrophysics formulas. Designed specifically for Science Olympiad competitors, it features **193+ formulas** with advanced search, comprehensive FRQ (Free Response Question) support, and zero-time-waste navigation.
+
+### What's New in Version 2.0
+- ✅ **Universal Formula Solver** - Every formula now works with generic algebraic solver fallback
+- ✅ **100% Formula Coverage** - All 193+ formulas can be solved numerically and symbolically
+- ✅ **Enhanced Error Handling** - Better validation and clearer error messages
+- ✅ **Comprehensive Verification** - Automated testing system for all formulas
+- ✅ **Improved Generic Solver** - Handles complex algebraic patterns automatically
 
 ### Key Statistics
 - **Total Lines of Code**: ~23,000+ lines (JavaScript)
