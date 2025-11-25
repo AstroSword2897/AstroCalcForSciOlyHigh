@@ -4,18 +4,21 @@
  * Caches all application resources for offline use
  */
 
-const CACHE_NAME = 'astrocalc-v1.0.0';
-const RUNTIME_CACHE = 'astrocalc-runtime-v1.0.0';
+const CACHE_NAME = 'astrocalc-v2.0.0'; // Updated to cache new scripts and diagnostics
+const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.0';
 
-// Resources to cache on install
+// Resources to cache on install (OFFLINE-FIRST: All resources are local)
 const PRECACHE_RESOURCES = [
     './',
     './index.html',
+    './diagnostics.html',
     './styles/main.css',
     './scripts/formulas.js',
     './scripts/calculator.js',
     './scripts/ui.js',
     './scripts/unitConverter.js',
+    './scripts/unitParser.js',
+    './scripts/dimensionalAnalysis.js',
     './scripts/expressionParser.js',
     './scripts/classification.js',
     './scripts/graphManager.js',
@@ -24,6 +27,8 @@ const PRECACHE_RESOURCES = [
     './scripts/frqSupport.js',
     './scripts/quickNav.js',
     './scripts/utils.js',
+    './scripts/integrationTest.js',
+    './scripts/diagnostics.js',
     './libs/mathjax/es5/tex-mml-chtml.js',
     './manifest.json'
 ];

@@ -49,8 +49,19 @@ function safeExecute(fn, fallback = null, errorMessage = 'Error executing functi
 
 /**
  * Debounce function - delays execution until after wait time
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds (default: 300)
+ * @returns {Function} Debounced function
  */
 function debounce(func, wait = 300) {
+    // Input validation
+    if (typeof func !== 'function') {
+        throw new Error('debounce: First argument must be a function');
+    }
+    if (typeof wait !== 'number' || !isFinite(wait) || wait < 0) {
+        wait = 300; // Default to 300ms
+    }
+    
     let timeout;
     return function executedFunction(...args) {
         const later = () => {
@@ -64,8 +75,19 @@ function debounce(func, wait = 300) {
 
 /**
  * Throttle function - limits execution to once per wait time
+ * @param {Function} func - Function to throttle
+ * @param {number} wait - Wait time in milliseconds (default: 300)
+ * @returns {Function} Throttled function
  */
 function throttle(func, wait = 300) {
+    // Input validation
+    if (typeof func !== 'function') {
+        throw new Error('throttle: First argument must be a function');
+    }
+    if (typeof wait !== 'number' || !isFinite(wait) || wait < 0) {
+        wait = 300; // Default to 300ms
+    }
+    
     let inThrottle;
     return function(...args) {
         if (!inThrottle) {

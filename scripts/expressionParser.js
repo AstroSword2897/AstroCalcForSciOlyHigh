@@ -51,6 +51,42 @@ class ExpressionParser {
             return value;
         }
 
+        // CRITICAL FIX: Parse units first using UnitParser
+        if (typeof UnitParser !== 'undefined') {
+            const parsed = UnitParser.parse(value);
+            if (parsed.hasUnit && parsed.value !== null) {
+                // Unit was found - convert if needed
+                if (unit && parsed.unit && parsed.unit !== unit) {
+                    // Try to convert unit
+                    if (typeof UnitConverter !== 'undefined') {
+                        const converted = UnitConverter.convert(parsed.value, parsed.unit, unit);
+                        if (converted !== null) {
+                            return converted;
+                        }
+                    }
+                    // If conversion fails, warn but continue with parsed value
+                    if (typeof logger !== 'undefined') {
+                        logger.warn(`Unit mismatch: input has ${parsed.unit}, expected ${unit}. Using ${parsed.value} ${parsed.unit} without conversion.`);
+                    } else {
+                        console.warn(`Unit mismatch: input has ${parsed.unit}, expected ${unit}. Using ${parsed.value} ${parsed.unit} without conversion.`);
+                    }
+                }
+                // Validate dimensions if expected unit provided
+                if (unit && typeof DimensionalAnalysis !== 'undefined') {
+                    const validation = DimensionalAnalysis.validateDimensions(parsed.value, parsed.unit, unit);
+                    if (!validation.valid) {
+                        throw new Error(validation.error);
+                    }
+                }
+                // Return the parsed value (unit conversion handled separately)
+                return parsed.value;
+            }
+            // If UnitParser found a value but no unit, use that value
+            if (parsed.value !== null && !parsed.hasUnit) {
+                value = parsed.value.toString();
+            }
+        }
+
         // Remove whitespace
         const trimmedValue = String(value).trim();
 

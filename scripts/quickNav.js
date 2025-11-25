@@ -239,31 +239,43 @@ function setupKeyboardShortcuts() {
  * Navigate formula cards with arrow keys
  */
 function navigateCards(direction) {
-    const cards = Array.from(document.querySelectorAll('.formula-card'));
-    quickNavState.cards = cards;
+    // Only refresh cards if needed
+    const currentCards = Array.from(document.querySelectorAll('.formula-card'));
     
-    if (cards.length === 0) return;
-    
-    // Update current index
-    quickNavState.currentCardIndex += direction;
-    
-    // Wrap around
-    if (quickNavState.currentCardIndex < 0) {
-        quickNavState.currentCardIndex = cards.length - 1;
-    } else if (quickNavState.currentCardIndex >= cards.length) {
-        quickNavState.currentCardIndex = 0;
+    // Detect card list changes
+    if (!quickNavState.cards || 
+        quickNavState.cards.length !== currentCards.length ||
+        quickNavState.currentCardIndex >= currentCards.length) {
+        quickNavState.cards = currentCards;
+        quickNavState.currentCardIndex = -1;
     }
     
-    // Highlight current card
-    cards.forEach((card, index) => {
-        if (index === quickNavState.currentCardIndex) {
-            card.classList.add('keyboard-focused');
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            card.focus();
-        } else {
-            card.classList.remove('keyboard-focused');
-        }
+    if (quickNavState.cards.length === 0) return;
+    
+    // Clear previous highlights
+    quickNavState.cards.forEach(card => {
+        card.classList.remove('keyboard-focused');
     });
+    
+    // Update index with proper bounds checking
+    let newIndex = quickNavState.currentCardIndex + direction;
+    
+    // Wrap around with modulo (handles negative correctly)
+    newIndex = ((newIndex % quickNavState.cards.length) + quickNavState.cards.length) % quickNavState.cards.length;
+    
+    quickNavState.currentCardIndex = newIndex;
+    
+    // Highlight and scroll to new card
+    const focusedCard = quickNavState.cards[newIndex];
+    if (focusedCard) {
+        focusedCard.classList.add('keyboard-focused');
+        focusedCard.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+        });
+        focusedCard.focus();
+    }
 }
 
 /**
@@ -474,16 +486,41 @@ function closeCommandPalette() {
 /**
  * Search command palette
  */
+// Add debouncing and caching for command palette search
+let searchCache = new Map();
+let searchDebounce = null;
+const MAX_CACHE_SIZE = 100;
+const MAX_RESULTS = 50;
+
 function searchCommandPalette(query) {
     const resultsContainer = document.getElementById('command-palette-results');
     if (!resultsContainer) return;
     
+    // Clear previous debounce
+    clearTimeout(searchDebounce);
+    
+    // Debounce search
+    searchDebounce = setTimeout(() => {
+        performCommandPaletteSearch(query, resultsContainer);
+    }, 150);
+}
+
+function performCommandPaletteSearch(query, resultsContainer) {
     const queryLower = query.toLowerCase().trim();
+    
+    // Check cache
+    if (searchCache.has(queryLower)) {
+        renderCommandPaletteResults(searchCache.get(queryLower), resultsContainer);
+        return;
+    }
+    
     const results = [];
     
-    // Search formulas
+    // Search formulas with early exit
     if (typeof formulas !== 'undefined' && Array.isArray(formulas)) {
-        formulas.forEach(formula => {
+        for (const formula of formulas) {
+            if (results.length >= MAX_RESULTS) break;
+            
             const nameMatch = formula.name?.toLowerCase().includes(queryLower);
             const descMatch = formula.description?.toLowerCase().includes(queryLower);
             const conceptMatch = formula.concepts?.some(c => c.toLowerCase().includes(queryLower));
@@ -496,17 +533,13 @@ function searchCommandPalette(query) {
                 
                 results.push({
                     type: 'formula',
-                    formula: formula,
+                    id: formula.id, // Only store ID, not full object
                     score: score,
                     title: formula.name,
                     subtitle: formula.description?.substring(0, 60) + '...',
-                    action: () => {
-                        selectFormula(formula);
-                        closeCommandPalette();
-                    }
                 });
             }
-        });
+        }
     }
     
     // Add quick actions
@@ -554,15 +587,32 @@ function searchCommandPalette(query) {
         return b.score - a.score;
     });
     
+    // Cache results
+    searchCache.set(queryLower, results);
+    
+    // Limit cache size
+    if (searchCache.size > MAX_CACHE_SIZE) {
+        const firstKey = searchCache.keys().next().value;
+        searchCache.delete(firstKey);
+    }
+    
+    renderCommandPaletteResults(results, resultsContainer);
+}
+
+function renderCommandPaletteResults(results, resultsContainer) {
     // Render results
     if (results.length === 0) {
         resultsContainer.innerHTML = '<div class="command-palette-empty">No results found</div>';
         return;
     }
     
-    resultsContainer.innerHTML = results.slice(0, 10).map((result, index) => `
+    // Only render top 10
+    const topResults = results.slice(0, 10);
+    resultsContainer.innerHTML = topResults.map((result, index) => `
         <div class="command-palette-item ${index === 0 ? 'selected' : ''}" 
-             data-index="${index}">
+             data-result-id="${result.id || ''}" 
+             data-index="${index}"
+             data-result-type="${result.type || 'formula'}">
             <div class="command-palette-item-icon">
                 ${result.type === 'formula' ? '📐' : '⚡'}
             </div>
@@ -572,6 +622,30 @@ function searchCommandPalette(query) {
             </div>
         </div>
     `).join('');
+    
+    // Add click handlers efficiently (event delegation)
+    resultsContainer.onclick = (e) => {
+        const item = e.target.closest('.command-palette-item');
+        if (item) {
+            const formulaId = item.dataset.resultId;
+            const resultType = item.dataset.resultType;
+            
+            if (resultType === 'formula' && formulaId && typeof formulas !== 'undefined') {
+                const formula = formulas.find(f => f.id === formulaId);
+                if (formula && typeof selectFormula === 'function') {
+                    selectFormula(formula);
+                    closeCommandPalette();
+                }
+            } else if (resultType === 'action') {
+                // Find the action in results
+                const index = parseInt(item.dataset.index);
+                const result = results[index];
+                if (result && result.action) {
+                    result.action();
+                }
+            }
+        }
+    };
     
     // Add click handlers
     resultsContainer.querySelectorAll('.command-palette-item').forEach((item, index) => {
@@ -637,4 +711,5 @@ if (typeof window !== 'undefined') {
     window.toggleHelpOverlay = toggleHelpOverlay;
     window.closeHelpOverlay = closeHelpOverlay;
 }
+
 

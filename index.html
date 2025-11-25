@@ -432,18 +432,35 @@
             window.dispatchEvent(new Event('desmosUnavailable'));
         });
     </script>
+    <!-- Scripts loaded in dependency order (OFFLINE-FIRST: All local, no external dependencies) -->
+    <!-- 1. Core data (must be first) -->
     <script src="scripts/formulas.js"></script>
-    <script src="scripts/calculator.js"></script>
+    
+    <!-- 2. Core utilities (no dependencies) -->
+    <script src="scripts/utils.js"></script>
     <script src="scripts/unitConverter.js"></script>
+    <script src="scripts/unitParser.js"></script>
+    <script src="scripts/dimensionalAnalysis.js"></script>
     <script src="scripts/expressionParser.js"></script>
+    
+    <!-- 3. Core calculation engine (depends on formulas) -->
+    <script src="scripts/calculator.js"></script>
+    
+    <!-- 4. Graph systems (standalone) -->
     <script src="scripts/graphManager.js"></script>
     <script src="scripts/offlineGraphManager.js"></script>
+    
+    <!-- 5. Feature modules (depend on formulas/utils) -->
     <script src="scripts/classification.js"></script>
     <script src="scripts/formulaExplorer.js"></script>
-    <script src="scripts/utils.js"></script>
     <script src="scripts/frqSupport.js"></script>
     <script src="scripts/quickNav.js"></script>
+    
+    <!-- 6. UI controller (depends on everything, must be last) -->
     <script src="scripts/ui.js"></script>
+    
+    <!-- 7. Integration test (optional, for verification) -->
+    <script src="scripts/integrationTest.js"></script>
     
     <!-- Service Worker Registration for Offline Support -->
     <script>

@@ -27,20 +27,53 @@
  * @param {number} max - Maximum value
  * @returns {number} Clamped value
  */
+/**
+ * Clamp a value between min and max
+ * @param {number} value - Value to clamp
+ * @param {number} min - Minimum value
+ * @param {number} max - Maximum value
+ * @returns {number} Clamped value
+ */
 function clamp(value, min, max) {
+    // Input validation
+    if (typeof value !== 'number' || !isFinite(value)) {
+        return min; // Return min for invalid values
+    }
+    if (typeof min !== 'number' || !isFinite(min)) {
+        return value; // Return value if min is invalid
+    }
+    if (typeof max !== 'number' || !isFinite(max)) {
+        return value; // Return value if max is invalid
+    }
     return Math.min(max, Math.max(min, value));
 }
 
+// Make clamp globally available
+if (typeof window !== 'undefined') {
+    window.clamp = clamp;
+}
+
 /**
- * Normalize score to percentage
+ * Normalize score to percentage (0-100) or custom scale
  * @param {number} score - Raw score
  * @param {number} maxScore - Maximum possible score
- * @param {number} scale - Scale factor (default: 1000)
- * @returns {number} Normalized score
+ * @param {number} scale - Scale factor (default: 100 for percentage)
+ * @returns {number} Normalized score (0 to scale)
  */
-function normalizeScore(score, maxScore, scale = 1000) {
-    if (!maxScore || maxScore === 0) return 0;
-    return (score / maxScore) * scale;
+function normalizeScore(score, maxScore, scale = 100) {
+    // Input validation
+    if (typeof score !== 'number' || !isFinite(score)) return 0;
+    if (typeof maxScore !== 'number' || !isFinite(maxScore) || maxScore === 0) return 0;
+    if (typeof scale !== 'number' || !isFinite(scale) || scale <= 0) scale = 100;
+    
+    // Handle negative scores
+    if (score < 0) score = 0;
+    
+    // Normalize: (score / maxScore) * scale
+    const normalized = (score / maxScore) * scale;
+    
+    // Clamp to valid range (0 to scale)
+    return clamp(normalized, 0, scale);
 }
 
 //////////////////////////////
@@ -282,22 +315,39 @@ function clearCaches() {
  */
 var formulaFRQMetadata = {};
 
+// Track initialization state
+let metadataInitialized = false;
+let initRetries = 0;
+const MAX_INIT_RETRIES = 10;
+
 /**
  * Initialize metadata from formulas array
  * Called when formulas.js is loaded
+ * FIXED: Added retry logic for late-loading formulas
  */
 function initializeFRQMetadata() {
-    if (typeof formulas === 'undefined' || !Array.isArray(formulas)) {
-        if (typeof logger !== 'undefined') {
-            logger.warn('Formulas array not available for FRQ metadata initialization');
-        } else {
-        console.warn('Formulas array not available for FRQ metadata initialization');
-        }
-        return;
+    if (metadataInitialized) {
+        return true;
     }
     
+    if (typeof formulas === 'undefined' || !Array.isArray(formulas) || formulas.length === 0) {
+        if (initRetries < MAX_INIT_RETRIES) {
+            initRetries++;
+            console.log(`[FRQ Metadata] Waiting for formulas... attempt ${initRetries}/${MAX_INIT_RETRIES}`);
+            setTimeout(initializeFRQMetadata, 200);
+        } else {
+            console.error('❌ [FRQ Metadata] Formulas array never loaded after max retries');
+        }
+        return false;
+    }
+    
+    console.log(`[FRQ Metadata] Initializing for ${formulas.length} formulas`);
+    
     formulas.forEach(formula => {
-        if (!formula.id) return;
+        if (!formula.id) {
+            console.warn('[FRQ Metadata] Formula missing ID:', formula);
+            return;
+        }
         
         // Extract metadata from formula object
         const metadata = {
@@ -316,9 +366,15 @@ function initializeFRQMetadata() {
         metadataCache.set(formula.id, metadata);
     });
     
-    if (typeof logger !== 'undefined') {
-        logger.log(`Initialized FRQ metadata for ${Object.keys(formulaFRQMetadata).length} formulas`);
+    metadataInitialized = true;
+    console.log(`✅ [FRQ Metadata] Initialized for ${Object.keys(formulaFRQMetadata).length} formulas`);
+    
+    // Trigger any pending operations that needed metadata
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('frq-metadata-ready'));
     }
+    
+    return true;
 }
 
 /**
@@ -1421,6 +1477,160 @@ function getFormulaSpecificGuidance(formulaId, metadata = null, structure = null
 }
 
 //////////////////////////////
+// Formula-Specific Common Mistakes Generator
+//////////////////////////////
+
+/**
+ * Generate formula-specific common mistakes based on formula structure, variables, and concepts
+ * @param {Object} formula - Formula object
+ * @param {Object} structure - Formula structure analysis
+ * @param {Object} metadata - Formula metadata (optional)
+ * @returns {Array<string>} Array of formula-specific common mistakes
+ */
+function generateFormulaSpecificMistakes(formula, structure, metadata = null) {
+    const mistakes = [];
+    const formulaId = formula.id || '';
+    const formulaName = (formula.name || '').toLowerCase();
+    const formulaDesc = (formula.description || '').toLowerCase();
+    
+    // Formula-specific mistakes based on formula ID
+    switch(formulaId) {
+        case 'gravitational_potential_general':
+            mistakes.push('Forgetting the negative sign in gravitational potential (Φ = -GM/r).');
+            mistakes.push('Using incorrect units for potential (should be J/kg, not J).');
+            mistakes.push('Confusing gravitational potential with potential energy (potential is per unit mass).');
+            mistakes.push('Not converting mass units (e.g., Earth masses to kg).');
+            break;
+            
+        case 'kepler_third_law':
+        case 'kepler_third_law_binary':
+        case 'binary_white_dwarf':
+            mistakes.push('Forgetting to convert period to seconds (years/days → seconds).');
+            mistakes.push('Using individual mass instead of total mass for binary systems.');
+            mistakes.push('Mixing up semi-major axis with radius or distance.');
+            mistakes.push('Forgetting to cube the semi-major axis (a³, not a).');
+            break;
+            
+        case 'orbital_velocity':
+        case 'escape_velocity':
+            mistakes.push('Confusing orbital velocity with escape velocity (v_esc = √2 × v_orb).');
+            mistakes.push('Using incorrect distance (should be distance from center, not surface).');
+            mistakes.push('Forgetting to take the square root in the final step.');
+            break;
+            
+        case 'distance_modulus':
+            mistakes.push('Confusing apparent magnitude (m) with absolute magnitude (M).');
+            mistakes.push('Forgetting to account for interstellar extinction.');
+            mistakes.push('Using incorrect base for logarithm (must be log₁₀, not ln).');
+            mistakes.push('Forgetting the -5 term in the distance modulus equation.');
+            break;
+            
+        case 'wiens_law':
+            mistakes.push('Using wavelength in wrong units (must be meters, not nanometers).');
+            mistakes.push('Confusing peak wavelength with other wavelengths in the spectrum.');
+            mistakes.push('Forgetting to convert temperature to Kelvin if given in Celsius.');
+            break;
+            
+        case 'luminosity':
+            mistakes.push('Forgetting to raise temperature to the 4th power (T⁴, not T).');
+            mistakes.push('Using radius squared (R²) instead of surface area (4πR²).');
+            mistakes.push('Confusing luminosity with flux (luminosity is total power, flux is per unit area).');
+            break;
+            
+        case 'transit_depth':
+            mistakes.push('Confusing planet radius with star radius in the ratio (Rp/Rs, not Rs/Rp).');
+            mistakes.push('Forgetting that transit depth is (Rp/Rs)², not Rp/Rs.');
+            mistakes.push('Not accounting for orbital inclination (edge-on vs inclined).');
+            break;
+            
+        case 'white_dwarf_orbital_decay':
+            mistakes.push('Forgetting the negative sign in decay rate (da/dt is negative).');
+            mistakes.push('Using incorrect power of separation (should be a³ in denominator).');
+            mistakes.push('Confusing decay rate with merger timescale.');
+            break;
+            
+        case 'doppler_shift':
+        case 'doppler_shift_approx':
+            mistakes.push('Using non-relativistic formula for high velocities (v > 0.1c).');
+            mistakes.push('Confusing redshift (z) with velocity (v = cz only for small z).');
+            mistakes.push('Using observed wavelength instead of rest wavelength in calculation.');
+            break;
+            
+        case 'angular_size':
+            mistakes.push('Confusing angular size with linear size (θ = d/D, not d = θD).');
+            mistakes.push('Using incorrect units for angular size (radians vs arcseconds).');
+            mistakes.push('Forgetting to convert arcseconds to radians (1" = 1/206265 rad).');
+            break;
+            
+        case 'parallax_distance_arcsec':
+        case 'parallax_distance_radians':
+            mistakes.push('Confusing parallax angle with distance (d = 1/p, not p = 1/d).');
+            mistakes.push('Using parallax in wrong units (arcseconds vs radians).');
+            mistakes.push('Forgetting to convert distance from parsecs to desired units.');
+            break;
+            
+        default:
+            // Generate mistakes based on formula structure and variables
+            if (structure.hasTime) {
+                mistakes.push('Mixing time units (seconds vs years vs days).');
+            }
+            if (structure.isBinary) {
+                mistakes.push('Using individual mass instead of total mass for binary systems.');
+            }
+            if (structure.hasMagnitude) {
+                mistakes.push('Confusing apparent and absolute magnitude.');
+            }
+            if (structure.hasDistance) {
+                mistakes.push('Using incorrect distance units (meters vs parsecs vs AU).');
+            }
+            if (structure.hasMass) {
+                mistakes.push('Not converting mass units (kg vs solar masses vs Earth masses).');
+            }
+            if (structure.hasVelocity) {
+                mistakes.push('Confusing orbital velocity with escape velocity or radial velocity.');
+            }
+            if (structure.hasEnergy) {
+                mistakes.push('Forgetting that bound orbits have negative energy.');
+            }
+            if (structure.hasTemperature) {
+                mistakes.push('Using temperature in wrong units (must be Kelvin, not Celsius).');
+            }
+            if (structure.hasLuminosity) {
+                mistakes.push('Confusing luminosity with flux or brightness.');
+            }
+            
+            // Check for specific variable-related mistakes
+            const variables = formula.variables || [];
+            variables.forEach(v => {
+                const varName = (v.name || '').toLowerCase();
+                const varSymbol = v.symbol;
+                
+                if (varName.includes('radius') && !mistakes.some(m => m.includes('radius'))) {
+                    mistakes.push(`Confusing ${varName} with diameter or other distance measures.`);
+                }
+                if (varName.includes('period') && !mistakes.some(m => m.includes('period'))) {
+                    mistakes.push('Forgetting to convert period to seconds for calculations.');
+                }
+                if (varName.includes('mass') && !mistakes.some(m => m.includes('mass'))) {
+                    mistakes.push('Not converting mass to consistent units (kg recommended).');
+                }
+                if (varName.includes('wavelength') && !mistakes.some(m => m.includes('wavelength'))) {
+                    mistakes.push('Using wavelength in wrong units (meters vs nanometers).');
+                }
+            });
+            
+            // Add universal mistakes if no specific ones found
+            if (mistakes.length === 0) {
+                mistakes.push('Forgetting unit conversions.');
+                mistakes.push('Using incorrect constant values.');
+                mistakes.push('Sign errors or ignoring negative values.');
+            }
+    }
+    
+    return mistakes;
+}
+
+//////////////////////////////
 // Unified Instruction Generator (Fixes Step Numbering)
 //////////////////////////////
 
@@ -1672,26 +1882,14 @@ function generateUsageInstructions(formula, questionContext = '') {
         instructions.tips.push(...formulaGuidance.tips);
     }
     
-    // Common mistakes (universal + structure-specific)
-    instructions.commonMistakes.push('Forgetting unit conversions.');
-    instructions.commonMistakes.push('Using incorrect mass or constant values.');
-    instructions.commonMistakes.push('Sign errors or ignoring negative values.');
-    instructions.commonMistakes.push('Not accounting for constants (G, c, σ, etc.).');
-    
-    // Add structure-specific mistakes
-    if (structure.hasTime) {
-        instructions.commonMistakes.push('Mixing time units (seconds vs years vs days).');
-    }
-    if (structure.isBinary) {
-        instructions.commonMistakes.push('Using individual mass instead of total mass for binary systems.');
-    }
-    if (structure.hasMagnitude) {
-        instructions.commonMistakes.push('Confusing apparent and absolute magnitude.');
-    }
-    
-    // Add formula-specific mistakes from metadata
-    if (metadata?.frqMetadata?.commonMistakes) {
+    // Generate formula-specific common mistakes
+    // PRIORITY 1: Use metadata if available
+    if (metadata?.frqMetadata?.commonMistakes && metadata.frqMetadata.commonMistakes.length > 0) {
         instructions.commonMistakes.push(...metadata.frqMetadata.commonMistakes);
+    } else {
+        // PRIORITY 2: Generate formula-specific mistakes based on formula structure and variables
+        const formulaSpecificMistakes = generateFormulaSpecificMistakes(formula, structure, metadata);
+        instructions.commonMistakes.push(...formulaSpecificMistakes);
     }
     
     // Related concepts (extract dynamically)
@@ -2065,15 +2263,24 @@ function generateGraphInterpretation(formula, questionContext = '') {
 //////////////////////////////
 
 // Initialize metadata when formulas are loaded
+// FIXED: Multiple initialization attempts to handle async loading
 if (typeof document !== 'undefined') {
-    // Wait for DOM and formulas to be ready
+    const tryInit = () => {
+        if (!metadataInitialized) {
+            initializeFRQMetadata();
+        }
+    };
+    
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(initializeFRQMetadata, 100);
-        });
+        document.addEventListener('DOMContentLoaded', tryInit);
     } else {
-        setTimeout(initializeFRQMetadata, 100);
+        tryInit();
     }
+    
+    // Also try after delays (in case formulas load asynchronously)
+    setTimeout(tryInit, 500);
+    setTimeout(tryInit, 1000);
+    setTimeout(tryInit, 2000);
 }
 
 //////////////////////////////

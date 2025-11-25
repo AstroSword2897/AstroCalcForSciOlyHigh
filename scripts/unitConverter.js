@@ -327,6 +327,17 @@ class UnitConverter {
 
     // Convert a value from any unit to the base unit
     static convertToBase(value, fromUnit, baseUnit) {
+        // Input validation
+        if (typeof value !== 'number' || !isFinite(value)) {
+            if (typeof logger !== 'undefined') {
+                logger.warn(`UnitConverter.convertToBase: Invalid value ${value}`);
+            }
+            return value; // Return as-is for invalid values
+        }
+        if (!fromUnit || !baseUnit) {
+            return value;
+        }
+        
         // If already in base unit, return as is
         if (fromUnit === baseUnit || fromUnit.toLowerCase() === baseUnit.toLowerCase()) {
             return value;
@@ -424,6 +435,85 @@ class UnitConverter {
         }
         
         return value * factor;
+    }
+
+    /**
+     * Convert a value from one unit to another
+     * 
+     * CRITICAL FIX: Enables unit conversion for parsed inputs
+     * 
+     * @param {number} value - Value to convert
+     * @param {string} fromUnit - Source unit
+     * @param {string} toUnit - Target unit
+     * @returns {number|null} Converted value, or null if conversion not possible
+     * 
+     * @example
+     * UnitConverter.convert(50, 'km', 'm') // Returns: 50000
+     * UnitConverter.convert(1, 'AU', 'pc') // Returns: 4.848e-6
+     */
+    static convert(value, fromUnit, toUnit) {
+        // Input validation
+        if (typeof value !== 'number' || !isFinite(value)) {
+            if (typeof logger !== 'undefined') {
+                logger.warn(`UnitConverter.convert: Invalid value ${value}, expected finite number`);
+            }
+            return null;
+        }
+        
+        if (!fromUnit || !toUnit || fromUnit === toUnit) {
+            return value;
+        }
+
+        // Normalize units
+        const normalizedFrom = typeof UnitParser !== 'undefined' ? UnitParser.normalizeUnit(fromUnit) : fromUnit;
+        const normalizedTo = typeof UnitParser !== 'undefined' ? UnitParser.normalizeUnit(toUnit) : toUnit;
+
+        // Check if units are in same category
+        if (typeof DimensionalAnalysis !== 'undefined') {
+            const compatible = DimensionalAnalysis.areCompatible(normalizedFrom, normalizedTo);
+            if (!compatible) {
+                if (typeof logger !== 'undefined') {
+                    logger.warn(`Cannot convert ${normalizedFrom} to ${normalizedTo} - incompatible dimensions`);
+                } else {
+                    console.warn(`Cannot convert ${normalizedFrom} to ${normalizedTo} - incompatible dimensions`);
+                }
+                return null;
+            }
+        }
+
+        // Try direct conversion first (fromConversions -> toUnit)
+        const fromConversions = this.getConversions(normalizedFrom);
+        if (fromConversions && fromConversions.length > 0) {
+            for (const conv of fromConversions) {
+                if (conv.unit === normalizedTo) {
+                    let converted = value * conv.factor;
+                    if (conv.offset !== undefined) {
+                        converted = converted + conv.offset;
+                    }
+                    return converted;
+                }
+            }
+        }
+
+        // Try reverse conversion (toConversions -> fromUnit)
+        const toConversions = this.getConversions(normalizedTo);
+        if (toConversions && toConversions.length > 0) {
+            for (const conv of toConversions) {
+                if (conv.unit === normalizedFrom) {
+                    let converted = value / conv.factor;
+                    if (conv.offset !== undefined) {
+                        converted = converted - conv.offset;
+                    }
+                    return converted;
+                }
+            }
+        }
+
+        // If no conversion found, return null
+        if (typeof logger !== 'undefined') {
+            logger.warn(`No conversion found from ${normalizedFrom} to ${normalizedTo}`);
+        }
+        return null;
     }
 }
 

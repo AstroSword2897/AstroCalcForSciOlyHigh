@@ -4156,6 +4156,12 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         maxScore 
     });
     
+    // CRITICAL: Force visibility IMMEDIATELY before any operations
+    formulaList.style.display = 'block';
+    formulaList.style.visibility = 'visible';
+    formulaList.style.opacity = '1';
+    formulaList.style.height = 'auto';
+    
     // Clear the list
     formulaList.innerHTML = '';
     
@@ -4174,11 +4180,6 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     if (mainFormulasTab && !mainFormulasTab.classList.contains('active')) {
         mainFormulasTab.classList.add('active');
     }
-    
-    // Ensure formula-list is visible
-    formulaList.style.display = '';
-    formulaList.style.visibility = 'visible';
-    formulaList.style.opacity = '1';
     
     // If we have search results, use Explorer-style two-panel layout
     if (searchTerm && scoredFormulas.length > 0) {
@@ -4376,6 +4377,23 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             // Force a reflow
             categoryContainer.offsetHeight;
         }
+    }
+    
+    // CRITICAL: Final visibility check with forced reflow
+    formulaList.offsetHeight; // Force reflow
+    const finalTotalChildren = formulaList.children.length;
+    console.log(`✅ Rendering complete. Total children in formulaList: ${finalTotalChildren}`);
+    
+    // Retry logic if no children rendered
+    if (finalTotalChildren === 0 && scoredFormulas.length > 0) {
+        console.error('❌ No children rendered despite having formulas, retrying...');
+        setTimeout(() => {
+            if (formulaList.children.length === 0) {
+                console.error('❌ Retry failed, forcing re-render');
+                // Force re-render by calling again
+                renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
+            }
+        }, 100);
     }
     
     // Final check - ensure we have content
@@ -4951,13 +4969,31 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
     card.setAttribute('tabindex', '0');
     card.setAttribute('data-formula-id', formula.id);
     
-    // ADD CLICK HANDLER BEFORE SETTING INNERHTML (fixes timing issue)
+    // CRITICAL: Add click handler BEFORE setting innerHTML (fixes timing issue)
+    // Use both onclick and addEventListener for maximum compatibility
     card.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
         console.log('Card clicked (onclick):', formula.name);
         selectFormula(formula);
     };
+    
+    // Also add event listener for better event handling
+    card.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('Card clicked (addEventListener):', formula.name);
+        selectFormula(formula);
+    }, { once: false, capture: false });
+    
+    // Add keyboard support BEFORE innerHTML
+    card.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            selectFormula(formula);
+        }
+    });
     
         // Calculate confidence score using FRQ support system
         let confidenceScore = 0;
@@ -5156,11 +5192,61 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
 
 // Select a formula and show input screen
 // Helper function to safely initialize a graph manager
-function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
+// Helper function to wait for element visibility
+function waitForElement(element, timeout = 1000) {
+    // Input validation
+    if (!element || !(element instanceof Element)) {
+        return Promise.reject(new Error('waitForElement: Invalid element parameter'));
+    }
+    if (typeof timeout !== 'number' || !isFinite(timeout) || timeout <= 0) {
+        timeout = 1000; // Default to 1 second
+    }
+    
+    return new Promise((resolve) => {
+        if (element && element.offsetParent !== null) {
+            resolve();
+            return;
+        }
+        
+        const observer = new MutationObserver(() => {
+            if (element && element.offsetParent !== null) {
+                observer.disconnect();
+                resolve();
+            }
+        });
+        
+        if (element && element.parentElement) {
+            observer.observe(element.parentElement, { 
+                childList: true, 
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['style', 'class']
+            });
+        }
+        
+        setTimeout(() => {
+            observer.disconnect();
+            resolve();
+        }, timeout);
+    });
+}
+
+async function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
     if (!manager) return false;
     
-    // If already initialized, return true
-    if (manager.calculator) return true;
+    // Already initialized check
+    if (manager.calculator || (manager.offlineManager && manager.offlineManager.canvas)) {
+        return true;
+    }
+    
+    const container = document.getElementById(containerId);
+    if (!container) {
+        console.error(`[initializeGraphManager] Container ${containerId} not found`);
+        return false;
+    }
+    
+    // Wait for container visibility
+    await waitForElement(container, 500);
     
     // Offline-first: Always use offline graph manager (no external API calls)
     if (typeof Desmos === 'undefined' || window.desmosUnavailable || window.offlineMode) {
@@ -5169,47 +5255,58 @@ function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
             if (!manager.offlineManager) {
                 manager.offlineManager = new OfflineGraphManager(containerId, tabId);
             }
-            if (manager.offlineManager) {
+            
+            // CRITICAL: Wait for canvas initialization
+            let attempts = 0;
+            while (!manager.offlineManager.canvas && attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 100));
                 if (!manager.offlineManager.canvas) {
-                    const graphContainer = document.getElementById(containerId);
-                    if (graphContainer) {
                         manager.offlineManager.init(containerId);
                     }
+                attempts++;
                 }
+            
                 if (manager.offlineManager.canvas) {
                     console.log('[initializeGraphManager] Using offline graph manager (offline-first mode)');
                     return true;
-                }
             }
         }
         return false;
     }
     
-    // Initialize immediately if Desmos is available
+    // Try Desmos first (if online)
+    try {
     const initResult = manager.init(containerId);
+        if (initResult && manager.calculator) {
+            return true;
+        }
+    } catch (e) {
+        console.warn('[initializeGraphManager] Desmos init failed, falling back to offline:', e);
+    }
     
     // If Desmos init failed, try offline fallback
-    if (!initResult) {
         if (typeof OfflineGraphManager !== 'undefined') {
             if (!manager.offlineManager) {
                 manager.offlineManager = new OfflineGraphManager(containerId, tabId);
             }
-            if (manager.offlineManager) {
-                const graphContainer = document.getElementById(containerId);
-                if (graphContainer) {
+        
+        // CRITICAL: Wait for canvas initialization
+        let attempts = 0;
+        while (!manager.offlineManager.canvas && attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 100));
                     if (!manager.offlineManager.canvas) {
                         manager.offlineManager.init(containerId);
                     }
+            attempts++;
+        }
+        
                     if (manager.offlineManager.canvas) {
                         console.log('[initializeGraphManager] Using offline graph manager as fallback');
                         return true;
-                    }
-                }
-            }
         }
     }
     
-    return initResult;
+    return false;
 }
 
 function selectFormula(formula) {
