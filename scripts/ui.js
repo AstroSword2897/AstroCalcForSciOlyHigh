@@ -22,11 +22,7 @@
 // Global state variables
 let currentFormula = null; // Currently selected formula for calculator
 let calculator = null;
-let graphManager = null; // Graph manager for the Graph tab (Desmos or Offline)
-let offlineGraphManager = null; // Offline graph manager (Canvas-based)
-let graphInterpretationManager = null; // Graph manager for the Graph Interpretation tab
-let mainGraphManager = null; // Separate graph manager for main page Desmos tab
-let mainDesmosCalculator = null; // Standalone Desmos calculator for main page
+// Graph components removed - users can use offline tools like Desmos
 
 /**
  * Convert Unicode math symbols to LaTeX for MathJax rendering
@@ -5231,83 +5227,7 @@ function waitForElement(element, timeout = 1000) {
     });
 }
 
-async function initializeGraphManager(manager, containerId, tabId, maxAttempts = 20) {
-    if (!manager) return false;
-    
-    // Already initialized check
-    if (manager.calculator || (manager.offlineManager && manager.offlineManager.canvas)) {
-        return true;
-    }
-    
-    const container = document.getElementById(containerId);
-    if (!container) {
-        console.error(`[initializeGraphManager] Container ${containerId} not found`);
-        return false;
-    }
-    
-    // Wait for container visibility
-    await waitForElement(container, 500);
-    
-    // Offline-first: Always use offline graph manager (no external API calls)
-    if (typeof Desmos === 'undefined' || window.desmosUnavailable || window.offlineMode) {
-        // Use offline manager - this is the default for offline-first operation
-        if (typeof OfflineGraphManager !== 'undefined') {
-            if (!manager.offlineManager) {
-                manager.offlineManager = new OfflineGraphManager(containerId, tabId);
-            }
-            
-            // CRITICAL: Wait for canvas initialization
-            let attempts = 0;
-            while (!manager.offlineManager.canvas && attempts < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                if (!manager.offlineManager.canvas) {
-                        manager.offlineManager.init(containerId);
-                    }
-                attempts++;
-                }
-            
-                if (manager.offlineManager.canvas) {
-                    console.log('[initializeGraphManager] Using offline graph manager (offline-first mode)');
-                    return true;
-            }
-        }
-        return false;
-    }
-    
-    // Try Desmos first (if online)
-    try {
-    const initResult = manager.init(containerId);
-        if (initResult && manager.calculator) {
-            return true;
-        }
-    } catch (e) {
-        console.warn('[initializeGraphManager] Desmos init failed, falling back to offline:', e);
-    }
-    
-    // If Desmos init failed, try offline fallback
-        if (typeof OfflineGraphManager !== 'undefined') {
-            if (!manager.offlineManager) {
-                manager.offlineManager = new OfflineGraphManager(containerId, tabId);
-            }
-        
-        // CRITICAL: Wait for canvas initialization
-        let attempts = 0;
-        while (!manager.offlineManager.canvas && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-                    if (!manager.offlineManager.canvas) {
-                        manager.offlineManager.init(containerId);
-                    }
-            attempts++;
-        }
-        
-                    if (manager.offlineManager.canvas) {
-                        console.log('[initializeGraphManager] Using offline graph manager as fallback');
-                        return true;
-        }
-    }
-    
-    return false;
-}
+// Graph manager removed - users can use offline tools like Desmos
 
 function selectFormula(formula) {
     // Track formula selection for dynamic prioritization
@@ -5325,14 +5245,6 @@ function selectFormula(formula) {
     currentFormula = formula;
     calculator = new FormulaCalculator(formula);
     
-    // Initialize graph manager if not already done
-    if (!graphManager) {
-        graphManager = new GraphManager();
-    }
-    
-    // Try to initialize (will handle Desmos loading internally)
-    initializeGraphManager(graphManager);
-    
     // Switch to input screen
     document.getElementById('formula-selection').classList.remove('active');
     document.getElementById('input-screen').classList.add('active');
@@ -5349,20 +5261,18 @@ function selectFormula(formula) {
     // Clear previous results
     document.getElementById('result-display').classList.remove('show');
     
-    // Update graph
-    updateGraph();
-    
-    // Update graph interpretation with enhanced FRQ support
-    updateGraphInterpretation();
-    
-    // Add usage instructions if FRQ support is available
-    if (typeof generateUsageInstructions === 'function') {
-        addUsageInstructions(formula);
-    }
-    
-    // Add contextual hints if FRQ support is available
-    if (typeof generateContextualHints === 'function') {
-        addContextualHints(formula);
+    // Remove any existing usage instructions (always remove, never add)
+    const calculatorTab = document.getElementById('calculator-tab');
+    if (calculatorTab) {
+        const existingInstructions = calculatorTab.querySelector('.usage-instructions-container');
+        if (existingInstructions) {
+            existingInstructions.remove();
+        }
+        // Also remove contextual hints
+        const existingHints = calculatorTab.querySelector('.contextual-hints-container');
+        if (existingHints) {
+            existingHints.remove();
+        }
     }
     
     // Update instruction banner with initial state
@@ -5483,6 +5393,8 @@ function renderVariableInputs(formula) {
     container.innerHTML = '';
     
     // Get list of constant symbols to exclude from input fields
+    // BUT: Only exclude if they're truly constants (like pi, G, c) that should never be user-input
+    // Variables that appear in the formula should be shown even if they're in globalConstants
     const constantSymbols = new Set();
     if (formula.constants) {
         Object.keys(formula.constants).forEach(key => {
@@ -5495,8 +5407,12 @@ function renderVariableInputs(formula) {
         });
     }
     
-    // Filter out constants from variables - only show user-input variables
+    // Filter out ONLY formula-specific constants, not global constants
+    // Global constants (like G, c, etc.) are automatically applied, but if a variable
+    // appears in the formula's variable list, it should be shown for user input
     const userVariables = formula.variables.filter(variable => {
+        // Only exclude if it's a formula-specific constant, not a global constant
+        // Global constants are applied automatically but variables in the formula should be shown
         return !constantSymbols.has(variable.symbol);
     });
     
@@ -5551,26 +5467,24 @@ function renderVariableInputs(formula) {
         const isAngle = baseUnit.toLowerCase().includes('radian') || baseUnit.toLowerCase().includes('rad');
         
         // Create unit options note
-        let unitOptionsNote = '';
-        if (alternativeUnits.length > 1) {
-            const unitLabels = alternativeUnits.map(u => {
-                const full = UnitConverter.formatUnit(u);
-                return u === full ? u : `${u} (${full})`;
-            }).join(', ');
-            unitOptionsNote = `<div class="unit-options-note"><strong>Available units:</strong> ${unitLabels}</div>`;
-        }
-        
         // Get example value for placeholder
         const exampleValue = getExampleValue(variable.symbol, baseUnit);
         
-        // Create input fields for each alternative unit
+        // Create input fields - SIMPLIFIED: Clear placeholders, no confusing options
         let inputFieldsHTML = '';
         alternativeUnits.forEach((unit, index) => {
             const isBase = unit === baseUnit || unit.toLowerCase() === baseUnit.toLowerCase();
             const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            let placeholder = isBase ? "Enter value, 'null', or 'N/A'" : `Enter in ${unit}, 'null', or 'N/A'`;
-            if (exampleValue && isBase) {
-                placeholder = `e.g., ${exampleValue}, 'null', or 'N/A'`;
+            // Clear, helpful placeholder
+            let placeholder;
+            if (isBase) {
+                if (exampleValue) {
+                    placeholder = `Enter ${variable.name.toLowerCase()} (e.g., ${exampleValue})`;
+                } else {
+                    placeholder = `Enter ${variable.name.toLowerCase()}`;
+                }
+            } else {
+                placeholder = `Or enter in ${unit}`;
             }
             
             inputFieldsHTML += `
@@ -5595,10 +5509,10 @@ function renderVariableInputs(formula) {
         
         inputDiv.innerHTML = `
             <label class="variable-main-label">
-                <span class="symbol">${variable.symbol}</span> - ${variable.name}
-                <span class="solve-hint" data-symbol="${variable.symbol}">Leave empty to solve for this</span>
+                <span class="symbol">${variable.symbol}</span>
+                <span class="variable-name">${variable.name}</span>
+                <span class="solve-hint" data-symbol="${variable.symbol}">Leave empty to calculate this</span>
             </label>
-            ${unitOptionsNote}
             <div class="unit-inputs-container">
                 ${inputFieldsHTML}
             </div>
@@ -5606,7 +5520,7 @@ function renderVariableInputs(formula) {
             <div class="na-option">
                 <label class="na-checkbox-label">
                     <input type="checkbox" class="na-checkbox" data-symbol="${variable.symbol}">
-                    <span>Mark as N/A (will keep as variable in result)</span>
+                    <span>Mark as unknown (use as variable in symbolic calculations)</span>
                 </label>
             </div>
         `;
@@ -5637,38 +5551,11 @@ function renderVariableInputs(formula) {
                     // Update solve indicators
                     updateSolveIndicators();
                     
-                    // Debounce graph updates
-                    clearTimeout(input.graphUpdateTimeout);
-                    input.graphUpdateTimeout = setTimeout(() => {
-                        updateGraph();
-                        // Also update interpretation graph if it exists
-                        if (currentFormula) {
-                            const currentValues = getCurrentVariableValues();
-                            // Check if Desmos is available for interpretation graph
-                            if (typeof Desmos !== 'undefined' && !window.desmosUnavailable) {
-                                if (graphInterpretationManager && graphInterpretationManager.calculator) {
-                                    graphInterpretationManager.updateGraph(currentFormula, currentValues);
-                                }
-                            } else {
-                                // Use offline graph manager for interpretation
-                                if (!offlineGraphManager) {
-                                    offlineGraphManager = new OfflineGraphManager('graph-interpretation-desmos', 'graph-interpretation-tab');
-                                }
-                                if (offlineGraphManager) {
-                                    // Ensure offline graph manager is initialized
-                                    if (!offlineGraphManager.canvas) {
-                                        const graphContainer = document.getElementById('graph-interpretation-desmos');
-                                        if (graphContainer) {
-                                            offlineGraphManager.init('graph-interpretation-desmos');
-                                        }
-                                    }
-                                    if (offlineGraphManager.canvas) {
-                                        offlineGraphManager.updateGraph(currentFormula, currentValues);
-                                    }
-                                }
-                            }
-                        }
-                    }, 500);
+                    // Update solve indicators in real-time for competitive efficiency
+                    clearTimeout(input.solveIndicatorTimeout);
+                    input.solveIndicatorTimeout = setTimeout(() => {
+                        updateSolveIndicators();
+                    }, 100);
                 });
             }
         });
@@ -5694,6 +5581,45 @@ function renderVariableInputs(formula) {
     setTimeout(() => {
         updateSolveIndicators();
     }, 100);
+    
+    // COMPETITIVE OPTIMIZATION: Auto-focus first input for maximum efficiency
+    const firstInput = container.querySelector('.unit-input-field');
+    if (firstInput) {
+        setTimeout(() => {
+            firstInput.focus();
+        }, 150);
+    }
+    
+    // COMPETITIVE OPTIMIZATION: Enhanced keyboard navigation
+    // Tab key navigates between inputs, Enter calculates
+    const allInputs = container.querySelectorAll('.unit-input-field');
+    allInputs.forEach((input, index) => {
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                // If all but one variable is filled, calculate immediately
+                const filledCount = Array.from(allInputs).filter(inp => inp.value.trim()).length;
+                if (filledCount >= userVariables.length - 1) {
+                    performCalculation();
+                } else {
+                    // Otherwise, move to next input
+                    const nextIndex = (index + 1) % allInputs.length;
+                    allInputs[nextIndex].focus();
+                }
+            } else if (e.key === 'Tab' && !e.shiftKey) {
+                // Allow normal Tab navigation but ensure it's smooth
+                const nextIndex = (index + 1) % allInputs.length;
+                if (nextIndex === 0) {
+                    // Wrap around - focus calculate button
+                    const calcBtn = document.getElementById('calculate-btn');
+                    if (calcBtn) {
+                        e.preventDefault();
+                        calcBtn.focus();
+                    }
+                }
+            }
+        });
+    });
 }
 
 // Setup event listeners
@@ -5704,9 +5630,6 @@ function setupEventListeners() {
         document.getElementById('formula-selection').classList.add('active');
         currentFormula = null;
         calculator = null;
-        if (graphManager) {
-            graphManager.clear();
-        }
     });
     
     // Main page tab buttons (Formulas/Classification)
@@ -5830,14 +5753,43 @@ function setupEventListeners() {
         });
         
         document.getElementById('result-display').classList.remove('show');
-        updateGraph();
         updateSolveIndicators();
     });
     
-    // Allow Enter key to calculate
-    document.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && document.getElementById('input-screen').classList.contains('active')) {
-            performCalculation();
+    // COMPETITIVE OPTIMIZATION: Enhanced Enter key handling
+    // Enter calculates when ready, or navigates when not ready
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey && document.getElementById('input-screen').classList.contains('active')) {
+            // Check if we're in an input field
+            const activeElement = document.activeElement;
+            if (activeElement && activeElement.classList.contains('unit-input-field')) {
+                // Let input field handler manage it
+                return;
+            }
+            // If focus is on calculate button or elsewhere, calculate
+            if (activeElement && activeElement.id === 'calculate-btn') {
+                e.preventDefault();
+                performCalculation();
+            } else {
+                // Try to calculate if ready
+                const allInputs = document.querySelectorAll('.unit-input-field');
+                const filledCount = Array.from(allInputs).filter(inp => inp.value.trim() && 
+                    inp.value.toLowerCase() !== 'null' && 
+                    inp.value.toLowerCase() !== 'n/a' &&
+                    inp.value.toLowerCase() !== 'na').length;
+                const userVariables = currentFormula ? currentFormula.variables.filter(v => {
+                    const constantSymbols = new Set();
+                    if (currentFormula.constants) {
+                        Object.keys(currentFormula.constants).forEach(key => constantSymbols.add(key));
+                    }
+                    return !constantSymbols.has(v.symbol);
+                }) : [];
+                
+                if (filledCount >= userVariables.length - 1) {
+                    e.preventDefault();
+                    performCalculation();
+                }
+            }
         }
     });
 }
@@ -5872,54 +5824,6 @@ function switchMainTab(tabName) {
         if (!stellarClassifier) {
             stellarClassifier = new StellarClassifier();
         }
-    } else if (tabName === 'desmos') {
-        document.getElementById('main-desmos-tab').classList.add('active');
-        
-        // Initialize standalone Desmos calculator (full-featured, not formula-linked)
-        // Wait longer to ensure tab is fully visible
-        setTimeout(() => {
-            if (typeof Desmos === 'undefined') {
-                // Wait for Desmos to load
-                let attempts = 0;
-                const maxAttempts = 30;
-                const checkDesmos = setInterval(() => {
-                    attempts++;
-                    if (typeof Desmos !== 'undefined') {
-                        clearInterval(checkDesmos);
-                        // Try initialization with retry
-                        let initAttempts = 0;
-                        const initInterval = setInterval(() => {
-                            initAttempts++;
-                            if (initMainDesmosCalculator()) {
-                                clearInterval(initInterval);
-                            } else if (initAttempts >= 10) {
-                                clearInterval(initInterval);
-                                console.error('Failed to initialize Desmos after multiple attempts');
-                            }
-                        }, 200);
-                    } else if (attempts >= maxAttempts) {
-                        console.warn('Desmos API failed to load after multiple attempts');
-                        const container = document.getElementById('main-desmos-graph');
-                        if (container) {
-                            container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Desmos API failed to load. Please refresh the page.</p><p style="font-size: 0.9em; color: #999;">Make sure you have an internet connection.</p></div>';
-                        }
-                        clearInterval(checkDesmos);
-                    }
-                }, 200);
-            } else {
-                // Desmos is loaded, try to initialize
-                let initAttempts = 0;
-                const initInterval = setInterval(() => {
-                    initAttempts++;
-                    if (initMainDesmosCalculator()) {
-                        clearInterval(initInterval);
-                    } else if (initAttempts >= 10) {
-                        clearInterval(initInterval);
-                        console.error('Failed to initialize Desmos after multiple attempts');
-                    }
-                }, 200);
-            }
-        }, 200);
     }
 }
 
@@ -5945,88 +5849,6 @@ function switchTab(tabName) {
         const calculatorTab = document.getElementById('calculator-tab');
         calculatorTab.classList.add('active');
         calculatorTab.setAttribute('aria-hidden', 'false');
-    } else if (tabName === 'graph') {
-        const graphTab = document.getElementById('graph-tab');
-        graphTab.classList.add('active');
-        graphTab.setAttribute('aria-hidden', 'false');
-        
-        // Ensure graph manager is initialized
-        if (!graphManager) {
-            graphManager = new GraphManager();
-        }
-        
-        // Initialize Desmos if not already done (wait for tab to be visible)
-        setTimeout(() => {
-            if (graphManager) {
-                const wasInitialized = graphManager.calculator !== undefined;
-                const initialized = initializeGraphManager(graphManager);
-                
-                if (initialized && currentFormula) {
-                    // Update graph after initialization
-                    updateGraph();
-                    // Also update interpretation graph if it exists
-                    if (graphInterpretationManager && graphInterpretationManager.calculator && currentFormula) {
-                        const currentValues = getCurrentVariableValues();
-                        graphInterpretationManager.updateGraph(currentFormula, currentValues);
-                    }
-                } else if (wasInitialized && currentFormula) {
-                    // Already initialized, just update
-                    updateGraph();
-                    if (graphInterpretationManager && graphInterpretationManager.calculator && currentFormula) {
-                        const currentValues = getCurrentVariableValues();
-                        graphInterpretationManager.updateGraph(currentFormula, currentValues);
-                    }
-                }
-            }
-        }, 150);
-    } else if (tabName === 'graph-interpretation') {
-        const interpretationTab = document.getElementById('graph-interpretation-tab');
-        interpretationTab.classList.add('active');
-        interpretationTab.setAttribute('aria-hidden', 'false');
-        
-        // Update graph interpretation content
-        updateGraphInterpretation();
-        
-        // Initialize graph interpretation manager if not already done
-        if (!graphInterpretationManager) {
-            graphInterpretationManager = new GraphManager('graph-interpretation-desmos', 'graph-interpretation-tab');
-        }
-        
-        // Wait for tab to be visible before initializing
-        setTimeout(() => {
-            const graphContainer = document.getElementById('graph-interpretation-desmos');
-            const graphStatus = document.getElementById('graph-status');
-            if (graphContainer) {
-                // Update status for screen readers
-                if (graphStatus) {
-                    graphStatus.textContent = 'Initializing graph...';
-                }
-                
-                const initialized = initializeGraphManager(graphInterpretationManager, 'graph-interpretation-desmos', 'graph-interpretation-tab');
-                
-                // Update status after initialization
-                if (graphStatus) {
-                    if (initialized || graphInterpretationManager?.offlineManager) {
-                        graphStatus.textContent = 'Graph ready. Use arrow keys to navigate, Enter to interact.';
-                    } else {
-                        graphStatus.textContent = 'Graph initialization in progress...';
-                    }
-                }
-                
-                // Setup graph controls
-                setupGraphControls();
-                
-                // Update graph with current values if formula is selected
-                if (currentFormula) {
-                    setTimeout(() => {
-                        const currentValues = getCurrentVariableValues();
-                        if (graphInterpretationManager) {
-                            graphInterpretationManager.updateGraph(currentFormula, currentValues);
-                        }
-                    }, 200);
-                }
-            }
-        }, 100);
     } else if (tabName === 'classification') {
         const classificationTab = document.getElementById('classification-tab');
         classificationTab.classList.add('active');
@@ -6108,59 +5930,7 @@ function getCurrentVariableValues() {
 }
 
 // Update graph based on current inputs
-function updateGraph() {
-    if (!currentFormula) return;
-    
-    const variableValues = getCurrentVariableValues();
-    
-    // Offline-first: Always use offline graph manager (no external API calls)
-    // Only use Desmos if explicitly available AND not in offline mode
-    if (typeof Desmos !== 'undefined' && !window.desmosUnavailable && !window.offlineMode) {
-        // Use Desmos graph manager (only if online mode is explicitly enabled)
-        if (!graphManager) {
-            graphManager = new GraphManager();
-            initializeGraphManager(graphManager);
-        }
-        if (graphManager && graphManager.calculator) {
-            graphManager.updateGraph(currentFormula, variableValues);
-        } else {
-            // Fallback to offline if Desmos init failed
-            if (typeof OfflineGraphManager !== 'undefined') {
-                if (!offlineGraphManager) {
-                    offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
-                }
-                if (offlineGraphManager && !offlineGraphManager.canvas) {
-                    const graphContainer = document.getElementById('desmos-graph');
-                    if (graphContainer) {
-                        offlineGraphManager.init('desmos-graph');
-                    }
-                }
-                if (offlineGraphManager && offlineGraphManager.canvas) {
-                    offlineGraphManager.updateGraph(currentFormula, variableValues);
-                }
-            }
-        }
-    } else {
-        // Use offline graph manager (default for offline-first operation)
-        if (typeof OfflineGraphManager !== 'undefined') {
-            if (!offlineGraphManager) {
-                offlineGraphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
-            }
-            if (offlineGraphManager) {
-                // Ensure offline graph manager is initialized
-                if (!offlineGraphManager.canvas) {
-                    const graphContainer = document.getElementById('desmos-graph');
-                    if (graphContainer) {
-                        offlineGraphManager.init('desmos-graph');
-                    }
-                }
-                if (offlineGraphManager.canvas) {
-                    offlineGraphManager.updateGraph(currentFormula, variableValues);
-                }
-            }
-        }
-    }
-}
+// Graph functionality removed - users can use offline tools like Desmos
 
 // Perform the calculation
 function performCalculation() {
@@ -6256,17 +6026,13 @@ function performCalculation() {
     // Perform calculation
     try {
         const result = calculator.solve(variableValues);
+        // DEBUG: Log result for troubleshooting
+        console.log('[Calculation] Result from calculator:', result);
         displayResult(result);
-        // Update graph after calculation
-        updateGraph();
-            // Also update interpretation graph if it exists
-            if (graphInterpretationManager && graphInterpretationManager.calculator && currentFormula) {
-                const currentValues = getCurrentVariableValues();
-                graphInterpretationManager.updateGraph(currentFormula, currentValues);
-            }
-            // Update solve indicators
-            updateSolveIndicators();
+        // Update solve indicators
+        updateSolveIndicators();
     } catch (error) {
+        console.error('[Calculation] Error:', error);
             // Improve error messages
             let errorMessage = error.message;
             if (errorMessage.includes('null values')) {
@@ -6283,19 +6049,38 @@ function performCalculation() {
 // Display calculation result
 function displayResult(result) {
     const resultDisplay = document.getElementById('result-display');
-    const varInfo = currentFormula.variables.find(v => v.symbol === result.variable);
+    
+    // FIXED: Use correct property names from calculator return format
+    // Calculator returns: { solvedFor, result, unit, isSymbolic }
+    const solvedVar = result.solvedFor || result.variable;
+    const varInfo = currentFormula.variables.find(v => v.symbol === solvedVar);
+    
+    // FIXED: Get the actual result value (calculator returns 'result' property, not 'value')
+    const resultValue = result.result !== undefined ? result.result : (result.value !== undefined ? result.value : null);
+    
+    // DEBUG: Log for troubleshooting finite number issues
+    console.log('[DisplayResult] Full result object:', result);
+    console.log('[DisplayResult] Result value:', resultValue, 'Type:', typeof resultValue, 'isFinite:', isFinite(resultValue));
+    
+    if (resultValue === null || resultValue === undefined) {
+        console.error('[DisplayResult] Result value is null/undefined:', result);
+        displayError('No result value returned. Please check your inputs.');
+        return;
+    }
     
     // Check if this is a symbolic result
-    if (result.isSymbolic || (typeof result.value === 'string' && 
-        (result.value.includes('√') || result.value.includes('×') || 
-         result.value.includes('log') || result.value.includes('^') ||
-         result.value.match(/[a-zA-Z_]/)))) {
+    if (result.isSymbolic || (typeof resultValue === 'string' && 
+        (resultValue.includes('√') || resultValue.includes('×') || 
+         resultValue.includes('log') || resultValue.includes('^') ||
+         resultValue.match(/[a-zA-Z_]/)))) {
         displaySymbolicResult(result, varInfo);
         return;
     }
     
-    // Ensure result.value is always a numeric value, not an expression
-    let numericValue = result.value;
+    // Ensure resultValue is always a numeric value, not an expression
+    let numericValue = resultValue;
+    
+    // Handle different number formats
     if (typeof numericValue === 'string') {
         // If somehow we got a string, try to parse it
         try {
@@ -6309,11 +6094,54 @@ function displayResult(result) {
         }
     }
     
-    // Ensure it's a finite number
-    if (!isFinite(numericValue)) {
-        displayError('Result is not a finite number. Please check your inputs.');
+    // ENHANCED: Better validation for very large/small numbers
+    // Check if it's actually a number type
+    if (typeof numericValue !== 'number') {
+        console.error('Result is not a number:', numericValue, typeof numericValue);
+        displayError(`Invalid result type: ${typeof numericValue}. Expected a number.`);
         return;
     }
+    
+    // Check for NaN
+    if (isNaN(numericValue)) {
+        console.error('Result is NaN:', result);
+        displayError('Result is NaN (Not a Number). Please check your inputs.');
+        return;
+    }
+    
+    // ENHANCED: Check for Infinity separately with better message
+    if (numericValue === Infinity || numericValue === -Infinity) {
+        console.error('[DisplayResult] Result is Infinity:', {
+            numericValue: numericValue,
+            originalResult: result,
+            resultValue: resultValue
+        });
+        displayError('Result is infinite. This may indicate division by zero or extremely large values. Please check your input values.');
+        return;
+    }
+    
+    // ENHANCED: More detailed finite number check with debugging
+    if (!isFinite(numericValue)) {
+        console.error('[DisplayResult] Finite check failed:', {
+            numericValue: numericValue,
+            type: typeof numericValue,
+            isNaN: isNaN(numericValue),
+            isInfinity: numericValue === Infinity || numericValue === -Infinity,
+            originalResult: result,
+            resultValue: resultValue
+        });
+        
+        // Provide more specific error message
+        if (isNaN(numericValue)) {
+            displayError('Result is NaN (Not a Number). Please check your input values.');
+        } else {
+            displayError(`Result is not a finite number (got: ${numericValue}). Please check your inputs.`);
+        }
+        return;
+    }
+    
+    // DEBUG: Log successful validation
+    console.log('[DisplayResult] Result validated successfully:', numericValue);
     
     // Format the original value (always numeric)
     const formattedValue = UnitConverter.formatNumber(numericValue);
@@ -6326,7 +6154,7 @@ function displayResult(result) {
     let resultHTML = `
         <h3>Result</h3>
         <div class="result-value">${formattedValue}</div>
-        <div class="result-unit">${varInfo.name} (${result.unit})</div>
+        <div class="result-unit">${varInfo ? varInfo.name : solvedVar} (${result.unit || ''})</div>
         <div class="result-unit-full">${unitName}</div>
     `;
     
@@ -6848,11 +6676,28 @@ function updateSolveIndicators() {
             } else {
                 hint.style.display = 'inline';
                 if (filledCount === userVariables.length - 1) {
-                    hint.textContent = '← Will solve for this';
+                    hint.textContent = '← WILL SOLVE FOR THIS';
                     hint.classList.add('will-solve');
-                } else {
+                    // COMPETITIVE: Highlight the input container for maximum visibility
+                    const inputContainer = hint.closest('.variable-input');
+                    if (inputContainer) {
+                        inputContainer.classList.add('will-solve-highlight');
+                    }
+                } else if (filledCount < userVariables.length - 1) {
                     hint.textContent = 'Leave empty to solve';
                     hint.classList.remove('will-solve');
+                    const inputContainer = hint.closest('.variable-input');
+                    if (inputContainer) {
+                        inputContainer.classList.remove('will-solve-highlight');
+                    }
+                } else {
+                    // All filled
+                    hint.textContent = 'Clear to solve';
+                    hint.classList.remove('will-solve');
+                    const inputContainer = hint.closest('.variable-input');
+                    if (inputContainer) {
+                        inputContainer.classList.remove('will-solve-highlight');
+                    }
                 }
             }
         }
@@ -6871,509 +6716,72 @@ function updateInstructionBanner(variableStates, emptyVar, filledCount, totalVar
     
     if (filledCount === 0) {
         // No values entered yet
-        instructionHTML = `💡 <strong>Getting started:</strong> Enter values for ${totalVars - 1} variables, leaving one empty to solve for it. You can also mark variables as "N/A" to get a symbolic expression. Each variable has specific examples and context shown below.`;
+        instructionHTML = `💡 <strong>How to use:</strong> Enter values for all variables except one. Leave one variable empty to solve for it.`;
     } else if (filledCount === totalVars - 1 && emptyVar) {
-        // Ready to solve - show instruction for the variable being solved
-        instructionHTML = getVariableInstruction(emptyVar, currentFormula, true);
+        // Ready to solve - show clear instruction
+        instructionHTML = `✅ <strong>Ready to calculate!</strong> Click "Calculate" or press Enter to solve for <strong>${emptyVar.symbol}</strong> (${emptyVar.name}).`;
     } else if (filledCount === totalVars) {
         // All filled - need to clear one
-        instructionHTML = `💡 <strong>All variables filled:</strong> Clear one variable (or set to "null") to solve for it. The calculator needs exactly one unknown variable.`;
+        instructionHTML = `💡 <strong>All variables filled:</strong> Clear one field to calculate that value, or press Calculate to verify your inputs.`;
     } else {
-        // Partially filled - show info about what's missing
+        // Partially filled - show clear guidance
         const missingVars = variableStates.filter(vs => !vs.hasValue);
+        const filledVars = variableStates.filter(vs => vs.hasValue);
         if (missingVars.length === 1) {
-            instructionHTML = getVariableInstruction(missingVars[0].variable, currentFormula, true);
+            const missing = missingVars[0].variable;
+            instructionHTML = `💡 Enter <strong>${missing.symbol}</strong> (${missing.name}) or leave it empty to calculate it.`;
         } else {
-            const missingNames = missingVars.map(vs => vs.variable.symbol).join(', ');
-            instructionHTML = `💡 <strong>Progress:</strong> You've entered ${filledCount} of ${totalVars} variables. Still need values for: ${missingNames}. Leave one empty to solve for it.`;
+            const missingNames = missingVars.map(vs => `${vs.variable.symbol}`).join(', ');
+            const filledNames = filledVars.map(vs => `${vs.variable.symbol}`).join(', ');
+            instructionHTML = `💡 Entered: <strong>${filledNames}</strong> | Missing: <strong>${missingNames}</strong> — Leave one empty to calculate it.`;
         }
     }
     
     instructionDiv.innerHTML = `<p>${instructionHTML}</p>`;
+    
+    // Add visual state class for styling
+    if (filledCount === totalVars - 1 && emptyVar) {
+        instructionDiv.classList.add('ready');
+    } else {
+        instructionDiv.classList.remove('ready');
+    }
 }
 
-// Add usage instructions to calculator tab
+// Usage instructions removed - function disabled
 function addUsageInstructions(formula) {
-    if (typeof generateUsageInstructions !== 'function') return;
-    
-    const instructions = generateUsageInstructions(formula);
+    // Function disabled - step-by-step guide removed per user request
     const calculatorTab = document.getElementById('calculator-tab');
     if (!calculatorTab) return;
     
-    // Remove existing instructions if any
+    // Always remove any existing instructions
     const existingInstructions = calculatorTab.querySelector('.usage-instructions-container');
     if (existingInstructions) {
         existingInstructions.remove();
     }
-    
-    // Create instructions container
-    const instructionsContainer = document.createElement('div');
-    instructionsContainer.className = 'usage-instructions-container';
-    
-    let instructionsHTML = '<details open><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #a8c7ff;">📚 How to Use This Formula - Step-by-Step Guide</summary>';
-    
-    // Add steps
-    if (instructions.steps && instructions.steps.length > 0) {
-        instructionsHTML += '<div class="usage-steps" style="margin-top: 15px;">';
-        instructions.steps.forEach(step => {
-            instructionsHTML += `
-                <div style="margin-bottom: 15px; padding: 12px; background: rgba(0, 0, 0, 0.8); border-radius: 6px; border-left: 3px solid #667eea; border: 1px solid rgba(102, 126, 234, 0.3);">
-                    <strong style="color: #a8c7ff;">Step ${step.step}: ${step.title}</strong>
-                    <p style="margin-top: 5px; color: rgba(255, 255, 255, 0.8);">${step.description}</p>
-                </div>
-            `;
-        });
-        instructionsHTML += '</div>';
-    }
-    
-    // Add tips
-    if (instructions.tips && instructions.tips.length > 0) {
-        instructionsHTML += '<div class="usage-tips" style="margin-top: 20px;"><strong style="color: #a8c7ff;">💡 Tips:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
-        instructions.tips.forEach(tip => {
-            instructionsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${tip}</li>`;
-        });
-        instructionsHTML += '</ul></div>';
-    }
-    
-    // Add common mistakes
-    if (instructions.commonMistakes && instructions.commonMistakes.length > 0) {
-        instructionsHTML += '<div class="common-mistakes" style="margin-top: 20px;"><strong style="color: #ffa94d;">⚠️ Common Mistakes to Avoid:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
-        instructions.commonMistakes.forEach(mistake => {
-            instructionsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${mistake}</li>`;
-        });
-        instructionsHTML += '</ul></div>';
-    }
-    
-    instructionsHTML += '</details>';
-    instructionsContainer.innerHTML = instructionsHTML;
-    
-    // Insert after calculator instructions
-    const calcInstructions = document.getElementById('calculator-instructions');
-    if (calcInstructions && calcInstructions.parentNode) {
-        calcInstructions.parentNode.insertBefore(instructionsContainer, calcInstructions.nextSibling);
-    } else {
-        calculatorTab.insertBefore(instructionsContainer, calculatorTab.firstChild);
-    }
-}
-
-// Add contextual hints to calculator tab
-function addContextualHints(formula, questionText = null) {
-    if (typeof generateContextualHints !== 'function') return;
-    
-    const hints = generateContextualHints(formula, questionText);
-    const calculatorTab = document.getElementById('calculator-tab');
-    if (!calculatorTab) return;
-    
-    // Remove existing hints if any
+    // Also remove contextual hints
     const existingHints = calculatorTab.querySelector('.contextual-hints-container');
     if (existingHints) {
         existingHints.remove();
     }
+    // Do not add any instructions
+}
+
+// Contextual hints removed - function disabled
+function addContextualHints(formula, questionText = null) {
+    // Function disabled - contextual hints removed per user request
+    const calculatorTab = document.getElementById('calculator-tab');
+    if (!calculatorTab) return;
     
-    // Only show if we have meaningful hints
-    if (!hints.problemType && hints.keyConcepts.length === 0) return;
-    
-    // Create hints container
-    const hintsContainer = document.createElement('div');
-    hintsContainer.className = 'contextual-hints-container';
-    
-    let hintsHTML = '<details><summary style="cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; color: #ffd43b;">🎯 Problem-Solving Context & Hints</summary>';
-    
-    if (hints.problemType) {
-        hintsHTML += `<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Problem Type:</strong> <span style="color: rgba(255, 255, 255, 0.9);">${hints.problemType}</span></div>`;
+    // Always remove any existing hints
+    const existingHints = calculatorTab.querySelector('.contextual-hints-container');
+    if (existingHints) {
+        existingHints.remove();
     }
-    
-    if (hints.keyConcepts.length > 0) {
-        hintsHTML += `<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Key Concepts:</strong> <span style="color: rgba(255, 255, 255, 0.9);">${hints.keyConcepts.join(', ')}</span></div>`;
-    }
-    
-    if (hints.approach.length > 0) {
-        hintsHTML += '<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Approach:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
-        hints.approach.forEach(step => {
-            hintsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${step}</li>`;
-        });
-        hintsHTML += '</ul></div>';
-    }
-    
-    if (hints.checkpoints.length > 0) {
-        hintsHTML += '<div style="margin-bottom: 15px;"><strong style="color: #ffd43b;">Checkpoints:</strong><ul style="margin-top: 10px; padding-left: 20px;">';
-        hints.checkpoints.forEach(checkpoint => {
-            hintsHTML += `<li style="margin-bottom: 5px; color: rgba(255, 255, 255, 0.8);">${checkpoint}</li>`;
-        });
-        hintsHTML += '</ul></div>';
-    }
-    
-    hintsHTML += '</details>';
-    hintsContainer.innerHTML = hintsHTML;
-    
-    // Insert after usage instructions
-    const usageInstructions = calculatorTab.querySelector('.usage-instructions-container');
-    if (usageInstructions && usageInstructions.parentNode) {
-        usageInstructions.parentNode.insertBefore(hintsContainer, usageInstructions.nextSibling);
-    } else {
-        calculatorTab.insertBefore(hintsContainer, calculatorTab.firstChild);
-    }
+    // Do not add any hints
 }
 
 /**
  * Setup graph control buttons (reset, export)
  */
-function setupGraphControls() {
-    const resetBtn = document.getElementById('graph-reset-btn');
-    const exportBtn = document.getElementById('graph-export-btn');
-    
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            if (graphInterpretationManager) {
-                if (graphInterpretationManager.calculator) {
-                    // Reset Desmos graph view
-                    graphInterpretationManager.calculator.setMathBounds({
-                        left: -10,
-                        right: 10,
-                        bottom: -10,
-                        top: 10
-                    });
-                } else if (graphInterpretationManager.offlineManager) {
-                    // Reset offline graph
-                    graphInterpretationManager.offlineManager.bounds = {
-                        left: -10,
-                        right: 10,
-                        bottom: -10,
-                        top: 10
-                    };
-                    if (currentFormula) {
-                        const currentValues = getCurrentVariableValues();
-                        graphInterpretationManager.offlineManager.updateGraph(currentFormula, currentValues);
-                    }
-                }
-                // Announce to screen readers
-                const status = document.getElementById('graph-status');
-                if (status) {
-                    status.textContent = 'Graph view reset to default';
-                }
-            }
-        });
-    }
-    
-    if (exportBtn) {
-        exportBtn.addEventListener('click', () => {
-            exportGraph();
-        });
-    }
-}
-
-/**
- * Export graph as PNG image
- */
-function exportGraph() {
-    const graphContainer = document.getElementById('graph-interpretation-desmos');
-    if (!graphContainer) return;
-    
-    try {
-        // Try Desmos export first
-        if (graphInterpretationManager?.calculator) {
-            const calculator = graphInterpretationManager.calculator;
-            const png = calculator.screenshot({
-                width: 1200,
-                height: 800,
-                targetPixelRatio: 2
-            });
-            
-            // Create download link
-            const link = document.createElement('a');
-            link.download = `graph-${currentFormula?.id || 'formula'}-${Date.now()}.png`;
-            link.href = png;
-            link.click();
-            
-            // Announce success
-            const status = document.getElementById('graph-status');
-            if (status) {
-                status.textContent = 'Graph exported successfully';
-            }
-        } else if (graphInterpretationManager?.offlineManager?.canvas) {
-            // Export offline canvas graph
-            const canvas = graphInterpretationManager.offlineManager.canvas;
-            canvas.toBlob((blob) => {
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `graph-${currentFormula?.id || 'formula'}-${Date.now()}.png`;
-                link.href = url;
-                link.click();
-                URL.revokeObjectURL(url);
-                
-                // Announce success
-                const status = document.getElementById('graph-status');
-                if (status) {
-                    status.textContent = 'Graph exported successfully';
-                }
-            }, 'image/png');
-        } else {
-            alert('Graph not available for export. Please wait for the graph to load.');
-        }
-    } catch (error) {
-        console.error('Error exporting graph:', error);
-        alert('Failed to export graph. Please try again.');
-    }
-}
-
-// Update graph interpretation content
-function updateGraphInterpretation() {
-    const contentDiv = document.getElementById('graph-interpretation-content');
-    if (!contentDiv || !currentFormula) {
-        if (contentDiv) {
-            contentDiv.innerHTML = '<p style="text-align: center; color: rgba(255, 255, 255, 0.7); padding: 40px;" role="status" aria-live="polite">No formula selected. Please select a formula from the main page.</p>';
-        }
-        return;
-    }
-    
-    // Try to use enhanced FRQ graph interpretation if available
-    let interpretationData = null;
-    if (typeof generateGraphInterpretation === 'function') {
-        interpretationData = generateGraphInterpretation(currentFormula);
-    }
-    
-    // Generate interpretation content based on the formula
-    let interpretationHTML = '<div class="interpretation-section" role="article" aria-labelledby="interpretation-title">';
-    interpretationHTML += `<h4 id="interpretation-title">Understanding the Graph for: ${escapeHtml(currentFormula.name)}</h4>`;
-    interpretationHTML += `<div class="formula-display-interpretation" role="math" aria-label="Formula: ${escapeHtml(currentFormula.equation)}"><strong>Formula:</strong> ${escapeHtml(currentFormula.equation)}</div>`;
-    
-    // Use enhanced interpretation if available
-    if (interpretationData && interpretationData.overview) {
-        interpretationHTML += `<div class="interpretation-overview"><p>${interpretationData.overview}</p></div>`;
-        
-        if (interpretationData.keyFeatures.length > 0) {
-            interpretationHTML += '<div class="interpretation-features" role="region" aria-labelledby="features-title"><h5 id="features-title">Key Features:</h5><ul class="interpretation-list" role="list">';
-            interpretationData.keyFeatures.forEach(feature => {
-                interpretationHTML += `<li role="listitem">${escapeHtml(feature)}</li>`;
-            });
-            interpretationHTML += '</ul></div>';
-        }
-        
-        if (interpretationData.howToUse.length > 0) {
-            interpretationHTML += '<div class="interpretation-usage" role="region" aria-labelledby="usage-title"><h5 id="usage-title">How to Use This Graph:</h5><ul class="interpretation-list" role="list">';
-            interpretationData.howToUse.forEach(usage => {
-                interpretationHTML += `<li role="listitem">${escapeHtml(usage)}</li>`;
-            });
-            interpretationHTML += '</ul></div>';
-        }
-        
-        if (interpretationData.physicalMeaning) {
-            interpretationHTML += `<div class="interpretation-meaning"><strong>Physical Meaning:</strong> <p>${interpretationData.physicalMeaning}</p></div>`;
-        }
-    } else {
-        // Fallback to original interpretation
-        // Add general interpretation guidance
-        interpretationHTML += '<div class="interpretation-guide">';
-        interpretationHTML += '<h5>How to Read This Graph</h5>';
-        interpretationHTML += '<ul class="interpretation-list">';
-        interpretationHTML += '<li><strong>X-Axis:</strong> Represents the independent variable (the variable you vary).</li>';
-        interpretationHTML += '<li><strong>Y-Axis:</strong> Represents the dependent variable (the result you\'re calculating).</li>';
-        interpretationHTML += '<li><strong>Curve Shape:</strong> Shows how the relationship changes - linear, exponential, inverse, etc.</li>';
-        interpretationHTML += '<li><strong>Steepness:</strong> Indicates how sensitive the result is to changes in the input variable.</li>';
-        interpretationHTML += '</ul>';
-        interpretationHTML += '</div>';
-        
-        // Add formula-specific interpretation
-        const formulaSpecific = getFormulaSpecificInterpretation(currentFormula);
-        if (formulaSpecific) {
-            interpretationHTML += '<div class="interpretation-formula-specific">';
-            interpretationHTML += formulaSpecific;
-            interpretationHTML += '</div>';
-        }
-    }
-    
-    // Add tips
-    interpretationHTML += '<div class="interpretation-tips">';
-    interpretationHTML += '<h5>Tips for Using This Graph</h5>';
-    interpretationHTML += '<ul class="interpretation-list">';
-    interpretationHTML += '<li>Leave one variable as "null" in the Calculator tab to see how it varies with other variables.</li>';
-    interpretationHTML += '<li>Use the graph to estimate values before calculating exact results.</li>';
-    interpretationHTML += '<li>Observe the shape to understand the mathematical relationship (linear, quadratic, inverse, etc.).</li>';
-    interpretationHTML += '<li>Check for asymptotes, intercepts, and other key features that reveal physical meaning.</li>';
-    interpretationHTML += '</ul>';
-    interpretationHTML += '</div>';
-    
-    interpretationHTML += '</div>';
-    
-    contentDiv.innerHTML = interpretationHTML;
-}
-
-// Get formula-specific interpretation content
-function getFormulaSpecificInterpretation(formula) {
-    const formulaId = formula.id;
-    let content = '';
-    
-    switch (formulaId) {
-        case 'angular_size':
-            content = '<h5>Angular Size Graph</h5>';
-            content += '<p>This graph shows how angular size (θ) changes with distance (D) or physical size (d).</p>';
-            content += '<ul><li>As distance increases, angular size decreases (inverse relationship).</li>';
-            content += '<li>The curve approaches zero as distance becomes very large.</li>';
-            content += '<li>For a fixed distance, larger objects have larger angular sizes.</li></ul>';
-            break;
-            
-        case 'orbital_velocity':
-            content = '<h5>Orbital Velocity Graph Interpretation</h5>';
-            content += '<p><strong>What this graph shows:</strong> This graph displays orbital velocity (v) as a function of orbital radius (r) for a given central mass (M).</p>';
-            content += '<h6>Key Features to Observe:</h6>';
-            content += '<ul class="interpretation-list">';
-            content += '<li><strong>Inverse Square Root Relationship:</strong> Velocity decreases as radius increases, following v = √(GM/r). The curve is steep near the origin and flattens as radius increases.</li>';
-            content += '<li><strong>Physical Meaning:</strong> Objects closer to the central mass orbit faster. This is why inner planets orbit the Sun faster than outer planets.</li>';
-            content += '<li><strong>Asymptotic Behavior:</strong> As radius approaches infinity, velocity approaches zero. As radius approaches zero, velocity approaches infinity (though physically limited).</li>';
-            content += '<li><strong>Kepler\'s Laws:</strong> This curve demonstrates Kepler\'s second law - planets sweep equal areas in equal times, requiring faster speeds at smaller distances.</li>';
-            content += '</ul>';
-            content += '<h6>How to Use This Graph:</h6>';
-            content += '<ul class="interpretation-list">';
-            content += '<li>Enter values for M (central mass) and leave r as null to see how velocity changes with distance.</li>';
-            content += '<li>Try different values of M to see how more massive objects require higher orbital velocities at the same distance.</li>';
-            content += '<li>Notice how small changes in radius near the central mass cause large changes in velocity.</li>';
-            content += '<li>Compare this graph with escape velocity to understand the difference between orbital and escape speeds.</li>';
-            content += '</ul>';
-            break;
-            
-        case 'escape_velocity':
-            content = '<h5>Escape Velocity Graph</h5>';
-            content += '<p>This graph shows escape velocity as a function of distance from the central mass.</p>';
-            content += '<ul><li>Escape velocity decreases with distance (inverse square root relationship).</li>';
-            content += '<li>Closer objects need higher velocities to escape.</li>';
-            content += '<li>The curve is steeper than orbital velocity for the same conditions.</li></ul>';
-            break;
-            
-        case 'hubble_law':
-            content = '<h5>Hubble Law Graph</h5>';
-            content += '<p>This graph shows the linear relationship between recessional velocity and distance.</p>';
-            content += '<ul><li>The graph is a straight line (linear relationship).</li>';
-            content += '<li>The slope represents the Hubble constant (H₀).</li>';
-            content += '<li>Farther galaxies recede faster, indicating universe expansion.</li></ul>';
-            break;
-            
-        case 'wiens_law':
-            content = '<h5>Wien\'s Law Graph</h5>';
-            content += '<p>This graph shows peak wavelength as a function of temperature.</p>';
-            content += '<ul><li>Peak wavelength decreases as temperature increases (inverse relationship).</li>';
-            content += '<li>Hotter objects emit shorter wavelengths (bluer light).</li>';
-            content += '<li>The curve shows the relationship between temperature and blackbody radiation.</li></ul>';
-            break;
-            
-        case 'flux_from_luminosity':
-            content = '<h5>Flux from Luminosity Graph</h5>';
-            content += '<p>This graph shows how flux decreases with distance from a light source.</p>';
-            content += '<ul><li>Flux decreases as the square of distance (inverse square law).</li>';
-            content += '<li>The curve drops rapidly at first, then more slowly.</li>';
-            content += '<li>This demonstrates the inverse square law for light intensity.</li></ul>';
-            break;
-            
-            case 'kepler_third_law':
-            content = '<h5>Kepler\'s Third Law Graph Interpretation</h5>';
-            content += '<p><strong>What this graph shows:</strong> This graph displays the relationship between orbital period (T) and semi-major axis (a) for a given central mass (M), following T² = (4π²/GM) × a³.</p>';
-            content += '<h6>Key Features to Observe:</h6>';
-            content += '<ul class="interpretation-list">';
-            content += '<li><strong>Power Law Relationship:</strong> Period squared is proportional to semi-major axis cubed. This creates a curve that starts shallow and becomes steeper.</li>';
-            content += '<li><strong>Physical Meaning:</strong> Larger orbits have significantly longer periods. Doubling the orbital radius increases the period by about 2.8 times (2^1.5).</li>';
-            content += '<li><strong>Mass Dependence:</strong> For a given semi-major axis, more massive central objects result in shorter orbital periods.</li>';
-            content += '<li><strong>Kepler\'s Discovery:</strong> This relationship was discovered by Johannes Kepler and applies to all bound orbits, from planets to binary stars.</li>';
-            content += '</ul>';
-            content += '<h6>How to Use This Graph:</h6>';
-            content += '<ul class="interpretation-list">';
-            content += '<li>Enter values for M (central mass) and leave T or a as null to see the relationship.</li>';
-            content += '<li>Try different masses to see how the curve changes - more massive objects create steeper curves.</li>';
-            content += '<li>Notice how small changes in semi-major axis near the origin cause large changes in period.</li>';
-            content += '<li>Compare with real planetary data - inner planets have shorter periods than outer planets.</li>';
-            content += '</ul>';
-            break;
-            
-        case 'doppler_shift':
-            content = '<h5>Doppler Shift Graph</h5>';
-            content += '<p>This graph shows how wavelength shift depends on velocity.</p>';
-            content += '<ul><li>Positive velocities (receding) cause redshift (positive shift).</li>';
-            content += '<li>Negative velocities (approaching) cause blueshift (negative shift).</li>';
-            content += '<li>The relationship is linear for non-relativistic speeds.</li></ul>';
-            break;
-            
-        case 'parallax_distance_radians':
-        case 'parallax_distance_arcsec':
-            content = '<h5>Parallax Distance Graph</h5>';
-            content += '<p>This graph shows distance as a function of parallax angle.</p>';
-            content += '<ul><li>Distance is inversely proportional to parallax angle.</li>';
-            content += '<li>Smaller parallax angles correspond to greater distances.</li>';
-            content += '<li>The curve demonstrates the fundamental relationship in stellar distance measurement.</li></ul>';
-            break;
-            
-        case 'flux_temperature':
-            content = '<h5>Flux-Temperature Graph</h5>';
-            content += '<p>This graph shows how flux depends on temperature (Stefan-Boltzmann law).</p>';
-            content += '<ul><li>Flux increases as the fourth power of temperature.</li>';
-            content += '<li>The curve rises very steeply, showing strong temperature dependence.</li>';
-            content += '<li>Small temperature changes cause large flux changes.</li></ul>';
-            break;
-            
-        default:
-            // Generic interpretation for formulas without specific handlers
-            content = '<h5>General Graph Interpretation</h5>';
-            content += '<p>This graph visualizes the mathematical relationship described by the formula.</p>';
-            content += '<ul><li>Observe the overall shape to understand the type of relationship.</li>';
-            content += '<li>Look for key features: intercepts, asymptotes, maxima, minima.</li>';
-            content += '<li>Use the graph to understand how variables influence each other.</li></ul>';
-            break;
-    }
-    
-    return content;
-}
-
-// Initialize standalone Desmos calculator for main page
-function initMainDesmosCalculator() {
-    const container = document.getElementById('main-desmos-graph');
-    if (!container) {
-        console.error('Main Desmos container not found');
-        return false;
-    }
-
-    // Check if container is visible
-    const tab = container.closest('.main-tab-content');
-    if (tab && !tab.classList.contains('active')) {
-        console.warn('Desmos container is in hidden tab');
-        return false;
-    }
-
-    // Ensure container has dimensions
-    if (container.offsetWidth === 0 || container.offsetHeight === 0) {
-        console.warn('Desmos container has no dimensions, waiting...');
-        setTimeout(() => initMainDesmosCalculator(), 200);
-        return false;
-    }
-
-    // Destroy existing calculator if it exists
-    if (mainDesmosCalculator) {
-        try {
-            mainDesmosCalculator.destroy();
-        } catch (e) {
-            console.warn('Error destroying existing Desmos calculator:', e);
-        }
-        mainDesmosCalculator = null;
-    }
-
-    // Clear any error messages
-    container.innerHTML = '';
-
-    try {
-        // Initialize full-featured Desmos calculator (with keypad and expressions enabled)
-        mainDesmosCalculator = Desmos.GraphingCalculator(container, {
-            keypad: true,
-            expressions: true,
-            settingsMenu: true,
-            zoomButtons: true,
-            showGrid: true,
-            xAxisLabel: 'x',
-            yAxisLabel: 'y'
-        });
-        console.log('Main Desmos calculator initialized successfully');
-        return true;
-    } catch (error) {
-        console.error('Error initializing main Desmos calculator:', error);
-        if (container) {
-            container.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><p>Error initializing Desmos calculator: ' + error.message + '</p><p style="font-size: 0.9em; color: #999;">Please refresh the page.</p></div>';
-        }
-        return false;
-    }
-}
+// Graph functions removed - users can use offline tools like Desmos
 

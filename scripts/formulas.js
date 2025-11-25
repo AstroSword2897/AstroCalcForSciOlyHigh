@@ -8555,9 +8555,13 @@ var crossConceptReinforcement = {
     
     // Initialize all three layers
     initialize: function() {
+        console.log('[Cross-Concept Reinforcement] Initializing triple-layered system...');
         this.buildConceptNetwork();
         this.buildConceptFormulaMapping();
         this.reinforceAllLayers();
+        console.log('[Cross-Concept Reinforcement] ✅ Initialized successfully');
+        console.log(`[Cross-Concept Reinforcement] Layer 1: ${Object.keys(this.conceptNetwork).length} concepts`);
+        console.log(`[Cross-Concept Reinforcement] Layer 2: ${Object.keys(this.conceptFormulaMap).length} concept-formula mappings`);
     },
     
     // Build Layer 1: Concept-to-Concept Network
@@ -8565,6 +8569,7 @@ var crossConceptReinforcement = {
         // Get concept hierarchy from UI
         if (typeof getConceptHierarchy === 'function') {
             const hierarchy = getConceptHierarchy();
+            console.log(`[Cross-Concept Reinforcement] Building Layer 1 from ${Object.keys(hierarchy).length} concepts`);
             this.conceptNetwork = {};
             
             // Build bidirectional concept relationships
@@ -8661,6 +8666,7 @@ var crossConceptReinforcement = {
     // Build Layer 2: Concept-to-Formula Mapping
     buildConceptFormulaMapping: function() {
         this.conceptFormulaMap = {};
+        let mappedFormulas = 0;
         
         formulas.forEach(formula => {
             // Map concepts to formulas
@@ -8684,11 +8690,16 @@ var crossConceptReinforcement = {
                     this.conceptFormulaMap[keywordKey].add(formula.id);
                 });
             }
+            if (formula.concepts || formula.keywords) {
+                mappedFormulas++;
+            }
         });
+        console.log(`[Cross-Concept Reinforcement] Layer 2: Mapped ${mappedFormulas} formulas to concepts`);
     },
     
     // Cross-reinforce all three layers
     reinforceAllLayers: function() {
+        console.log('[Cross-Concept Reinforcement] Reinforcing all three layers...');
         // Reinforcement 1: If concepts are related, their formulas should be related
         Object.keys(this.conceptNetwork).forEach(concept => {
             const relatedConcepts = Array.from(this.conceptNetwork[concept].relatedConcepts);
@@ -8794,6 +8805,7 @@ var crossConceptReinforcement = {
                 }
             });
         });
+        console.log('[Cross-Concept Reinforcement] ✅ All layers reinforced');
     },
     
     // Get reinforced relationships for a concept
@@ -8899,19 +8911,28 @@ var crossConceptReinforcement = {
     }
 };
 
-// Auto-discover relationships on load
+    // Auto-discover relationships on load
 if (typeof formulas !== 'undefined' && formulas.length > 0) {
     formulaRelationships.autoDiscoverRelationships();
     
     // Initialize cross-concept reinforcement after relationships are built
     if (typeof getConceptHierarchy === 'function') {
         // Wait for concept hierarchy to be available
+        console.log('[Cross-Concept Reinforcement] getConceptHierarchy available, initializing in 100ms...');
         setTimeout(() => {
             crossConceptReinforcement.initialize();
         }, 100);
     } else {
         // Initialize immediately if hierarchy is already available
-        crossConceptReinforcement.initialize();
+        console.log('[Cross-Concept Reinforcement] getConceptHierarchy not yet available, will retry...');
+        // Retry after a longer delay
+        setTimeout(() => {
+            if (typeof getConceptHierarchy === 'function') {
+                crossConceptReinforcement.initialize();
+            } else {
+                console.warn('[Cross-Concept Reinforcement] ⚠️ getConceptHierarchy still not available after delay');
+            }
+        }, 500);
     }
 }
 

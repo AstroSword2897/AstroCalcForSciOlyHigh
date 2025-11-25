@@ -105,6 +105,7 @@ class UnitParser {
             'kilogram': 'kg', 'kilograms': 'kg', 'kilogramme': 'kg', 'kilogrammes': 'kg',
             'gram': 'g', 'grams': 'g', 'gramme': 'g', 'grammes': 'g',
             'solar mass': 'M☉', 'solar masses': 'M☉', 'msun': 'M☉', 'm_sun': 'M☉',
+            'm☉': 'M☉', 'm_☉': 'M☉', 'M_☉': 'M☉',  // Normalize all solar mass variants to M☉
             'earth mass': 'M⊕', 'earth masses': 'M⊕', 'mearth': 'M⊕', 'm_earth': 'M⊕',
 
             // Time

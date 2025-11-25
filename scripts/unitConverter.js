@@ -239,11 +239,18 @@ class UnitConverter {
 
     // Get full unit name with proper formatting
     static formatUnit(unit) {
+        // Normalize solar mass variants to M☉
+        if (unit === 'M_☉' || unit === 'm☉' || unit === 'm_☉' || unit === 'M_sun' || unit === 'm_sun') {
+            unit = 'M☉';
+        }
+        
         const unitMap = {
             'm': 'meters',
             's': 'seconds',
             'kg': 'kilograms',
             'W': 'Watts',
+            'M☉': 'Solar Masses',
+            'M_☉': 'Solar Masses',  // Same as M☉
             'J': 'Joules',
             'K': 'Kelvin',
             'Hz': 'Hertz',
@@ -284,6 +291,9 @@ class UnitConverter {
             // Mass
             'kg': ['kilograms', 'g', 'M☉', 'M_☉', 'M_sun', 'M_earth'],
             'kilograms': ['kg', 'g', 'M☉', 'M_☉', 'M_sun', 'M_earth'],
+            'M☉': ['M_☉', 'M_sun', 'm☉', 'm_☉', 'Solar Masses', 'kg'],
+            'M_☉': ['M☉', 'M_sun', 'm☉', 'm_☉', 'Solar Masses', 'kg'],  // Same as M☉
+            'Solar Masses': ['M☉', 'M_☉', 'M_sun', 'kg'],
             
             // Time
             'seconds': ['s', 'minutes', 'hours', 'days', 'years'],
@@ -361,8 +371,11 @@ class UnitConverter {
             'g': 0.001,
             'grams': 0.001,
             'M☉': 1.989e30,
-            'M_☉': 1.989e30,
+            'M_☉': 1.989e30,  // Same as M☉
+            'm☉': 1.989e30,   // Same as M☉ (lowercase)
+            'm_☉': 1.989e30,  // Same as M☉ (lowercase with underscore)
             'M_sun': 1.989e30,
+            'm_sun': 1.989e30, // Same as M_sun (lowercase)
             'M_earth': 5.972e24,
             
             // Time to seconds

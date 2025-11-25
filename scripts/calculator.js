@@ -74,6 +74,39 @@ class FormulaCalculator {
      * @param {number} value - Value to validate
      * @param {Object} varDef - Variable definition
      */
+    /**
+     * Check for common edge cases in calculations
+     * @param {Object} vars - Variables object
+     * @param {Array} requiredVars - Array of required variable symbols
+     * @param {Array} mustBePositive - Array of variables that must be positive
+     * @param {Array} mustBeNonZero - Array of variables that must be non-zero
+     */
+    checkEdgeCases(vars, requiredVars = [], mustBePositive = [], mustBeNonZero = []) {
+        // Check required variables exist
+        for (const varName of requiredVars) {
+            if (vars[varName] === undefined || vars[varName] === null) {
+                throw new Error(`${varName} is required but not provided`);
+            }
+            if (!isFinite(vars[varName])) {
+                throw new Error(`${varName} must be a finite number, got: ${vars[varName]}`);
+            }
+        }
+        
+        // Check must be positive
+        for (const varName of mustBePositive) {
+            if (vars[varName] !== undefined && vars[varName] <= 0) {
+                throw new Error(`${varName} must be positive, got: ${vars[varName]}`);
+            }
+        }
+        
+        // Check must be non-zero
+        for (const varName of mustBeNonZero) {
+            if (vars[varName] !== undefined && vars[varName] === 0) {
+                throw new Error(`${varName} cannot be zero`);
+            }
+        }
+    }
+    
     validateVariableValue(symbol, value, varDef) {
         if (!isFinite(value)) {
             throw new Error(`${symbol} must be a finite number, got: ${value}`);
@@ -84,7 +117,15 @@ class FormulaCalculator {
         const varSymbol = symbol.toLowerCase();
         
         // Mass must be positive
-        if (varName.includes('mass') || varSymbol === 'm' || varSymbol.includes('m_')) {
+        // Check for mass variables: M, m, M1, M2, M_☉, M☉, etc.
+        const isMass = varName.includes('mass') || 
+                      varSymbol === 'm' || 
+                      varSymbol.includes('m_') ||
+                      varSymbol.includes('M_') ||
+                      (varSymbol.startsWith('M') && /^M\d*$/.test(varSymbol)) || // M, M1, M2, etc.
+                      (varSymbol.startsWith('m') && /^m\d*$/.test(varSymbol));   // m, m1, m2, etc.
+        
+        if (isMass) {
             if (value <= 0) {
                 throw new Error(`${symbol} (mass) must be positive, got: ${value}`);
             }
@@ -552,76 +593,76 @@ class FormulaCalculator {
     // Performance improvement: O(1) lookup instead of O(n) switch
     // Easier to maintain and test
     static solvers = {
-        kepler_third_law: (unknownVar, vars) => FormulaCalculator.prototype.solveKeplerThirdLaw(unknownVar, vars),
-        orbital_velocity: (unknownVar, vars) => FormulaCalculator.prototype.solveOrbitalVelocity(unknownVar, vars),
-        escape_velocity: (unknownVar, vars) => FormulaCalculator.prototype.solveEscapeVelocity(unknownVar, vars),
-        distance_modulus: (unknownVar, vars) => FormulaCalculator.prototype.solveDistanceModulus(unknownVar, vars),
-        luminosity: (unknownVar, vars) => FormulaCalculator.prototype.solveLuminosity(unknownVar, vars),
-        hubble_law: (unknownVar, vars) => FormulaCalculator.prototype.solveHubbleLaw(unknownVar, vars),
-        surface_gravity: (unknownVar, vars) => FormulaCalculator.prototype.solveSurfaceGravity(unknownVar, vars),
-        angular_size: (unknownVar, vars) => FormulaCalculator.prototype.solveAngularSize(unknownVar, vars),
-        parallax_distance_radians: (unknownVar, vars) => FormulaCalculator.prototype.solveParallaxRadians(unknownVar, vars),
-        parallax_distance_arcsec: (unknownVar, vars) => FormulaCalculator.prototype.solveParallaxArcsec(unknownVar, vars),
-        max_gamma_bohm: (unknownVar, vars) => FormulaCalculator.prototype.solveMaxGammaBohm(unknownVar, vars),
-        cooling_break_gamma: (unknownVar, vars) => FormulaCalculator.prototype.solveCoolingBreakGamma(unknownVar, vars),
-        cooling_break_frequency: (unknownVar, vars) => FormulaCalculator.prototype.solveCoolingBreakFrequency(unknownVar, vars),
-        synchrotron_cooling_timescale: (unknownVar, vars) => FormulaCalculator.prototype.solveSynchrotronCooling(unknownVar, vars),
-        synchrotron_power: (unknownVar, vars) => FormulaCalculator.prototype.solveSynchrotronPower(unknownVar, vars),
-        magnetic_energy_density: (unknownVar, vars) => FormulaCalculator.prototype.solveMagneticEnergyDensity(unknownVar, vars),
-        power_law_spectrum: (unknownVar, vars) => FormulaCalculator.prototype.solvePowerLawSpectrum(unknownVar, vars),
-        spectral_index: (unknownVar, vars) => FormulaCalculator.prototype.solveSpectralIndex(unknownVar, vars),
-        chandrasekhar_limit: (unknownVar, vars) => FormulaCalculator.prototype.solveChandrasekharLimit(unknownVar, vars),
-        white_dwarf_mass_radius: (unknownVar, vars) => FormulaCalculator.prototype.solveWhiteDwarfMassRadius(unknownVar, vars),
-        wiens_law: (unknownVar, vars) => FormulaCalculator.prototype.solveWiensLaw(unknownVar, vars),
-        hydrostatic_balance: (unknownVar, vars) => FormulaCalculator.prototype.solveHydrostaticBalance(unknownVar, vars),
-        kepler_third_law_binary: (unknownVar, vars) => FormulaCalculator.prototype.solveKeplerThirdLawBinary(unknownVar, vars),
-        rotational_velocity: (unknownVar, vars) => FormulaCalculator.prototype.solveRotationalVelocity(unknownVar, vars),
-        average_density: (unknownVar, vars) => FormulaCalculator.prototype.solveAverageDensity(unknownVar, vars),
-        flux_from_luminosity: (unknownVar, vars) => FormulaCalculator.prototype.solveFluxFromLuminosity(unknownVar, vars),
-        magnitude_flux_relation: (unknownVar, vars) => FormulaCalculator.prototype.solveMagnitudeFluxRelation(unknownVar, vars),
-        inverse_square_law_brightness: (unknownVar, vars) => FormulaCalculator.prototype.solveInverseSquareLawBrightness(unknownVar, vars),
-        doppler_shift: (unknownVar, vars) => FormulaCalculator.prototype.solveDopplerShift(unknownVar, vars),
-        doppler_shift_approx: (unknownVar, vars) => FormulaCalculator.prototype.solveDopplerShiftApprox(unknownVar, vars),
-        flux_temperature: (unknownVar, vars) => FormulaCalculator.prototype.solveFluxTemperature(unknownVar, vars),
-        light_gathering_power: (unknownVar, vars) => FormulaCalculator.prototype.solveLightGatheringPower(unknownVar, vars),
-        magnification: (unknownVar, vars) => FormulaCalculator.prototype.solveMagnification(unknownVar, vars),
-        f_ratio: (unknownVar, vars) => FormulaCalculator.prototype.solveFRatio(unknownVar, vars),
-        angular_resolution: (unknownVar, vars) => FormulaCalculator.prototype.solveAngularResolution(unknownVar, vars),
-        kepler_third_law_solar: (unknownVar, vars) => FormulaCalculator.prototype.solveKeplerThirdLawSolar(unknownVar, vars),
-        tidal_force: (unknownVar, vars) => FormulaCalculator.prototype.solveTidalForce(unknownVar, vars),
-        roche_limit: (unknownVar, vars) => FormulaCalculator.prototype.solveRocheLimit(unknownVar, vars),
-        orbital_energy: (unknownVar, vars) => FormulaCalculator.prototype.solveOrbitalEnergy(unknownVar, vars),
-        vis_viva: (unknownVar, vars) => FormulaCalculator.prototype.solveVisViva(unknownVar, vars),
-        center_of_mass: (unknownVar, vars) => FormulaCalculator.prototype.solveCenterOfMass(unknownVar, vars),
-        stellar_lifetime: (unknownVar, vars) => FormulaCalculator.prototype.solveStellarLifetime(unknownVar, vars),
-        mass_luminosity_relation: (unknownVar, vars) => FormulaCalculator.prototype.solveMassLuminosityRelation(unknownVar, vars),
-        hr_color_index: (unknownVar, vars) => FormulaCalculator.prototype.solveHRColorIndex(unknownVar, vars),
-        hr_absolute_magnitude: (unknownVar, vars) => FormulaCalculator.prototype.solveHRAbsoluteMagnitude(unknownVar, vars),
-        friedmann_equation: (unknownVar, vars) => FormulaCalculator.prototype.solveFriedmannEquation(unknownVar, vars),
-        critical_density: (unknownVar, vars) => FormulaCalculator.prototype.solveCriticalDensity(unknownVar, vars),
-        schwarzschild_radius: (unknownVar, vars) => FormulaCalculator.prototype.solveSchwarzschildRadius(unknownVar, vars),
-        time_dilation: (unknownVar, vars) => FormulaCalculator.prototype.solveTimeDilation(unknownVar, vars),
-        length_contraction: (unknownVar, vars) => FormulaCalculator.prototype.solveLengthContraction(unknownVar, vars),
-        planetary_equilibrium_temperature: (unknownVar, vars) => FormulaCalculator.prototype.solvePlanetaryEquilibriumTemperature(unknownVar, vars),
-        greenhouse_effect: (unknownVar, vars) => FormulaCalculator.prototype.solveGreenhouseEffect(unknownVar, vars),
-        albedo: (unknownVar, vars) => FormulaCalculator.prototype.solveAlbedo(unknownVar, vars),
-        blackbody_radiation: (unknownVar, vars) => FormulaCalculator.prototype.solveBlackbodyRadiation(unknownVar, vars),
-        binary_white_dwarf: (unknownVar, vars) => FormulaCalculator.prototype.solveBinaryWhiteDwarf(unknownVar, vars),
-        white_dwarf_orbital_decay: (unknownVar, vars) => FormulaCalculator.prototype.solveWhiteDwarfOrbitalDecay(unknownVar, vars),
-        white_dwarf_merger_timescale: (unknownVar, vars) => FormulaCalculator.prototype.solveWhiteDwarfMergerTimescale(unknownVar, vars),
-        hill_radius: (unknownVar, vars) => FormulaCalculator.prototype.solveHillRadius(unknownVar, vars),
-        synodic_period: (unknownVar, vars) => FormulaCalculator.prototype.solveSynodicPeriod(unknownVar, vars),
-        jeans_mass: (unknownVar, vars) => FormulaCalculator.prototype.solveJeansMass(unknownVar, vars),
-        planck_relation: (unknownVar, vars) => FormulaCalculator.prototype.solvePlanckRelation(unknownVar, vars),
-        einstein_radius: (unknownVar, vars) => FormulaCalculator.prototype.solveEinsteinRadius(unknownVar, vars),
-        angular_momentum_elliptical: (unknownVar, vars) => FormulaCalculator.prototype.solveAngularMomentumElliptical(unknownVar, vars),
-        cosmic_redshift: (unknownVar, vars) => FormulaCalculator.prototype.solveCosmicRedshift(unknownVar, vars),
-        lookback_time: (unknownVar, vars) => FormulaCalculator.prototype.solveLookbackTime(unknownVar, vars),
-        density_parameter: (unknownVar, vars) => FormulaCalculator.prototype.solveDensityParameter(unknownVar, vars),
-        angular_diameter_distance: (unknownVar, vars) => FormulaCalculator.prototype.solveAngularDiameterDistance(unknownVar, vars),
-        luminosity_distance: (unknownVar, vars) => FormulaCalculator.prototype.solveLuminosityDistance(unknownVar, vars),
-        gravitational_potential_general: (unknownVar, vars) => FormulaCalculator.prototype.solveGravitationalPotential(unknownVar, vars),
-        total_energy_virial: (unknownVar, vars) => FormulaCalculator.prototype.solveTotalEnergyVirial(unknownVar, vars)
+        kepler_third_law: function(unknownVar, vars) { return this.solveKeplerThirdLaw(unknownVar, vars); },
+        orbital_velocity: function(unknownVar, vars) { return this.solveOrbitalVelocity(unknownVar, vars); },
+        escape_velocity: function(unknownVar, vars) { return this.solveEscapeVelocity(unknownVar, vars); },
+        distance_modulus: function(unknownVar, vars) { return this.solveDistanceModulus(unknownVar, vars); },
+        luminosity: function(unknownVar, vars) { return this.solveLuminosity(unknownVar, vars); },
+        hubble_law: function(unknownVar, vars) { return this.solveHubbleLaw(unknownVar, vars); },
+        surface_gravity: function(unknownVar, vars) { return this.solveSurfaceGravity(unknownVar, vars); },
+        angular_size: function(unknownVar, vars) { return this.solveAngularSize(unknownVar, vars); },
+        parallax_distance_radians: function(unknownVar, vars) { return this.solveParallaxRadians(unknownVar, vars); },
+        parallax_distance_arcsec: function(unknownVar, vars) { return this.solveParallaxArcsec(unknownVar, vars); },
+        max_gamma_bohm: function(unknownVar, vars) { return this.solveMaxGammaBohm(unknownVar, vars); },
+        cooling_break_gamma: function(unknownVar, vars) { return this.solveCoolingBreakGamma(unknownVar, vars); },
+        cooling_break_frequency: function(unknownVar, vars) { return this.solveCoolingBreakFrequency(unknownVar, vars); },
+        synchrotron_cooling_timescale: function(unknownVar, vars) { return this.solveSynchrotronCooling(unknownVar, vars); },
+        synchrotron_power: function(unknownVar, vars) { return this.solveSynchrotronPower(unknownVar, vars); },
+        magnetic_energy_density: function(unknownVar, vars) { return this.solveMagneticEnergyDensity(unknownVar, vars); },
+        power_law_spectrum: function(unknownVar, vars) { return this.solvePowerLawSpectrum(unknownVar, vars); },
+        spectral_index: function(unknownVar, vars) { return this.solveSpectralIndex(unknownVar, vars); },
+        chandrasekhar_limit: function(unknownVar, vars) { return this.solveChandrasekharLimit(unknownVar, vars); },
+        white_dwarf_mass_radius: function(unknownVar, vars) { return this.solveWhiteDwarfMassRadius(unknownVar, vars); },
+        wiens_law: function(unknownVar, vars) { return this.solveWiensLaw(unknownVar, vars); },
+        hydrostatic_balance: function(unknownVar, vars) { return this.solveHydrostaticBalance(unknownVar, vars); },
+        kepler_third_law_binary: function(unknownVar, vars) { return this.solveKeplerThirdLawBinary(unknownVar, vars); },
+        rotational_velocity: function(unknownVar, vars) { return this.solveRotationalVelocity(unknownVar, vars); },
+        average_density: function(unknownVar, vars) { return this.solveAverageDensity(unknownVar, vars); },
+        flux_from_luminosity: function(unknownVar, vars) { return this.solveFluxFromLuminosity(unknownVar, vars); },
+        magnitude_flux_relation: function(unknownVar, vars) { return this.solveMagnitudeFluxRelation(unknownVar, vars); },
+        inverse_square_law_brightness: function(unknownVar, vars) { return this.solveInverseSquareLawBrightness(unknownVar, vars); },
+        doppler_shift: function(unknownVar, vars) { return this.solveDopplerShift(unknownVar, vars); },
+        doppler_shift_approx: function(unknownVar, vars) { return this.solveDopplerShiftApprox(unknownVar, vars); },
+        flux_temperature: function(unknownVar, vars) { return this.solveFluxTemperature(unknownVar, vars); },
+        light_gathering_power: function(unknownVar, vars) { return this.solveLightGatheringPower(unknownVar, vars); },
+        magnification: function(unknownVar, vars) { return this.solveMagnification(unknownVar, vars); },
+        f_ratio: function(unknownVar, vars) { return this.solveFRatio(unknownVar, vars); },
+        angular_resolution: function(unknownVar, vars) { return this.solveAngularResolution(unknownVar, vars); },
+        kepler_third_law_solar: function(unknownVar, vars) { return this.solveKeplerThirdLawSolar(unknownVar, vars); },
+        tidal_force: function(unknownVar, vars) { return this.solveTidalForce(unknownVar, vars); },
+        roche_limit: function(unknownVar, vars) { return this.solveRocheLimit(unknownVar, vars); },
+        orbital_energy: function(unknownVar, vars) { return this.solveOrbitalEnergy(unknownVar, vars); },
+        vis_viva: function(unknownVar, vars) { return this.solveVisViva(unknownVar, vars); },
+        center_of_mass: function(unknownVar, vars) { return this.solveCenterOfMass(unknownVar, vars); },
+        stellar_lifetime: function(unknownVar, vars) { return this.solveStellarLifetime(unknownVar, vars); },
+        mass_luminosity_relation: function(unknownVar, vars) { return this.solveMassLuminosityRelation(unknownVar, vars); },
+        hr_color_index: function(unknownVar, vars) { return this.solveHRColorIndex(unknownVar, vars); },
+        hr_absolute_magnitude: function(unknownVar, vars) { return this.solveHRAbsoluteMagnitude(unknownVar, vars); },
+        friedmann_equation: function(unknownVar, vars) { return this.solveFriedmannEquation(unknownVar, vars); },
+        critical_density: function(unknownVar, vars) { return this.solveCriticalDensity(unknownVar, vars); },
+        schwarzschild_radius: function(unknownVar, vars) { return this.solveSchwarzschildRadius(unknownVar, vars); },
+        time_dilation: function(unknownVar, vars) { return this.solveTimeDilation(unknownVar, vars); },
+        length_contraction: function(unknownVar, vars) { return this.solveLengthContraction(unknownVar, vars); },
+        planetary_equilibrium_temperature: function(unknownVar, vars) { return this.solvePlanetaryEquilibriumTemperature(unknownVar, vars); },
+        greenhouse_effect: function(unknownVar, vars) { return this.solveGreenhouseEffect(unknownVar, vars); },
+        albedo: function(unknownVar, vars) { return this.solveAlbedo(unknownVar, vars); },
+        blackbody_radiation: function(unknownVar, vars) { return this.solveBlackbodyRadiation(unknownVar, vars); },
+        binary_white_dwarf: function(unknownVar, vars) { return this.solveBinaryWhiteDwarf(unknownVar, vars); },
+        white_dwarf_orbital_decay: function(unknownVar, vars) { return this.solveWhiteDwarfOrbitalDecay(unknownVar, vars); },
+        white_dwarf_merger_timescale: function(unknownVar, vars) { return this.solveWhiteDwarfMergerTimescale(unknownVar, vars); },
+        hill_radius: function(unknownVar, vars) { return this.solveHillRadius(unknownVar, vars); },
+        synodic_period: function(unknownVar, vars) { return this.solveSynodicPeriod(unknownVar, vars); },
+        jeans_mass: function(unknownVar, vars) { return this.solveJeansMass(unknownVar, vars); },
+        planck_relation: function(unknownVar, vars) { return this.solvePlanckRelation(unknownVar, vars); },
+        einstein_radius: function(unknownVar, vars) { return this.solveEinsteinRadius(unknownVar, vars); },
+        angular_momentum_elliptical: function(unknownVar, vars) { return this.solveAngularMomentumElliptical(unknownVar, vars); },
+        cosmic_redshift: function(unknownVar, vars) { return this.solveCosmicRedshift(unknownVar, vars); },
+        lookback_time: function(unknownVar, vars) { return this.solveLookbackTime(unknownVar, vars); },
+        density_parameter: function(unknownVar, vars) { return this.solveDensityParameter(unknownVar, vars); },
+        angular_diameter_distance: function(unknownVar, vars) { return this.solveAngularDiameterDistance(unknownVar, vars); },
+        luminosity_distance: function(unknownVar, vars) { return this.solveLuminosityDistance(unknownVar, vars); },
+        gravitational_potential_general: function(unknownVar, vars) { return this.solveGravitationalPotential(unknownVar, vars); },
+        total_energy_virial: function(unknownVar, vars) { return this.solveTotalEnergyVirial(unknownVar, vars); }
     };
 
     // Solve for a specific variable based on the formula
@@ -635,42 +676,34 @@ class FormulaCalculator {
         const solver = FormulaCalculator.solvers[formulaId];
         
         if (!solver) {
-            // UNIVERSAL COVERAGE: Try generic solver fallback for ALL formulas
-            // This ensures EVERY formula can be solved, even without a specific solver
-            try {
-                const genericResult = this.solveGenericEquation(unknownVar, vars);
-                if (genericResult !== null && isFinite(genericResult)) {
-                    // Validate the result
-                    const varDef = this.formula.variables.find(v => v.symbol === unknownVar);
-                    const validated = this.validateVariableValue(unknownVar, genericResult, varDef);
-                    if (validated !== null) {
-                        return validated;
-                    }
-                }
-            } catch (e) {
-                // Generic solver failed, log for debugging but continue
-                if (typeof logger !== 'undefined') {
-                    logger.warn(`Generic solver failed for ${formulaId}.${unknownVar}:`, e.message);
-                }
-            }
-            
-            // If generic solver also failed, provide helpful error
+            // SPECIFIC SOLVER APPROACH: Only use specific solvers, no generic fallback
+            // This ensures accuracy and reliability for each formula
             const availableSolvers = Object.keys(FormulaCalculator.solvers).sort();
             const suggestion = availableSolvers.find(id => id.includes(formulaId.split('_')[0]));
             
-            let errorMsg = `Unable to solve ${unknownVar} for formula: ${formulaId}`;
+            let errorMsg = `No specific solver found for formula: ${formulaId}`;
+            errorMsg += `\nVariable: ${unknownVar}`;
             errorMsg += `\nEquation: ${this.formula.equation || 'N/A'}`;
+            errorMsg += `\n\nThis formula requires a specific solver function to be implemented.`;
             if (suggestion) {
                 errorMsg += `\nDid you mean: ${suggestion}?`;
             }
-            errorMsg += `\nTried both specific and generic solvers.`;
-            errorMsg += `\nPlease check that all required variables are provided.`;
+            errorMsg += `\n\nPlease ensure all required variables are provided and the formula ID is correct.`;
             
             throw new Error(errorMsg);
         }
         
         try {
-            return solver.call(this, unknownVar, vars);
+            // Call specific solver with proper 'this' context
+            // The solver functions are prototype methods that need 'this' context
+            const result = solver.call(this, unknownVar, vars);
+            if (result === null || result === undefined) {
+                throw new Error(`Solver returned null/undefined for ${unknownVar}`);
+            }
+            if (!isFinite(result)) {
+                throw new Error(`Solver returned non-finite result: ${result}`);
+            }
+            return result;
         } catch (error) {
             // Wrap solver errors with context
             throw new Error(`Error solving ${unknownVar} for ${formulaId}: ${error.message}`);
@@ -894,176 +927,125 @@ class FormulaCalculator {
     solveKeplerThirdLaw(unknownVar, vars) {
         const { T, a, M, G } = vars;
         
-        // ENHANCED: Division-by-zero and validation checks
         if (unknownVar === 'T') {
             // T = √((4π²/GM) × a³)
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
-            if (a <= 0) {
-                throw new Error('Semi-major axis a must be positive');
-            }
+            this.checkEdgeCases(vars, ['a', 'M', 'G'], ['a', 'M'], ['G', 'M']);
             const result = Math.sqrt((4 * Math.PI * Math.PI / (G * M)) * (a * a * a));
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that mass M and semi-major axis a are positive.');
             }
             return result;
         } else if (unknownVar === 'a') {
             // a = ∛(T² × GM / 4π²)
-            if (T === 0) {
-                throw new Error('Period T must be non-zero');
-            }
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['T', 'M', 'G'], ['T', 'M'], ['T', 'G', 'M']);
             const result = Math.cbrt((T * T * G * M) / (4 * Math.PI * Math.PI));
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that period T and mass M are positive.');
             }
             return result;
         } else if (unknownVar === 'M') {
             // M = (4π² × a³) / (G × T²)
-            if (G === 0) {
-                throw new Error('Gravitational constant G must be non-zero');
-            }
-            if (T === 0) {
-                throw new Error('Period T must be non-zero');
-            }
-            if (a <= 0) {
-                throw new Error('Semi-major axis a must be positive');
-            }
+            this.checkEdgeCases(vars, ['T', 'a', 'G'], ['T', 'a'], ['T', 'G']);
             const result = (4 * Math.PI * Math.PI * a * a * a) / (G * T * T);
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that period T and semi-major axis a are positive.');
             }
             return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Kepler's Third Law`);
     }
 
     solveOrbitalVelocity(unknownVar, vars) {
         const { v, r, M, G } = vars;
         
-        // ENHANCED: Division-by-zero and validation checks
         if (unknownVar === 'v') {
             // v = √(GM/r)
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
-            if (r <= 0) {
-                throw new Error('Radius r must be positive');
-            }
+            this.checkEdgeCases(vars, ['r', 'M', 'G'], ['r', 'M'], ['G', 'M']);
             const result = Math.sqrt((G * M) / r);
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that radius r and mass M are positive.');
             }
             return result;
         } else if (unknownVar === 'r') {
             // r = GM/v²
-            if (v === 0) {
-                throw new Error('Velocity v must be non-zero');
-            }
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['v', 'M', 'G'], ['v', 'M'], ['v', 'G', 'M']);
             const result = (G * M) / (v * v);
             if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
+                throw new Error('Invalid result. Check that velocity v and mass M are positive.');
             }
             return result;
         } else if (unknownVar === 'M') {
             // M = rv²/G
-            if (G === 0) {
-                throw new Error('Gravitational constant G must be non-zero');
-            }
-            if (r <= 0) {
-                throw new Error('Radius r must be positive');
-            }
+            this.checkEdgeCases(vars, ['r', 'v', 'G'], ['r'], ['G']);
             const result = (r * v * v) / G;
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that radius r is positive.');
             }
             return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Orbital Velocity`);
     }
 
     solveEscapeVelocity(unknownVar, vars) {
         const { v_esc, r, M, G } = vars;
         
-        // ENHANCED: Division-by-zero and validation checks
         if (unknownVar === 'v_esc') {
             // v_esc = √(2GM/r)
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
-            if (r <= 0) {
-                throw new Error('Radius r must be positive');
-            }
+            this.checkEdgeCases(vars, ['r', 'M', 'G'], ['r', 'M'], ['G', 'M']);
             const result = Math.sqrt((2 * G * M) / r);
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that radius r and mass M are positive.');
             }
             return result;
         } else if (unknownVar === 'r') {
             // r = 2GM/v_esc²
-            if (v_esc === 0) {
-                throw new Error('Escape velocity v_esc must be non-zero');
-            }
-            if (G === 0 || M === 0) {
-                throw new Error('Gravitational constant G and mass M must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['v_esc', 'M', 'G'], ['v_esc', 'M'], ['v_esc', 'G', 'M']);
             const result = (2 * G * M) / (v_esc * v_esc);
             if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
+                throw new Error('Invalid result. Check that escape velocity v_esc and mass M are positive.');
             }
             return result;
         } else if (unknownVar === 'M') {
             // M = rv_esc²/(2G)
-            if (G === 0) {
-                throw new Error('Gravitational constant G must be non-zero');
-            }
-            if (r <= 0) {
-                throw new Error('Radius r must be positive');
-            }
+            this.checkEdgeCases(vars, ['r', 'v_esc', 'G'], ['r'], ['G']);
             const result = (r * v_esc * v_esc) / (2 * G);
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that radius r is positive.');
             }
             return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Escape Velocity`);
     }
 
     solveDistanceModulus(unknownVar, vars) {
         const { m, M, d } = vars;
         
-        // ENHANCED: Validation for logarithmic operations
         if (unknownVar === 'm') {
             // m = M + 5 log₁₀(d) - 5
-            if (d <= 0) {
-                throw new Error('Distance d must be positive for logarithm');
-            }
+            this.checkEdgeCases(vars, ['M', 'd'], ['d'], []);
             const result = M + 5 * Math.log10(d) - 5;
             if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+                throw new Error('Invalid result. Check that distance d is positive.');
             }
             return result;
         } else if (unknownVar === 'M') {
             // M = m - 5 log₁₀(d) + 5
-            if (d <= 0) {
-                throw new Error('Distance d must be positive for logarithm');
-            }
+            this.checkEdgeCases(vars, ['m', 'd'], ['d'], []);
             const result = m - 5 * Math.log10(d) + 5;
             if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+                throw new Error('Invalid result. Check that distance d is positive.');
             }
             return result;
         } else if (unknownVar === 'd') {
             // d = 10^((m - M + 5)/5)
+            this.checkEdgeCases(vars, ['m', 'M'], [], []);
             const result = Math.pow(10, (m - M + 5) / 5);
             if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
+                throw new Error('Invalid result. Check input values.');
             }
             return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Distance Modulus`);
     }
 
     solveLuminosity(unknownVar, vars) {
@@ -1072,64 +1054,40 @@ class FormulaCalculator {
         const T = vars.T;
         const sigma = vars.σ || vars.sigma;
         
-        // ENHANCED: Division-by-zero and validation checks
         if (unknownVar === 'L') {
             // L = 4πR²σT⁴
-            if (R <= 0) {
-                throw new Error('Radius R must be positive');
-            }
-            if (T <= 0) {
-                throw new Error('Temperature T must be positive (in Kelvin)');
-            }
-            if (!sigma || sigma === 0) {
-                throw new Error('Stefan-Boltzmann constant σ must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['R', 'T', 'sigma'], ['R', 'T'], ['sigma']);
             const result = 4 * Math.PI * R * R * sigma * Math.pow(T, 4);
-            if (!isFinite(result)) {
-                throw new Error('Result is infinite. Check input values.');
+            if (!isFinite(result) || result <= 0) {
+                throw new Error('Invalid result. Check that radius R and temperature T are positive.');
             }
             return result;
         } else if (unknownVar === 'R') {
             // R = √(L/(4πσT⁴))
-            if (L <= 0) {
-                throw new Error('Luminosity L must be positive');
-            }
-            if (T <= 0) {
-                throw new Error('Temperature T must be positive (in Kelvin)');
-            }
-            if (!sigma || sigma === 0) {
-                throw new Error('Stefan-Boltzmann constant σ must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['L', 'T', 'sigma'], ['L', 'T'], ['sigma']);
             const denominator = 4 * Math.PI * sigma * Math.pow(T, 4);
             if (denominator === 0) {
-                throw new Error('Division by zero: 4πσT⁴ cannot be zero');
+                throw new Error('Division by zero: temperature T cannot be zero');
             }
             const result = Math.sqrt(L / denominator);
             if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
+                throw new Error('Invalid result. Check that luminosity L and temperature T are positive.');
             }
             return result;
         } else if (unknownVar === 'T') {
             // T = (L/(4πR²σ))^(1/4)
-            if (L <= 0) {
-                throw new Error('Luminosity L must be positive');
-            }
-            if (R <= 0) {
-                throw new Error('Radius R must be positive');
-            }
-            if (!sigma || sigma === 0) {
-                throw new Error('Stefan-Boltzmann constant σ must be non-zero');
-            }
+            this.checkEdgeCases(vars, ['L', 'R', 'sigma'], ['L', 'R'], ['sigma']);
             const denominator = 4 * Math.PI * R * R * sigma;
             if (denominator === 0) {
-                throw new Error('Division by zero: 4πR²σ cannot be zero');
+                throw new Error('Division by zero: radius R cannot be zero');
             }
             const result = Math.pow(L / denominator, 0.25);
             if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
+                throw new Error('Invalid result. Check that luminosity L and radius R are positive.');
             }
             return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Luminosity`);
     }
 
     solveHubbleLaw(unknownVar, vars) {
@@ -2397,11 +2355,19 @@ class FormulaCalculator {
             let match;
             while ((match = varPattern.exec(expression)) !== null) {
                 const varName = match[1];
-                // Skip constants and the variable we're solving for
-                if (varName !== excludeVar && 
-                    !['pi', 'π', 'e', 'E', 'G', 'c', 'h', 'k', 'σ', 'sigma'].includes(varName.toLowerCase())) {
-                    variables.add(varName);
-                }
+            // Skip constants and the variable we're solving for
+            const lowerVarName = varName.toLowerCase();
+            const isConstant = [
+                'pi', 'π', 'e', 'E', 'G', 'c', 'h', 'k', 'σ', 'sigma',
+                'm_sun', 'm☉', 'm_☉', 'l_sun', 'l☉', 'l_☉', 'r_sun', 'r☉', 'r_☉',
+                'm_earth', 'm_⊕', 'au', 'm_e', 'm_h', 'sigma_t', 'σ_t'
+            ].includes(lowerVarName) || 
+            (globalConstants && globalConstants[varName] !== undefined) ||
+            (this.formula.constants && this.formula.constants[varName] !== undefined);
+            
+            if (varName !== excludeVar && !isConstant) {
+                variables.add(varName);
+            }
             }
             
             // Check if all required variables have values
@@ -2425,30 +2391,71 @@ class FormulaCalculator {
                 expr = expr.replace(varRegex, value.toString());
             }
             
-            // Replace constants
+            // Replace constants - comprehensive list
             expr = expr.replace(/\bpi\b/gi, Math.PI.toString());
             expr = expr.replace(/\bπ\b/g, Math.PI.toString());
             expr = expr.replace(/\be\b(?![\d.])/gi, Math.E.toString());
             
-            // Replace common constants from vars
-            if (vars.G) expr = expr.replace(/\bG\b/g, vars.G.toString());
-            if (vars.c) expr = expr.replace(/\bc\b/g, vars.c.toString());
-            if (vars.h) expr = expr.replace(/\bh\b/g, vars.h.toString());
-            if (vars.k) expr = expr.replace(/\bk\b/g, vars.k.toString());
-            if (vars.σ || vars.sigma) {
-                const sigma = vars.σ || vars.sigma;
-                expr = expr.replace(/\bσ\b/g, sigma.toString());
-                expr = expr.replace(/\bsigma\b/gi, sigma.toString());
+            // Replace all constants from vars (including globalConstants and formula constants)
+            const allConstants = { ...globalConstants, ...(this.formula.constants || {}) };
+            for (const [constName, constValue] of Object.entries(allConstants)) {
+                if (constValue !== null && constValue !== undefined && isFinite(constValue)) {
+                    // Replace whole word matches only
+                    const constRegex = new RegExp(`\\b${constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                    expr = expr.replace(constRegex, constValue.toString());
+                }
             }
             
-            // Handle power notation (^)
-            expr = expr.replace(/\^/g, '**');
+            // Also replace from vars (in case they're passed in)
+            for (const [constName, constValue] of Object.entries(vars)) {
+                if (constValue !== null && constValue !== undefined && isFinite(constValue)) {
+                    // Only replace if it's a constant (not a variable we're solving for)
+                    if (constName === excludeVar) continue;
+                    const lowerName = constName.toLowerCase();
+                    const isConst = [
+                        'pi', 'π', 'e', 'G', 'c', 'h', 'k', 'σ', 'sigma',
+                        'm_sun', 'm☉', 'm_☉', 'l_sun', 'l☉', 'l_☉', 'r_sun', 'r☉', 'r_☉',
+                        'm_earth', 'm_⊕', 'au', 'm_e', 'm_h', 'sigma_t', 'σ_t'
+                    ].includes(lowerName) || 
+                    (globalConstants && globalConstants[constName] !== undefined) ||
+                    (this.formula.constants && this.formula.constants[constName] !== undefined);
+                    
+                    if (isConst) {
+                        const constRegex = new RegExp(`\\b${constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                        expr = expr.replace(constRegex, constValue.toString());
+                    }
+                }
+            }
             
-            // Handle sqrt, cbrt
+            // Handle power notation (^ and superscripts)
+            expr = expr.replace(/\^/g, '**');
+            expr = expr.replace(/([a-zA-Z0-9_]+)²/g, '($1)**2');
+            expr = expr.replace(/([a-zA-Z0-9_]+)³/g, '($1)**3');
+            expr = expr.replace(/([a-zA-Z0-9_]+)⁴/g, '($1)**4');
+            expr = expr.replace(/([a-zA-Z0-9_]+)⁵/g, '($1)**5');
+            
+            // Handle sqrt, cbrt (with parentheses and without)
             expr = expr.replace(/√\(([^)]+)\)/g, 'Math.sqrt($1)');
-            expr = expr.replace(/√([0-9.]+)/g, 'Math.sqrt($1)');
+            expr = expr.replace(/√([a-zA-Z0-9_]+)/g, 'Math.sqrt($1)');
             expr = expr.replace(/∛\(([^)]+)\)/g, 'Math.cbrt($1)');
-            expr = expr.replace(/∛([0-9.]+)/g, 'Math.cbrt($1)');
+            expr = expr.replace(/∛([a-zA-Z0-9_]+)/g, 'Math.cbrt($1)');
+            
+            // Handle log functions
+            expr = expr.replace(/log₁₀\(([^)]+)\)/g, 'Math.log10($1)');
+            expr = expr.replace(/log10\(([^)]+)\)/g, 'Math.log10($1)');
+            expr = expr.replace(/ln\(([^)]+)\)/g, 'Math.log($1)');
+            expr = expr.replace(/log\(([^)]+)\)/g, 'Math.log10($1)'); // Default to log10
+            
+            // Handle trigonometric functions
+            expr = expr.replace(/sin\(([^)]+)\)/g, 'Math.sin($1)');
+            expr = expr.replace(/cos\(([^)]+)\)/g, 'Math.cos($1)');
+            expr = expr.replace(/tan\(([^)]+)\)/g, 'Math.tan($1)');
+            expr = expr.replace(/asin\(([^)]+)\)/g, 'Math.asin($1)');
+            expr = expr.replace(/acos\(([^)]+)\)/g, 'Math.acos($1)');
+            expr = expr.replace(/atan\(([^)]+)\)/g, 'Math.atan($1)');
+            
+            // Handle exp
+            expr = expr.replace(/exp\(([^)]+)\)/g, 'Math.exp($1)');
             
             // Evaluate using Function constructor (safe for math expressions)
             const result = Function('"use strict"; return (' + expr + ')')();
@@ -2475,16 +2482,46 @@ class FormulaCalculator {
      */
     solveAlgebraic(leftSide, rightSide, unknownVar, vars) {
         // Simple cases where unknownVar appears alone or with simple operations
+        const escapedVar = unknownVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         
         // Case 1: unknownVar = rightSide (already isolated)
         if (leftSide.trim() === unknownVar) {
             return this.evaluateExpression(rightSide, vars, unknownVar);
         }
         
+        // Case 1b: unknownVar² = rightSide → unknownVar = ±√rightSide
+        const power2Pattern = new RegExp(`^${escapedVar}²$|^${escapedVar}\\^2$`, 'i');
+        if (power2Pattern.test(leftSide.trim())) {
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (rightValue !== null && isFinite(rightValue)) {
+                if (rightValue < 0) return null; // No real solution
+                return Math.sqrt(rightValue);
+            }
+        }
+        
+        // Case 1c: unknownVar³ = rightSide → unknownVar = ∛rightSide
+        const power3Pattern = new RegExp(`^${escapedVar}³$|^${escapedVar}\\^3$`, 'i');
+        if (power3Pattern.test(leftSide.trim())) {
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (rightValue !== null && isFinite(rightValue)) {
+                return Math.cbrt(rightValue);
+            }
+        }
+        
         // Case 2: -unknownVar = rightSide → unknownVar = -rightSide
         if (leftSide.trim() === `-${unknownVar}`) {
             const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
             if (rightValue !== null) return -rightValue;
+        }
+        
+        // Case 2b: -unknownVar² = rightSide → unknownVar = ±√(-rightSide)
+        const negPower2Pattern = new RegExp(`^-${escapedVar}²$|^-${escapedVar}\\^2$`, 'i');
+        if (negPower2Pattern.test(leftSide.trim())) {
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (rightValue !== null && isFinite(rightValue)) {
+                if (rightValue > 0) return null; // No real solution
+                return Math.sqrt(-rightValue);
+            }
         }
         
         // Case 3: unknownVar / n = rightSide → unknownVar = n * rightSide
