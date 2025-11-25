@@ -195,6 +195,7 @@
         <div class="controls">
             <button class="btn-primary" onclick="runAllTests()">Run All Tests</button>
             <button class="btn-secondary" onclick="runQuickCheck()">Quick Check</button>
+            <button class="btn-secondary" onclick="verifyAllFormulas()" style="background: #8b5cf6;">Verify All Formulas</button>
             <button class="btn-danger" onclick="clearResults()">Clear Results</button>
         </div>
 
@@ -255,9 +256,79 @@
     
     <!-- 7. Integration test (for verification) -->
     <script src="scripts/integrationTest.js"></script>
+    <script src="scripts/formulaVerification.js"></script>
     
     <!-- 8. Diagnostics (depends on everything, must be last) -->
     <script src="scripts/diagnostics.js"></script>
+    
+    <!-- Add verification function -->
+    <script>
+        async function verifyAllFormulas() {
+            const statusBar = document.getElementById('status-bar');
+            const testResults = document.getElementById('test-results');
+            
+            statusBar.style.display = 'block';
+            statusBar.className = 'status-bar status-running';
+            statusBar.textContent = '🔍 Verifying all formulas...';
+            
+            testResults.innerHTML = '<div class="test-section"><h2>Formula Verification</h2></div>';
+            
+            try {
+                const results = await FormulaVerification.verifyAll();
+                
+                // Display results
+                let html = '<div class="test-section"><h2>Formula Verification Results</h2>';
+                
+                html += `<div class="summary" style="display: grid;">
+                    <div class="summary-card total">
+                        <div class="summary-number">${results.total}</div>
+                        <div class="summary-label">Total Formulas</div>
+                    </div>
+                    <div class="summary-card passed">
+                        <div class="summary-number">${results.accessible}</div>
+                        <div class="summary-label">Accessible</div>
+                    </div>
+                    <div class="summary-card passed">
+                        <div class="summary-number">${results.numerical}</div>
+                        <div class="summary-label">Numerical Solving</div>
+                    </div>
+                    <div class="summary-card passed">
+                        <div class="summary-number">${results.symbolic}</div>
+                        <div class="summary-label">Symbolic Solving</div>
+                    </div>
+                </div>`;
+                
+                if (results.errors.length > 0) {
+                    html += '<div class="red-flag"><h3>❌ Errors</h3><ul>';
+                    results.errors.forEach(err => {
+                        html += `<li>${err}</li>`;
+                    });
+                    html += '</ul></div>';
+                }
+                
+                if (results.warnings.length > 0) {
+                    html += '<div class="test-item warn"><h3>⚠️ Warnings</h3><ul>';
+                    results.warnings.slice(0, 20).forEach(warn => {
+                        html += `<li>${warn}</li>`;
+                    });
+                    if (results.warnings.length > 20) {
+                        html += `<li>... and ${results.warnings.length - 20} more warnings</li>`;
+                    }
+                    html += '</ul></div>';
+                }
+                
+                html += '</div>';
+                testResults.innerHTML += html;
+                
+                statusBar.className = 'status-bar status-pass';
+                statusBar.textContent = `✅ Verification complete: ${results.numerical}/${results.total} formulas functional (${(results.numerical/results.total*100).toFixed(1)}%)`;
+            } catch (e) {
+                statusBar.className = 'status-bar status-fail';
+                statusBar.textContent = `❌ Verification failed: ${e.message}`;
+                testResults.innerHTML += `<div class="test-item fail"><div class="test-error">${e.message}</div></div>`;
+            }
+        }
+    </script>
 </body>
 </html>
 
