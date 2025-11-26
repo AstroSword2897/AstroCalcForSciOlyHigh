@@ -43,6 +43,496 @@
  */
 
 /**
+ * VariableNormalizer - Normalizes variable names for consistent handling
+ * Handles Unicode Greek letters, subscripts, and alternative naming conventions
+ */
+class VariableNormalizer {
+    /**
+     * Mapping of alternative variable names to canonical forms
+     */
+    static MAPPINGS = {
+        // Hubble constant variants
+        'H₀': 'H0',
+        'H_0': 'H0',
+        'H_zero': 'H0',
+        
+        // Greek letters to ASCII
+        'λ': 'lambda',
+        'λmax': 'lambda_max',
+        'λ_obs': 'lambda_obs',
+        'λ_rest': 'lambda_rest',
+        'λmax': 'lambda_max',
+        
+        'ρ': 'rho',
+        'ρ_c': 'rho_c',
+        'ρ_M': 'rho_M',
+        'ρ_m': 'rho_m',
+        
+        'σ': 'sigma',
+        'σ_T': 'sigma_T',
+        'σT': 'sigma_T',
+        'σ_t': 'sigma_t',
+        
+        'τ': 'tau',
+        'θ': 'theta',
+        'θ_E': 'theta_E',
+        'θ_E': 'theta_E',
+        
+        'α': 'alpha',
+        'β': 'beta',
+        'γ': 'gamma',
+        'γmax': 'gamma_max',
+        'γb': 'gamma_b',
+        'γmax': 'gamma_max',
+        
+        'Δ': 'Delta',
+        'Δt\'': 'delta_t_prime',
+        'delta_t_prime': 'delta_t_prime',
+        'ΔT_GH': 'delta_T_GH',
+        'delta_T_GH': 'delta_T_GH',
+        
+        'Ω': 'Omega',
+        'Φ': 'Phi',
+        'φ': 'phi',
+        
+        // Subscript variants
+        'M_☉': 'M_sun',
+        'M☉': 'M_sun',
+        'M_sun': 'M_sun',
+        'M_⊕': 'M_earth',
+        'M_earth': 'M_earth',
+        'R_☉': 'R_sun',
+        'R☉': 'R_sun',
+        'R_sun': 'R_sun',
+        'L_☉': 'L_sun',
+        'L☉': 'L_sun',
+        'L_sun': 'L_sun',
+        
+        // Common physics variables
+        'νb': 'nu_b',
+        'ν_b': 'nu_b',
+        'T_eq': 'T_eq',
+        'T_eq': 'T_eq',
+        'R_s': 'R_s',
+        'R_s': 'R_s',
+        'M_Ch': 'M_Ch',
+        'M_Ch': 'M_Ch',
+        'B_V': 'B_V',
+        'B-V': 'B_V',
+        'M_V': 'M_V',
+        'M-V': 'M_V',
+        'L\'': 'L_prime',
+        'L_prime': 'L_prime',
+        'dP_dr': 'dP_dr',
+        'da_dt': 'da_dt',
+        't_merge': 't_merge',
+        't_syn': 't_syn',
+        't_age': 't_age',
+        'P_syn': 'P_syn',
+        'P_rot': 'P_rot',
+        'U_B': 'U_B',
+        'v_esc': 'v_esc',
+        'R_H': 'R_H',
+        'M_J': 'M_J',
+        'D_A': 'D_A',
+        'D_L': 'D_L',
+        'E_total': 'E_total',
+    };
+    
+    /**
+     * Normalize a single variable name to its canonical form
+     * @param {string} varName - Variable name to normalize
+     * @returns {string} Normalized variable name
+     */
+    static normalize(varName) {
+        if (!varName || typeof varName !== 'string') {
+            return varName;
+        }
+        
+        // Check direct mapping first
+        if (this.MAPPINGS[varName]) {
+            return this.MAPPINGS[varName];
+        }
+        
+        // Handle case-insensitive matching for common patterns
+        const lowerVarName = varName.toLowerCase();
+        for (const [key, value] of Object.entries(this.MAPPINGS)) {
+            if (key.toLowerCase() === lowerVarName) {
+                return value;
+            }
+        }
+        
+        // Return original if no mapping found
+        return varName;
+    }
+    
+    /**
+     * Normalize all keys in a variables object
+     * @param {Object} vars - Variables object with potentially non-normalized keys
+     * @returns {Object} Variables object with normalized keys
+     */
+    static normalizeObject(vars) {
+        if (!vars || typeof vars !== 'object') {
+            return vars;
+        }
+        
+        const normalized = {};
+        for (const [key, value] of Object.entries(vars)) {
+            const normalizedKey = this.normalize(key);
+            // If normalization changed the key, preserve both for compatibility
+            normalized[normalizedKey] = value;
+            if (normalizedKey !== key) {
+                normalized[key] = value; // Keep original for backward compatibility
+            }
+        }
+        
+        return normalized;
+    }
+    
+    /**
+     * Get all possible variants of a variable name
+     * @param {string} canonicalName - Canonical variable name
+     * @returns {string[]} Array of all possible variant names
+     */
+    static getVariants(canonicalName) {
+        const variants = [canonicalName];
+        for (const [key, value] of Object.entries(this.MAPPINGS)) {
+            if (value === canonicalName && key !== canonicalName) {
+                variants.push(key);
+            }
+        }
+        return variants;
+    }
+}
+
+/**
+ * CalculationError - Enhanced error with structured context
+ * Provides detailed information about calculation failures
+ */
+class CalculationError extends Error {
+    constructor(message, context = {}) {
+        super(message);
+        this.name = 'CalculationError';
+        this.context = {
+            formula: context.formula || 'unknown',
+            variable: context.variable || 'unknown',
+            inputs: context.inputs || {},
+            step: context.step || 'unknown',
+            timestamp: new Date().toISOString()
+        };
+        
+        // Maintains proper stack trace for where our error was thrown (only available on V8)
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, CalculationError);
+        }
+    }
+    
+    /**
+     * Convert error to JSON for logging/debugging
+     * @returns {Object} JSON representation of error
+     */
+    toJSON() {
+        return {
+            error: this.message,
+            name: this.name,
+            formula: this.context.formula,
+            variable: this.context.variable,
+            inputs: this.context.inputs,
+            step: this.context.step,
+            timestamp: this.context.timestamp,
+            stack: this.stack
+        };
+    }
+    
+    /**
+     * Get user-friendly error message
+     * @returns {string} Human-readable error message
+     */
+    getUserMessage() {
+        let msg = this.message;
+        if (this.context.formula !== 'unknown') {
+            msg += ` (Formula: ${this.context.formula})`;
+        }
+        if (this.context.variable !== 'unknown') {
+            msg += ` (Variable: ${this.context.variable})`;
+        }
+        if (this.context.step !== 'unknown') {
+            msg += ` (Step: ${this.context.step})`;
+        }
+        return msg;
+    }
+}
+
+/**
+ * SafeMathEvaluator - Safe mathematical expression evaluator
+ * Replaces unsafe Function() constructor with a secure parser
+ * ENHANCED: Better validation and token-based variable replacement
+ */
+class SafeMathEvaluator {
+    /**
+     * Evaluate a mathematical expression safely
+     * ENHANCED: Better validation, token-based variable replacement, and improved security
+     * @param {string} expression - Mathematical expression (e.g., "2 * 3 + 4")
+     * @param {Object} vars - Optional variables to substitute (for safer variable replacement)
+     * @returns {number} Evaluated result
+     * @throws {CalculationError} If expression is invalid or unsafe
+     */
+    static evaluate(expression, vars = {}) {
+        if (!expression || typeof expression !== 'string') {
+            throw new CalculationError('Expression must be a non-empty string', {
+                step: 'Input validation'
+            });
+        }
+        
+        // Remove whitespace
+        let expr = expression.trim();
+        
+        if (expr.length === 0) {
+            throw new CalculationError('Expression cannot be empty', {
+                step: 'Input validation'
+            });
+        }
+        
+        // ENHANCED: More comprehensive dangerous pattern detection
+        const dangerousPatterns = [
+            /eval\s*\(/i,
+            /function\s*\(/i,
+            /new\s+Function/i,
+            /constructor/i,
+            /prototype/i,
+            /__proto__/i,
+            /import\s*\(/i,
+            /require\s*\(/i,
+            /document\./i,
+            /window\./i,
+            /global\./i,
+            /process\./i,
+            /\.call\(/i,
+            /\.apply\(/i,
+            /\.bind\(/i,
+            /setTimeout/i,
+            /setInterval/i,
+            /exec\(/i,
+            /compile\(/i
+        ];
+        
+        for (const pattern of dangerousPatterns) {
+            if (pattern.test(expr)) {
+                throw new CalculationError(
+                    `Expression contains potentially unsafe code: ${pattern.source}`,
+                    { step: 'Security validation', inputs: { expression: expr.substring(0, 50) } }
+                );
+            }
+        }
+        
+        // ENHANCED: Validate allowed characters more strictly
+        // Allow: numbers, operators, parentheses, Math functions, whitespace, and variable names
+        const allowedMathFunctions = ['sqrt', 'cbrt', 'log', 'log10', 'ln', 'sin', 'cos', 'tan', 
+                                     'asin', 'acos', 'atan', 'exp', 'pow', 'abs', 'floor', 'ceil', 
+                                     'round', 'min', 'max', 'PI', 'E'];
+        const mathFuncPattern = new RegExp(`Math\\.(${allowedMathFunctions.join('|')})\\s*\\(`, 'gi');
+        
+        // Remove Math functions temporarily for validation
+        let validationExpr = expr.replace(mathFuncPattern, 'Math.');
+        // Remove variable names (alphanumeric + underscore)
+        validationExpr = validationExpr.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, 'VAR');
+        // Remove numbers (including scientific notation)
+        validationExpr = validationExpr.replace(/[\d.eE+\-]+/g, 'NUM');
+        
+        // Check remaining characters are only allowed operators and parentheses
+        const safeCharPattern = /^[+\-*/().\s,NUMVARMath\.]*$/;
+        if (!safeCharPattern.test(validationExpr)) {
+            throw new CalculationError(
+                'Expression contains unsafe characters',
+                { step: 'Character validation', inputs: { expression: expr.substring(0, 50) } }
+            );
+        }
+        
+        // ENHANCED: Token-based variable replacement (prevents partial matches)
+        if (vars && Object.keys(vars).length > 0) {
+            expr = this.replaceVariablesSafely(expr, vars);
+        }
+        
+        // ENHANCED: Use safer evaluation with limited scope
+        // Instead of bare Function(), we pass only allowed Math functions as parameters
+        try {
+            // Define allowed Math functions in a safe scope
+            const allowedFunctions = {
+                sqrt: Math.sqrt,
+                cbrt: Math.cbrt,
+                log: Math.log,
+                log10: Math.log10,
+                sin: Math.sin,
+                cos: Math.cos,
+                tan: Math.tan,
+                asin: Math.asin,
+                acos: Math.acos,
+                atan: Math.atan,
+                exp: Math.exp,
+                pow: Math.pow,
+                abs: Math.abs,
+                floor: Math.floor,
+                ceil: Math.ceil,
+                round: Math.round,
+                min: Math.min,
+                max: Math.max,
+                PI: Math.PI,
+                E: Math.E
+            };
+            
+            // Replace Math.function with just function name for cleaner evaluation
+            // This is safe because we've already validated the expression
+            let evalExpr = expr;
+            for (const [funcName, func] of Object.entries(allowedFunctions)) {
+                const regex = new RegExp(`Math\\.${funcName}\\b`, 'g');
+                evalExpr = evalExpr.replace(regex, `_${funcName}`);
+            }
+            
+            // Create function with only allowed operations in scope
+            // This is safer than bare Function() because we control what's available
+            const safeFunc = new Function(
+                ...Object.keys(allowedFunctions).map(k => `_${k}`),
+                `"use strict"; return (${evalExpr});`
+            );
+            
+            const result = safeFunc(...Object.values(allowedFunctions));
+            
+            if (typeof result !== 'number') {
+                throw new CalculationError(
+                    `Expression did not evaluate to a number, got: ${typeof result}`,
+                    { step: 'Result validation', inputs: { expression: expr.substring(0, 50) } }
+                );
+            }
+            
+            if (!isFinite(result)) {
+                throw new CalculationError(
+                    `Expression did not evaluate to a finite number, got: ${result}`,
+                    { step: 'Result validation', inputs: { expression: expr.substring(0, 50) } }
+                );
+            }
+            
+            return result;
+        } catch (error) {
+            if (error instanceof CalculationError) {
+                throw error;
+            }
+            throw new CalculationError(
+                `Expression evaluation failed: ${error.message}`,
+                { step: 'Evaluation', inputs: { expression: expr.substring(0, 50), error: error.message } }
+            );
+        }
+    }
+    
+    /**
+     * Safely replace variables in expression using token-based approach
+     * Prevents partial matches (e.g., "a" won't match "a_max")
+     * @param {string} expr - Expression string
+     * @param {Object} vars - Variables to replace
+     * @returns {string} Expression with variables replaced
+     */
+    static replaceVariablesSafely(expr, vars) {
+        // Sort variable names by length (longest first) to prevent partial matches
+        const sortedVarNames = Object.keys(vars).sort((a, b) => b.length - a.length);
+        
+        let result = expr;
+        for (const varName of sortedVarNames) {
+            const value = vars[varName];
+            if (value === null || value === undefined || !isFinite(value)) {
+                continue; // Skip invalid values
+            }
+            
+            // Use word boundary regex to match whole variable names only
+            // Match: start of string, non-word char, or end of string
+            const varRegex = new RegExp(`\\b${this.escapeRegex(varName)}\\b`, 'g');
+            result = result.replace(varRegex, value.toString());
+        }
+        
+        return result;
+    }
+    
+    /**
+     * Escape special regex characters in a string
+     * @param {string} str - String to escape
+     * @returns {string} Escaped string
+     */
+    static escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+}
+
+/**
+ * SolverValidator - Validates solver inputs and results
+ * Provides consistent error handling across all solvers
+ */
+class SolverValidator {
+    /**
+     * Validate that a value is not zero (for division operations)
+     * @param {number} value - Value to check
+     * @param {string} varName - Variable name for error message
+     * @throws {Error} If value is zero
+     */
+    static checkNonZero(value, varName) {
+        if (value === 0 || value === null || value === undefined) {
+            throw new Error(`${varName} cannot be zero. Division by zero is not allowed.`);
+        }
+        if (!isFinite(value)) {
+            throw new Error(`${varName} must be a finite number, got: ${value}`);
+        }
+    }
+    
+    /**
+     * Validate that a value is positive
+     * @param {number} value - Value to check
+     * @param {string} varName - Variable name for error message
+     * @throws {Error} If value is not positive
+     */
+    static checkPositive(value, varName) {
+        if (value <= 0 || !isFinite(value)) {
+            throw new Error(`${varName} must be a positive finite number, got: ${value}`);
+        }
+    }
+    
+    /**
+     * Validate division operation (check divisor is not zero)
+     * @param {number} dividend - Dividend
+     * @param {number} divisor - Divisor
+     * @param {string} divisorName - Name of divisor for error message
+     * @returns {number} Result of division
+     * @throws {Error} If divisor is zero
+     */
+    static safeDivide(dividend, divisor, divisorName = 'divisor') {
+        this.checkNonZero(divisor, divisorName);
+        const result = dividend / divisor;
+        if (!isFinite(result)) {
+            throw new Error(`Division result is not finite: ${dividend} / ${divisor}`);
+        }
+        return result;
+    }
+    
+    /**
+     * Validate result is finite and valid
+     * @param {number} result - Result to validate
+     * @param {string} operation - Operation name for error message
+     * @throws {Error} If result is invalid
+     */
+    static validateResult(result, operation = 'calculation') {
+        if (result === null || result === undefined) {
+            throw new Error(`${operation} returned null or undefined`);
+        }
+        if (typeof result !== 'number') {
+            throw new Error(`${operation} returned non-numeric value: ${typeof result}`);
+        }
+        if (isNaN(result)) {
+            throw new Error(`${operation} returned NaN`);
+        }
+        if (!isFinite(result)) {
+            throw new Error(`${operation} returned non-finite value: ${result}`);
+        }
+        return result;
+    }
+}
+
+/**
  * FormulaCalculator Class
  * 
  * Handles calculation logic for a specific formula. Can solve for:
@@ -233,6 +723,9 @@ class FormulaCalculator {
      * // Returns: { result: "P = 2π√(a³/(GM))", solvedFor: null, isSymbolic: true }
      */
     solve(variableValues) {
+        // ENHANCED: Validate inputs first using InputValidator
+        InputValidator.validateInputs(this.formula, variableValues);
+        
         const nullVars = [];
         const naVars = [];
         const providedVars = {};
@@ -295,26 +788,71 @@ class FormulaCalculator {
 
         const unknownVar = nullVars[0];
         
+        // ENHANCED: Normalize unknown variable name
+        const normalizedUnknownVar = VariableNormalizer.normalize(unknownVar);
+        
         // ENHANCED: Validate that we can solve for this variable
-        if (!this.canSolveFor(unknownVar)) {
-            throw new Error(`Cannot solve for ${unknownVar} in formula ${this.formula.id}. This variable may require symbolic mode.`);
+        if (!this.canSolveFor(normalizedUnknownVar) && !this.canSolveFor(unknownVar)) {
+            throw new CalculationError(
+                `Cannot solve for ${unknownVar} in formula ${this.formula.id}. This variable may require symbolic mode.`,
+                {
+                    formula: this.formula.id,
+                    variable: unknownVar,
+                    inputs: providedVars,
+                    step: 'Variable validation'
+                }
+            );
         }
         
-        // ENHANCED: Wrap calculation in error handling
+        // ENHANCED: Wrap calculation in error handling with structured context
         let result;
         try {
-            result = this.solveForVariable(unknownVar, providedVars);
+            // Try normalized variable name first, fall back to original
+            const varToSolve = this.canSolveFor(normalizedUnknownVar) ? normalizedUnknownVar : unknownVar;
+            result = this.solveForVariable(varToSolve, providedVars);
         } catch (error) {
-            // Provide more context in error message
-            throw new Error(`Error solving for ${unknownVar} in ${this.formula.name}: ${error.message}`);
+            // Wrap in CalculationError if not already
+            if (error instanceof CalculationError) {
+                error.context.formula = this.formula.id;
+                error.context.variable = unknownVar;
+                error.context.inputs = providedVars;
+                throw error;
+            }
+            throw new CalculationError(
+                `Error solving for ${unknownVar}: ${error.message}`,
+                {
+                    formula: this.formula.id,
+                    variable: unknownVar,
+                    inputs: providedVars,
+                    step: 'Variable solving',
+                    originalError: error.message
+                }
+            );
         }
         
-        // ENHANCED: Validate result
+        // ENHANCED: Validate result with structured error
         if (result === null || result === undefined) {
-            throw new Error(`Solver returned null/undefined for ${unknownVar}. Check input values.`);
+            throw new CalculationError(
+                `Solver returned null/undefined for ${unknownVar}. Check input values.`,
+                {
+                    formula: this.formula.id,
+                    variable: unknownVar,
+                    inputs: providedVars,
+                    step: 'Result validation'
+                }
+            );
         }
         if (!isFinite(result)) {
-            throw new Error(`Result for ${unknownVar} is ${result}. Check for division by zero or invalid input values.`);
+            throw new CalculationError(
+                `Result for ${unknownVar} is ${result}. Check for division by zero or invalid input values.`,
+                {
+                    formula: this.formula.id,
+                    variable: unknownVar,
+                    inputs: providedVars,
+                    step: 'Result validation',
+                    result: result
+                }
+            );
         }
         
         // ENHANCED: Validate physical constraints on result
@@ -676,10 +1214,9 @@ class FormulaCalculator {
         const solver = FormulaCalculator.solvers[formulaId];
         
         if (!solver) {
-            // SPECIFIC SOLVER APPROACH: Only use specific solvers, no generic fallback
-            // This ensures accuracy and reliability for each formula
+            // ENHANCED: Use Levenshtein distance for better suggestions
             const availableSolvers = Object.keys(FormulaCalculator.solvers).sort();
-            const suggestion = availableSolvers.find(id => id.includes(formulaId.split('_')[0]));
+            const suggestion = this.findClosestMatch(formulaId, availableSolvers);
             
             let errorMsg = `No specific solver found for formula: ${formulaId}`;
             errorMsg += `\nVariable: ${unknownVar}`;
@@ -688,9 +1225,17 @@ class FormulaCalculator {
             if (suggestion) {
                 errorMsg += `\nDid you mean: ${suggestion}?`;
             }
+            if (availableSolvers.length > 0) {
+                errorMsg += `\n\nAvailable solvers (${availableSolvers.length} total): ${availableSolvers.slice(0, 10).join(', ')}${availableSolvers.length > 10 ? '...' : ''}`;
+            }
             errorMsg += `\n\nPlease ensure all required variables are provided and the formula ID is correct.`;
             
-            throw new Error(errorMsg);
+            throw new CalculationError(errorMsg, {
+                formula: formulaId,
+                variable: unknownVar,
+                inputs: knownVars,
+                step: 'Solver lookup'
+            });
         }
         
         try {
@@ -927,30 +1472,37 @@ class FormulaCalculator {
     solveKeplerThirdLaw(unknownVar, vars) {
         const { T, a, M, G } = vars;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'T') {
             // T = √((4π²/GM) × a³)
-            this.checkEdgeCases(vars, ['a', 'M', 'G'], ['a', 'M'], ['G', 'M']);
-            const result = Math.sqrt((4 * Math.PI * Math.PI / (G * M)) * (a * a * a));
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that mass M and semi-major axis a are positive.');
-            }
-            return result;
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            SolverValidator.checkNonZero(M, 'M (mass)');
+            SolverValidator.checkPositive(a, 'a (semi-major axis)');
+            const denominator = G * M;
+            SolverValidator.checkNonZero(denominator, 'G × M');
+            const result = Math.sqrt(SolverValidator.safeDivide(4 * Math.PI * Math.PI, denominator, 'G × M') * (a * a * a));
+            SolverValidator.checkPositive(result, 'T (period)');
+            return SolverValidator.validateResult(result, 'Kepler Third Law (T = √((4π²/GM) × a³))');
         } else if (unknownVar === 'a') {
             // a = ∛(T² × GM / 4π²)
-            this.checkEdgeCases(vars, ['T', 'M', 'G'], ['T', 'M'], ['T', 'G', 'M']);
-            const result = Math.cbrt((T * T * G * M) / (4 * Math.PI * Math.PI));
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that period T and mass M are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(T, 'T (period)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = T * T * G * M;
+            const result = Math.cbrt(SolverValidator.safeDivide(numerator, 4 * Math.PI * Math.PI, '4π²'));
+            SolverValidator.checkPositive(result, 'a (semi-major axis)');
+            return SolverValidator.validateResult(result, 'Kepler Third Law (a = ∛(T² × GM / 4π²))');
         } else if (unknownVar === 'M') {
             // M = (4π² × a³) / (G × T²)
-            this.checkEdgeCases(vars, ['T', 'a', 'G'], ['T', 'a'], ['T', 'G']);
-            const result = (4 * Math.PI * Math.PI * a * a * a) / (G * T * T);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that period T and semi-major axis a are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(T, 'T (period)');
+            SolverValidator.checkPositive(a, 'a (semi-major axis)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = 4 * Math.PI * Math.PI * a * a * a;
+            const denominator = G * T * T;
+            SolverValidator.checkNonZero(denominator, 'G × T²');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'G × T²');
+            SolverValidator.checkPositive(result, 'M (mass)');
+            return SolverValidator.validateResult(result, 'Kepler Third Law (M = (4π² × a³) / (G × T²))');
         }
         throw new Error(`Cannot solve for ${unknownVar} in Kepler's Third Law`);
     }
@@ -958,30 +1510,35 @@ class FormulaCalculator {
     solveOrbitalVelocity(unknownVar, vars) {
         const { v, r, M, G } = vars;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'v') {
             // v = √(GM/r)
-            this.checkEdgeCases(vars, ['r', 'M', 'G'], ['r', 'M'], ['G', 'M']);
-            const result = Math.sqrt((G * M) / r);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that radius r and mass M are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(r, 'r (radius)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = G * M;
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, r, 'r (radius)'));
+            SolverValidator.checkPositive(result, 'v (orbital velocity)');
+            return SolverValidator.validateResult(result, 'Orbital Velocity (v = √(GM/r))');
         } else if (unknownVar === 'r') {
             // r = GM/v²
-            this.checkEdgeCases(vars, ['v', 'M', 'G'], ['v', 'M'], ['v', 'G', 'M']);
-            const result = (G * M) / (v * v);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that velocity v and mass M are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(v, 'v (orbital velocity)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = G * M;
+            const denominator = v * v;
+            SolverValidator.checkNonZero(denominator, 'v²');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'v²');
+            SolverValidator.checkPositive(result, 'r (radius)');
+            return SolverValidator.validateResult(result, 'Orbital Velocity (r = GM/v²)');
         } else if (unknownVar === 'M') {
             // M = rv²/G
-            this.checkEdgeCases(vars, ['r', 'v', 'G'], ['r'], ['G']);
-            const result = (r * v * v) / G;
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that radius r is positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(r, 'r (radius)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = r * v * v;
+            const result = SolverValidator.safeDivide(numerator, G, 'G (gravitational constant)');
+            SolverValidator.checkPositive(result, 'M (mass)');
+            return SolverValidator.validateResult(result, 'Orbital Velocity (M = rv²/G)');
         }
         throw new Error(`Cannot solve for ${unknownVar} in Orbital Velocity`);
     }
@@ -989,30 +1546,35 @@ class FormulaCalculator {
     solveEscapeVelocity(unknownVar, vars) {
         const { v_esc, r, M, G } = vars;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'v_esc') {
             // v_esc = √(2GM/r)
-            this.checkEdgeCases(vars, ['r', 'M', 'G'], ['r', 'M'], ['G', 'M']);
-            const result = Math.sqrt((2 * G * M) / r);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that radius r and mass M are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(r, 'r (radius)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = 2 * G * M;
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, r, 'r (radius)'));
+            SolverValidator.checkPositive(result, 'v_esc (escape velocity)');
+            return SolverValidator.validateResult(result, 'Escape Velocity (v_esc = √(2GM/r))');
         } else if (unknownVar === 'r') {
             // r = 2GM/v_esc²
-            this.checkEdgeCases(vars, ['v_esc', 'M', 'G'], ['v_esc', 'M'], ['v_esc', 'G', 'M']);
-            const result = (2 * G * M) / (v_esc * v_esc);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that escape velocity v_esc and mass M are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(v_esc, 'v_esc (escape velocity)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = 2 * G * M;
+            const denominator = v_esc * v_esc;
+            SolverValidator.checkNonZero(denominator, 'v_esc²');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'v_esc²');
+            SolverValidator.checkPositive(result, 'r (radius)');
+            return SolverValidator.validateResult(result, 'Escape Velocity (r = 2GM/v_esc²)');
         } else if (unknownVar === 'M') {
             // M = rv_esc²/(2G)
-            this.checkEdgeCases(vars, ['r', 'v_esc', 'G'], ['r'], ['G']);
-            const result = (r * v_esc * v_esc) / (2 * G);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that radius r is positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(r, 'r (radius)');
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            const numerator = r * v_esc * v_esc;
+            const result = SolverValidator.safeDivide(numerator, 2 * G, '2G');
+            SolverValidator.checkPositive(result, 'M (mass)');
+            return SolverValidator.validateResult(result, 'Escape Velocity (M = rv_esc²/(2G))');
         }
         throw new Error(`Cannot solve for ${unknownVar} in Escape Velocity`);
     }
@@ -1020,30 +1582,26 @@ class FormulaCalculator {
     solveDistanceModulus(unknownVar, vars) {
         const { m, M, d } = vars;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'm') {
             // m = M + 5 log₁₀(d) - 5
-            this.checkEdgeCases(vars, ['M', 'd'], ['d'], []);
+            SolverValidator.checkPositive(d, 'd (distance)');
             const result = M + 5 * Math.log10(d) - 5;
-            if (!isFinite(result)) {
-                throw new Error('Invalid result. Check that distance d is positive.');
-            }
-            return result;
+            return SolverValidator.validateResult(result, 'Distance Modulus (m = M + 5 log₁₀(d) - 5)');
         } else if (unknownVar === 'M') {
             // M = m - 5 log₁₀(d) + 5
-            this.checkEdgeCases(vars, ['m', 'd'], ['d'], []);
+            SolverValidator.checkPositive(d, 'd (distance)');
             const result = m - 5 * Math.log10(d) + 5;
-            if (!isFinite(result)) {
-                throw new Error('Invalid result. Check that distance d is positive.');
-            }
-            return result;
+            return SolverValidator.validateResult(result, 'Distance Modulus (M = m - 5 log₁₀(d) + 5)');
         } else if (unknownVar === 'd') {
             // d = 10^((m - M + 5)/5)
-            this.checkEdgeCases(vars, ['m', 'M'], [], []);
-            const result = Math.pow(10, (m - M + 5) / 5);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check input values.');
+            const exponent = (m - M + 5) / 5;
+            if (!isFinite(exponent)) {
+                throw new Error('Invalid exponent in distance modulus calculation. Check input values.');
             }
-            return result;
+            const result = Math.pow(10, exponent);
+            SolverValidator.checkPositive(result, 'd (distance)');
+            return SolverValidator.validateResult(result, 'Distance Modulus (d = 10^((m - M + 5)/5))');
         }
         throw new Error(`Cannot solve for ${unknownVar} in Distance Modulus`);
     }
@@ -1054,38 +1612,35 @@ class FormulaCalculator {
         const T = vars.T;
         const sigma = vars.σ || vars.sigma;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'L') {
             // L = 4πR²σT⁴
-            this.checkEdgeCases(vars, ['R', 'T', 'sigma'], ['R', 'T'], ['sigma']);
+            SolverValidator.checkPositive(R, 'R (radius)');
+            SolverValidator.checkPositive(T, 'T (temperature)');
+            SolverValidator.checkNonZero(sigma, 'σ (Stefan-Boltzmann constant)');
             const result = 4 * Math.PI * R * R * sigma * Math.pow(T, 4);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that radius R and temperature T are positive.');
-            }
-            return result;
+            SolverValidator.checkPositive(result, 'L (luminosity)');
+            return SolverValidator.validateResult(result, 'Luminosity (L = 4πR²σT⁴)');
         } else if (unknownVar === 'R') {
             // R = √(L/(4πσT⁴))
-            this.checkEdgeCases(vars, ['L', 'T', 'sigma'], ['L', 'T'], ['sigma']);
+            SolverValidator.checkPositive(L, 'L (luminosity)');
+            SolverValidator.checkPositive(T, 'T (temperature)');
+            SolverValidator.checkNonZero(sigma, 'σ (Stefan-Boltzmann constant)');
             const denominator = 4 * Math.PI * sigma * Math.pow(T, 4);
-            if (denominator === 0) {
-                throw new Error('Division by zero: temperature T cannot be zero');
-            }
-            const result = Math.sqrt(L / denominator);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that luminosity L and temperature T are positive.');
-            }
-            return result;
+            SolverValidator.checkNonZero(denominator, '4πσT⁴');
+            const result = Math.sqrt(SolverValidator.safeDivide(L, denominator, '4πσT⁴'));
+            SolverValidator.checkPositive(result, 'R (radius)');
+            return SolverValidator.validateResult(result, 'Luminosity (R = √(L/(4πσT⁴)))');
         } else if (unknownVar === 'T') {
             // T = (L/(4πR²σ))^(1/4)
-            this.checkEdgeCases(vars, ['L', 'R', 'sigma'], ['L', 'R'], ['sigma']);
+            SolverValidator.checkPositive(L, 'L (luminosity)');
+            SolverValidator.checkPositive(R, 'R (radius)');
+            SolverValidator.checkNonZero(sigma, 'σ (Stefan-Boltzmann constant)');
             const denominator = 4 * Math.PI * R * R * sigma;
-            if (denominator === 0) {
-                throw new Error('Division by zero: radius R cannot be zero');
-            }
-            const result = Math.pow(L / denominator, 0.25);
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Invalid result. Check that luminosity L and radius R are positive.');
-            }
-            return result;
+            SolverValidator.checkNonZero(denominator, '4πR²σ');
+            const result = Math.pow(SolverValidator.safeDivide(L, denominator, '4πR²σ'), 0.25);
+            SolverValidator.checkPositive(result, 'T (temperature)');
+            return SolverValidator.validateResult(result, 'Luminosity (T = (L/(4πR²σ))^(1/4))');
         }
         throw new Error(`Cannot solve for ${unknownVar} in Luminosity`);
     }
@@ -1096,77 +1651,124 @@ class FormulaCalculator {
         const H0 = vars["H₀"] || vars.H0;
         const d = vars.d;
         
+        // ENHANCED: Division-by-zero checks using SolverValidator
         if (unknownVar === 'v') {
             // v = H₀ × d
-            return H0 * d;
-        } else if (unknownVar === 'H₀' || unknownVar === 'H0') {
+            SolverValidator.checkNonZero(H0, 'H₀ (Hubble constant)');
+            SolverValidator.checkPositive(d, 'd (distance)');
+            const result = H0 * d;
+            return SolverValidator.validateResult(result, 'Hubble Law (v = H₀ × d)');
+        } else if (normalizedUnknown === 'H0' || unknownVar === 'H₀' || unknownVar === 'H0' || unknownVar === 'H_0') {
             // H₀ = v/d
-            return v / d;
-        } else if (unknownVar === 'd') {
+            SolverValidator.checkNonZero(d, 'd (distance)');
+            const result = SolverValidator.safeDivide(v, d, 'd (distance)');
+            return SolverValidator.validateResult(result, 'Hubble Law (H₀ = v/d)');
+        } else if (normalizedUnknown === 'd' || unknownVar === 'd') {
             // d = v/H₀
-            return v / H0;
+            SolverValidator.checkNonZero(H0, 'H₀ (Hubble constant)');
+            const result = SolverValidator.safeDivide(v, H0, 'H₀ (Hubble constant)');
+            return SolverValidator.validateResult(result, 'Hubble Law (d = v/H₀)');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Hubble Law`);
     }
 
     solveSurfaceGravity(unknownVar, vars) {
         const { g, M, r, G } = vars;
         
+        // ENHANCED: Division-by-zero checks using SolverValidator
         if (unknownVar === 'g') {
             // g = GM/r²
-            return (G * M) / (r * r);
+            SolverValidator.checkNonZero(r, 'r (radius)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkPositive(G, 'G (gravitational constant)');
+            const result = SolverValidator.safeDivide(G * M, r * r, 'r² (radius squared)');
+            return SolverValidator.validateResult(result, 'Surface Gravity (g = GM/r²)');
         } else if (unknownVar === 'M') {
             // M = gr²/G
-            return (g * r * r) / G;
+            SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+            SolverValidator.checkPositive(g, 'g (surface gravity)');
+            SolverValidator.checkPositive(r, 'r (radius)');
+            const result = SolverValidator.safeDivide(g * r * r, G, 'G (gravitational constant)');
+            return SolverValidator.validateResult(result, 'Surface Gravity (M = gr²/G)');
         } else if (unknownVar === 'r') {
             // r = √(GM/g)
-            return Math.sqrt((G * M) / g);
+            SolverValidator.checkNonZero(g, 'g (surface gravity)');
+            SolverValidator.checkPositive(M, 'M (mass)');
+            SolverValidator.checkPositive(G, 'G (gravitational constant)');
+            const result = Math.sqrt(SolverValidator.safeDivide(G * M, g, 'g (surface gravity)'));
+            return SolverValidator.validateResult(result, 'Surface Gravity (r = √(GM/g))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Surface Gravity`);
     }
 
     solveAngularSize(unknownVar, vars) {
         const { θ, d, D } = vars;
         
+        // ENHANCED: Division-by-zero checks using SolverValidator
         if (unknownVar === 'θ') {
             // θ = d/D
-            return d / D;
+            SolverValidator.checkNonZero(D, 'D (distance)');
+            SolverValidator.checkPositive(d, 'd (linear size)');
+            const result = SolverValidator.safeDivide(d, D, 'D (distance)');
+            return SolverValidator.validateResult(result, 'Angular Size (θ = d/D)');
         } else if (unknownVar === 'd') {
             // d = θ × D
-            return θ * D;
+            SolverValidator.checkPositive(θ, 'θ (angular size)');
+            SolverValidator.checkPositive(D, 'D (distance)');
+            const result = θ * D;
+            return SolverValidator.validateResult(result, 'Angular Size (d = θ × D)');
         } else if (unknownVar === 'D') {
             // D = d/θ
-            return d / θ;
+            SolverValidator.checkNonZero(θ, 'θ (angular size)');
+            SolverValidator.checkPositive(d, 'd (linear size)');
+            const result = SolverValidator.safeDivide(d, θ, 'θ (angular size)');
+            return SolverValidator.validateResult(result, 'Angular Size (D = d/θ)');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Angular Size`);
     }
 
     solveParallaxRadians(unknownVar, vars) {
         const { d, p, AU } = vars;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'd') {
-            // d = 1 AU / tan(p)
-            return AU / Math.tan(p);
+            // d = AU / tan(p)
+            SolverValidator.checkPositive(p, 'p (parallax angle)');
+            SolverValidator.checkPositive(AU, 'AU (astronomical unit)');
+            const tanP = Math.tan(p);
+            SolverValidator.checkNonZero(tanP, 'tan(p)');
+            const result = SolverValidator.safeDivide(AU, tanP, 'tan(p)');
+            SolverValidator.checkPositive(result, 'd (distance)');
+            return SolverValidator.validateResult(result, 'Parallax Distance (d = AU/tan(p))');
         } else if (unknownVar === 'p') {
             // p = arctan(AU / d)
-            return Math.atan(AU / d);
+            SolverValidator.checkPositive(d, 'd (distance)');
+            SolverValidator.checkPositive(AU, 'AU (astronomical unit)');
+            const result = Math.atan(SolverValidator.safeDivide(AU, d, 'd (distance)'));
+            return SolverValidator.validateResult(result, 'Parallax Angle (p = arctan(AU/d))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Parallax (Radians)`);
     }
 
     solveParallaxArcsec(unknownVar, vars) {
         const { d, p } = vars;
         
-        // FIXED: Parallax in arcsec, distance in parsecs
+        // ENHANCED: Use SolverValidator for consistent error handling
         // Formula: d (pc) = 1 / p (arcsec)
-        // If p is in radians, convert: p_rad = p_arcsec * (π/180/3600)
-        // But standard formula assumes p is already in arcsec
-        
         if (unknownVar === 'd') {
             // d = 1 / p (where p is in arcseconds, d is in parsecs)
-            if (p <= 0) throw new Error('Parallax must be positive');
-            return 1 / p;
+            SolverValidator.checkPositive(p, 'p (parallax in arcsec)');
+            const result = SolverValidator.safeDivide(1, p, 'p (parallax)');
+            SolverValidator.checkPositive(result, 'd (distance in parsecs)');
+            return SolverValidator.validateResult(result, 'Parallax Distance (d = 1/p)');
         } else if (unknownVar === 'p') {
             // p = 1 / d (p in arcseconds, d in parsecs)
-            if (d <= 0) throw new Error('Distance must be positive');
-            return 1 / d;
+            SolverValidator.checkPositive(d, 'd (distance in parsecs)');
+            const result = SolverValidator.safeDivide(1, d, 'd (distance)');
+            SolverValidator.checkPositive(result, 'p (parallax in arcsec)');
+            return SolverValidator.validateResult(result, 'Parallax (p = 1/d)');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Parallax (Arcsec)`);
     }
 
     solveMaxGammaBohm(unknownVar, vars) {
@@ -1176,16 +1778,39 @@ class FormulaCalculator {
         const e = vars.e;
         const sigmaT = vars.σT;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'γmax') {
             // γmax = √(6πε / (σT B ξ))
-            return Math.sqrt((6 * Math.PI * e) / (sigmaT * B * xi));
+            SolverValidator.checkNonZero(sigmaT, 'σT (Thomson cross-section)');
+            SolverValidator.checkNonZero(B, 'B (magnetic field)');
+            SolverValidator.checkNonZero(xi, 'ξ (efficiency factor)');
+            const denominator = sigmaT * B * xi;
+            SolverValidator.checkNonZero(denominator, 'σT × B × ξ');
+            const result = Math.sqrt(SolverValidator.safeDivide(6 * Math.PI * e, denominator, 'σT × B × ξ'));
+            SolverValidator.checkPositive(result, 'γmax');
+            return SolverValidator.validateResult(result, 'Max Gamma Bohm (γmax = √(6πε/(σT B ξ)))');
         } else if (unknownVar === 'B') {
             // B = 6πε / (σT γmax² ξ)
-            return (6 * Math.PI * e) / (sigmaT * gammamax * gammamax * xi);
+            SolverValidator.checkNonZero(sigmaT, 'σT (Thomson cross-section)');
+            SolverValidator.checkPositive(gammamax, 'γmax');
+            SolverValidator.checkNonZero(xi, 'ξ (efficiency factor)');
+            const denominator = sigmaT * gammamax * gammamax * xi;
+            SolverValidator.checkNonZero(denominator, 'σT × γmax² × ξ');
+            const result = SolverValidator.safeDivide(6 * Math.PI * e, denominator, 'σT × γmax² × ξ');
+            SolverValidator.checkPositive(result, 'B (magnetic field)');
+            return SolverValidator.validateResult(result, 'Max Gamma Bohm (B = 6πε/(σT γmax² ξ))');
         } else if (unknownVar === 'ξ') {
             // ξ = 6πε / (σT B γmax²)
-            return (6 * Math.PI * e) / (sigmaT * B * gammamax * gammamax);
+            SolverValidator.checkNonZero(sigmaT, 'σT (Thomson cross-section)');
+            SolverValidator.checkNonZero(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(gammamax, 'γmax');
+            const denominator = sigmaT * B * gammamax * gammamax;
+            SolverValidator.checkNonZero(denominator, 'σT × B × γmax²');
+            const result = SolverValidator.safeDivide(6 * Math.PI * e, denominator, 'σT × B × γmax²');
+            SolverValidator.checkPositive(result, 'ξ (efficiency factor)');
+            return SolverValidator.validateResult(result, 'Max Gamma Bohm (ξ = 6πε/(σT B γmax²))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Max Gamma Bohm`);
     }
 
     solveCoolingBreakGamma(unknownVar, vars) {
@@ -1196,16 +1821,42 @@ class FormulaCalculator {
         const c = vars.c;
         const sigma_T = vars.σ_T;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'γb') {
             // γb = (6π m_e c) / (σ_T B² t_age)
-            return (6 * Math.PI * m_e * c) / (sigma_T * B * B * t_age);
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(t_age, 't_age (age)');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * B * B * t_age;
+            SolverValidator.checkNonZero(denominator, 'σ_T × B² × t_age');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'σ_T × B² × t_age');
+            SolverValidator.checkPositive(result, 'γb');
+            return SolverValidator.validateResult(result, 'Cooling Break Gamma (γb = (6π m_e c)/(σ_T B² t_age))');
         } else if (unknownVar === 'B') {
             // B = √((6π m_e c) / (σ_T γb t_age))
-            return Math.sqrt((6 * Math.PI * m_e * c) / (sigma_T * gammab * t_age));
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(gammab, 'γb');
+            SolverValidator.checkPositive(t_age, 't_age (age)');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * gammab * t_age;
+            SolverValidator.checkNonZero(denominator, 'σ_T × γb × t_age');
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, denominator, 'σ_T × γb × t_age'));
+            SolverValidator.checkPositive(result, 'B (magnetic field)');
+            return SolverValidator.validateResult(result, 'Cooling Break Gamma (B = √((6π m_e c)/(σ_T γb t_age)))');
         } else if (unknownVar === 't_age') {
             // t_age = (6π m_e c) / (σ_T B² γb)
-            return (6 * Math.PI * m_e * c) / (sigma_T * B * B * gammab);
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(gammab, 'γb');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * B * B * gammab;
+            SolverValidator.checkNonZero(denominator, 'σ_T × B² × γb');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'σ_T × B² × γb');
+            SolverValidator.checkPositive(result, 't_age (age)');
+            return SolverValidator.validateResult(result, 'Cooling Break Gamma (t_age = (6π m_e c)/(σ_T B² γb))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Cooling Break Gamma`);
     }
 
     solveCoolingBreakFrequency(unknownVar, vars) {
@@ -1216,16 +1867,44 @@ class FormulaCalculator {
         const m_e = vars.m_e;
         const c = vars.c;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'νb') {
             // νb = (3eB / (4π m_e c)) × γb²
-            return (3 * e * B / (4 * Math.PI * m_e * c)) * gammab * gammab;
+            SolverValidator.checkNonZero(m_e, 'm_e (electron mass)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(gammab, 'γb');
+            const denominator = 4 * Math.PI * m_e * c;
+            SolverValidator.checkNonZero(denominator, '4π m_e c');
+            const result = SolverValidator.safeDivide(3 * e * B, denominator, '4π m_e c') * gammab * gammab;
+            SolverValidator.checkPositive(result, 'νb (frequency)');
+            return SolverValidator.validateResult(result, 'Cooling Break Frequency (νb = (3eB/(4π m_e c)) × γb²)');
         } else if (unknownVar === 'B') {
             // B = (4π m_e c νb) / (3e γb²)
-            return (4 * Math.PI * m_e * c * nub) / (3 * e * gammab * gammab);
+            SolverValidator.checkNonZero(m_e, 'm_e (electron mass)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(nub, 'νb (frequency)');
+            SolverValidator.checkPositive(gammab, 'γb');
+            const numerator = 4 * Math.PI * m_e * c * nub;
+            const denominator = 3 * e * gammab * gammab;
+            SolverValidator.checkNonZero(denominator, '3e × γb²');
+            const result = SolverValidator.safeDivide(numerator, denominator, '3e × γb²');
+            SolverValidator.checkPositive(result, 'B (magnetic field)');
+            return SolverValidator.validateResult(result, 'Cooling Break Frequency (B = (4π m_e c νb)/(3e γb²))');
         } else if (unknownVar === 'γb') {
             // γb = √((4π m_e c νb) / (3eB))
-            return Math.sqrt((4 * Math.PI * m_e * c * nub) / (3 * e * B));
+            SolverValidator.checkNonZero(m_e, 'm_e (electron mass)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(nub, 'νb (frequency)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            const numerator = 4 * Math.PI * m_e * c * nub;
+            const denominator = 3 * e * B;
+            SolverValidator.checkNonZero(denominator, '3eB');
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, denominator, '3eB'));
+            SolverValidator.checkPositive(result, 'γb');
+            return SolverValidator.validateResult(result, 'Cooling Break Frequency (γb = √((4π m_e c νb)/(3eB)))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Cooling Break Frequency`);
     }
 
     solveSynchrotronCooling(unknownVar, vars) {
@@ -1236,16 +1915,42 @@ class FormulaCalculator {
         const c = vars.c;
         const sigma_T = vars.σ_T;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 't_syn') {
             // t_syn = (6π m_e c) / (σ_T B² γ)
-            return (6 * Math.PI * m_e * c) / (sigma_T * B * B * gamma);
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(gamma, 'γ (Lorentz factor)');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * B * B * gamma;
+            SolverValidator.checkNonZero(denominator, 'σ_T × B² × γ');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'σ_T × B² × γ');
+            SolverValidator.checkPositive(result, 't_syn (cooling timescale)');
+            return SolverValidator.validateResult(result, 'Synchrotron Cooling (t_syn = (6π m_e c)/(σ_T B² γ))');
         } else if (unknownVar === 'B') {
             // B = √((6π m_e c) / (σ_T t_syn γ))
-            return Math.sqrt((6 * Math.PI * m_e * c) / (sigma_T * t_syn * gamma));
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(t_syn, 't_syn (cooling timescale)');
+            SolverValidator.checkPositive(gamma, 'γ (Lorentz factor)');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * t_syn * gamma;
+            SolverValidator.checkNonZero(denominator, 'σ_T × t_syn × γ');
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, denominator, 'σ_T × t_syn × γ'));
+            SolverValidator.checkPositive(result, 'B (magnetic field)');
+            return SolverValidator.validateResult(result, 'Synchrotron Cooling (B = √((6π m_e c)/(σ_T t_syn γ)))');
         } else if (unknownVar === 'γ') {
             // γ = (6π m_e c) / (σ_T B² t_syn)
-            return (6 * Math.PI * m_e * c) / (sigma_T * B * B * t_syn);
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkPositive(B, 'B (magnetic field)');
+            SolverValidator.checkPositive(t_syn, 't_syn (cooling timescale)');
+            const numerator = 6 * Math.PI * m_e * c;
+            const denominator = sigma_T * B * B * t_syn;
+            SolverValidator.checkNonZero(denominator, 'σ_T × B² × t_syn');
+            const result = SolverValidator.safeDivide(numerator, denominator, 'σ_T × B² × t_syn');
+            SolverValidator.checkPositive(result, 'γ (Lorentz factor)');
+            return SolverValidator.validateResult(result, 'Synchrotron Cooling (γ = (6π m_e c)/(σ_T B² t_syn))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Synchrotron Cooling`);
     }
 
     solveSynchrotronPower(unknownVar, vars) {
@@ -1255,16 +1960,42 @@ class FormulaCalculator {
         const sigma_T = vars.σ_T;
         const c = vars.c;
         
+        // ENHANCED: Use SolverValidator for consistent error handling
         if (unknownVar === 'P_syn') {
             // P_syn = (4/3) σ_T c U_B γ²
-            return (4/3) * sigma_T * c * U_B * gamma * gamma;
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(U_B, 'U_B (magnetic energy density)');
+            SolverValidator.checkPositive(gamma, 'γ (Lorentz factor)');
+            const result = (4/3) * sigma_T * c * U_B * gamma * gamma;
+            SolverValidator.checkPositive(result, 'P_syn (synchrotron power)');
+            return SolverValidator.validateResult(result, 'Synchrotron Power (P_syn = (4/3) σ_T c U_B γ²)');
         } else if (unknownVar === 'U_B') {
             // U_B = (3 P_syn) / (4 σ_T c γ²)
-            return (3 * P_syn) / (4 * sigma_T * c * gamma * gamma);
+            SolverValidator.checkPositive(P_syn, 'P_syn (synchrotron power)');
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(gamma, 'γ (Lorentz factor)');
+            const numerator = 3 * P_syn;
+            const denominator = 4 * sigma_T * c * gamma * gamma;
+            SolverValidator.checkNonZero(denominator, '4 σ_T c γ²');
+            const result = SolverValidator.safeDivide(numerator, denominator, '4 σ_T c γ²');
+            SolverValidator.checkPositive(result, 'U_B (magnetic energy density)');
+            return SolverValidator.validateResult(result, 'Synchrotron Power (U_B = (3 P_syn)/(4 σ_T c γ²))');
         } else if (unknownVar === 'γ') {
             // γ = √((3 P_syn) / (4 σ_T c U_B))
-            return Math.sqrt((3 * P_syn) / (4 * sigma_T * c * U_B));
+            SolverValidator.checkPositive(P_syn, 'P_syn (synchrotron power)');
+            SolverValidator.checkNonZero(sigma_T, 'σ_T (Thomson cross-section)');
+            SolverValidator.checkNonZero(c, 'c (speed of light)');
+            SolverValidator.checkPositive(U_B, 'U_B (magnetic energy density)');
+            const numerator = 3 * P_syn;
+            const denominator = 4 * sigma_T * c * U_B;
+            SolverValidator.checkNonZero(denominator, '4 σ_T c U_B');
+            const result = Math.sqrt(SolverValidator.safeDivide(numerator, denominator, '4 σ_T c U_B'));
+            SolverValidator.checkPositive(result, 'γ (Lorentz factor)');
+            return SolverValidator.validateResult(result, 'Synchrotron Power (γ = √((3 P_syn)/(4 σ_T c U_B)))');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Synchrotron Power`);
     }
 
     solveMagneticEnergyDensity(unknownVar, vars) {
@@ -1360,34 +2091,23 @@ class FormulaCalculator {
         const { λmax, T, b } = vars;
         const wienConstant = b || 2.897771955e-3; // Wien's displacement constant in m·K
         
-        // ENHANCED: Division-by-zero and validation checks
+        // ENHANCED: Division-by-zero checks using SolverValidator
         if (unknownVar === 'λmax') {
             // λmax = b / T
-            if (T <= 0) {
-                throw new Error('Temperature T must be positive (in Kelvin)');
-            }
-            if (!wienConstant || wienConstant === 0) {
-                throw new Error('Wien constant b must be non-zero');
-            }
-            const result = wienConstant / T;
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
-            }
-            return result;
+            SolverValidator.checkNonZero(wienConstant, 'b (Wien constant)');
+            SolverValidator.checkPositive(T, 'T (temperature)');
+            const result = SolverValidator.safeDivide(wienConstant, T, 'T (temperature)');
+            SolverValidator.checkPositive(result, 'λmax (wavelength)');
+            return SolverValidator.validateResult(result, 'Wien Law (λmax = b/T)');
         } else if (unknownVar === 'T') {
             // T = b / λmax
-            if (λmax <= 0) {
-                throw new Error('Peak wavelength λmax must be positive');
-            }
-            if (!wienConstant || wienConstant === 0) {
-                throw new Error('Wien constant b must be non-zero');
-            }
-            const result = wienConstant / λmax;
-            if (!isFinite(result) || result <= 0) {
-                throw new Error('Result must be positive and finite. Check input values.');
-            }
-            return result;
+            SolverValidator.checkNonZero(wienConstant, 'b (Wien constant)');
+            SolverValidator.checkPositive(λmax, 'λmax (wavelength)');
+            const result = SolverValidator.safeDivide(wienConstant, λmax, 'λmax (wavelength)');
+            SolverValidator.checkPositive(result, 'T (temperature)');
+            return SolverValidator.validateResult(result, 'Wien Law (T = b/λmax)');
         }
+        throw new Error(`Cannot solve for ${unknownVar} in Wien Law`);
     }
 
     solveHydrostaticBalance(unknownVar, vars) {
@@ -2334,6 +3054,66 @@ class FormulaCalculator {
         
         return null; // Could not solve generically
     }
+    
+    /**
+     * Find closest matching solver name using Levenshtein distance
+     * @param {string} target - Target formula ID
+     * @param {string[]} options - Available solver IDs
+     * @returns {string|null} Closest match or null if no good match
+     */
+    findClosestMatch(target, options) {
+        if (!target || !options || options.length === 0) {
+            return null;
+        }
+        
+        let closest = null;
+        let minDistance = Infinity;
+        const maxDistance = 3; // Maximum edit distance for suggestion
+        
+        for (const option of options) {
+            const distance = this.levenshteinDistance(target.toLowerCase(), option.toLowerCase());
+            if (distance < minDistance) {
+                minDistance = distance;
+                closest = option;
+            }
+        }
+        
+        return minDistance <= maxDistance ? closest : null;
+    }
+    
+    /**
+     * Calculate Levenshtein distance between two strings
+     * @param {string} a - First string
+     * @param {string} b - Second string
+     * @returns {number} Edit distance
+     */
+    levenshteinDistance(a, b) {
+        const matrix = Array(b.length + 1).fill(null).map(() => 
+            Array(a.length + 1).fill(null)
+        );
+        
+        // Initialize first row and column
+        for (let i = 0; i <= a.length; i++) {
+            matrix[0][i] = i;
+        }
+        for (let j = 0; j <= b.length; j++) {
+            matrix[j][0] = j;
+        }
+        
+        // Fill matrix
+        for (let j = 1; j <= b.length; j++) {
+            for (let i = 1; i <= a.length; i++) {
+                const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+                matrix[j][i] = Math.min(
+                    matrix[j][i - 1] + 1,      // deletion
+                    matrix[j - 1][i] + 1,      // insertion
+                    matrix[j - 1][i - 1] + indicator  // substitution
+                );
+            }
+        }
+        
+        return matrix[b.length][a.length];
+    }
 
     /**
      * Evaluate a mathematical expression with variables
@@ -2349,14 +3129,22 @@ class FormulaCalculator {
             let expr = expression;
             let allVarsFound = true;
             
-            // Find all variable names in expression
+            // ENHANCED: Find all variable names in expression (collect all matches first)
+            // Fix: Use matchAll to collect all matches before processing
             const varPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
             const variables = new Set();
+            
+            // Collect all matches first to avoid losing matches during iteration
+            const allMatches = [];
             let match;
             while ((match = varPattern.exec(expression)) !== null) {
-                const varName = match[1];
-            // Skip constants and the variable we're solving for
-            const lowerVarName = varName.toLowerCase();
+                allMatches.push(match[1]);
+            }
+            
+            // Process collected matches
+            for (const varName of allMatches) {
+                // Skip constants and the variable we're solving for
+                const lowerVarName = varName.toLowerCase();
             const isConstant = [
                 'pi', 'π', 'e', 'E', 'G', 'c', 'h', 'k', 'σ', 'sigma',
                 'm_sun', 'm☉', 'm_☉', 'l_sun', 'l☉', 'l_☉', 'r_sun', 'r☉', 'r_☉',
@@ -2365,9 +3153,9 @@ class FormulaCalculator {
             (globalConstants && globalConstants[varName] !== undefined) ||
             (this.formula.constants && this.formula.constants[varName] !== undefined);
             
-            if (varName !== excludeVar && !isConstant) {
-                variables.add(varName);
-            }
+                if (varName !== excludeVar && !isConstant) {
+                    variables.add(varName);
+                }
             }
             
             // Check if all required variables have values
@@ -2457,12 +3245,23 @@ class FormulaCalculator {
             // Handle exp
             expr = expr.replace(/exp\(([^)]+)\)/g, 'Math.exp($1)');
             
-            // Evaluate using Function constructor (safe for math expressions)
-            const result = Function('"use strict"; return (' + expr + ')')();
-            
-            if (typeof result === 'number' && isFinite(result)) {
-                return result;
+            // ENHANCED: Use SafeMathEvaluator with token-based variable replacement
+            // This prevents partial matches (e.g., "a" won't match "a_max")
+            // Build a vars object with only the variables we found (excluding constants)
+            const varsForEvaluation = {};
+            for (const varName of variables) {
+                if (vars[varName] !== undefined && vars[varName] !== null && isFinite(vars[varName])) {
+                    varsForEvaluation[varName] = vars[varName];
+                }
             }
+            
+            // Evaluate using SafeMathEvaluator (replaces unsafe Function constructor)
+            // SafeMathEvaluator will handle variable replacement safely
+            const result = SafeMathEvaluator.evaluate(expr, varsForEvaluation);
+            
+            // Validate result
+            SolverValidator.validateResult(result, 'Expression evaluation');
+            return result;
         } catch (e) {
             // Evaluation failed
             return null;

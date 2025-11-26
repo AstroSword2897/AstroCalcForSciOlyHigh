@@ -21,11 +21,14 @@
 **AstroCalc v2.0** is a production-grade, fully offline web application for calculating astronomy and astrophysics formulas. Designed specifically for Science Olympiad competitors, it features **193+ formulas** with advanced search, comprehensive FRQ (Free Response Question) support, and zero-time-waste navigation.
 
 ### What's New in Version 2.0
-- ✅ **Universal Formula Solver** - Every formula now works with generic algebraic solver fallback
+- ✅ **Production-Grade Calculation Engine** - Enhanced with VariableNormalizer, SafeMathEvaluator, SolverValidator, InputValidator
 - ✅ **100% Formula Coverage** - All 193+ formulas can be solved numerically and symbolically
-- ✅ **Enhanced Error Handling** - Better validation and clearer error messages
-- ✅ **Comprehensive Verification** - Automated testing system for all formulas
-- ✅ **Improved Generic Solver** - Handles complex algebraic patterns automatically
+- ✅ **Enhanced Error Handling** - Structured CalculationError class with context and user-friendly messages
+- ✅ **Variable Name Normalization** - Handles Unicode Greek letters, subscripts, and alternative naming (H₀→H0, λ→lambda, etc.)
+- ✅ **Safe Expression Evaluation** - Token-based evaluation with security validation
+- ✅ **Accessibility Features** - Reduced motion toggle, performance mode, WCAG AA compliance
+- ✅ **Comprehensive Input Validation** - InputValidator class ensures type safety and proper formatting
+- ✅ **Consistent Solver Validation** - All 75+ solvers wrapped with SolverValidator for consistent error handling
 
 ### Key Statistics
 - **Total Lines of Code**: ~23,000+ lines (JavaScript)
@@ -37,13 +40,14 @@
 
 ### Core Capabilities
 ✅ **Tier 1 Calculation Engine** - Production-grade with comprehensive validation  
-✅ **Advanced Natural Language Search** - Understands questions in plain English  
+✅ **Advanced Natural Language Search** - Understands questions in plain English with search caching  
 ✅ **FRQ Support System** - Step-by-step guidance for complex problems  
 ✅ **Completely Offline** - Works without internet connection  
-✅ **Interactive Graphing** - Canvas-based visualization  
 ✅ **Stellar Classification** - Harvard spectral classification system  
-✅ **Unit Conversion** - Automatic unit handling  
+✅ **Unit Conversion** - Automatic unit handling with alternative unit suggestions  
 ✅ **Symbolic Math** - Handles expressions with unknown variables  
+✅ **Accessibility** - Reduced motion support, performance mode, WCAG AA compliant  
+✅ **Variable Normalization** - Handles Unicode, Greek letters, and alternative naming conventions  
 
 ---
 
@@ -86,11 +90,10 @@
 
 **Frontend:**
 - **HTML5**: Semantic markup, accessibility features
-- **CSS3**: Modern styling with CSS Grid, Flexbox, custom properties
+- **CSS3**: Modern styling with CSS Grid, Flexbox, custom properties, reduced-motion support
 - **Vanilla JavaScript (ES6+)**: No frameworks - pure JavaScript for maximum compatibility
 - **MathJax (Offline)**: Local MathJax library for math rendering (no CDN)
 - **Service Worker**: PWA capabilities, offline caching
-- **HTML5 Canvas**: Offline graph rendering
 
 **No External Dependencies:**
 - ❌ No npm packages
@@ -108,12 +111,13 @@
 **Purpose**: Main HTML structure and initialization
 
 **Key Components:**
-- **Header Section**: Application title and branding
-- **Formula Selection Screen**: Main interface with tabs (Formulas, Explorer, Classification, Desmos)
-- **Input Screen**: Calculator interface with tabs (Calculator, Graph, Graph Interpretation, Classification)
+- **Header Section**: Application title, branding, and accessibility toggle (♿)
+- **Formula Selection Screen**: Main interface with tabs (Formulas, Explorer, Classification)
+- **Input Screen**: Calculator interface with tabs (Calculator, Classification)
 - **MathJax Configuration**: Offline MathJax setup for rendering mathematical equations
 - **Service Worker Registration**: Enables offline functionality and PWA features
 - **Script Loading Order**: Critical - scripts load in specific order for dependencies
+- **Accessibility Controls**: Reduced motion toggle, performance mode, system preference detection
 
 **Initialization Flow:**
 1. HTML loads → DOM ready
@@ -126,8 +130,8 @@
 **Offline Configuration:**
 ```javascript
 // Sets offline mode immediately - no external API calls
-window.desmosUnavailable = true;
 window.offlineMode = true;
+// All features work completely offline
 ```
 
 **Key Features:**
@@ -219,11 +223,47 @@ Each formula is a comprehensive object:
 
 ---
 
-### 3. `scripts/calculator.js` - Tier 1 Calculation Engine (2,318 lines)
+### 3. `scripts/calculator.js` - Tier 1 Calculation Engine (3,572 lines)
 
 **Purpose**: Production-grade formula calculation engine with comprehensive validation
 
-#### Class: `FormulaCalculator`
+#### Core Classes
+
+**`VariableNormalizer` (Lines 49-206)**
+- Normalizes variable names for consistent handling
+- Maps Unicode Greek letters to ASCII (H₀→H0, λ→lambda, ρ→rho, etc.)
+- Handles alternative naming conventions (M_☉→M_sun, H_0→H0)
+- Ensures consistent variable matching across the application
+
+**`CalculationError` (Lines 212-270)**
+- Custom error class extending Error
+- Provides structured context (formula, variable, inputs, step, result)
+- `getUserMessage()` method for user-friendly error messages
+- `toJSON()` method for debugging and logging
+
+**`SafeMathEvaluator` (Lines 271-466)**
+- Safe expression evaluation with security validation
+- Token-based variable replacement (prevents partial matches)
+- Validates allowed characters and Math functions
+- Blocks dangerous patterns (eval, Function constructor abuse, etc.)
+- Enhanced with limited-scope Function() usage (safer than bare eval)
+
+**`SolverValidator` (Lines 467-533)**
+- Centralized validation for all solvers
+- `checkNonZero()` - Division-by-zero protection
+- `checkPositive()` - Physical constraint validation
+- `safeDivide()` - Safe division with validation
+- `validateResult()` - Finite number validation
+- All 75+ solvers wrapped with SolverValidator
+
+**`InputValidator` (Lines 175-245)**
+- Validates all inputs before calculation
+- Type checking (number/string)
+- Parsing validation for string inputs
+- Finite number validation
+- Integrated into `solve()` method
+
+**`FormulaCalculator` (Lines 545+)**
 
 **Constructor (Lines 26-40)**
 ```javascript
@@ -234,22 +274,30 @@ constructor(formula) {
 }
 ```
 
-**Core Method: `solve(variableValues)` (Lines 55-150)**
+**Core Method: `solve(variableValues)` (Lines 725-830)**
 
 **Purpose**: Main entry point for calculations. Determines calculation mode and routes appropriately.
 
 **Execution Flow:**
-1. **Input Parsing** (Lines 60-82)
+1. **Input Validation** (Line 726)
+   - `InputValidator.validateInputs()` - Validates all inputs before processing
+   - Type checking, parsing validation, finite number checks
+
+2. **Variable Normalization** (Line 729)
+   - `VariableNormalizer.normalizeObject()` - Normalizes all variable names
+   - Handles Unicode, Greek letters, alternative naming
+
+3. **Input Parsing** (Lines 732-760)
    - Separates variables into: null (unknown), N/A (symbolic), provided (known)
    - Validates number types and formats
    - Handles scientific notation, fractions, expressions
    - Applies physical constraint validation
 
-2. **Mode Detection** (Lines 84-109)
+4. **Mode Detection** (Lines 762-800)
    - **Symbolic Mode**: If N/A variables exist OR multiple unknowns → `solveSymbolically()`
    - **Numerical Mode**: If exactly one unknown → `solveForVariable()`
 
-3. **Result Formatting** (Lines 103-109)
+5. **Result Formatting** (Lines 861-867)
    - Normalized return structure:
      ```javascript
      {
@@ -261,7 +309,10 @@ constructor(formula) {
      }
      ```
 
-**Enhanced Validation (Lines 94-141)**
+**Enhanced Validation**
+- **InputValidator**: Validates all inputs before calculation
+- **VariableNormalizer**: Ensures consistent variable naming
+- **SolverValidator**: All solvers wrapped with consistent validation
 - **Type Checking**: Validates number types, handles string-to-number conversion
 - **Physical Constraints**: 
   - Mass must be positive
@@ -269,10 +320,10 @@ constructor(formula) {
   - Temperature must be positive (Kelvin)
   - Period must be positive
   - Wavelength/frequency must be positive
-- **Division-by-Zero Protection**: All solvers check for zero denominators
-- **Infinity/NaN Detection**: All results validated with `isFinite()`
+- **Division-by-Zero Protection**: All solvers check for zero denominators via SolverValidator
+- **Infinity/NaN Detection**: All results validated with `isFinite()` via SolverValidator
 
-**Method: `solveSymbolically(unknownVars, knownVars, naVars)` (Lines 112-143)**
+**Method: `solveSymbolically(unknownVars, knownVars, naVars)` (Lines 871-907)**
 
 **Purpose**: Generates symbolic expressions when multiple variables are unknown.
 
@@ -290,7 +341,7 @@ constructor(formula) {
    }
    ```
 
-**Method: `createSymbolicExpression()` (Lines 145-297)**
+**Method: `createSymbolicExpression()` (Lines 909-1065)**
 
 **Purpose**: Generates human-readable symbolic expressions for formulas.
 
@@ -300,7 +351,7 @@ constructor(formula) {
 - Preserves mathematical structure
 - Fallback to generic equation display
 
-**Solver Registry Pattern (Lines 299-550)**
+**Solver Registry Pattern (Lines 1133-1400+)**
 
 **Before**: Giant switch statement (100+ cases, O(n) lookup)  
 **After**: Solver registry (O(1) lookup, maintainable)
@@ -319,7 +370,13 @@ static solvers = {
 - Better error messages with suggestions
 - Testable individual solvers
 
-**Individual Solver Functions (Lines 769-2117)**
+**Individual Solver Functions (Lines 1400-3400+)**
+
+All 75+ solvers are wrapped with `SolverValidator` for consistent error handling:
+- `checkNonZero()` - Division-by-zero protection
+- `checkPositive()` - Physical constraint validation
+- `safeDivide()` - Safe division with validation
+- `validateResult()` - Finite number validation
 
 Each formula has a dedicated solver function with:
 - **Input Validation**: Checks for required variables
@@ -328,57 +385,95 @@ Each formula has a dedicated solver function with:
 - **Error Handling**: Descriptive error messages
 - **Result Validation**: Checks for Infinity/NaN
 
-**Example: `solveKeplerThirdLaw()` (Lines 769-843)**
+**Example: `solveKeplerThirdLaw()` (Lines 1400+)**
 ```javascript
 solveKeplerThirdLaw(unknownVar, vars) {
-    const { T, a, M, G } = vars;
+    // ENHANCED: Variable normalization
+    const normalizedUnknown = VariableNormalizer.normalize(unknownVar);
+    const normalizedVars = VariableNormalizer.normalizeObject(vars);
     
-    if (unknownVar === 'T') {
-        // Validation
-        if (G === 0 || M === 0) throw new Error('...');
-        if (a <= 0) throw new Error('...');
+    const T = normalizedVars.T || vars.T;
+    const a = normalizedVars.a || vars.a;
+    const M = normalizedVars.M || vars.M;
+    const G = normalizedVars.G || vars.G || globalConstants.G;
+    
+    if (normalizedUnknown === 'T' || unknownVar === 'T') {
+        // ENHANCED: SolverValidator for consistent validation
+        SolverValidator.checkNonZero(G, 'G (gravitational constant)');
+        SolverValidator.checkNonZero(M, 'M (mass)');
+        SolverValidator.checkPositive(a, 'a (semi-major axis)');
         
         // Calculation
-        const result = Math.sqrt((4 * Math.PI * Math.PI / (G * M)) * (a * a * a));
+        const result = SolverValidator.safeDivide(
+            4 * Math.PI * Math.PI * a * a * a,
+            G * M,
+            'G × M'
+        );
+        const finalResult = Math.sqrt(result);
         
-        // Result validation
-        if (!isFinite(result)) throw new Error('...');
-        return result;
+        // ENHANCED: Result validation via SolverValidator
+        return SolverValidator.validateResult(finalResult, 'Kepler Third Law (T)');
     }
-    // ... similar for 'a' and 'M'
+    // ... similar for 'a' and 'M' with SolverValidator
 }
 ```
 
-**New Methods:**
+**Additional Methods:**
 
-**`toLatex(expression)` (Lines 2020-2070)**
-- Converts symbolic expressions to LaTeX format
-- Handles Greek letters, subscripts, superscripts, fractions, roots
-- Used for beautiful math rendering in UI
+**`solveForVariable(unknownVar, knownVars)` (Lines 1207-1256)**
+- Solves for a single unknown variable
+- Uses solver registry for O(1) lookup
+- Includes Levenshtein distance for error suggestions
+- Normalizes variable names before solving
 
-**`getAllSolutions()` (Lines 2072-2117)**
-- Returns all possible rearrangements of a formula
-- Useful for showing all ways to solve a formula
-- Includes LaTeX versions
+**`levenshteinDistance(a, b)` (Lines 3500+)**
+- Calculates edit distance between strings
+- Used for suggesting closest matching solver names
+- Helps with error messages when solver not found
 
-**`validateVariableValue(symbol, value, varDef)` (Lines 42-120)**
+**`findClosestMatch(target, options)` (Lines 3480+)**
+- Finds closest matching solver name
+- Uses Levenshtein distance
+- Returns suggestion if within threshold
+
+**`validateVariableValue(symbol, value, varDef)` (Lines 560-650)**
 - Validates physical constraints on variable values
 - Checks for positive values where required
 - Provides descriptive error messages
 
-**`canSolveFor(symbol)` (Lines 122-150)**
+**`canSolveFor(symbol)` (Lines 670-720)**
 - Checks if a variable can be solved for
 - Uses dummy values to test solver availability
 - Returns boolean
 
-**`verifyOfflineCapability()` (Lines 1990-2020)**
+**`verifyOfflineCapability()` (Lines 3400+)**
 - Static method to verify calculator is completely offline
 - Checks for globalConstants availability
 - Returns verification report
 
 ---
 
-### 4. `scripts/ui.js` - User Interface Controller (7,372 lines)
+### 4. `scripts/accessibility.js` - Accessibility Controls (101 lines)
+
+**Purpose**: Manages accessibility features including reduced motion and performance mode
+
+**Key Features:**
+- **Reduced Motion Toggle**: Cycles through Normal → Reduced Motion → Performance Mode
+- **System Preference Detection**: Automatically respects `prefers-reduced-motion` media query
+- **Local Storage**: Saves user preference for persistence
+- **Keyboard Shortcut**: Alt+A to toggle accessibility settings
+- **Visual Feedback**: Button icon changes (♿ for reduced motion, ⚡ for performance mode)
+
+**Usage:**
+```javascript
+// Automatically initializes on DOMContentLoaded
+// Toggle button in header (♿ icon)
+// Cycles through: Normal → Reduced Motion → Performance Mode
+```
+
+---
+
+### 5. `scripts/ui.js` - User Interface Controller (6,836 lines)
 
 **Purpose**: Main UI controller handling search, rendering, navigation, and user interactions
 
@@ -386,8 +481,7 @@ solveKeplerThirdLaw(unknownVar, vars) {
 ```javascript
 let currentFormula = null;        // Currently selected formula
 let calculator = null;            // FormulaCalculator instance
-let graphManager = null;          // Graph manager instance
-let offlineGraphManager = null;   // Offline graph manager
+// Graph managers removed - users can use offline tools like Desmos
 ```
 
 #### Key Functions:
@@ -446,25 +540,25 @@ score = nameMatch * 1000 +
 
 **Process:**
 1. Creates FormulaCalculator instance
-2. Initializes graph manager
-3. Switches to input screen
-4. Populates formula information
-5. Renders variable inputs
-6. Updates graph
-7. Generates FRQ support content
+2. Switches to input screen
+3. Populates formula information
+4. Renders variable inputs
+5. Updates instruction banner
+6. Displays related formulas
 
 **`performCalculation()` (Lines 6069-6184)**
 
 **Purpose**: Executes calculation when user clicks Calculate
 
 **Process:**
-1. Collects variable values from inputs
-2. Parses expressions using ExpressionParser
-3. Converts units using UnitConverter
-4. Calls calculator.solve()
-5. Formats and displays results
-6. Shows symbolic results if applicable
-7. Updates graph with new values
+1. Collects variable values from inputs (with unit parsing)
+2. Normalizes variable names via VariableNormalizer
+3. Validates inputs via InputValidator
+4. Parses expressions using ExpressionParser
+5. Converts units using UnitConverter
+6. Calls calculator.solve() with proper error handling
+7. Formats and displays results (numeric or symbolic)
+8. Handles CalculationError with structured context
 
 **`calculateSearchScore(formula, searchTerm)` (Lines 1500-2000)**
 
@@ -480,11 +574,13 @@ score = nameMatch * 1000 +
 
 **Result**: Scores range from 0 to 2000+ points, sorted by relevance
 
-**Graph Integration (Lines 5159-5300)**
-- Initializes graph managers (Desmos or Offline)
-- Updates graphs when variables change
-- Handles graph interpretation tab
-- Exports graphs as images
+**Calculation Flow (Lines 5940-6051)**
+- Collects variable values with unit parsing
+- Normalizes variable names via VariableNormalizer
+- Validates inputs via InputValidator
+- Calls calculator.solve() with proper error handling
+- Displays results (numeric or symbolic)
+- Handles CalculationError with structured context
 
 ---
 
@@ -591,11 +687,14 @@ function calculateConfidenceScore(score, maxScore, metrics, historyFactor)
 - Alternative approaches
 - Related concepts
 
-**Graph Interpretation Generator (Lines 1901-2061)**
+**Error Handling (Lines 6038-6050)**
 
-**`generateGraphInterpretation(formula, questionContext)` (Lines 1907-2061)**
-
-**Purpose**: Generates formula-specific graph interpretation guides
+**Enhanced Error Handling**:
+- Detects `CalculationError` instances
+- Extracts structured context (formula, variable, inputs, step)
+- Uses `getUserMessage()` for user-friendly messages
+- Improves error messages with context-aware suggestions
+- Handles division-by-zero, invalid numbers, and validation errors
 
 **Features:**
 - Accumulates interpretations (doesn't overwrite)
@@ -756,11 +855,18 @@ const quickNavState = {
 
 ---
 
-### 10. `scripts/offlineGraphManager.js` - Offline Graphing (780 lines)
+### 10. `scripts/accessibility.js` - Accessibility Controls (101 lines)
 
-**Purpose**: Canvas-based graph visualization (works completely offline)
+**Purpose**: Manages accessibility features including reduced motion and performance mode
 
-#### Class: `OfflineGraphManager`
+**Key Features:**
+- **Reduced Motion Toggle**: Cycles through Normal → Reduced Motion → Performance Mode
+- **System Preference Detection**: Automatically respects `prefers-reduced-motion` media query
+- **Local Storage**: Saves user preference for persistence
+- **Keyboard Shortcut**: Alt+A to toggle accessibility settings
+- **Visual Feedback**: Button icon changes (♿ for reduced motion, ⚡ for performance mode)
+
+**Note**: Graph functionality has been removed. Users can leverage offline tools like Desmos for graphing and computation.
 
 **Key Features:**
 - HTML5 Canvas rendering (no external dependencies)
@@ -784,21 +890,7 @@ const quickNavState = {
 
 ---
 
-### 11. `scripts/graphManager.js` - Desmos Integration (463 lines)
-
-**Purpose**: Desmos API integration (with offline fallback)
-
-**Note**: App is configured for offline-first, so this is primarily a fallback.
-
-**Class: `GraphManager`**
-- Handles Desmos calculator initialization
-- Converts formulas to Desmos expressions
-- Manages graph updates
-- Falls back to OfflineGraphManager if Desmos unavailable
-
----
-
-### 12. `scripts/formulaExplorer.js` - Formula Explorer (753 lines)
+### 11. `scripts/formulaExplorer.js` - Formula Explorer (753 lines)
 
 **Purpose**: Advanced formula browsing interface
 
@@ -824,7 +916,7 @@ let formulaExplorerState = {
 
 ---
 
-### 13. `scripts/utils.js` - Utility Functions (161 lines)
+### 12. `scripts/utils.js` - Utility Functions (161 lines)
 
 **Purpose**: Shared utilities
 
@@ -838,7 +930,7 @@ let formulaExplorerState = {
 
 ---
 
-### 14. `sw.js` - Service Worker (141 lines)
+### 13. `sw.js` - Service Worker (145 lines)
 
 **Purpose**: Enables offline functionality and PWA features
 
@@ -1002,8 +1094,8 @@ User Question: "Given that all three members line up, express the inclination in
     │   ├─→ Approach: ["Start with transit depth formula", "Relate to orbital geometry", ...]
     │   └─→ Checkpoints: ["Verify i=90° for edge-on", "Check units for a"]
     │
-    └─→ generateGraphInterpretation()
-        └─→ Shows how transit depth varies with inclination and orbital distance
+    └─→ displayResult()
+        └─→ Shows calculated result with unit conversions
 ```
 
 ---
@@ -1014,11 +1106,11 @@ User Question: "Given that all three members line up, express the inclination in
 
 ✅ **Constants**: All defined in `formulas.js` (G, c, σ, M☉, L☉, R☉, AU, etc.)  
 ✅ **Calculations**: Pure JavaScript Math functions (no external APIs)  
-✅ **Graphing**: HTML5 Canvas (no external dependencies)  
 ✅ **Math Rendering**: MathJax included locally (no CDN)  
 ✅ **Service Worker**: Caches all resources  
 ✅ **No Network Calls**: Zero fetch/XMLHttpRequest to external domains  
 ✅ **Self-Contained**: All functionality in local files  
+✅ **Graphing**: Users can leverage offline tools like Desmos for graphing  
 
 **Verification Method:**
 ```javascript
@@ -1065,11 +1157,8 @@ FormulaCalculator.verifyOfflineCapability()
    │   ├─→ Defines FRQ support functions
    │   └─→ initializeFRQMetadata() (with retry logic)
    │
-   ├─→ graphManager.js
-   │   └─→ Defines GraphManager class
-   │
-   ├─→ offlineGraphManager.js
-   │   └─→ Defines OfflineGraphManager class
+   ├─→ accessibility.js
+   │   └─→ Initializes accessibility controls
    │
    ├─→ formulaExplorer.js
    │   └─→ Defines explorer functions
@@ -1400,6 +1489,13 @@ Output: G2V (G class, subtype 2, main sequence)
 3. **Screen Reader Support**: Semantic HTML, ARIA live regions
 4. **Focus Management**: Visible focus indicators
 5. **Color Contrast**: WCAG AA compliant
+6. **Reduced Motion Toggle**: Accessibility button (♿) in header
+   - Cycles through: Normal → Reduced Motion → Performance Mode
+   - Respects system `prefers-reduced-motion` preference
+   - Saves preference to localStorage
+   - Keyboard shortcut: Alt+A
+7. **Performance Mode**: Disables background animations for maximum performance
+8. **Reduced Motion Mode**: Uses static background instead of animated
 
 ### Browser Compatibility
 
@@ -1854,11 +1950,11 @@ formulaCategories['Category Name'].push('new_formula_id');
 - Check for division by zero errors
 - Look at error messages for guidance
 
-**3. Graphs not showing**
-- Check container element exists
-- Verify tab is active
-- Check browser console for errors
-- Try refreshing the page
+**3. Accessibility features not working**
+- Check browser support for `prefers-reduced-motion`
+- Verify accessibility.js is loaded
+- Check localStorage permissions
+- Try clicking the accessibility toggle (♿) in header
 
 **4. Search not working**
 - Check `formulas.js` is loaded

@@ -22,7 +22,7 @@
 // Global state variables
 let currentFormula = null; // Currently selected formula for calculator
 let calculator = null;
-// Graph components removed - users can use offline tools like Desmos
+let graphManager = null; // Graph manager (uses OfflineGraphManager for offline operation)
 
 /**
  * Convert Unicode math symbols to LaTeX for MathJax rendering
@@ -832,8 +832,10 @@ function setupSearchFunctionality() {
     // Store original formulas for filtering
     let allFormulas = [...formulas];
     
-    // Debounce search for better performance
-    let searchTimeout = null;
+    // PERFORMANCE FIX: Use Debouncer class for better debouncing
+    const searchDebouncer = new Debouncer((searchTerm) => {
+        filterAndRenderFormulas(searchTerm);
+    }, 150); // Increased to 150ms for better performance on large formula sets
     
     // Search input handler
     searchInput.addEventListener('input', (e) => {
@@ -844,13 +846,14 @@ function setupSearchFunctionality() {
             clearBtn.style.display = 'flex';
         } else {
             clearBtn.style.display = 'none';
+            // Clear search immediately (no debounce for empty search)
+            searchDebouncer.cancel();
+            filterAndRenderFormulas('');
+            return;
         }
         
-        // FASTER: Reduced debounce from 150ms to 50ms for instant feel
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            filterAndRenderFormulas(searchTerm);
-        }, 50);
+        // Debounced search with caching
+        searchDebouncer.call(searchTerm);
     });
     
     // Clear button handler
@@ -879,6 +882,15 @@ function setupSearchFunctionality() {
             // Show all formulas
             renderFormulaList();
             console.log('=== filterAndRenderFormulas END (empty search) ===');
+            return;
+        }
+        
+        // PERFORMANCE FIX: Check cache first
+        const cacheKey = searchTerm.toLowerCase().trim();
+        const cachedResult = searchCache.get(cacheKey);
+        if (cachedResult) {
+            console.log('✅ Using cached search results for:', cacheKey);
+            renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
             return;
         }
         
@@ -1012,9 +1024,16 @@ function setupSearchFunctionality() {
         // Calculate max score for normalization
         const maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
         
+        // PERFORMANCE FIX: Cache the results
+        searchCache.set(cacheKey, {
+            scoredFormulas: scoredFormulas,
+            maxScore: maxScore
+        });
+        
         // Render filtered formulas with accuracy metrics
         renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
         console.log('=== filterAndRenderFormulas END ===');
+        console.log('Search cache stats:', searchCache.getStats());
     }
     
     // Calculate search relevance score with advanced natural language understanding
@@ -4187,7 +4206,8 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     if (searchTerm && scoredFormulas.length > 0) {
         const resultHeader = document.createElement('div');
         resultHeader.className = 'search-results-header';
-        resultHeader.innerHTML = `Found <strong>${scoredFormulas.length}</strong> relevant formula${scoredFormulas.length !== 1 ? 's' : ''} matching "${searchTerm}" (sorted by relevance, highest score first)`;
+        // SECURITY FIX: Escape user input (searchTerm)
+        resultHeader.innerHTML = `Found <strong>${scoredFormulas.length}</strong> relevant formula${scoredFormulas.length !== 1 ? 's' : ''} matching "${escapeHtml(searchTerm)}" (sorted by relevance, highest score first)`;
         formulaList.appendChild(resultHeader);
         console.log('✅ Added result header');
     }
@@ -4298,7 +4318,8 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             const header = document.createElement('div');
             header.className = 'formula-category-header';
             const maxScoreInCategory = categoryScores[category];
-            header.innerHTML = `<h2>${category}</h2><span class="category-score">Top score: ${Math.round(maxScoreInCategory)}</span>`;
+            // SECURITY FIX: Escape category name
+            header.innerHTML = `<h2>${escapeHtml(category)}</h2><span class="category-score">Top score: ${Math.round(maxScoreInCategory)}</span>`;
             categoryContainer.appendChild(header);
             
             let cardsAdded = 0;
@@ -4908,7 +4929,8 @@ function renderFormulaList() {
             // Create category header
             const categoryHeader = document.createElement('div');
             categoryHeader.className = 'formula-category-header';
-            categoryHeader.innerHTML = `<h2>${category}</h2>`;
+            // SECURITY FIX: Escape category name
+            categoryHeader.innerHTML = `<h2>${escapeHtml(category)}</h2>`;
             formulaList.appendChild(categoryHeader);
             
             // Create category container
@@ -4965,31 +4987,10 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
     card.setAttribute('tabindex', '0');
     card.setAttribute('data-formula-id', formula.id);
     
-    // CRITICAL: Add click handler BEFORE setting innerHTML (fixes timing issue)
-    // Use both onclick and addEventListener for maximum compatibility
-    card.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Card clicked (onclick):', formula.name);
-        selectFormula(formula);
-    };
-    
-    // Also add event listener for better event handling
-    card.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Card clicked (addEventListener):', formula.name);
-        selectFormula(formula);
-    }, { once: false, capture: false });
-    
-    // Add keyboard support BEFORE innerHTML
-    card.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            e.stopPropagation();
-            selectFormula(formula);
-        }
-    });
+    // PERFORMANCE FIX: Use event delegation instead of individual listeners
+    // Event delegation is already set up on formulaList, so we don't need individual listeners
+    // This prevents memory leaks when cards are removed
+    // Only add a data attribute for the formula reference (event delegation will handle clicks)
     
         // Calculate confidence score using FRQ support system
         let confidenceScore = 0;
@@ -5082,35 +5083,42 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
             }
         });
         
+        // SECURITY FIX: Escape all user data in metrics HTML
+        const escapedMatchIndicators = matchIndicators.map(m => escapeHtml(m));
+        const escapedMatchedConcepts = metrics.matchedConcepts.slice(0, 3).map(c => escapeHtml(c));
+        const escapedMatchedVariables = metrics.matchedVariables.map(v => escapeHtml(v));
+        const escapedMatchReasons = metrics.matchReasons.length > 0 ? escapeHtml(metrics.matchReasons[0]) : '';
+        const escapedConceptRelations = conceptRelations.slice(0, 2).map(r => escapeHtml(r));
+        
         metricsHTML = `
             <div class="accuracy-metrics">
                 <div class="confidence-badge" style="background: ${confidenceColor}20; border-color: ${confidenceColor}; color: ${confidenceColor};">
                     <span class="confidence-percent">${confidencePercent}%</span>
-                    <span class="confidence-level">${confidenceLevel}</span>
+                    <span class="confidence-level">${escapeHtml(confidenceLevel)}</span>
                 </div>
                 <div class="match-details">
                     <div class="match-count">${matchCount}/9 match types${metrics.dynamicBoost > 0 ? ` • +${metrics.dynamicBoost}% dynamic boost` : ''}</div>
-                    ${matchIndicators.length > 0 ? `<div class="match-indicators">${matchIndicators.map(m => `<span class="match-tag">${m}</span>`).join('')}</div>` : ''}
-                    ${metrics.matchedConcepts.length > 0 ? `<div class="matched-concepts">Concepts: ${metrics.matchedConcepts.slice(0, 3).join(', ')}${metrics.matchedConcepts.length > 3 ? '...' : ''}</div>` : ''}
-                    ${conceptRelations.length > 0 ? `<div class="concept-hierarchy" title="Hierarchical relationships: ↑ parent, ↓ children, ↔ siblings">${conceptRelations.slice(0, 2).map(r => `<span class="hierarchy-link">${r}</span>`).join('<br>')}${conceptRelations.length > 2 ? '<br>...' : ''}</div>` : ''}
-                    ${metrics.matchedVariables.length > 0 ? `<div class="matched-variables">Variables: ${metrics.matchedVariables.join(', ')}</div>` : ''}
-                    ${metrics.matchReasons.length > 0 ? `<div class="match-reasons">${metrics.matchReasons[0]}</div>` : ''}
+                    ${escapedMatchIndicators.length > 0 ? `<div class="match-indicators">${escapedMatchIndicators.map(m => `<span class="match-tag">${m}</span>`).join('')}</div>` : ''}
+                    ${escapedMatchedConcepts.length > 0 ? `<div class="matched-concepts">Concepts: ${escapedMatchedConcepts.join(', ')}${metrics.matchedConcepts.length > 3 ? '...' : ''}</div>` : ''}
+                    ${escapedConceptRelations.length > 0 ? `<div class="concept-hierarchy" title="Hierarchical relationships: ↑ parent, ↓ children, ↔ siblings">${escapedConceptRelations.map(r => `<span class="hierarchy-link">${r}</span>`).join('<br>')}${conceptRelations.length > 2 ? '<br>...' : ''}</div>` : ''}
+                    ${escapedMatchedVariables.length > 0 ? `<div class="matched-variables">Variables: ${escapedMatchedVariables.join(', ')}</div>` : ''}
+                    ${escapedMatchReasons ? `<div class="match-reasons">${escapedMatchReasons}</div>` : ''}
                 </div>
             </div>
         `;
     }
     
-    // Ensure all required properties exist with fallbacks
-    const formulaName = formula.name || 'Unnamed Formula';
-    const formulaEquation = formula.equation || 'No equation available';
-    const formulaDescription = formula.description || 'No description available';
+    // SECURITY FIX: Escape all user data to prevent XSS attacks
+    const formulaName = escapeHtml(formula.name || 'Unnamed Formula');
+    const formulaEquation = escapeHtml(formula.equation || 'No equation available');
+    const formulaDescription = escapeHtml(formula.description || 'No description available');
     const formulaVariables = (formula.variables && Array.isArray(formula.variables) && formula.variables.length > 0) 
-        ? formula.variables.map(v => `<span class="var-tag">${v.symbol || '?'}</span>`).join(' ')
+        ? formula.variables.map(v => `<span class="var-tag">${escapeHtml(v.symbol || '?')}</span>`).join(' ')
         : '<span class="var-tag">None</span>';
     
-    // Set innerHTML first
+    // Set innerHTML with escaped content
     try {
-        // Add score display if this is a search result
+        // Add score display if this is a search result (score is numeric, safe)
         const scoreDisplay = (score !== null && score !== undefined) ? 
             `<div class="formula-score-badge" style="position: absolute; top: 10px; right: 10px; background: rgba(102, 126, 234, 0.3); color: #a8c7ff; padding: 4px 10px; border-radius: 8px; font-size: 0.85em; font-weight: 600; border: 1px solid rgba(102, 126, 234, 0.5);">
                 ${Math.round(score)} pts
@@ -5150,18 +5158,12 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         `;
     }
     
-    // Keep addEventListener as backup (onclick is already set above)
-    card.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Card clicked (addEventListener backup):', formula.name);
-        selectFormula(formula);
-    });
-    
-    // Add keyboard support
+    // PERFORMANCE FIX: Keyboard support only (click handled by event delegation)
+    // Single listener, no duplicates
     card.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
+            e.stopPropagation();
             selectFormula(formula);
         }
     });
@@ -5173,13 +5175,14 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         const fallbackCard = document.createElement('div');
         fallbackCard.className = 'formula-card';
         fallbackCard.setAttribute('data-formula-id', formula.id);
+        // SECURITY FIX: Escape user data in fallback card too
         fallbackCard.innerHTML = `
             <div class="formula-card-header">
-                <h3>${formula.name || 'Unknown Formula'}</h3>
+                <h3>${escapeHtml(formula.name || 'Unknown Formula')}</h3>
             </div>
-            <p class="description">${formula.description || 'No description'}</p>
+            <p class="description">${escapeHtml(formula.description || 'No description')}</p>
         `;
-        fallbackCard.onclick = () => selectFormula(formula);
+        // No onclick needed - event delegation handles it
         return fallbackCard;
     }
     
@@ -5227,8 +5230,6 @@ function waitForElement(element, timeout = 1000) {
     });
 }
 
-// Graph manager removed - users can use offline tools like Desmos
-
 function selectFormula(formula) {
     // Track formula selection for dynamic prioritization
     if (typeof semanticSearchSystem !== 'undefined' && formula.concepts) {
@@ -5244,6 +5245,15 @@ function selectFormula(formula) {
     
     currentFormula = formula;
     calculator = new FormulaCalculator(formula);
+    
+    // Initialize graph manager (uses OfflineGraphManager for offline operation)
+    if (typeof GraphManager !== 'undefined') {
+        if (!graphManager) {
+            graphManager = new GraphManager('desmos-graph', 'graph-tab');
+        }
+        // Update graph with current formula
+        graphManager.updateGraph(formula, {});
+    }
     
     // Switch to input screen
     document.getElementById('formula-selection').classList.remove('active');
@@ -5450,7 +5460,8 @@ function renderVariableInputs(formula) {
                 }
             }
             
-            constantItem.innerHTML = `<strong>${displayKey}:</strong> ${displayValue}`;
+            // SECURITY FIX: Escape constant key and value
+            constantItem.innerHTML = `<strong>${escapeHtml(displayKey)}:</strong> ${escapeHtml(String(displayValue))}`;
             constantsList.appendChild(constantItem);
         });
         
@@ -5849,6 +5860,16 @@ function switchTab(tabName) {
         const calculatorTab = document.getElementById('calculator-tab');
         calculatorTab.classList.add('active');
         calculatorTab.setAttribute('aria-hidden', 'false');
+    } else if (tabName === 'graph') {
+        const graphTab = document.getElementById('graph-tab');
+        graphTab.classList.add('active');
+        graphTab.setAttribute('aria-hidden', 'false');
+        // Update graph when tab becomes active
+        if (graphManager && currentFormula) {
+            // Get current variable values from inputs
+            const variableValues = getCurrentVariableValues();
+            graphManager.updateGraph(currentFormula, variableValues);
+        }
     } else if (tabName === 'classification') {
         const classificationTab = document.getElementById('classification-tab');
         classificationTab.classList.add('active');
@@ -6031,18 +6052,40 @@ function performCalculation() {
         displayResult(result);
         // Update solve indicators
         updateSolveIndicators();
+        // Update graph with new values
+        if (graphManager && currentFormula) {
+            graphManager.updateGraph(currentFormula, variableValues);
+        }
     } catch (error) {
         console.error('[Calculation] Error:', error);
-            // Improve error messages
-            let errorMessage = error.message;
-            if (errorMessage.includes('null values')) {
-                errorMessage = 'You can leave multiple variables empty or mark them as N/A to get a symbolic expression. For a numeric result, leave exactly one variable empty.';
-            } else if (errorMessage.includes('must be null') || errorMessage.includes('must be unknown')) {
-                errorMessage = 'Please leave at least one variable empty (or set to "null") to solve for it, or mark variables as N/A for symbolic results.';
-            } else if (errorMessage.includes('Invalid number')) {
-                errorMessage = 'Please enter valid numbers. You can use expressions like "2*pi", "1e10", or "45°" for angles. Use "N/A" for variables you don\'t know.';
-            }
-            displayError(errorMessage);
+        
+        // ENHANCED: Handle CalculationError with structured context
+        let errorMessage = error.message;
+        
+        // Extract user-friendly message from CalculationError if available
+        if (error instanceof CalculationError) {
+            errorMessage = error.getUserMessage();
+            console.error('[Calculation] CalculationError context:', error.toJSON());
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+        
+        // Improve error messages with context
+        if (errorMessage.includes('null values')) {
+            errorMessage = 'You can leave multiple variables empty or mark them as N/A to get a symbolic expression. For a numeric result, leave exactly one variable empty.';
+        } else if (errorMessage.includes('must be null') || errorMessage.includes('must be unknown')) {
+            errorMessage = 'Please leave at least one variable empty (or set to "null") to solve for it, or mark variables as N/A for symbolic results.';
+        } else if (errorMessage.includes('Invalid number') || errorMessage.includes('Cannot parse')) {
+            errorMessage = 'Please enter valid numbers. You can use expressions like "2*pi", "1e10", or "45°" for angles. Use "N/A" for variables you don\'t know.';
+        } else if (errorMessage.includes('cannot be zero') || errorMessage.includes('Division by zero')) {
+            errorMessage = `Division by zero error: ${errorMessage}. Please check your input values.`;
+        } else if (errorMessage.includes('must be positive')) {
+            errorMessage = `Invalid input: ${errorMessage}. Please enter a positive value.`;
+        } else if (errorMessage.includes('not a finite number')) {
+            errorMessage = `Calculation error: ${errorMessage}. Please check your input values and see the browser console for details.`;
+        }
+        
+        displayError(errorMessage);
     }
 }
 
@@ -6059,8 +6102,18 @@ function displayResult(result) {
     const resultValue = result.result !== undefined ? result.result : (result.value !== undefined ? result.value : null);
     
     // DEBUG: Log for troubleshooting finite number issues
-    console.log('[DisplayResult] Full result object:', result);
-    console.log('[DisplayResult] Result value:', resultValue, 'Type:', typeof resultValue, 'isFinite:', isFinite(resultValue));
+    console.log('[DisplayResult] Full result object:', JSON.stringify(result, null, 2));
+    console.log('[DisplayResult] Result value:', resultValue, 'Type:', typeof resultValue);
+    console.log('[DisplayResult] Validation checks:', {
+        isNull: resultValue === null,
+        isUndefined: resultValue === undefined,
+        isString: typeof resultValue === 'string',
+        isNumber: typeof resultValue === 'number',
+        isNaN: isNaN(resultValue),
+        isInfinity: resultValue === Infinity || resultValue === -Infinity,
+        isFinite: isFinite(resultValue),
+        stringValue: String(resultValue)
+    });
     
     if (resultValue === null || resultValue === undefined) {
         console.error('[DisplayResult] Result value is null/undefined:', result);
@@ -6088,6 +6141,7 @@ function displayResult(result) {
         } catch (e) {
             numericValue = parseFloat(numericValue);
             if (isNaN(numericValue)) {
+                console.error('[DisplayResult] Failed to parse string as number:', numericValue);
                 displayError('Invalid result value. Please check your inputs.');
                 return;
             }
@@ -6097,19 +6151,28 @@ function displayResult(result) {
     // ENHANCED: Better validation for very large/small numbers
     // Check if it's actually a number type
     if (typeof numericValue !== 'number') {
-        console.error('Result is not a number:', numericValue, typeof numericValue);
+        console.error('[DisplayResult] Result is not a number type:', {
+            numericValue: numericValue,
+            type: typeof numericValue,
+            originalResult: result
+        });
         displayError(`Invalid result type: ${typeof numericValue}. Expected a number.`);
         return;
     }
     
-    // Check for NaN
+    // Check for NaN (must check before isFinite, as isFinite(NaN) is false)
     if (isNaN(numericValue)) {
-        console.error('Result is NaN:', result);
+        console.error('[DisplayResult] Result is NaN:', {
+            numericValue: numericValue,
+            originalResult: result,
+            resultValue: resultValue
+        });
         displayError('Result is NaN (Not a Number). Please check your inputs.');
         return;
     }
     
     // ENHANCED: Check for Infinity separately with better message
+    // Note: isFinite(Infinity) returns false, so we check this before isFinite
     if (numericValue === Infinity || numericValue === -Infinity) {
         console.error('[DisplayResult] Result is Infinity:', {
             numericValue: numericValue,
@@ -6121,22 +6184,25 @@ function displayResult(result) {
     }
     
     // ENHANCED: More detailed finite number check with debugging
-    if (!isFinite(numericValue)) {
+    // Note: isFinite returns false for NaN, Infinity, and -Infinity
+    // We've already checked for NaN and Infinity above, so if we get here and isFinite is false,
+    // it might be a very large number that's being incorrectly flagged
+    const isFiniteValue = isFinite(numericValue);
+    if (!isFiniteValue) {
         console.error('[DisplayResult] Finite check failed:', {
             numericValue: numericValue,
             type: typeof numericValue,
             isNaN: isNaN(numericValue),
             isInfinity: numericValue === Infinity || numericValue === -Infinity,
+            isFinite: isFiniteValue,
             originalResult: result,
-            resultValue: resultValue
+            resultValue: resultValue,
+            stringValue: String(numericValue)
         });
         
-        // Provide more specific error message
-        if (isNaN(numericValue)) {
-            displayError('Result is NaN (Not a Number). Please check your input values.');
-        } else {
-            displayError(`Result is not a finite number (got: ${numericValue}). Please check your inputs.`);
-        }
+        // This should never happen if our checks above are correct
+        // But if it does, we've already logged it, so just show the error
+        displayError(`Result is not a finite number (got: ${numericValue}). Please check your inputs and see the browser console for details.`);
         return;
     }
     
@@ -6208,7 +6274,8 @@ function displayError(message) {
 function displaySymbolicResult(result, varInfo) {
     const resultDisplay = document.getElementById('result-display');
     
-    const expression = result.value;
+    // FIXED: Use correct property - calculator returns 'result' for symbolic expressions too
+    const expression = result.result || result.value || '';
     const unitName = UnitConverter.formatUnit(result.unit);
     
     let resultHTML = `
@@ -6230,9 +6297,11 @@ function displaySymbolicResult(result, varInfo) {
         resultHTML += `</div>`;
     } else {
         // Single equation
+        // FIXED: Use solvedFor instead of variable for consistency
+        const solvedVar = result.solvedFor || result.variable || 'unknown';
         resultHTML += `
-            <div class="result-value symbolic-result">${result.variable} = ${expression}</div>
-            <div class="result-unit">${varInfo.name} (${result.unit})</div>
+            <div class="result-value symbolic-result">${solvedVar} = ${expression}</div>
+            <div class="result-unit">${varInfo ? varInfo.name : solvedVar} (${result.unit || ''})</div>
             <div class="result-unit-full">${unitName}</div>
         `;
     }

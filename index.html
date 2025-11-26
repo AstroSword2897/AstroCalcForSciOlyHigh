@@ -150,6 +150,7 @@
             <div class="tab-container">
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="calculator">Calculator</button>
+                    <button class="tab-btn" data-tab="graph">Graph</button>
                     <button class="tab-btn" data-tab="classification">Classification</button>
                 </div>
             </div>
@@ -191,7 +192,7 @@
                 </div>
             </div>
             
-            <!-- Graph Tab -->
+            <!-- Graph Tab (Offline Canvas-Based) -->
             <div id="graph-tab" class="tab-content" role="tabpanel" aria-labelledby="graph-tab-btn" aria-hidden="true">
                 <div class="graph-container">
                     <div class="graph-header">
@@ -201,10 +202,10 @@
                     <div id="desmos-graph" class="desmos-graph"></div>
                     <div class="graph-controls">
                         <p class="graph-note">💡 <strong>Tip:</strong> Leave one variable as "null" in the Calculator tab to see how it varies with the other variables.</p>
+                        <p class="graph-note">✅ <strong>Offline Mode:</strong> This graph works completely offline using HTML5 Canvas.</p>
                     </div>
                 </div>
             </div>
-            
             
             <!-- Classification Tab -->
             <div id="classification-tab" class="tab-content" role="tabpanel" aria-labelledby="classification-tab-btn" aria-hidden="true">
@@ -336,44 +337,8 @@
             window.dispatchEvent(new Event('desmosUnavailable'));
         }
         
-        // Optional: Only attempt to load Desmos if explicitly online AND user wants it
-        // For now, we skip Desmos entirely for true offline operation
-        function loadDesmos() {
-            // Check if we're actually online and want to use Desmos
-            if (navigator.onLine && !window.offlineMode) {
-                // Only load if explicitly not in offline mode
-                const script = document.createElement('script');
-                script.src = 'https://www.desmos.com/api/v1.7/calculator.js?apiKey=0b5490317d764f8f810b5195b435a878';
-                script.onerror = function() {
-                    console.warn('[App] Desmos API failed. Using offline graph manager.');
-                    window.desmosUnavailable = true;
-                    window.dispatchEvent(new Event('desmosUnavailable'));
-                };
-                script.onload = function() {
-                    console.log('[App] Desmos API loaded (online mode)');
-                    window.desmosUnavailable = false;
-                    window.dispatchEvent(new Event('desmosAvailable'));
-                };
-                document.head.appendChild(script);
-            } else {
-                // Offline mode - don't attempt to load
-                console.log('[App] Skipping Desmos API load - offline mode enabled');
-            }
-        }
-        
-        // Listen for online events (if user wants to enable online features later)
-        window.addEventListener('online', function() {
-            console.log('[App] Connection restored, but staying in offline mode');
-            // Optionally: if user wants, can enable Desmos here
-            // For now, we stay in offline mode
-        });
-        
-        window.addEventListener('offline', function() {
-            console.log('[App] Connection lost - already in offline mode');
-            window.desmosUnavailable = true;
-            window.offlineMode = true;
-            window.dispatchEvent(new Event('desmosUnavailable'));
-        });
+        // NOTE: Desmos API requires internet connection, but we use OfflineGraphManager
+        // which works completely offline using HTML5 Canvas. No external API calls are made.
     </script>
     <!-- Scripts loaded in dependency order (OFFLINE-FIRST: All local, no external dependencies) -->
     <!-- 1. Core data (must be first) -->
@@ -397,6 +362,8 @@
     <script src="scripts/formulaExplorer.js"></script>
     <script src="scripts/frqSupport.js"></script>
     <script src="scripts/quickNav.js"></script>
+    <script src="scripts/offlineGraphManager.js"></script>
+    <script src="scripts/graphManager.js"></script>
     
     <!-- 6. UI controller (depends on everything, must be last) -->
     <script src="scripts/ui.js"></script>
