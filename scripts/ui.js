@@ -835,7 +835,7 @@ function setupSearchFunctionality() {
     // PERFORMANCE FIX: Use debounce function for better debouncing
     const debouncedSearch = debounce((searchTerm) => {
         filterAndRenderFormulas(searchTerm);
-    }, 150); // Increased to 150ms for better performance on large formula sets
+    }, 50); // Reduced to 50ms for faster response
     
     // Search input handler
     searchInput.addEventListener('input', (e) => {
@@ -874,13 +874,10 @@ function setupSearchFunctionality() {
     
     // Filter and render formulas based on search term with scoring
     function filterAndRenderFormulas(searchTerm) {
-        console.log('=== filterAndRenderFormulas START ===');
-        console.log('Search term:', searchTerm);
-        
+        // PERFORMANCE: Removed console.log statements in hot path
         if (!searchTerm || searchTerm.trim() === '') {
             // Show all formulas
             renderFormulaList();
-            console.log('=== filterAndRenderFormulas END (empty search) ===');
             return;
         }
         
@@ -888,27 +885,23 @@ function setupSearchFunctionality() {
         const cacheKey = searchTerm.toLowerCase().trim();
         const cachedResult = searchCache.get(cacheKey);
         if (cachedResult) {
-            console.log('✅ Using cached search results for:', cacheKey);
             renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
             return;
         }
         
         // Ensure allFormulas is populated with ALL formulas
         if (!allFormulas || allFormulas.length === 0 || allFormulas.length !== formulas.length) {
-            console.log(`Initializing allFormulas: ${formulas.length} formulas available`);
             allFormulas = [...formulas];
-            console.log(`allFormulas initialized with ${allFormulas.length} formulas`);
         }
         
         // Validate that all formulas are included
         if (allFormulas.length !== formulas.length) {
-            console.warn(`⚠️ Formula count mismatch: allFormulas has ${allFormulas.length}, formulas has ${formulas.length}. Re-syncing...`);
             allFormulas = [...formulas];
         }
         
-        // Track usage for dynamic prioritization
+        // Track usage for dynamic prioritization (async, don't block)
         if (typeof semanticSearchSystem !== 'undefined') {
-            semanticSearchSystem.trackUsage(searchTerm);
+            setTimeout(() => semanticSearchSystem.trackUsage(searchTerm), 0);
         }
         
         const searchLower = searchTerm.toLowerCase().trim();
@@ -919,49 +912,40 @@ function setupSearchFunctionality() {
             return;
         }
         
-        console.log('Searching through', allFormulas.length, 'formulas');
-        
-        // Score ALL formulas with detailed metrics for confidence calculation
-        // This ensures every formula gets a confidence score, even if not displayed
+        // PERFORMANCE: Score formulas with early exit for low scores
+        // Only do expensive semantic matching on top candidates
         const allScoredFormulas = allFormulas.map(formula => {
             const scoreData = calculateSearchScore(formula, searchLower, searchWords);
             
-            // Add contextual semantic matching score
+            // Early exit if score is very low (skip expensive semantic matching)
+            if (scoreData.score < 10) {
+                scoreData.score = Math.max(0, scoreData.score || 0);
+                return { formula, score: scoreData.score, metrics: scoreData.metrics };
+            }
+            
+            // Add contextual semantic matching score (only for promising candidates)
             if (typeof semanticSearchSystem !== 'undefined' && semanticSearchSystem) {
                 try {
                     const semanticScore = semanticSearchSystem.semanticMatch(searchTerm, formula);
                     if (semanticScore && !isNaN(semanticScore) && semanticScore > 0) {
                         scoreData.score += semanticScore;
-                        
                         scoreData.metrics.semanticMatch = true;
                         scoreData.metrics.matchReasons.push('Semantic similarity match');
-                        
-                        // Check if synonym expansion was used
-                        try {
-                            const expandedQuery = semanticSearchSystem.expandWithSynonyms(searchLower);
-                            if (expandedQuery && expandedQuery.length > 1) {
-                                scoreData.metrics.synonymMatch = true;
-                                scoreData.metrics.matchReasons.push(`Synonym expansion: ${expandedQuery.length} variants`);
-                            }
-                        } catch (e) {
-                            // Ignore synonym expansion errors
-                        }
                     }
                     
-                    // Apply dynamic term prioritization
+                    // Apply dynamic term prioritization (lightweight)
                     try {
                         const dynamicWeight = semanticSearchSystem.getDynamicWeight(searchTerm);
                         if (dynamicWeight && !isNaN(dynamicWeight) && dynamicWeight > 0) {
                             const boost = dynamicWeight / 100;
                             scoreData.score *= (1 + boost);
                             scoreData.metrics.dynamicBoost = Math.round(boost * 100);
-                            scoreData.metrics.matchReasons.push(`Dynamic boost: +${scoreData.metrics.dynamicBoost}% (usage frequency)`);
                         }
                     } catch (e) {
-                        // Ignore dynamic weight errors
+                        // Ignore errors
                     }
                 } catch (e) {
-                    console.warn('Error in semantic matching:', e);
+                    // Ignore semantic matching errors
                 }
             }
             
@@ -974,51 +958,28 @@ function setupSearchFunctionality() {
             return { formula, score: scoreData.score, metrics: scoreData.metrics };
         });
         
-        // IMPORTANT: All formulas are now scored for confidence calculation
-        // Filter for display (lenient - show formulas with any relevance)
-        let scoredFormulas = allScoredFormulas.filter(item => {
-            // VERY lenient filtering: Show formulas with ANY score > 0 OR any match type
-            const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
-            const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
-            
-            // Show if: ANY score > 0 OR any match type (even with score 0)
-            return item.score > 0 || hasStrongMatch || hasAnyMatch;
-        })
+        // PERFORMANCE: Filter and sort in one pass, limit results early
+        let scoredFormulas = allScoredFormulas
+          .filter(item => {
+              // Quick filter: Show formulas with ANY score > 0 OR any match type
+              const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
+              const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
+              return item.score > 0 || hasStrongMatch || hasAnyMatch;
+          })
           .sort((a, b) => b.score - a.score) // Sort by relevance (highest to lowest)
-          .slice(0, 50); // Increased limit to 50 results
-        
-        console.log('Scored formulas:', scoredFormulas.length);
-        console.log('First 3 results:', scoredFormulas.slice(0, 3).map(f => ({
-            name: f.formula.name,
-            score: f.score,
-            metrics: {
-                nameMatch: f.metrics.nameMatch,
-                conceptMatch: f.metrics.conceptMatch,
-                descriptionMatch: f.metrics.descriptionMatch,
-                variableMatch: f.metrics.variableMatch,
-                categoryMatch: f.metrics.categoryMatch
-            }
-        })));
+          .slice(0, 50); // Limit to 50 results
         
         // ALWAYS show at least top 10 results, even if they have low scores
-        // Note: All formulas were already scored in allScoredFormulas above
         if (scoredFormulas.length === 0 && allFormulas.length > 0) {
-            console.warn('⚠️ No formulas passed filter, showing top 10 by score anyway');
-            // Use already-scored formulas instead of re-scoring
             scoredFormulas = allScoredFormulas
                 .sort((a, b) => b.score - a.score)
                 .slice(0, 10);
         } else if (scoredFormulas.length < 5) {
-            // If we have very few results, show more (already scored above)
-            console.log('📊 Few results, expanding to show more...');
+            // If we have very few results, show more
             scoredFormulas = allScoredFormulas
                 .sort((a, b) => b.score - a.score)
                 .slice(0, Math.max(10, scoredFormulas.length + 5));
         }
-        
-        // Log that all formulas were scored for confidence calculation
-        console.log(`✅ All ${allFormulas.length} formulas scored for confidence calculation`);
-        console.log(`📊 Displaying top ${scoredFormulas.length} results from ${allScoredFormulas.length} total scored formulas`);
         
         // Calculate max score for normalization
         const maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
@@ -1031,8 +992,6 @@ function setupSearchFunctionality() {
         
         // Render filtered formulas with accuracy metrics
         renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
-        console.log('=== filterAndRenderFormulas END ===');
-        console.log('Search cache stats:', searchCache.getStats());
     }
     
     // Calculate search relevance score with advanced natural language understanding
@@ -4208,7 +4167,6 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         // SECURITY FIX: Escape user input (searchTerm)
         resultHeader.innerHTML = `Found <strong>${scoredFormulas.length}</strong> relevant formula${scoredFormulas.length !== 1 ? 's' : ''} matching "${escapeHtml(searchTerm)}" (sorted by relevance, highest score first)`;
         formulaList.appendChild(resultHeader);
-        console.log('✅ Added result header');
     }
     
     if (scoredFormulas.length === 0) {
@@ -4235,7 +4193,6 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             ${suggestionsHTML}
         `;
         formulaList.appendChild(noResultsDiv);
-        console.log('⚠️ No results found, showing suggestions');
         return;
     }
     
@@ -4266,12 +4223,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     });
     uncategorized.sort((a, b) => b.score - a.score);
     
-    console.log('📊 Rendering breakdown:', {
-        totalScored: scoredFormulas.length,
-        categories: Object.keys(categorizedFormulas).length,
-        uncategorized: uncategorized.length,
-        firstFormula: scoredFormulas[0] ? scoredFormulas[0].formula.name : 'none'
-    });
+    // PERFORMANCE: Removed console.log in rendering path
     
     // Sort categories by highest score in category
     const categoryScores = {};
@@ -4321,44 +4273,29 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             header.innerHTML = `<h2>${escapeHtml(category)}</h2><span class="category-score">Top score: ${Math.round(maxScoreInCategory)}</span>`;
             categoryContainer.appendChild(header);
             
+            // PERFORMANCE: Use document fragment for batch DOM operations
+            const fragment = document.createDocumentFragment();
             let cardsAdded = 0;
-            categorizedFormulas[category].forEach(({ formula, score, metrics, maxScore }, index) => {
-                console.log(`Creating card ${index + 1}/${categorizedFormulas[category].length} for:`, formula.name);
+            categorizedFormulas[category].forEach(({ formula, score, metrics, maxScore }) => {
                 const card = createFormulaCard(formula, score, metrics, maxScore);
                 if (card) {
                     // Force visibility on card before appending
                     card.style.display = 'block';
                     card.style.visibility = 'visible';
                     card.style.opacity = '1';
-                    
-                    categoryContainer.appendChild(card);
+                    fragment.appendChild(card);
                     cardsAdded++;
-                    console.log(`✅ Card created and appended: ${formula.name}`, {
-                        cardDisplay: window.getComputedStyle(card).display,
-                        cardVisible: card.offsetParent !== null
-                    });
-                } else {
-                    console.error('❌ createFormulaCard returned null for:', formula.id, formula.name);
                 }
             });
             
-            // Always append if we have cards, even if only header + 1 card
+            // Append all cards at once
             if (cardsAdded > 0) {
+                categoryContainer.appendChild(fragment);
                 // Force visibility on category container
                 categoryContainer.style.display = 'grid';
                 categoryContainer.style.visibility = 'visible';
                 categoryContainer.style.opacity = '1';
-                
                 formulaList.appendChild(categoryContainer);
-                console.log(`✅ Added category "${category}" with ${cardsAdded} cards to DOM`);
-                // Force a reflow
-                categoryContainer.offsetHeight;
-                
-                // Log for debugging
-                console.log(`Category container display:`, window.getComputedStyle(categoryContainer).display);
-                console.log(`Category container children:`, categoryContainer.children.length);
-            } else {
-                console.warn(`⚠️ Category "${category}" has no valid cards`);
             }
         }
     });
@@ -4373,18 +4310,20 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         header.innerHTML = `<h2>Other</h2>`;
         categoryContainer.appendChild(header);
         
+        // PERFORMANCE: Use document fragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
         let cardsAdded = 0;
         uncategorized.forEach(({ formula, score, metrics, maxScore }) => {
-            console.log(`Creating uncategorized card for:`, formula.name);
             const card = createFormulaCard(formula, score, metrics, maxScore);
             if (card) {
-                categoryContainer.appendChild(card);
+                fragment.appendChild(card);
                 cardsAdded++;
-                console.log(`✅ Uncategorized card created and appended: ${formula.name}`);
-            } else {
-                console.error('❌ createFormulaCard returned null for uncategorized:', formula.id, formula.name);
             }
         });
+        
+        // Append all cards at once
+        if (cardsAdded > 0) {
+            categoryContainer.appendChild(fragment);
         
         // Always append if we have cards
         if (cardsAdded > 0) {
@@ -4453,14 +4392,14 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         formulaList.style.display = 'block';
         formulaList.style.visibility = 'visible';
         formulaList.style.opacity = '1';
-    } else {
-        console.log(`✅ Successfully rendered ${totalChildren} elements (${totalCards} cards) to formulaList`);
     }
     
-    // Force a reflow to ensure rendering
-    formulaList.offsetHeight;
+    // PERFORMANCE: Single visibility pass instead of multiple
+    formulaList.style.display = 'block';
+    formulaList.style.visibility = 'visible';
+    formulaList.style.opacity = '1';
     
-    // Ensure all cards are visible
+    // Ensure all cards are visible (single pass)
     const allCards = formulaList.querySelectorAll('.formula-card');
     allCards.forEach(card => {
         card.style.display = 'block';
@@ -4468,48 +4407,15 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         card.style.opacity = '1';
     });
     
-    // Scroll to top of results if we have a search term
+    // Scroll to top of results if we have a search term (use instant scroll for performance)
     if (searchTerm && totalCards > 0) {
-        formulaList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        formulaList.scrollIntoView({ behavior: 'auto', block: 'start' });
     }
     
-    // Highlight search term in results
+    // Highlight search term in results (async to not block rendering)
     if (searchTerm) {
-        highlightSearchTerm(searchTerm);
+        requestAnimationFrame(() => highlightSearchTerm(searchTerm));
     }
-    
-    // Final visibility enforcement
-    console.log('🔍 Final check - ensuring all elements are visible');
-    const finalCheck = () => {
-        formulaList.style.display = 'block';
-        formulaList.style.visibility = 'visible';
-        formulaList.style.opacity = '1';
-        
-        const allCategories = formulaList.querySelectorAll('.formula-category');
-        allCategories.forEach(cat => {
-            cat.style.display = 'grid';
-            cat.style.visibility = 'visible';
-            cat.style.opacity = '1';
-        });
-        
-        const allCards = formulaList.querySelectorAll('.formula-card');
-        allCards.forEach(card => {
-            card.style.display = 'block';
-            card.style.visibility = 'visible';
-            card.style.opacity = '1';
-        });
-        
-        console.log('✅ Visibility enforced:', {
-            categories: allCategories.length,
-            cards: allCards.length,
-            formulaListDisplay: window.getComputedStyle(formulaList).display
-        });
-    };
-    
-    // Run immediately and after a short delay
-    finalCheck();
-    setTimeout(finalCheck, 50);
-    setTimeout(finalCheck, 200);
 }
 
 // Render search results in Explorer-style two-panel layout
