@@ -224,10 +224,9 @@ class OfflineGraphManager {
                 const y = this.evaluateFormula(formula, unknownVar, evalContext);
                 
                 if (y !== null && isFinite(y) && !isNaN(y)) {
-                    // Check if y is within bounds
-                    if (y >= this.bounds.bottom && y <= this.bounds.top) {
-                        data.push({ x, y });
-                    }
+                    // Don't filter by bounds - we'll adjust bounds if needed
+                    // This allows us to see the full graph
+                    data.push({ x, y });
                 }
             }
         } catch (e) {
@@ -264,8 +263,8 @@ class OfflineGraphManager {
         const equation = formula.equation;
         const x = values[unknownSymbol];
         
-        // Use FormulaCalculator to solve for the unknown variable
-        // We'll create a temporary calculator and solve for each x value
+        // Use FormulaCalculator to solve for the dependent variable
+        // For graphing: we vary the unknown variable (x-axis) and solve for the dependent variable (y-axis)
         try {
             if (typeof FormulaCalculator !== 'undefined') {
                 const tempValues = { ...values };
@@ -274,34 +273,38 @@ class OfflineGraphManager {
                 // Create a calculator instance
                 const calculator = new FormulaCalculator(formula);
                 
-                // Determine which variable we're solving for
-                // We need to find what the result variable is
-                const resultVar = this.getResultVariable(formula, unknownVar);
+                // Find the dependent variable (the one on the left side of the equation, or the primary output)
+                // This is the variable we want to plot on the y-axis
+                const dependentVar = this.getDependentVariable(formula, unknownVar);
                 
-                if (resultVar) {
-                    // Set all variables except resultVar and unknownVar
+                if (dependentVar) {
+                    // Set all variables except dependentVar and unknownVar
                     const solveValues = {};
                     for (const [key, value] of Object.entries(tempValues)) {
-                        if (key !== resultVar && key !== unknownSymbol) {
+                        if (key !== dependentVar && key !== unknownSymbol) {
                             solveValues[key] = value;
                         }
                     }
                     
-                    // Set resultVar as null to solve for it
-                    solveValues[resultVar] = null;
+                    // Set dependentVar as null to solve for it
+                    solveValues[dependentVar] = null;
                     
                     try {
                         const result = calculator.solve(solveValues);
-                        if (result && result.value !== undefined) {
+                        if (result && result.result !== undefined) {
+                            return result.result;
+                        } else if (result && result.value !== undefined) {
                             return result.value;
                         }
                     } catch (e) {
                         // Fall back to direct evaluation
+                        console.warn('[OfflineGraphManager] Calculator solve failed, using direct evaluation:', e.message);
                     }
                 }
             }
         } catch (e) {
             // Fall through to direct evaluation
+            console.warn('[OfflineGraphManager] Parser evaluation failed, using direct evaluation:', e.message);
         }
         
         // Fallback: direct evaluation using expression parser
@@ -309,21 +312,40 @@ class OfflineGraphManager {
     }
     
     /**
-     * Get the result variable from formula equation
+     * Get the dependent variable from formula equation (the one to plot on y-axis)
      */
-    getResultVariable(formula, unknownVar) {
+    getDependentVariable(formula, unknownVar) {
+        const unknownSymbol = unknownVar.symbol;
         const equation = formula.equation;
+        
+        // If equation has =, the left side is usually the dependent variable
         if (equation.includes('=')) {
             const parts = equation.split('=');
             if (parts.length === 2) {
                 const leftSide = parts[0].trim();
-                // Extract variable name from left side
+                // Extract variable name from left side (before any operators)
                 const match = leftSide.match(/^([a-zA-Z_][a-zA-Z0-9_]*)/);
                 if (match) {
-                    return match[1];
+                    const varName = match[1];
+                    // Make sure it's not the unknown variable
+                    if (varName !== unknownSymbol) {
+                        return varName;
+                    }
                 }
             }
         }
+        
+        // Fallback: find the first variable in the formula that's not the unknown
+        for (const variable of formula.variables) {
+            if (variable.symbol !== unknownSymbol) {
+                // Check if it's not a constant
+                const constants = formula.constants || {};
+                if (!constants[variable.symbol] && (!globalConstants || !globalConstants[variable.symbol])) {
+                    return variable.symbol;
+                }
+            }
+        }
+        
         return null;
     }
     
@@ -520,6 +542,46 @@ class OfflineGraphManager {
     }
     
     /**
+     * Adjust bounds to fit the generated data
+     */
+    adjustBoundsToData(data) {
+        if (!data || data.length === 0) return;
+        
+        const xValues = data.map(p => p.x);
+        const yValues = data.map(p => p.y);
+        
+        const minX = Math.min(...xValues);
+        const maxX = Math.max(...xValues);
+        const minY = Math.min(...yValues);
+        const maxY = Math.max(...yValues);
+        
+        // Add padding (10% on each side)
+        const xRange = maxX - minX;
+        const yRange = maxY - minY;
+        const xPadding = Math.max(xRange * 0.1, Math.abs(maxX) * 0.1, 1);
+        const yPadding = Math.max(yRange * 0.1, Math.abs(maxY) * 0.1, 1);
+        
+        this.bounds = {
+            left: minX - xPadding,
+            right: maxX + xPadding,
+            bottom: minY - yPadding,
+            top: maxY + yPadding
+        };
+        
+        // Ensure bounds are reasonable
+        if (this.bounds.right - this.bounds.left < 0.1) {
+            const center = (this.bounds.left + this.bounds.right) / 2;
+            this.bounds.left = center - 0.1;
+            this.bounds.right = center + 0.1;
+        }
+        if (this.bounds.top - this.bounds.bottom < 0.1) {
+            const center = (this.bounds.bottom + this.bounds.top) / 2;
+            this.bounds.bottom = center - 0.1;
+            this.bounds.top = center + 0.1;
+        }
+    }
+    
+    /**
      * Draw grid on canvas
      */
     drawGrid() {
@@ -658,18 +720,58 @@ class OfflineGraphManager {
         const yScale = graphHeight / (top - bottom);
         
         this.ctx.strokeStyle = color;
-        this.ctx.lineWidth = 2;
-        this.ctx.beginPath();
+        this.ctx.lineWidth = 2.5;
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
         
-        let firstPoint = true;
-        for (const point of data) {
+        // Draw curve in segments to handle discontinuities
+        let segmentStart = 0;
+        for (let i = 1; i < data.length; i++) {
+            const prevPoint = data[i - 1];
+            const currPoint = data[i];
+            
+            // Check for large jumps (discontinuities)
+            const dx = Math.abs(currPoint.x - prevPoint.x);
+            const dy = Math.abs(currPoint.y - prevPoint.y);
+            const jumpThreshold = (right - left) * 0.1; // 10% of range
+            
+            if (dx > jumpThreshold || dy > jumpThreshold || 
+                !isFinite(currPoint.x) || !isFinite(currPoint.y) ||
+                !isFinite(prevPoint.x) || !isFinite(prevPoint.y)) {
+                // Draw segment up to previous point
+                if (i - segmentStart > 1) {
+                    this.drawCurveSegment(data.slice(segmentStart, i), padding, left, bottom, xScale, yScale);
+                }
+                segmentStart = i;
+            }
+        }
+        
+        // Draw final segment
+        if (data.length - segmentStart > 1) {
+            this.drawCurveSegment(data.slice(segmentStart), padding, left, bottom, xScale, yScale);
+        }
+    }
+    
+    /**
+     * Draw a continuous curve segment
+     */
+    drawCurveSegment(segment, padding, left, bottom, xScale, yScale) {
+        if (segment.length === 0) return;
+        
+        this.ctx.beginPath();
+        const firstPoint = segment[0];
+        const screenX = padding.left + (firstPoint.x - left) * xScale;
+        const screenY = this.height - padding.bottom - (firstPoint.y - bottom) * yScale;
+        this.ctx.moveTo(screenX, screenY);
+        
+        for (let i = 1; i < segment.length; i++) {
+            const point = segment[i];
             const screenX = padding.left + (point.x - left) * xScale;
             const screenY = this.height - padding.bottom - (point.y - bottom) * yScale;
             
-            if (firstPoint) {
-                this.ctx.moveTo(screenX, screenY);
-                firstPoint = false;
-            } else {
+            // Only draw if point is within canvas bounds
+            if (screenX >= padding.left && screenX <= this.width - padding.right &&
+                screenY >= padding.top && screenY <= this.height - padding.bottom) {
                 this.ctx.lineTo(screenX, screenY);
             }
         }
