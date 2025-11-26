@@ -577,12 +577,14 @@ function renderExplorerCalculatorInputs() {
                             </label>
                             <input
                                 type="text"
+                                inputmode="decimal"
                                 class="explorer-variable-input"
                                 data-variable-symbol="${escapeHtml(variable.symbol)}"
                                 placeholder="Enter ${escapeHtml(variable.name)}"
                                 value="${escapeHtml(currentValue)}"
                                 autocomplete="off"
                                 spellcheck="false"
+                                style="-moz-appearance: textfield; appearance: textfield;"
                             />
                             <p class="explorer-input-hint">${escapeHtml(variable.description)}</p>
                         </div>
