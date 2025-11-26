@@ -4,8 +4,8 @@
  * Caches all application resources for offline use
  */
 
-const CACHE_NAME = 'astrocalc-v2.0.1'; // Updated cache version for icon and input fixes
-const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.1';
+const CACHE_NAME = 'astrocalc-v2.0.2'; // Updated cache version - removed number spinners, text input only
+const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.2';
 
 // Resources to cache on install (OFFLINE-FIRST: All resources are local)
 const PRECACHE_RESOURCES = [
