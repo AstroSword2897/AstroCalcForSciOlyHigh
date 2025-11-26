@@ -77,22 +77,23 @@
         const hasReducedMotion = body.classList.contains('reduced-motion');
         const hasPerformanceMode = body.classList.contains('performance-mode');
 
-        // Force clear any existing content
-        toggleBtn.innerHTML = '';
-        
+        // Force clear any existing content and set icon
         if (hasPerformanceMode) {
-            toggleBtn.textContent = '⚡';
+            toggleBtn.innerHTML = '⚡';
             toggleBtn.title = 'Performance Mode: Background disabled. Click to return to normal.';
         } else if (hasReducedMotion) {
-            toggleBtn.textContent = '🎨';
+            toggleBtn.innerHTML = '🎨';
             toggleBtn.title = 'Reduced Motion: Static background. Click for performance mode.';
         } else {
-            toggleBtn.textContent = '🎨';
+            toggleBtn.innerHTML = '🎨';
             toggleBtn.title = 'Normal Mode: Animated background. Click for reduced motion.';
         }
         
-        // Ensure font size is set
+        // Ensure font size and display properties are set
         toggleBtn.style.fontSize = '1.5em';
+        toggleBtn.style.display = 'flex';
+        toggleBtn.style.alignItems = 'center';
+        toggleBtn.style.justifyContent = 'center';
     }
 
     // Respect system preference on first load
