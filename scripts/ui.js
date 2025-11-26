@@ -5294,10 +5294,15 @@ function selectFormula(formula) {
         return !constantSymbols.has(v.symbol);
     }).length);
     
-    // Update solve indicators after a short delay to ensure DOM is ready
-    setTimeout(() => {
-        updateSolveIndicators();
-    }, 150);
+        // Update solve indicators after a short delay to ensure DOM is ready
+        setTimeout(() => {
+            updateSolveIndicators();
+            // Also update graph if it's already initialized
+            if (graphManager && currentFormula) {
+                const variableValues = getCurrentVariableValues();
+                graphManager.updateGraph(currentFormula, variableValues);
+            }
+        }, 150);
     
     // Display related formulas
     displayRelatedFormulas(formula);
