@@ -5571,7 +5571,12 @@ function renderVariableInputs(formula) {
                     clearTimeout(input.solveIndicatorTimeout);
                     input.solveIndicatorTimeout = setTimeout(() => {
                         updateSolveIndicators();
-                    }, 100);
+                        // Also update graph in real-time as user types
+                        if (graphManager && currentFormula) {
+                            const variableValues = getCurrentVariableValues();
+                            graphManager.updateGraph(currentFormula, variableValues);
+                        }
+                    }, 300); // Debounce graph updates to avoid too frequent redraws
                 });
             }
         });
