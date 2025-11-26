@@ -81,10 +81,10 @@
             toggleBtn.textContent = '⚡';
             toggleBtn.title = 'Performance Mode: Background disabled. Click to return to normal.';
         } else if (hasReducedMotion) {
-            toggleBtn.textContent = '♿';
+            toggleBtn.textContent = '🎨';
             toggleBtn.title = 'Reduced Motion: Static background. Click for performance mode.';
         } else {
-            toggleBtn.textContent = '♿';
+            toggleBtn.textContent = '🎨';
             toggleBtn.title = 'Normal Mode: Animated background. Click for reduced motion.';
         }
     }

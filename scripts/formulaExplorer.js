@@ -131,21 +131,20 @@ function setupFormulaExplorerEvents() {
     
     // Handle search input with debouncing
     container.addEventListener('input', (e) => {
-        const searchInput = e.target.closest('#explorer-search-input');
-        if (searchInput) {
+        // FIXED: Check if target is the search input directly
+        if (e.target.id === 'explorer-search-input') {
             clearTimeout(searchDebounceTimer);
             searchDebounceTimer = setTimeout(() => {
-                formulaExplorerState.searchQuery = searchInput.value;
+                formulaExplorerState.searchQuery = e.target.value;
                 renderFormulaExplorer();
             }, 300); // 300ms debounce
             return;
         }
         
-        // Variable input changes
-        const varInput = e.target.closest('.explorer-variable-input');
-        if (varInput) {
-            const symbol = varInput.dataset.variableSymbol;
-            const value = varInput.value;
+        // FIXED: Check if target is a variable input directly (not using closest)
+        if (e.target.classList.contains('explorer-variable-input')) {
+            const symbol = e.target.dataset.variableSymbol;
+            const value = e.target.value;
             if (symbol) {
                 handleExplorerVariableChange(symbol, value);
             }

@@ -53,7 +53,7 @@ function setupHelpOverlay() {
                         <div class="help-shortcut-desc">Switch tabs (Formulas, Explorer, Classification, Desmos)</div>
                     </div>
                     <div class="help-shortcut-item">
-                        <div class="help-shortcut-keys"><kbd>↑</kbd> <kbd>↓</kbd></div>
+                        <div class="help-shortcut-keys"><kbd>↑</kbd> <kbd>↓</kbd> (Up and Down arrow keys)</div>
                         <div class="help-shortcut-desc">Navigate formula cards</div>
                     </div>
                     <div class="help-shortcut-item">

@@ -241,31 +241,50 @@ function convertToLaTeX(text) {
     return latex;
 }
 
-// Render MathJax in an element
+// PERFORMANCE FIX: Debounce MathJax rendering to prevent excessive calls
+let mathJaxRenderTimeout = null;
+const mathJaxRenderQueue = new Set();
+
 function renderMathJax(element) {
-    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-        MathJax.typesetPromise([element]).catch(function (err) {
-            console.warn('MathJax rendering error:', err);
-        });
-    } else {
-        // Wait for MathJax to load
-        if (typeof MathJax === 'undefined') {
-            let attempts = 0;
-            const maxAttempts = 20;
-            const checkMathJax = setInterval(() => {
-                attempts++;
-                if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
-                    MathJax.typesetPromise([element]).catch(function (err) {
-                        console.warn('MathJax rendering error:', err);
-                    });
-                    clearInterval(checkMathJax);
-                } else if (attempts >= maxAttempts) {
-                    console.warn('MathJax failed to load');
-                    clearInterval(checkMathJax);
-                }
-            }, 100);
-        }
+    if (!element) return;
+    
+    // Add element to render queue
+    mathJaxRenderQueue.add(element);
+    
+    // Clear existing timeout
+    if (mathJaxRenderTimeout) {
+        clearTimeout(mathJaxRenderTimeout);
     }
+    
+    // Debounce MathJax rendering
+    mathJaxRenderTimeout = setTimeout(() => {
+        const elementsToRender = Array.from(mathJaxRenderQueue);
+        mathJaxRenderQueue.clear();
+        
+        if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+            MathJax.typesetPromise(elementsToRender).catch(function (err) {
+                console.warn('MathJax rendering error:', err);
+            });
+        } else {
+            // Wait for MathJax to load
+            if (typeof MathJax === 'undefined') {
+                let attempts = 0;
+                const maxAttempts = 20;
+                const checkMathJax = setInterval(() => {
+                    attempts++;
+                    if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
+                        MathJax.typesetPromise(elementsToRender).catch(function (err) {
+                            console.warn('MathJax rendering error:', err);
+                        });
+                        clearInterval(checkMathJax);
+                    } else if (attempts >= maxAttempts) {
+                        console.warn('MathJax failed to load');
+                        clearInterval(checkMathJax);
+                    }
+                }, 100);
+            }
+        }
+    }, 150); // Debounce MathJax rendering by 150ms
 }
 
 // Initialize the application
@@ -279,10 +298,11 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupSearchFunctionality();
     
-    // Add event delegation for formula cards as a backup
+    // Add event delegation for formula cards - FIXED: Handle all clicks properly
     const formulaList = document.getElementById('formula-list');
     if (formulaList) {
         formulaList.addEventListener('click', (e) => {
+            // Check if click is on a formula card or any element inside it
             const card = e.target.closest('.formula-card');
             if (card) {
                 const formulaId = card.getAttribute('data-formula-id');
@@ -293,6 +313,72 @@ document.addEventListener('DOMContentLoaded', () => {
                         e.stopPropagation();
                         console.log('Card clicked via delegation:', formula.name);
                         selectFormula(formula);
+                        return false;
+                    }
+                }
+            }
+            
+            // Also handle search result items
+            const searchResult = e.target.closest('.search-result-item');
+            if (searchResult) {
+                const formulaId = searchResult.getAttribute('data-formula-id');
+                if (formulaId && typeof window.selectSearchResultFormula === 'function') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.selectSearchResultFormula(formulaId);
+                    return false;
+                }
+            }
+            
+            // Handle "Use This Formula" button clicks
+            const useBtn = e.target.closest('.use-formula-btn');
+            if (useBtn) {
+                const formulaId = useBtn.getAttribute('data-formula-id');
+                if (formulaId) {
+                    const data = window.searchResultsData;
+                    if (data && data.scoredFormulas) {
+                        const formulaData = data.scoredFormulas.find(f => f.formula && f.formula.id === formulaId);
+                        if (formulaData && formulaData.formula) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            selectFormula(formulaData.formula);
+                            return false;
+                        }
+                    }
+                }
+            }
+            
+            // Handle search suggestion clicks
+            const suggestion = e.target.closest('.search-suggestion-item');
+            if (suggestion) {
+                const suggestionText = suggestion.getAttribute('data-suggestion');
+                if (suggestionText) {
+                    const searchInput = document.getElementById('formula-search');
+                    if (searchInput) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        searchInput.value = suggestionText;
+                        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        return false;
+                    }
+                }
+            }
+        });
+        
+        // Also handle Enter key on formula cards
+        formulaList.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                const card = e.target.closest('.formula-card');
+                if (card) {
+                    const formulaId = card.getAttribute('data-formula-id');
+                    if (formulaId) {
+                        const formula = formulas.find(f => f.id === formulaId);
+                        if (formula) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            selectFormula(formula);
+                            return false;
+                        }
                     }
                 }
             }
@@ -835,7 +921,7 @@ function setupSearchFunctionality() {
     // PERFORMANCE FIX: Use debounce function for better debouncing
     const debouncedSearch = debounce((searchTerm) => {
         filterAndRenderFormulas(searchTerm);
-    }, 50); // Reduced to 50ms for faster response
+    }, 200); // Increased to 200ms for better performance during fast typing
     
     // Search input handler
     searchInput.addEventListener('input', (e) => {
@@ -4178,7 +4264,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
                 <div class="search-suggestions">
                     <div class="search-suggestions-title">Try searching for:</div>
                     <div class="search-suggestions-list">
-                        ${suggestions.map(s => `<span class="search-suggestion-item" onclick="document.getElementById('formula-search').value='${s}'; document.getElementById('formula-search').dispatchEvent(new Event('input'));">${s}</span>`).join('')}
+                        ${suggestions.map(s => `<span class="search-suggestion-item" data-suggestion="${escapeHtml(s)}">${escapeHtml(s)}</span>`).join('')}
                     </div>
                 </div>
             `;
@@ -4540,7 +4626,7 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
         <div style="margin-bottom: 25px;">
             <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                 <h2 style="color: #667eea; margin: 0; font-size: 2em;">${escapeHtml(formula.name)}</h2>
-                <button onclick="selectFormula(${JSON.stringify(formula).replace(/"/g, '&quot;')})" 
+                <button class="use-formula-btn" data-formula-id="${formula.id}" 
                         style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; white-space: nowrap;">
                     Use This Formula →
                 </button>
@@ -5088,6 +5174,9 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
     return card;
 }
 
+// Make selectFormula available globally for onclick handlers
+window.selectFormula = selectFormula;
+
 // Select a formula and show input screen
 // Helper function to safely initialize a graph manager
 // Helper function to wait for element visibility
@@ -5130,6 +5219,11 @@ function waitForElement(element, timeout = 1000) {
 }
 
 function selectFormula(formula) {
+    // Make sure function is available globally for onclick handlers
+    if (!window.selectFormula) {
+        window.selectFormula = selectFormula;
+    }
+    
     // FIXED: Cleanup previous formula's resources to prevent memory leaks
     cleanupGlobalState();
     
@@ -5316,9 +5410,24 @@ function cleanupVariableInputs() {
     // Remove all stored event listeners
     activeInputListeners.forEach((listener, element) => {
         if (element && element.parentNode) {
-            element.removeEventListener('input', listener.inputListener);
-            element.removeEventListener('change', listener.changeListener);
-            element.removeEventListener('keydown', listener.keydownListener);
+            if (listener.inputListener) {
+                element.removeEventListener('input', listener.inputListener);
+            }
+            if (listener.changeListener) {
+                element.removeEventListener('change', listener.changeListener);
+            }
+            if (listener.keydownListener) {
+                element.removeEventListener('keydown', listener.keydownListener);
+            }
+            // Clear any timeouts stored on the element
+            if (element.updateTimeout) {
+                clearTimeout(element.updateTimeout);
+                element.updateTimeout = null;
+            }
+            if (element.solveIndicatorTimeout) {
+                clearTimeout(element.solveIndicatorTimeout);
+                element.solveIndicatorTimeout = null;
+            }
         }
     });
     activeInputListeners.clear();
@@ -5332,11 +5441,20 @@ function cleanupVariableInputs() {
                 clearTimeout(input.solveIndicatorTimeout);
                 input.solveIndicatorTimeout = null;
             }
+            if (input.updateTimeout) {
+                clearTimeout(input.updateTimeout);
+                input.updateTimeout = null;
+            }
         });
     }
     
-    // Clear MathJax operations
+    // Clear MathJax operations and pending renders
     activeMathJaxOperations.clear();
+    if (mathJaxRenderTimeout) {
+        clearTimeout(mathJaxRenderTimeout);
+        mathJaxRenderTimeout = null;
+    }
+    mathJaxRenderQueue.clear();
 }
 
 /**
@@ -5527,10 +5645,8 @@ function renderVariableInputs(formula) {
                         });
                     }
                     
-                    // Update solve indicators
-                    updateSolveIndicators();
-                    
-                    // Update solve indicators in real-time for competitive efficiency
+                    // PERFORMANCE FIX: Debounce solve indicators and graph updates together
+                    // Remove immediate call to prevent duplicate DOM operations
                     clearTimeout(input.solveIndicatorTimeout);
                     input.solveIndicatorTimeout = setTimeout(() => {
                         updateSolveIndicators();
@@ -5539,7 +5655,7 @@ function renderVariableInputs(formula) {
                             const variableValues = getCurrentVariableValues();
                             graphManager.updateGraph(currentFormula, variableValues);
                         }
-                    }, 300); // Debounce graph updates to avoid too frequent redraws
+                    }, 400); // Increased debounce to 400ms for smoother performance
                 };
                 input.addEventListener('input', inputListener);
                 activeInputListeners.set(input, { inputListener });
@@ -5559,12 +5675,16 @@ function renderVariableInputs(formula) {
                         if (input) input.value = '';
                     });
                 }
-                updateSolveIndicators();
-                // Update graph when N/A checkbox changes
-                if (graphManager && currentFormula) {
-                    const variableValues = getCurrentVariableValues();
-                    graphManager.updateGraph(currentFormula, variableValues);
-                }
+                // PERFORMANCE FIX: Debounce solve indicators and graph updates
+                clearTimeout(naCheckbox.updateTimeout);
+                naCheckbox.updateTimeout = setTimeout(() => {
+                    updateSolveIndicators();
+                    // Update graph when N/A checkbox changes
+                    if (graphManager && currentFormula) {
+                        const variableValues = getCurrentVariableValues();
+                        graphManager.updateGraph(currentFormula, variableValues);
+                    }
+                }, 400);
             };
             naCheckbox.addEventListener('change', changeListener);
             activeInputListeners.set(naCheckbox, { changeListener });
@@ -6702,6 +6822,10 @@ function updateSolveIndicators() {
     let emptyVar = null;
     const variableStates = [];
     
+    // PERFORMANCE FIX: Cache DOM queries to avoid repeated lookups
+    const hintsCache = new Map();
+    const inputContainersCache = new Map();
+    
     userVariables.forEach(variable => {
         const baseUnit = variable.unit;
         const alternativeUnits = UnitConverter.getAlternativeUnits(baseUnit);
@@ -6729,26 +6853,47 @@ function updateSolveIndicators() {
         } else {
             emptyVar = variable;
         }
+    });
+    
+    // PERFORMANCE FIX: Batch DOM updates after calculating all states
+    // Use the already calculated filledCount instead of recalculating
+    userVariables.forEach((variable, index) => {
+        const variableState = variableStates[index];
+        const hasValue = variableState.hasValue;
         
-        // Update hint visibility
-        const hint = document.querySelector(`.solve-hint[data-symbol="${variable.symbol}"]`);
+        // Cache hint element lookup
+        let hint = hintsCache.get(variable.symbol);
+        if (!hint) {
+            hint = document.querySelector(`.solve-hint[data-symbol="${variable.symbol}"]`);
+            if (hint) hintsCache.set(variable.symbol, hint);
+        }
+        
         if (hint) {
             if (hasValue) {
                 hint.style.display = 'none';
             } else {
                 hint.style.display = 'inline';
+                // Use the already calculated filledCount
                 if (filledCount === userVariables.length - 1) {
                     hint.textContent = '← WILL SOLVE FOR THIS';
                     hint.classList.add('will-solve');
                     // COMPETITIVE: Highlight the input container for maximum visibility
-                    const inputContainer = hint.closest('.variable-input');
+                    let inputContainer = inputContainersCache.get(variable.symbol);
+                    if (!inputContainer) {
+                        inputContainer = hint.closest('.variable-input');
+                        if (inputContainer) inputContainersCache.set(variable.symbol, inputContainer);
+                    }
                     if (inputContainer) {
                         inputContainer.classList.add('will-solve-highlight');
                     }
                 } else if (filledCount < userVariables.length - 1) {
                     hint.textContent = 'Leave empty to solve';
                     hint.classList.remove('will-solve');
-                    const inputContainer = hint.closest('.variable-input');
+                    let inputContainer = inputContainersCache.get(variable.symbol);
+                    if (!inputContainer) {
+                        inputContainer = hint.closest('.variable-input');
+                        if (inputContainer) inputContainersCache.set(variable.symbol, inputContainer);
+                    }
                     if (inputContainer) {
                         inputContainer.classList.remove('will-solve-highlight');
                     }
@@ -6756,7 +6901,11 @@ function updateSolveIndicators() {
                     // All filled
                     hint.textContent = 'Clear to solve';
                     hint.classList.remove('will-solve');
-                    const inputContainer = hint.closest('.variable-input');
+                    let inputContainer = inputContainersCache.get(variable.symbol);
+                    if (!inputContainer) {
+                        inputContainer = hint.closest('.variable-input');
+                        if (inputContainer) inputContainersCache.set(variable.symbol, inputContainer);
+                    }
                     if (inputContainer) {
                         inputContainer.classList.remove('will-solve-highlight');
                     }
