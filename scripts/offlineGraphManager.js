@@ -187,6 +187,14 @@ class OfflineGraphManager {
         const data = this.generateGraphData(formula, unknownVar, allValues);
         
         if (data && data.length > 0) {
+            // Adjust bounds to fit the data if needed
+            this.adjustBoundsToData(data);
+            
+            // Redraw grid and axes with new bounds
+            this.ctx.clearRect(0, 0, this.width, this.height);
+            this.drawGrid();
+            this.drawAxes(unknownVar);
+            
             // Draw the curve
             this.drawCurve(data, '#3b82f6');
             
@@ -194,7 +202,7 @@ class OfflineGraphManager {
             this.drawPoints(data, '#60a5fa');
         } else {
             // Show message if graph cannot be generated
-            this.showGraphMessage("Unable to generate graph for this formula.");
+            this.showGraphMessage("Unable to generate graph for this formula. Try entering values for all variables except one.");
         }
         
         // Draw title
@@ -206,16 +214,30 @@ class OfflineGraphManager {
      */
     generateGraphData(formula, unknownVar, allValues) {
         const unknownSymbol = unknownVar.symbol;
-        const numPoints = 200;
+        const numPoints = 300; // Increased for smoother curves
         const data = [];
+        
+        // Calculate initial bounds if not set
+        if (this.bounds.right - this.bounds.left <= 0) {
+            this.calculateBounds(formula, unknownVar, allValues);
+        }
         
         // Create range for unknown variable
         const range = this.bounds.right - this.bounds.left;
+        if (range <= 0) {
+            console.warn('[OfflineGraphManager] Invalid bounds range');
+            return null;
+        }
+        
         const step = range / numPoints;
+        let validPoints = 0;
         
         try {
             for (let i = 0; i <= numPoints; i++) {
                 const x = this.bounds.left + (i * step);
+                
+                // Skip if x is invalid
+                if (!isFinite(x) || isNaN(x)) continue;
                 
                 // Create evaluation context with x value
                 const evalContext = { ...allValues, [unknownSymbol]: x };
@@ -224,13 +246,17 @@ class OfflineGraphManager {
                 const y = this.evaluateFormula(formula, unknownVar, evalContext);
                 
                 if (y !== null && isFinite(y) && !isNaN(y)) {
-                    // Don't filter by bounds - we'll adjust bounds if needed
-                    // This allows us to see the full graph
                     data.push({ x, y });
+                    validPoints++;
                 }
             }
         } catch (e) {
-            console.error('Error generating graph data:', e);
+            console.error('[OfflineGraphManager] Error generating graph data:', e);
+            return null;
+        }
+        
+        if (validPoints === 0) {
+            console.warn('[OfflineGraphManager] No valid data points generated');
             return null;
         }
         
