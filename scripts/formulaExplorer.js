@@ -143,14 +143,15 @@ function setupFormulaExplorerEvents() {
         
         // FIXED: Check if target is a variable input directly (not using closest)
         if (e.target.classList.contains('explorer-variable-input')) {
+            e.stopPropagation(); // Prevent event bubbling
             const symbol = e.target.dataset.variableSymbol;
             const value = e.target.value;
             if (symbol) {
                 handleExplorerVariableChange(symbol, value);
             }
-            return;
+            return false;
         }
-    });
+    }, true); // Use capture phase to catch events early
 }
 
 /**
@@ -161,9 +162,11 @@ function handleExplorerVariableChange(symbol, value) {
     formulaExplorerState.variableValues[symbol] = value === '' ? null : value;
     // Clear result when inputs change
     formulaExplorerState.calculationResult = null;
-    // Re-render only the calculator section if in calculator mode
-    if (formulaExplorerState.viewMode === 'calculator') {
-        renderFormulaExplorer();
+    // DON'T re-render - just update the state to preserve input focus
+    // Only re-render the result display if it exists
+    const resultBox = document.querySelector('.explorer-result-box');
+    if (resultBox) {
+        resultBox.innerHTML = '<div class="explorer-result-label">Result will appear here after calculation</div>';
     }
 }
 
@@ -573,11 +576,13 @@ function renderExplorerCalculatorInputs() {
                                 ${escapeHtml(variable.symbol)} (${escapeHtml(variable.unit)})
                             </label>
                             <input
-                                type="number"
+                                type="text"
                                 class="explorer-variable-input"
                                 data-variable-symbol="${escapeHtml(variable.symbol)}"
                                 placeholder="Enter ${escapeHtml(variable.name)}"
                                 value="${escapeHtml(currentValue)}"
+                                autocomplete="off"
+                                spellcheck="false"
                             />
                             <p class="explorer-input-hint">${escapeHtml(variable.description)}</p>
                         </div>
