@@ -5231,6 +5231,9 @@ function waitForElement(element, timeout = 1000) {
 }
 
 function selectFormula(formula) {
+    // FIXED: Cleanup previous formula's resources to prevent memory leaks
+    cleanupGlobalState();
+    
     // Track formula selection for dynamic prioritization
     if (typeof semanticSearchSystem !== 'undefined' && formula.concepts) {
         formula.concepts.forEach(concept => {
@@ -5402,8 +5405,69 @@ function displayRelatedFormulas(formula) {
     });
 }
 
+// FIXED: Store active listeners for cleanup to prevent memory leaks
+let activeInputListeners = new Map();
+let activeMathJaxOperations = new Set();
+
+/**
+ * Cleanup function for variable inputs - prevents memory leaks
+ * FIXED: Removes all event listeners and clears timers
+ */
+function cleanupVariableInputs() {
+    // Remove all stored event listeners
+    activeInputListeners.forEach((listener, element) => {
+        if (element && element.parentNode) {
+            element.removeEventListener('input', listener.inputListener);
+            element.removeEventListener('change', listener.changeListener);
+            element.removeEventListener('keydown', listener.keydownListener);
+        }
+    });
+    activeInputListeners.clear();
+    
+    // Clear timeouts stored on inputs
+    const container = document.getElementById('variables-container');
+    if (container) {
+        const inputs = container.querySelectorAll('input');
+        inputs.forEach(input => {
+            if (input.solveIndicatorTimeout) {
+                clearTimeout(input.solveIndicatorTimeout);
+                input.solveIndicatorTimeout = null;
+            }
+        });
+    }
+    
+    // Clear MathJax operations
+    activeMathJaxOperations.clear();
+}
+
+/**
+ * Cleanup global state - prevents memory leaks
+ */
+function cleanupGlobalState() {
+    // Cleanup input listeners
+    cleanupVariableInputs();
+    
+    // Cleanup graph manager
+    if (graphManager && typeof graphManager.destroy === 'function') {
+        graphManager.destroy();
+        graphManager = null;
+    }
+    
+    // Clear global references
+    currentFormula = null;
+    calculator = null;
+    
+    // Cleanup FRQ timers
+    if (typeof cleanupFRQTimers === 'function') {
+        cleanupFRQTimers();
+    }
+}
+
 // Render input fields for each variable
 function renderVariableInputs(formula) {
+    // FIXED: Cleanup previous inputs before rendering new ones
+    cleanupVariableInputs();
+    
     const container = document.getElementById('variables-container');
     container.innerHTML = '';
     
@@ -5548,8 +5612,8 @@ function renderVariableInputs(formula) {
             const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
             const input = document.getElementById(inputId);
             if (input) {
-                // Clear other inputs when this one is filled
-                input.addEventListener('input', (e) => {
+                // FIXED: Store listeners for cleanup
+                const inputListener = (e) => {
                     const currentValue = e.target.value.trim();
                     if (currentValue && currentValue.toLowerCase() !== 'null') {
                         // Clear other unit inputs for this variable (using index comparison for efficiency)
@@ -5577,14 +5641,17 @@ function renderVariableInputs(formula) {
                             graphManager.updateGraph(currentFormula, variableValues);
                         }
                     }, 300); // Debounce graph updates to avoid too frequent redraws
-                });
+                };
+                input.addEventListener('input', inputListener);
+                activeInputListeners.set(input, { inputListener });
             }
         });
         
         // Add N/A checkbox listener
         const naCheckbox = inputDiv.querySelector(`.na-checkbox[data-symbol="${variable.symbol}"]`);
         if (naCheckbox) {
-            naCheckbox.addEventListener('change', (e) => {
+            // FIXED: Store listener for cleanup
+            const changeListener = (e) => {
                 // Clear all input fields for this variable when N/A is checked
                 if (e.target.checked) {
                     alternativeUnits.forEach(unit => {
@@ -5599,7 +5666,9 @@ function renderVariableInputs(formula) {
                     const variableValues = getCurrentVariableValues();
                     graphManager.updateGraph(currentFormula, variableValues);
                 }
-            });
+            };
+            naCheckbox.addEventListener('change', changeListener);
+            activeInputListeners.set(naCheckbox, { changeListener });
         }
     });
     
@@ -5620,7 +5689,8 @@ function renderVariableInputs(formula) {
     // Tab key navigates between inputs, Enter calculates
     const allInputs = container.querySelectorAll('.unit-input-field');
     allInputs.forEach((input, index) => {
-        input.addEventListener('keydown', (e) => {
+        // FIXED: Store listener for cleanup
+        const keydownListener = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 // If all but one variable is filled, calculate immediately
@@ -5644,7 +5714,15 @@ function renderVariableInputs(formula) {
                     }
                 }
             }
-        });
+        };
+        input.addEventListener('keydown', keydownListener);
+        // Update stored listener if exists, otherwise add new entry
+        const existing = activeInputListeners.get(input);
+        if (existing) {
+            existing.keydownListener = keydownListener;
+        } else {
+            activeInputListeners.set(input, { keydownListener });
+        }
     });
 }
 
@@ -5652,10 +5730,11 @@ function renderVariableInputs(formula) {
 function setupEventListeners() {
     // Back button
     document.getElementById('back-button').addEventListener('click', () => {
+        // FIXED: Cleanup resources to prevent memory leaks
+        cleanupGlobalState();
+        
         document.getElementById('input-screen').classList.remove('active');
         document.getElementById('formula-selection').classList.add('active');
-        currentFormula = null;
-        calculator = null;
     });
     
     // Main page tab buttons (Formulas/Classification)

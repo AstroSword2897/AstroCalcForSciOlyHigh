@@ -560,7 +560,7 @@ const Diagnostics = {
             'formulas', 'calculator', 'unitConverter', 'unitParser', 
             'dimensionalAnalysis', 'expressionParser', 'graphManager',
             'offlineGraphManager', 'classification', 'formulaExplorer',
-            'utils', 'frqSupport', 'quickNav', 'ui'
+            'utils', 'frqSupport', 'quickNav', 'ui', 'safeExpressionEvaluator'
         ];
         let missingScripts = [];
         requiredScripts.forEach(script => {
@@ -577,10 +577,11 @@ const Diagnostics = {
                 case 'offlineGraphManager': loaded = typeof OfflineGraphManager !== 'undefined'; break;
                 case 'classification': loaded = typeof StellarClassifier !== 'undefined'; break;
                 case 'formulaExplorer': loaded = typeof FormulaExplorer !== 'undefined'; break;
-                case 'utils': loaded = typeof logger !== 'undefined' || typeof safeExecute !== 'undefined'; break;
+                case 'utils': loaded = typeof logger !== 'undefined' || typeof safeExecute !== 'undefined' || typeof LRUCache !== 'undefined'; break;
                 case 'frqSupport': loaded = typeof generateUsageInstructions !== 'undefined'; break;
                 case 'quickNav': loaded = typeof initQuickNav !== 'undefined' || typeof quickNavState !== 'undefined'; break;
                 case 'ui': loaded = typeof filterAndRenderFormulas !== 'undefined' || typeof renderFormulaList !== 'undefined'; break;
+                case 'safeExpressionEvaluator': loaded = typeof SafeExpressionEvaluator !== 'undefined'; break;
             }
             if (!loaded) {
                 missingScripts.push(script);
@@ -657,7 +658,9 @@ const Diagnostics = {
                    typeof DimensionalAnalysis !== 'undefined' &&
                    typeof OfflineGraphManager !== 'undefined' &&
                    typeof StellarClassifier !== 'undefined' &&
-                   typeof generateUsageInstructions !== 'undefined';
+                   typeof generateUsageInstructions !== 'undefined' &&
+                   typeof SafeExpressionEvaluator !== 'undefined' &&
+                   typeof LRUCache !== 'undefined';
         });
 
         // Test 3: End-to-end workflow

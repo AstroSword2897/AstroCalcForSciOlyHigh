@@ -29,10 +29,12 @@ class GraphManager {
 
         this.currentFormula = null;
         this.currentValues = {};
-        this.cache = new Map(); // cache for repeated plots
+        // FIXED: Use LRU cache with size limit to prevent memory leaks
+        this.cache = typeof LRUCache !== 'undefined' ? new LRUCache(50) : new Map(); // cache for repeated plots
 
         // Used to prevent redundant graph updates
         this.lastRenderedKey = null;
+        this.pendingTimers = [];
     }
 
     /**
@@ -78,7 +80,9 @@ class GraphManager {
         // Check if container has dimensions
         if (elt.offsetWidth === 0 || elt.offsetHeight === 0) {
             console.warn('Graph container has no dimensions, waiting...');
-            setTimeout(() => this.init(targetContainerId), 200);
+            // FIXED: Store timer for cleanup
+            const timer = setTimeout(() => this.init(targetContainerId), 200);
+            this.pendingTimers.push(timer);
             return false;
         }
 
@@ -115,9 +119,11 @@ class GraphManager {
 
             // If we have a stored formula, update the graph
             if (this.currentFormula) {
-                setTimeout(() => {
+                // FIXED: Store timer for cleanup
+                const timer = setTimeout(() => {
                     this.updateGraph(this.currentFormula, this.currentValues);
                 }, 100);
+                this.pendingTimers.push(timer);
             }
 
             return true;
@@ -458,5 +464,41 @@ class GraphManager {
         
         // If all else fails, return empty to show message
         return { expressions: [] };
+    }
+    
+    /**
+     * Cleanup method - call when graph is no longer needed
+     * FIXED: Prevents memory leaks by cleaning up resources
+     */
+    destroy() {
+        // Clear all timers
+        this.pendingTimers.forEach(timer => clearTimeout(timer));
+        this.pendingTimers = [];
+        
+        // Destroy Desmos calculator
+        if (this.calculator) {
+            try {
+                this.calculator.destroy();
+            } catch (e) {
+                console.warn('Error destroying calculator:', e);
+            }
+            this.calculator = null;
+        }
+        
+        // Destroy offline manager if exists
+        if (this.offlineManager && typeof this.offlineManager.destroy === 'function') {
+            this.offlineManager.destroy();
+            this.offlineManager = null;
+        }
+        
+        // Clear cache
+        if (this.cache && typeof this.cache.clear === 'function') {
+            this.cache.clear();
+        }
+        
+        // Clear references
+        this.currentFormula = null;
+        this.currentValues = {};
+        this.lastRenderedKey = null;
     }
 }

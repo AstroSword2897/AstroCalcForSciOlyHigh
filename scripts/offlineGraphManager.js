@@ -29,7 +29,9 @@ class OfflineGraphManager {
         
         this.currentFormula = null;
         this.currentValues = {};
-        this.cache = new Map();
+        // FIXED: Use LRU cache with size limit to prevent memory leaks
+        this.cache = typeof LRUCache !== 'undefined' ? new LRUCache(50) : new Map();
+        this.pendingTimers = [];
         
         // Graph settings
         this.width = 800;
@@ -61,7 +63,9 @@ class OfflineGraphManager {
         // Check if container has dimensions
         if (container.offsetWidth === 0 || container.offsetHeight === 0) {
             console.warn('Graph container has no dimensions, waiting...');
-            setTimeout(() => this.init(targetContainerId), 200);
+            // FIXED: Store timer for cleanup
+            const timer = setTimeout(() => this.init(targetContainerId), 200);
+            this.pendingTimers.push(timer);
             return false;
         }
         
@@ -90,12 +94,37 @@ class OfflineGraphManager {
         
         // If we have a stored formula, update the graph
         if (this.currentFormula) {
-            setTimeout(() => {
+            // FIXED: Store timer for cleanup
+            const timer = setTimeout(() => {
                 this.updateGraph(this.currentFormula, this.currentValues);
             }, 100);
+            this.pendingTimers.push(timer);
         }
         
         return true;
+    }
+    
+    /**
+     * Cleanup method - call when graph is no longer needed
+     * FIXED: Prevents memory leaks by cleaning up resources
+     */
+    destroy() {
+        // Clear all timers
+        this.pendingTimers.forEach(timer => clearTimeout(timer));
+        this.pendingTimers = [];
+        
+        // Clear cache
+        if (this.cache && typeof this.cache.clear === 'function') {
+            this.cache.clear();
+        }
+        
+        // Clear canvas references (canvas will be garbage collected)
+        this.canvas = null;
+        this.ctx = null;
+        
+        // Clear formula references
+        this.currentFormula = null;
+        this.currentValues = {};
     }
     
     /**
@@ -435,12 +464,23 @@ class OfflineGraphManager {
                 return ExpressionParser.parse(exprWithValue);
             }
             
-            // Fallback: direct evaluation
-            const func = new Function('x', 'Math', `
-                const π = Math.PI;
-                return ${evalExpr};
-            `);
+            // FIXED: Use safer evaluation with validation
+            // Use SafeExpressionEvaluator if available
+            if (typeof SafeExpressionEvaluator !== 'undefined') {
+                return SafeExpressionEvaluator.evaluate(evalExpr, { x, ...allValues });
+            }
             
+            // Fallback: Use Function() with validation
+            // Validate expression doesn't contain dangerous patterns
+            const dangerousPatterns = [/eval\s*\(/i, /function\s*\(/i, /constructor/i, /prototype/i];
+            for (const pattern of dangerousPatterns) {
+                if (pattern.test(evalExpr)) {
+                    console.warn('[OfflineGraphManager] Dangerous pattern in expression');
+                    return null;
+                }
+            }
+            
+            const func = new Function('x', 'Math', `"use strict"; const π = Math.PI; return (${evalExpr})`);
             return func(x, Math);
         } catch (e) {
             return null;

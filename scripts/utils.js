@@ -144,6 +144,54 @@ class SimpleCache {
 }
 
 /**
+ * LRU Cache - Least Recently Used cache with size limit
+ * Moves accessed items to end, removes from beginning when full
+ */
+class LRUCache {
+    constructor(maxSize = 100) {
+        this.cache = new Map();
+        this.maxSize = maxSize;
+    }
+    
+    get(key) {
+        if (!this.cache.has(key)) return null;
+        const value = this.cache.get(key);
+        // Move to end (most recently used) - LRU behavior
+        this.cache.delete(key);
+        this.cache.set(key, value);
+        return value;
+    }
+    
+    set(key, value) {
+        if (this.cache.has(key)) {
+            // Update existing - move to end
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            // Remove least recently used (first item)
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        this.cache.set(key, value);
+    }
+    
+    has(key) {
+        return this.cache.has(key);
+    }
+    
+    delete(key) {
+        return this.cache.delete(key);
+    }
+    
+    clear() {
+        this.cache.clear();
+    }
+    
+    size() {
+        return this.cache.size;
+    }
+}
+
+/**
  * Memoization helper - caches function results
  */
 function memoize(fn, keyGenerator = null) {
@@ -166,6 +214,7 @@ if (typeof window !== 'undefined') {
     window.debounce = debounce;
     window.throttle = throttle;
     window.SimpleCache = SimpleCache;
+    window.LRUCache = LRUCache;
     window.memoize = memoize;
 }
 
@@ -176,6 +225,7 @@ if (typeof module !== 'undefined' && module.exports) {
         debounce,
         throttle,
         SimpleCache,
+        LRUCache,
         memoize
     };
 }

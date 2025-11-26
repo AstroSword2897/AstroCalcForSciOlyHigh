@@ -53,7 +53,9 @@ const IntegrationTest = {
             'logger': () => typeof logger !== 'undefined' || typeof safeExecute !== 'undefined',
             'FRQ Support': () => typeof generateUsageInstructions !== 'undefined',
             'Quick Nav': () => typeof initQuickNav !== 'undefined' || typeof quickNavState !== 'undefined',
-            'UI Functions': () => typeof filterAndRenderFormulas !== 'undefined' || typeof renderFormulaList !== 'undefined'
+            'UI Functions': () => typeof filterAndRenderFormulas !== 'undefined' || typeof renderFormulaList !== 'undefined',
+            'SafeExpressionEvaluator': () => typeof SafeExpressionEvaluator !== 'undefined',
+            'LRUCache': () => typeof LRUCache !== 'undefined'
         };
 
         Object.entries(requiredScripts).forEach(([name, test]) => {

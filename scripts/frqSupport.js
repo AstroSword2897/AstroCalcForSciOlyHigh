@@ -282,20 +282,23 @@ function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1
 /**
  * Cache for concept expansion results
  * Key: question text or formula ID, Value: expanded concepts array
+ * FIXED: Use LRU cache with size limit to prevent memory leaks
  */
-const conceptExpansionCache = new Map();
+const conceptExpansionCache = typeof LRUCache !== 'undefined' ? new LRUCache(100) : new Map();
 
 /**
  * Cache for formula metadata lookups
  * Key: formula ID, Value: metadata object
+ * FIXED: Use LRU cache with size limit to prevent memory leaks
  */
-const metadataCache = new Map();
+const metadataCache = typeof LRUCache !== 'undefined' ? new LRUCache(100) : new Map();
 
 /**
  * Cache for question analysis results
  * Key: question text, Value: analysis object
+ * FIXED: Use LRU cache with size limit to prevent memory leaks
  */
-const questionAnalysisCache = new Map();
+const questionAnalysisCache = typeof LRUCache !== 'undefined' ? new LRUCache(100) : new Map();
 
 /**
  * Clear all caches (useful for testing or memory management)
@@ -2264,6 +2267,9 @@ function generateGraphInterpretation(formula, questionContext = '') {
 
 // Initialize metadata when formulas are loaded
 // FIXED: Multiple initialization attempts to handle async loading
+// FIXED: Store timer IDs for cleanup to prevent memory leaks
+let initTimers = [];
+
 if (typeof document !== 'undefined') {
     const tryInit = () => {
         if (!metadataInitialized) {
@@ -2278,9 +2284,19 @@ if (typeof document !== 'undefined') {
     }
     
     // Also try after delays (in case formulas load asynchronously)
-    setTimeout(tryInit, 500);
-    setTimeout(tryInit, 1000);
-    setTimeout(tryInit, 2000);
+    // Store timer IDs for cleanup
+    initTimers.push(setTimeout(tryInit, 500));
+    initTimers.push(setTimeout(tryInit, 1000));
+    initTimers.push(setTimeout(tryInit, 2000));
+}
+
+/**
+ * Cleanup function for FRQ timers
+ * Call this to prevent memory leaks from timers
+ */
+function cleanupFRQTimers() {
+    initTimers.forEach(timer => clearTimeout(timer));
+    initTimers = [];
 }
 
 //////////////////////////////
@@ -2304,7 +2320,8 @@ if (typeof module !== 'undefined' && module.exports) {
         clearCaches,
         clearIntermediateResults,
         storeIntermediateResult,
-        getIntermediateResult
+        getIntermediateResult,
+        cleanupFRQTimers
     };
 }
 
@@ -2315,4 +2332,5 @@ if (typeof window !== 'undefined') {
     window.clearIntermediateResults = clearIntermediateResults;
     window.storeIntermediateResult = storeIntermediateResult;
     window.getIntermediateResult = getIntermediateResult;
+    window.cleanupFRQTimers = cleanupFRQTimers;
 }
