@@ -4324,13 +4324,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         // Append all cards at once
         if (cardsAdded > 0) {
             categoryContainer.appendChild(fragment);
-        
-        // Always append if we have cards
-        if (cardsAdded > 0) {
             formulaList.appendChild(categoryContainer);
-            console.log(`✅ Appended "Other" category with ${cardsAdded} formulas to DOM`);
-            // Force a reflow
-            categoryContainer.offsetHeight;
         }
     }
     
