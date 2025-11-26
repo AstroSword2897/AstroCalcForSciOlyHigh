@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Cache</title>
+</head>
+<body>
+    <h1>Clearing Service Worker Cache...</h1>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(registration => {
+                    registration.unregister();
+                    console.log('Unregistered:', registration.scope);
+                });
+            });
+            
+            caches.keys().then(cacheNames => {
+                return Promise.all(
+                    cacheNames.map(cacheName => {
+                        console.log('Deleting cache:', cacheName);
+                        return caches.delete(cacheName);
+                    })
+                );
+            }).then(() => {
+                document.body.innerHTML = '<h1>✅ Cache Cleared! Redirecting...</h1>';
+                setTimeout(() => {
+                    window.location.href = './index.html';
+                }, 1000);
+            });
+        } else {
+            document.body.innerHTML = '<h1>Service Worker not supported. Please clear cache manually.</h1>';
+        }
+    </script>
+</body>
+</html>
+
