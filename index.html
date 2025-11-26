@@ -374,25 +374,43 @@
     
     <!-- Service Worker Registration for Offline Support -->
     <script>
+        // Force update service worker cache
+        if ('serviceWorker' in navigator) {
+            // Unregister old service workers first
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(registration => registration.unregister());
+            });
+        }
+        
         // Register service worker for offline support
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then((registration) => {
-                        console.log('[Service Worker] Registered successfully:', registration.scope);
-                        
-                        // Check for updates
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // New service worker available
-                                    console.log('[Service Worker] New version available');
-                                    // Optionally show update notification to user
-                                }
-                            });
+                // Clear all caches first
+                caches.keys().then(cacheNames => {
+                    return Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                }).then(() => {
+                    // Now register new service worker
+                    return navigator.serviceWorker.register('./sw.js?v=2.0.2');
+                }).then((registration) => {
+                    console.log('[Service Worker] Registered successfully:', registration.scope);
+                    
+                    // Force update
+                    registration.update();
+                    
+                    // Check for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New service worker available - reload
+                                console.log('[Service Worker] New version available, reloading...');
+                                window.location.reload();
+                            }
                         });
-                    })
+                    });
+                })
                     .catch((error) => {
                         console.warn('[Service Worker] Registration failed:', error);
                     });
@@ -400,8 +418,7 @@
                 // Listen for service worker updates
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     console.log('[Service Worker] Controller changed, reloading...');
-                    // Optionally reload page when new service worker takes control
-                    // window.location.reload();
+                    window.location.reload();
                 });
             });
             
