@@ -5594,6 +5594,11 @@ function renderVariableInputs(formula) {
                     });
                 }
                 updateSolveIndicators();
+                // Update graph when N/A checkbox changes
+                if (graphManager && currentFormula) {
+                    const variableValues = getCurrentVariableValues();
+                    graphManager.updateGraph(currentFormula, variableValues);
+                }
             });
         }
     });
