@@ -832,8 +832,8 @@ function setupSearchFunctionality() {
     // Store original formulas for filtering
     let allFormulas = [...formulas];
     
-    // PERFORMANCE FIX: Use Debouncer class for better debouncing
-    const searchDebouncer = new Debouncer((searchTerm) => {
+    // PERFORMANCE FIX: Use debounce function for better debouncing
+    const debouncedSearch = debounce((searchTerm) => {
         filterAndRenderFormulas(searchTerm);
     }, 150); // Increased to 150ms for better performance on large formula sets
     
@@ -847,13 +847,12 @@ function setupSearchFunctionality() {
         } else {
             clearBtn.style.display = 'none';
             // Clear search immediately (no debounce for empty search)
-            searchDebouncer.cancel();
             filterAndRenderFormulas('');
             return;
         }
         
         // Debounced search with caching
-        searchDebouncer.call(searchTerm);
+        debouncedSearch(searchTerm);
     });
     
     // Clear button handler
