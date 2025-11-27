@@ -374,13 +374,8 @@
     
     <!-- 8. Diagnostic tools (inline to ensure they're always available) -->
     <script>
-        // Diagnostic functions - inline to ensure they're always available
-        (function() {
-            'use strict';
-            
-            // Wait for DOM to be ready
-            function initDiagnostics() {
-                window.astrocalcDiagnostics = function() {
+        // Diagnostic functions - define immediately, no waiting
+        window.astrocalcDiagnostics = function() {
                     console.log('=== AstroCalc Diagnostics ===');
                     console.log('1. Formulas:', {
                         defined: typeof formulas !== 'undefined',
@@ -502,10 +497,10 @@
                     console.log('=== End Diagnostics ===');
                     console.log('💡 Run astrocalcDiagnostics() anytime to check status');
                     console.log('💡 Run forceRenderCards() to force render with visibility fixes');
-                };
-                
-                // Add force render function
-                window.forceRenderCards = function() {
+        };
+        
+        // Add force render function
+        window.forceRenderCards = function() {
                     console.log('🔧 Force rendering cards...');
                     if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
                         console.error('❌ Formulas not loaded!');
@@ -555,18 +550,10 @@
                     }, 100);
                     
                     return true;
-                };
-                
-                console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
-            }
-            
-            // Initialize immediately if DOM is ready, otherwise wait
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initDiagnostics);
-            } else {
-                initDiagnostics();
-            }
-        })();
+        };
+        
+        // Log that functions are available
+        console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
     </script>
     
     <!-- Service Worker Registration for Offline Support -->
