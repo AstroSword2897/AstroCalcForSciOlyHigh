@@ -509,16 +509,74 @@
             
             // Add force render function
             window.forceRenderCards = function() {
-                    console.log('🔧 Force rendering cards...');
-                    if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
-                        console.error('❌ Formulas not loaded!');
-                        return false;
+                console.log('🔧 Force rendering cards...');
+                
+                // Wait for renderFormulaList to be available
+                function tryRender(retries = 10) {
+                    if (typeof renderFormulaList === 'function') {
+                        // renderFormulaList is available, proceed
+                        if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
+                            console.error('❌ Formulas not loaded! Waiting...');
+                            if (retries > 0) {
+                                setTimeout(() => tryRender(retries - 1), 200);
+                            }
+                            return false;
+                        }
+                        
+                        // Force all containers visible first
+                        const formulaSelection = document.getElementById('formula-selection');
+                        if (formulaSelection) {
+                            formulaSelection.classList.add('active');
+                            formulaSelection.style.setProperty('display', 'block', 'important');
+                            formulaSelection.style.setProperty('visibility', 'visible', 'important');
+                        }
+                        
+                        const mainFormulasTab = document.getElementById('main-formulas-tab');
+                        if (mainFormulasTab) {
+                            mainFormulasTab.classList.add('active');
+                            mainFormulasTab.style.setProperty('display', 'block', 'important');
+                            mainFormulasTab.style.setProperty('visibility', 'visible', 'important');
+                        }
+                        
+                        // Render
+                        console.log('✅ renderFormulaList found, rendering...');
+                        renderFormulaList();
+                        
+                        // Force visibility after render
+                        setTimeout(() => {
+                            const formulaList = document.getElementById('formula-list');
+                            if (formulaList) {
+                                formulaList.style.setProperty('display', 'block', 'important');
+                                formulaList.style.setProperty('visibility', 'visible', 'important');
+                                formulaList.style.setProperty('opacity', '1', 'important');
+                                
+                                const cards = formulaList.querySelectorAll('.formula-card');
+                                cards.forEach(card => {
+                                    card.style.setProperty('display', 'block', 'important');
+                                    card.style.setProperty('visibility', 'visible', 'important');
+                                    card.style.setProperty('opacity', '1', 'important');
+                                });
+                                
+                                console.log(`✅ Force render complete. ${cards.length} cards should be visible.`);
+                            }
+                        }, 100);
+                        
+                        return true;
+                    } else {
+                        // renderFormulaList not available yet
+                        if (retries > 0) {
+                            console.log(`⏳ Waiting for renderFormulaList... (${retries} attempts left)`);
+                            setTimeout(() => tryRender(retries - 1), 200);
+                        } else {
+                            console.error('❌ renderFormulaList function not available after waiting!');
+                            console.error('💡 Try: Hard refresh (Cmd+Shift+R) or clear cache');
+                            return false;
+                        }
                     }
-                    
-                    if (typeof renderFormulaList !== 'function') {
-                        console.error('❌ renderFormulaList function not available!');
-                        return false;
-                    }
+                }
+                
+                return tryRender();
+            };
                     
                     // Force all containers visible first
                     const formulaSelection = document.getElementById('formula-selection');
