@@ -401,15 +401,38 @@ function renderMathJax(element) {
 }
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', () => {
+function initializeApp() {
     // Initialize semantic search system
     if (typeof semanticSearchSystem !== 'undefined') {
         semanticSearchSystem.initializeEmbeddings();
     }
     
-    renderFormulaList();
+    // Ensure formulas are loaded before rendering
+    if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+        renderFormulaList();
+    } else {
+        console.warn('Formulas not loaded yet, waiting...');
+        // Retry after a short delay
+        setTimeout(() => {
+            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+                renderFormulaList();
+            } else {
+                console.error('Formulas still not loaded after delay');
+            }
+        }, 100);
+    }
+    
     setupEventListeners();
     setupSearchFunctionality();
+}
+
+// Handle both cases: DOM already loaded or still loading
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    // DOM already loaded, initialize immediately
+    initializeApp();
+}
     
     // Add event delegation for formula cards - FIXED: Handle all clicks properly
     const formulaList = document.getElementById('formula-list');
@@ -5038,6 +5061,8 @@ function renderFormulaList() {
         formulaList.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">Error: No formulas found in array.</p>';
         return;
     }
+    
+    console.log(`Rendering ${formulas.length} formulas...`);
     
     // Clear and populate formula list
     formulaList.innerHTML = '';
