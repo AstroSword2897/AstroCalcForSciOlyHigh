@@ -402,9 +402,10 @@ function renderMathJax(element) {
 
 // Initialize the application
 function initializeApp() {
-    console.log('Initializing app...');
+    console.log('🚀 Initializing app...');
     console.log('Formulas defined:', typeof formulas !== 'undefined');
     console.log('Formulas count:', typeof formulas !== 'undefined' ? formulas.length : 0);
+    console.log('Document readyState:', document.readyState);
     
     // Initialize semantic search system
     if (typeof semanticSearchSystem !== 'undefined') {
@@ -414,15 +415,26 @@ function initializeApp() {
     // Wait for formulas with retry logic
     function tryRenderFormulas(retries = 10) {
         if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-            console.log(`Rendering ${formulas.length} formulas...`);
-            renderFormulaList();
-            setupEventListeners();
-            setupSearchFunctionality();
+            console.log(`✅ Rendering ${formulas.length} formulas...`);
+            
+            // CRITICAL: Ensure DOM is ready before rendering
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    renderFormulaList();
+                    setupEventListeners();
+                    setupSearchFunctionality();
+                });
+            } else {
+                // DOM is ready, render immediately
+                renderFormulaList();
+                setupEventListeners();
+                setupSearchFunctionality();
+            }
         } else if (retries > 0) {
-            console.log(`Formulas not ready, retrying... (${retries} attempts left)`);
+            console.log(`⏳ Formulas not ready, retrying... (${retries} attempts left)`);
             setTimeout(() => tryRenderFormulas(retries - 1), 200);
         } else {
-            console.error('Formulas failed to load after all retries');
+            console.error('❌ Formulas failed to load after all retries');
             const formulaList = document.getElementById('formula-list');
             if (formulaList) {
                 formulaList.innerHTML = '<p style="text-align: center; color: #ff6b6b; padding: 40px;">Error: Formulas failed to load. Please refresh the page.</p>';
@@ -436,52 +448,68 @@ function initializeApp() {
 // Handle both cases: DOM already loaded or still loading
 // Use multiple strategies to ensure initialization happens across all browsers
 function ensureInitialization() {
+    console.log('🔧 Setting up initialization strategies...');
+    console.log('Current readyState:', document.readyState);
+    
+    let hasRendered = false;
+    
+    function attemptRender() {
+        if (hasRendered) return;
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList && formulaList.querySelectorAll('.formula-card').length > 0) {
+            hasRendered = true;
+            return;
+        }
+        if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+            if (typeof renderFormulaList === 'function') {
+                console.log('🔄 Attempting render...');
+                renderFormulaList();
+                hasRendered = true;
+            }
+        }
+    }
+    
     // Strategy 1: DOMContentLoaded event
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializeApp);
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('📄 DOMContentLoaded fired');
+            initializeApp();
+            setTimeout(attemptRender, 100);
+        });
     } else {
         // DOM already loaded, initialize immediately
+        console.log('⚡ DOM already loaded, initializing immediately');
         initializeApp();
+        setTimeout(attemptRender, 100);
     }
     
     // Strategy 2: Window load event (for browsers that need it)
     window.addEventListener('load', () => {
-        const formulaList = document.getElementById('formula-list');
-        if (formulaList && formulaList.children.length === 0) {
-            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-                console.log('Window load: Rendering formulas...');
-                renderFormulaList();
-            }
-        }
+        console.log('🌐 Window load event fired');
+        setTimeout(attemptRender, 200);
     });
     
     // Strategy 3: Fallback after delay (catches edge cases)
     setTimeout(() => {
-        const formulaList = document.getElementById('formula-list');
-        if (formulaList && formulaList.children.length === 0) {
-            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-                console.log('Fallback: Rendering formulas after delay...');
-                renderFormulaList();
-            }
-        }
-    }, 1000);
+        console.log('⏰ Fallback timeout triggered');
+        attemptRender();
+    }, 1500);
     
     // Strategy 4: Force render on next tick (for Safari/WebKit)
     if (typeof requestAnimationFrame !== 'undefined') {
         requestAnimationFrame(() => {
             setTimeout(() => {
-                const formulaList = document.getElementById('formula-list');
-                if (formulaList && formulaList.children.length === 0) {
-                    if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-                        console.log('RAF: Rendering formulas...');
-                        renderFormulaList();
-                    }
-                }
-            }, 100);
+                console.log('🎬 requestAnimationFrame triggered');
+                attemptRender();
+            }, 200);
         });
     }
+    
+    // Strategy 5: Immediate check (for fast browsers)
+    setTimeout(attemptRender, 50);
 }
 
+// Start initialization
 ensureInitialization();
 
 // Add event delegation for formula cards - FIXED: Handle all clicks properly
@@ -5182,26 +5210,30 @@ function renderFormulaList() {
     // Clear and populate formula list
     formulaList.innerHTML = '';
     
-    // Ensure formula-list is visible (Cross-browser compatibility)
-    formulaList.style.display = 'block';
-    formulaList.style.visibility = 'visible';
-    formulaList.style.opacity = '1';
-    formulaList.style.height = 'auto';
-    formulaList.style.minHeight = '100px';
+    // Ensure formula-list is visible (Cross-browser compatibility - CRITICAL)
+    formulaList.style.setProperty('display', 'block', 'important');
+    formulaList.style.setProperty('visibility', 'visible', 'important');
+    formulaList.style.setProperty('opacity', '1', 'important');
+    formulaList.style.setProperty('height', 'auto', 'important');
+    formulaList.style.setProperty('min-height', '100px', 'important');
     
     // Also ensure parent containers are visible (critical for all browsers)
     const mainFormulasTab = document.getElementById('main-formulas-tab');
     if (mainFormulasTab) {
         mainFormulasTab.classList.add('active');
-        mainFormulasTab.style.display = 'block';
-        mainFormulasTab.style.visibility = 'visible';
+        mainFormulasTab.style.setProperty('display', 'block', 'important');
+        mainFormulasTab.style.setProperty('visibility', 'visible', 'important');
+        mainFormulasTab.style.setProperty('opacity', '1', 'important');
+    } else {
+        console.error('❌ main-formulas-tab element not found!');
     }
     
     // Ensure main-tab-content is visible
     const mainTabContent = document.querySelector('.main-tab-content.active');
     if (mainTabContent) {
-        mainTabContent.style.display = 'block';
-        mainTabContent.style.visibility = 'visible';
+        mainTabContent.style.setProperty('display', 'block', 'important');
+        mainTabContent.style.setProperty('visibility', 'visible', 'important');
+        mainTabContent.style.setProperty('opacity', '1', 'important');
     }
     
     // Check if formulaCategories is defined
