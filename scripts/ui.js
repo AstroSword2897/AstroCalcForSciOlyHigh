@@ -512,68 +512,195 @@ function ensureInitialization() {
 // Start initialization
 ensureInitialization();
 
-// Add diagnostic function to window for debugging
-window.astrocalcDiagnostics = function() {
-    console.log('=== AstroCalc Diagnostics ===');
-    console.log('1. Formulas:', {
-        defined: typeof formulas !== 'undefined',
-        count: typeof formulas !== 'undefined' ? formulas.length : 0,
-        isArray: typeof formulas !== 'undefined' ? Array.isArray(formulas) : false
-    });
+// Add diagnostic function to window for debugging (define early so it's always available)
+(function() {
+    'use strict';
     
-    console.log('2. DOM Elements:', {
-        formulaList: !!document.getElementById('formula-list'),
-        formulaSelection: !!document.getElementById('formula-selection'),
-        mainFormulasTab: !!document.getElementById('main-formulas-tab')
-    });
-    
-    const formulaList = document.getElementById('formula-list');
-    if (formulaList) {
-        const style = window.getComputedStyle(formulaList);
-        console.log('3. formula-list Styles:', {
-            display: style.display,
-            visibility: style.visibility,
-            opacity: style.opacity,
-            height: style.height,
-            children: formulaList.children.length,
-            cards: formulaList.querySelectorAll('.formula-card').length
+    // Define diagnostic function immediately
+    window.astrocalcDiagnostics = function() {
+        console.log('=== AstroCalc Diagnostics ===');
+        console.log('1. Formulas:', {
+            defined: typeof formulas !== 'undefined',
+            count: typeof formulas !== 'undefined' ? formulas.length : 0,
+            isArray: typeof formulas !== 'undefined' ? Array.isArray(formulas) : false
         });
-    }
-    
-    const formulaSelection = document.getElementById('formula-selection');
-    if (formulaSelection) {
-        const style = window.getComputedStyle(formulaSelection);
-        console.log('4. formula-selection Styles:', {
-            display: style.display,
-            visibility: style.visibility,
-            hasActive: formulaSelection.classList.contains('active')
+        
+        console.log('2. DOM Elements:', {
+            formulaList: !!document.getElementById('formula-list'),
+            formulaSelection: !!document.getElementById('formula-selection'),
+            mainFormulasTab: !!document.getElementById('main-formulas-tab')
         });
-    }
-    
-    const mainFormulasTab = document.getElementById('main-formulas-tab');
-    if (mainFormulasTab) {
-        const style = window.getComputedStyle(mainFormulasTab);
-        console.log('5. main-formulas-tab Styles:', {
-            display: style.display,
-            visibility: style.visibility,
-            hasActive: mainFormulasTab.classList.contains('active')
+        
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList) {
+            const style = window.getComputedStyle(formulaList);
+            console.log('3. formula-list Styles:', {
+                display: style.display,
+                visibility: style.visibility,
+                opacity: style.opacity,
+                height: style.height,
+                children: formulaList.children.length,
+                cards: formulaList.querySelectorAll('.formula-card').length,
+                innerHTML_length: formulaList.innerHTML.length
+            });
+        } else {
+            console.error('❌ formula-list element NOT FOUND in DOM!');
+        }
+        
+        const formulaSelection = document.getElementById('formula-selection');
+        if (formulaSelection) {
+            const style = window.getComputedStyle(formulaSelection);
+            console.log('4. formula-selection Styles:', {
+                display: style.display,
+                visibility: style.visibility,
+                opacity: style.opacity,
+                hasActive: formulaSelection.classList.contains('active'),
+                classList: Array.from(formulaSelection.classList)
+            });
+        } else {
+            console.error('❌ formula-selection element NOT FOUND in DOM!');
+        }
+        
+        const mainFormulasTab = document.getElementById('main-formulas-tab');
+        if (mainFormulasTab) {
+            const style = window.getComputedStyle(mainFormulasTab);
+            console.log('5. main-formulas-tab Styles:', {
+                display: style.display,
+                visibility: style.visibility,
+                opacity: style.opacity,
+                hasActive: mainFormulasTab.classList.contains('active'),
+                classList: Array.from(mainFormulasTab.classList)
+            });
+        } else {
+            console.error('❌ main-formulas-tab element NOT FOUND in DOM!');
+        }
+        
+        console.log('6. Functions:', {
+            renderFormulaList: typeof renderFormulaList === 'function',
+            initializeApp: typeof initializeApp === 'function',
+            createFormulaCard: typeof createFormulaCard === 'function'
         });
-    }
+        
+        console.log('7. Service Worker:', {
+            supported: 'serviceWorker' in navigator,
+            registrations: 'serviceWorker' in navigator ? 'Check in DevTools' : 'N/A'
+        });
+        
+        console.log('8. Script Loading:', {
+            ui_js_loaded: typeof renderFormulaList !== 'undefined',
+            formulas_js_loaded: typeof formulas !== 'undefined',
+            document_ready: document.readyState
+        });
+        
+        // Try to auto-fix common issues
+        console.log('\n🔧 Attempting Auto-Fix...');
+        let fixed = false;
+        
+        if (formulaList && typeof formulas !== 'undefined' && formulas.length > 0) {
+            const cards = formulaList.querySelectorAll('.formula-card');
+            if (cards.length === 0 && typeof renderFormulaList === 'function') {
+                console.log('⚠️ No cards found but formulas exist. Attempting render...');
+                try {
+                    renderFormulaList();
+                    fixed = true;
+                } catch (e) {
+                    console.error('❌ Render failed:', e);
+                }
+            }
+        }
+        
+        // Force visibility
+        if (formulaList) {
+            const style = window.getComputedStyle(formulaList);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+                console.log('⚠️ formula-list is hidden. Forcing visibility...');
+                formulaList.style.setProperty('display', 'block', 'important');
+                formulaList.style.setProperty('visibility', 'visible', 'important');
+                formulaList.style.setProperty('opacity', '1', 'important');
+                fixed = true;
+            }
+        }
+        
+        if (formulaSelection && !formulaSelection.classList.contains('active')) {
+            console.log('⚠️ formula-selection not active. Activating...');
+            formulaSelection.classList.add('active');
+            formulaSelection.style.setProperty('display', 'block', 'important');
+            fixed = true;
+        }
+        
+        if (mainFormulasTab && !mainFormulasTab.classList.contains('active')) {
+            console.log('⚠️ main-formulas-tab not active. Activating...');
+            mainFormulasTab.classList.add('active');
+            mainFormulasTab.style.setProperty('display', 'block', 'important');
+            fixed = true;
+        }
+        
+        if (fixed) {
+            console.log('✅ Auto-fix applied! Check if cards appear now.');
+        }
+        
+        console.log('=== End Diagnostics ===');
+        console.log('💡 Run astrocalcDiagnostics() anytime to check status');
+        console.log('💡 Run renderFormulaList() to manually render cards');
+        console.log('💡 Run window.forceRenderCards() to force render with visibility fixes');
+    };
     
-    console.log('6. Functions:', {
-        renderFormulaList: typeof renderFormulaList === 'function',
-        initializeApp: typeof initializeApp === 'function'
-    });
+    // Add force render function
+    window.forceRenderCards = function() {
+        console.log('🔧 Force rendering cards...');
+        if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
+            console.error('❌ Formulas not loaded!');
+            return false;
+        }
+        
+        if (typeof renderFormulaList !== 'function') {
+            console.error('❌ renderFormulaList function not available!');
+            return false;
+        }
+        
+        // Force all containers visible first
+        const formulaSelection = document.getElementById('formula-selection');
+        if (formulaSelection) {
+            formulaSelection.classList.add('active');
+            formulaSelection.style.setProperty('display', 'block', 'important');
+            formulaSelection.style.setProperty('visibility', 'visible', 'important');
+        }
+        
+        const mainFormulasTab = document.getElementById('main-formulas-tab');
+        if (mainFormulasTab) {
+            mainFormulasTab.classList.add('active');
+            mainFormulasTab.style.setProperty('display', 'block', 'important');
+            mainFormulasTab.style.setProperty('visibility', 'visible', 'important');
+        }
+        
+        // Render
+        renderFormulaList();
+        
+        // Force visibility after render
+        setTimeout(() => {
+            const formulaList = document.getElementById('formula-list');
+            if (formulaList) {
+                formulaList.style.setProperty('display', 'block', 'important');
+                formulaList.style.setProperty('visibility', 'visible', 'important');
+                formulaList.style.setProperty('opacity', '1', 'important');
+                
+                const cards = formulaList.querySelectorAll('.formula-card');
+                cards.forEach(card => {
+                    card.style.setProperty('display', 'block', 'important');
+                    card.style.setProperty('visibility', 'visible', 'important');
+                    card.style.setProperty('opacity', '1', 'important');
+                });
+                
+                console.log(`✅ Force render complete. ${cards.length} cards should be visible.`);
+            }
+        }, 100);
+        
+        return true;
+    };
     
-    console.log('7. Service Worker:', {
-        supported: 'serviceWorker' in navigator,
-        registrations: 'serviceWorker' in navigator ? 'Check in DevTools' : 'N/A'
-    });
-    
-    console.log('=== End Diagnostics ===');
-    console.log('💡 Run astrocalcDiagnostics() anytime to check status');
-    console.log('💡 Run renderFormulaList() to manually render cards');
-};
+    // Make sure it's available immediately
+    console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
+})();
 
 // Add event delegation for formula cards - FIXED: Handle all clicks properly
 // This is set up in setupEventListeners, but we also set it up here for immediate availability
