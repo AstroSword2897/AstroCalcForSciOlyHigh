@@ -30,10 +30,60 @@
 // GLOBAL STATE & CONFIGURATION
 // ============================================================================
 
+// Timing constants
+const TIMING = {
+    DEBOUNCE_SEARCH: 200,
+    DEBOUNCE_INDICATORS: 400,
+    MATHJAX_RENDER: 150,
+    VISIBILITY_RETRY_SHORT: 100,
+    VISIBILITY_RETRY_LONG: 500,
+    AUTO_FOCUS_DELAY: 150,
+    INIT_RETRY_DELAY: 100
+};
+
 // Global state variables
 let currentFormula = null; // Currently selected formula for calculator
 let calculator = null;
 let graphManager = null; // Graph manager (uses OfflineGraphManager for offline operation)
+
+// Event listener registry for cleanup
+const eventListenerRegistry = new Map();
+
+/**
+ * Add tracked event listener for proper cleanup
+ */
+function addTrackedListener(element, event, handler) {
+    if (!element) return;
+    element.addEventListener(event, handler);
+    if (!eventListenerRegistry.has(element)) {
+        eventListenerRegistry.set(element, []);
+    }
+    eventListenerRegistry.get(element).push({ event, handler });
+}
+
+/**
+ * Remove all tracked event listeners for an element
+ */
+function removeTrackedListeners(element) {
+    if (!eventListenerRegistry.has(element)) return;
+    const listeners = eventListenerRegistry.get(element);
+    listeners.forEach(({ event, handler }) => {
+        element.removeEventListener(event, handler);
+    });
+    eventListenerRegistry.delete(element);
+}
+
+/**
+ * Cleanup all tracked event listeners
+ */
+function cleanupAllListeners() {
+    eventListenerRegistry.forEach((listeners, element) => {
+        listeners.forEach(({ event, handler }) => {
+            element.removeEventListener(event, handler);
+        });
+    });
+    eventListenerRegistry.clear();
+}
 
 // ============================================================================
 // PERFORMANCE MONITORING
@@ -321,13 +371,25 @@ function convertToLaTeX(text) {
 
 // PERFORMANCE FIX: Debounce MathJax rendering to prevent excessive calls
 let mathJaxRenderTimeout = null;
-const mathJaxRenderQueue = new Set();
+// Track MathJax renders by formula ID to prevent race conditions
+const mathJaxRenderQueue = new Map(); // formulaId -> Set of elements
 
-function renderMathJax(element) {
+function renderMathJax(element, formulaId = null) {
     if (!element) return;
     
-    // Add element to render queue
-    mathJaxRenderQueue.add(element);
+    // Use current formula ID if not provided
+    const activeFormulaId = formulaId || (currentFormula ? currentFormula.id : 'default');
+    
+    // Initialize queue for this formula if needed
+    if (!mathJaxRenderQueue.has(activeFormulaId)) {
+        mathJaxRenderQueue.set(activeFormulaId, new Set());
+    }
+    mathJaxRenderQueue.get(activeFormulaId).add(element);
+    
+    // Clear old formula renders to prevent race conditions
+    if (currentFormula && activeFormulaId !== currentFormula.id) {
+        mathJaxRenderQueue.delete(currentFormula.id);
+    }
     
     // Clear existing timeout
     if (mathJaxRenderTimeout) {
@@ -336,8 +398,16 @@ function renderMathJax(element) {
     
     // Debounce MathJax rendering
     mathJaxRenderTimeout = setTimeout(() => {
-        const elementsToRender = Array.from(mathJaxRenderQueue);
+        // Only render elements for the current formula to prevent stale renders
+        const activeId = currentFormula ? currentFormula.id : 'default';
+        const elementsToRender = mathJaxRenderQueue.has(activeId) 
+            ? Array.from(mathJaxRenderQueue.get(activeId))
+            : [];
+        
+        // Clear all queues
         mathJaxRenderQueue.clear();
+        
+        if (elementsToRender.length === 0) return;
         
         if (typeof MathJax !== 'undefined' && MathJax.typesetPromise) {
             MathJax.typesetPromise(elementsToRender).catch(function (err) {
@@ -362,7 +432,7 @@ function renderMathJax(element) {
                 }, 100);
             }
         }
-    }, 150); // Debounce MathJax rendering by 150ms
+    }, TIMING.MATHJAX_RENDER);
 }
 
 // Initialize the application
@@ -1306,7 +1376,7 @@ function setupSearchFunctionality() {
     // PERFORMANCE FIX: Use debounce function for better debouncing
     const debouncedSearch = debounce((searchTerm) => {
         filterAndRenderFormulas(searchTerm);
-    }, 200); // Increased to 200ms for better performance during fast typing
+    }, TIMING.DEBOUNCE_SEARCH);
     
     // Search input handler
     searchInput.addEventListener('input', (e) => {
@@ -5262,44 +5332,72 @@ function getSearchSuggestions(searchTerm) {
     return [...new Set(suggestions)].slice(0, 5); // Return up to 5 unique suggestions
 }
 
-// Highlight search term in formula cards
+/**
+ * Sanitize and highlight search term in text (XSS-safe)
+ */
+function sanitizeAndHighlight(text, searchTerm) {
+    if (!text || !searchTerm) return text;
+    
+    // First escape HTML to prevent XSS
+    const escapedText = escapeHtml(text);
+    
+    // Escape regex special characters in search term
+    const escapedTerm = escapeHtml(searchTerm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Create safe regex
+    const regex = new RegExp(`(${escapedTerm})`, 'gi');
+    
+    // Replace with safe mark tag
+    return escapedText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.4); color: #a8c7ff; padding: 2px 4px; border-radius: 3px; font-weight: 500;">$1</mark>');
+}
+
+// Highlight search term in formula cards (XSS-safe)
 function highlightSearchTerm(searchTerm) {
+    if (!searchTerm) return;
+    
     const cards = document.querySelectorAll('.formula-card');
     const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(w => w.length > 0);
     const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
     cards.forEach(card => {
-        // Highlight in name
+        // Highlight in name (XSS-safe)
         const nameEl = card.querySelector('h3');
         if (nameEl) {
             let nameText = nameEl.textContent;
             searchWords.forEach(word => {
-                const regex = new RegExp(`(${escapeRegex(word)})`, 'gi');
-                nameText = nameText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.4); color: #a8c7ff; padding: 2px 4px; border-radius: 3px; font-weight: 500;">$1</mark>');
+                // Escape both the original text and the search term
+                const escapedText = escapeHtml(nameText);
+                const escapedWord = escapeHtml(word);
+                const regex = new RegExp(`(${escapeRegex(escapedWord)})`, 'gi');
+                nameText = escapedText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.4); color: #a8c7ff; padding: 2px 4px; border-radius: 3px; font-weight: 500;">$1</mark>');
             });
             nameEl.innerHTML = nameText;
         }
         
-        // Highlight in description
+        // Highlight in description (XSS-safe)
         const descEl = card.querySelector('.description');
         if (descEl) {
             let descText = descEl.textContent;
             searchWords.forEach(word => {
-                const regex = new RegExp(`(${escapeRegex(word)})`, 'gi');
-                descText = descText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.3); color: #a8c7ff; padding: 1px 3px; border-radius: 2px;">$1</mark>');
+                const escapedText = escapeHtml(descText);
+                const escapedWord = escapeHtml(word);
+                const regex = new RegExp(`(${escapeRegex(escapedWord)})`, 'gi');
+                descText = escapedText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.3); color: #a8c7ff; padding: 1px 3px; border-radius: 2px;">$1</mark>');
             });
             descEl.innerHTML = descText;
         }
         
-        // Highlight in formula preview (be careful with special characters)
+        // Highlight in formula preview (be careful with special characters, XSS-safe)
         const formulaEl = card.querySelector('.formula-preview');
         if (formulaEl) {
             let formulaText = formulaEl.textContent;
             // Only highlight if it's a simple text match (avoid breaking math symbols)
             searchWords.forEach(word => {
                 if (word.length > 1 && /^[a-zA-Z0-9_]+$/.test(word)) {
-                    const regex = new RegExp(`\\b(${escapeRegex(word)})\\b`, 'gi');
-                    formulaText = formulaText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.3); color: #a8c7ff; padding: 1px 2px; border-radius: 2px;">$1</mark>');
+                    const escapedText = escapeHtml(formulaText);
+                    const escapedWord = escapeHtml(word);
+                    const regex = new RegExp(`\\b(${escapeRegex(escapedWord)})\\b`, 'gi');
+                    formulaText = escapedText.replace(regex, '<mark style="background: rgba(102, 126, 234, 0.3); color: #a8c7ff; padding: 1px 2px; border-radius: 2px;">$1</mark>');
                 }
             });
             formulaEl.innerHTML = formulaText;
@@ -6334,14 +6432,10 @@ function renderVariableInputs(formula) {
                 const inputListener = (e) => {
                     const currentValue = e.target.value.trim();
                     if (currentValue && currentValue.toLowerCase() !== 'null') {
-                        // Clear other unit inputs for this variable (using index comparison for efficiency)
-                        alternativeUnits.forEach((otherUnit, otherIndex) => {
-                            if (otherIndex !== currentIndex) {
-                                const otherInputId = `var-${variable.symbol}-${otherUnit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                                const otherInput = document.getElementById(otherInputId);
-                                if (otherInput) {
-                                    otherInput.value = '';
-                                }
+                        // Clear other unit inputs for this variable (using cached elements)
+                        inputElements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                            if (otherIndex !== currentIndex && otherInput) {
+                                otherInput.value = '';
                             }
                         });
                     }
@@ -6356,7 +6450,7 @@ function renderVariableInputs(formula) {
                             const variableValues = getCurrentVariableValues();
                             graphManager.updateGraph(currentFormula, variableValues);
                         }
-                    }, 400); // Increased debounce to 400ms for smoother performance
+                    }, TIMING.DEBOUNCE_INDICATORS);
                 };
                 input.addEventListener('input', inputListener);
                 activeInputListeners.set(input, { inputListener });
@@ -6368,11 +6462,9 @@ function renderVariableInputs(formula) {
         if (naCheckbox) {
             // FIXED: Store listener for cleanup
             const changeListener = (e) => {
-                // Clear all input fields for this variable when N/A is checked
+                // Clear all input fields for this variable when N/A is checked (using cached elements)
                 if (e.target.checked) {
-                    alternativeUnits.forEach(unit => {
-                        const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                        const input = document.getElementById(inputId);
+                    inputElements.forEach(({ input }) => {
                         if (input) input.value = '';
                     });
                 }
@@ -6395,14 +6487,14 @@ function renderVariableInputs(formula) {
     // Initial update of solve indicators
     setTimeout(() => {
         updateSolveIndicators();
-    }, 100);
+    }, TIMING.INIT_RETRY_DELAY);
     
     // COMPETITIVE OPTIMIZATION: Auto-focus first input for maximum efficiency
     const firstInput = container.querySelector('.unit-input-field');
     if (firstInput) {
         setTimeout(() => {
             firstInput.focus();
-        }, 150);
+        }, TIMING.AUTO_FOCUS_DELAY);
     }
     
     // COMPETITIVE OPTIMIZATION: Enhanced keyboard navigation
@@ -6467,14 +6559,17 @@ function setupEventListeners() {
     
     // Input screen tab buttons (Calculator/Graph/Classification)
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        addTrackedListener(btn, 'click', () => {
             const tabName = btn.getAttribute('data-tab');
             switchTab(tabName);
         });
     });
     
     // Calculate button
-    document.getElementById('calculate-btn').addEventListener('click', performCalculation);
+    const calcBtn = document.getElementById('calculate-btn');
+    if (calcBtn) {
+        addTrackedListener(calcBtn, 'click', performCalculation);
+    }
     
     // Classification button (in input screen)
     const classifyBtn = document.getElementById('classify-btn');
