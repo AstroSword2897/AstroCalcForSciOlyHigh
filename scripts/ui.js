@@ -433,8 +433,10 @@ if (document.readyState === 'loading') {
     // DOM already loaded, initialize immediately
     initializeApp();
 }
-    
-    // Add event delegation for formula cards - FIXED: Handle all clicks properly
+
+// Add event delegation for formula cards - FIXED: Handle all clicks properly
+// This is set up in setupEventListeners, but we also set it up here for immediate availability
+function setupFormulaCardEventDelegation() {
     const formulaList = document.getElementById('formula-list');
     if (formulaList) {
         formulaList.addEventListener('click', (e) => {
@@ -520,7 +522,14 @@ if (document.readyState === 'loading') {
             }
         });
     }
-});
+}
+
+// Set up event delegation when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFormulaCardEventDelegation);
+} else {
+    setupFormulaCardEventDelegation();
+}
 
 // Contextual Semantic Matching & Dynamic Term Prioritization System
 var semanticSearchSystem = {
