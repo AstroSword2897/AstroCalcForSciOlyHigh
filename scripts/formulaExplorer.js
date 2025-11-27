@@ -185,13 +185,74 @@ function handleExplorerCalculate() {
             throw new Error('FormulaCalculator not available');
         }
         
-        const calculator = new FormulaCalculator(formulaExplorerState.selectedFormula);
-        const result = calculator.solve(formulaExplorerState.variableValues || {});
+        if (typeof ExpressionParser === 'undefined') {
+            throw new Error('ExpressionParser not available');
+        }
+        
+        if (typeof UnitConverter === 'undefined') {
+            throw new Error('UnitConverter not available');
+        }
+        
+        const formula = formulaExplorerState.selectedFormula;
+        const rawVariableValues = formulaExplorerState.variableValues || {};
+        
+        // Parse and convert variable values (same logic as performCalculation in ui.js)
+        const constantSymbols = new Set();
+        if (formula.constants) {
+            Object.keys(formula.constants).forEach(key => {
+                constantSymbols.add(key);
+                if (key === 'pi' || key === 'π') constantSymbols.add('π');
+                if (key === 'G') constantSymbols.add('G');
+                if (key === 'c') constantSymbols.add('c');
+                if (key === 'σ' || key === 'sigma') constantSymbols.add('σ');
+            });
+        }
+        
+        const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
+        const parsedVariableValues = {};
+        
+        userVariables.forEach(variable => {
+            const baseUnit = variable.unit;
+            const symbol = variable.symbol;
+            const rawValue = rawVariableValues[symbol];
+            
+            // Handle null, empty, or N/A values
+            if (!rawValue || rawValue === '' || 
+                String(rawValue).toLowerCase() === 'null' || 
+                String(rawValue).toLowerCase() === 'n/a' || 
+                String(rawValue).toLowerCase() === 'na' ||
+                String(rawValue).toLowerCase() === 'idk') {
+                parsedVariableValues[symbol] = null;
+            } else {
+                // Parse the value as a mathematical expression
+                try {
+                    // Parse the value (ExpressionParser handles expressions like "2*pi", "1e10", "45°", etc.)
+                    const parsedValue = ExpressionParser.parse(String(rawValue), baseUnit);
+                    
+                    if (parsedValue === null) {
+                        parsedVariableValues[symbol] = null;
+                    } else if (typeof parsedValue === 'number' && !isNaN(parsedValue) && isFinite(parsedValue)) {
+                        // Value is already in base unit (ExpressionParser handles unit conversion for angles)
+                        // But we need to check if UnitConverter is needed for other units
+                        // For now, assume ExpressionParser returns values in the correct unit
+                        parsedVariableValues[symbol] = parsedValue;
+                    } else {
+                        throw new Error(`Could not parse "${rawValue}" as a number`);
+                    }
+                } catch (error) {
+                    throw new Error(`Invalid input for ${symbol}: "${rawValue}". ${error.message || 'Please enter a number or mathematical expression (e.g., pi/4, 2*pi, etc.)'}`);
+                }
+            }
+        });
+        
+        const calculator = new FormulaCalculator(formula);
+        const result = calculator.solve(parsedVariableValues);
         formulaExplorerState.calculationResult = result;
         formulaExplorerState.copied = false;
         renderFormulaExplorer();
     } catch (error) {
-        formulaExplorerState.calculationResult = { error: error.message };
+        console.error('[Formula Explorer] Calculation error:', error);
+        formulaExplorerState.calculationResult = { error: error.message || 'An error occurred during calculation' };
         renderFormulaExplorer();
     }
 }
@@ -201,27 +262,33 @@ function handleExplorerCalculate() {
  */
 function handleExplorerCopyResult() {
     if (formulaExplorerState.calculationResult && 
-        formulaExplorerState.calculationResult.value !== undefined &&
+        !formulaExplorerState.calculationResult.error &&
         !formulaExplorerState.calculationResult.isSymbolic) {
         
         const result = formulaExplorerState.calculationResult;
-        const text = `${result.variable} = ${result.value.toExponential(4)} ${result.unit}`;
+        const resultValue = result.result !== undefined ? result.result : result.value;
+        const solvedVar = result.solvedFor || result.variable || 'Unknown';
+        const unit = result.unit || '';
         
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                formulaExplorerState.copied = true;
-                renderFormulaExplorer();
-                setTimeout(() => {
-                    formulaExplorerState.copied = false;
+        if (resultValue !== undefined && typeof resultValue === 'number') {
+            const text = `${solvedVar} = ${resultValue.toExponential(4)} ${unit}`;
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    formulaExplorerState.copied = true;
                     renderFormulaExplorer();
-                }, 2000);
-            }).catch(() => {
-                // Fallback if clipboard API fails
+                    setTimeout(() => {
+                        formulaExplorerState.copied = false;
+                        renderFormulaExplorer();
+                    }, 2000);
+                }).catch(() => {
+                    // Fallback if clipboard API fails
+                    copyToClipboardFallback(text);
+                });
+            } else {
+                // Fallback for older browsers
                 copyToClipboardFallback(text);
-            });
-        } else {
-            // Fallback for older browsers
-            copyToClipboardFallback(text);
+            }
         }
     }
 }
@@ -697,16 +764,22 @@ function renderExplorerFormulaDetails(formula) {
                         ` : formulaExplorerState.calculationResult.isSymbolic ? `
                             <div class="explorer-result-symbolic">
                                 <div class="explorer-result-label">Symbolic Expression:</div>
-                                <div class="explorer-result-value">${escapeHtml(formulaExplorerState.calculationResult.value)}</div>
-                                <div class="explorer-result-unit">${escapeHtml(formulaExplorerState.calculationResult.unit)}</div>
+                                <div class="explorer-result-value">${escapeHtml(formulaExplorerState.calculationResult.result || formulaExplorerState.calculationResult.value || 'N/A')}</div>
+                                <div class="explorer-result-unit">${escapeHtml(formulaExplorerState.calculationResult.unit || '')}</div>
                             </div>
                         ` : `
                             <div class="explorer-result-success">
                                 <div class="explorer-result-label">Result:</div>
                                 <div class="explorer-result-value">
-                                    ${escapeHtml(formulaExplorerState.calculationResult.variable)} = 
-                                    ${formulaExplorerState.calculationResult.value.toExponential(4)} 
-                                    ${escapeHtml(formulaExplorerState.calculationResult.unit)}
+                                    ${escapeHtml(formulaExplorerState.calculationResult.solvedFor || formulaExplorerState.calculationResult.variable || 'Unknown')} = 
+                                    ${typeof (formulaExplorerState.calculationResult.result) === 'number' ? 
+                                        formulaExplorerState.calculationResult.result.toExponential(4) : 
+                                        (formulaExplorerState.calculationResult.value ? 
+                                            (typeof formulaExplorerState.calculationResult.value === 'number' ? 
+                                                formulaExplorerState.calculationResult.value.toExponential(4) : 
+                                                escapeHtml(String(formulaExplorerState.calculationResult.value))) : 
+                                            'N/A')} 
+                                    ${escapeHtml(formulaExplorerState.calculationResult.unit || '')}
                                 </div>
                                 <button class="explorer-copy-btn">
                                     ${formulaExplorerState.copied ? '✓ Copied!' : '📋 Copy Result'}

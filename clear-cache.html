@@ -6,30 +6,38 @@
 <body>
     <h1>Clearing Service Worker Cache...</h1>
     <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                registrations.forEach(registration => {
-                    registration.unregister();
-                    console.log('Unregistered:', registration.scope);
-                });
-            });
+        (function() {
+            let cleared = false;
             
-            caches.keys().then(cacheNames => {
-                return Promise.all(
-                    cacheNames.map(cacheName => {
-                        console.log('Deleting cache:', cacheName);
-                        return caches.delete(cacheName);
+            if ('serviceWorker' in navigator) {
+                Promise.all([
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        return Promise.all(registrations.map(registration => {
+                            console.log('Unregistering:', registration.scope);
+                            return registration.unregister();
+                        }));
+                    }),
+                    caches.keys().then(cacheNames => {
+                        return Promise.all(
+                            cacheNames.map(cacheName => {
+                                console.log('Deleting cache:', cacheName);
+                                return caches.delete(cacheName);
+                            })
+                        );
                     })
-                );
-            }).then(() => {
-                document.body.innerHTML = '<h1>✅ Cache Cleared! Redirecting...</h1>';
-                setTimeout(() => {
-                    window.location.href = './index.html';
-                }, 1000);
-            });
-        } else {
-            document.body.innerHTML = '<h1>Service Worker not supported. Please clear cache manually.</h1>';
-        }
+                ]).then(() => {
+                    if (!cleared) {
+                        cleared = true;
+                        document.body.innerHTML = '<h1>✅ Cache Cleared!</h1><p><a href="./index.html">Click here to continue</a></p>';
+                    }
+                }).catch(err => {
+                    console.error('Error clearing cache:', err);
+                    document.body.innerHTML = '<h1>Cache cleared (with errors). <a href="./index.html">Continue</a></h1>';
+                });
+            } else {
+                document.body.innerHTML = '<h1>Service Worker not supported. <a href="./index.html">Continue</a></h1>';
+            }
+        })();
     </script>
 </body>
 </html>

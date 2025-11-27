@@ -461,6 +461,70 @@ class SafeMathEvaluator {
 }
 
 /**
+ * InputValidator - Validates inputs before calculation
+ * Provides first-pass validation for all variable values
+ */
+class InputValidator {
+    /**
+     * Validate all inputs before calculation
+     * @param {Object} formula - Formula object
+     * @param {Object} variableValues - Variable values to validate
+     * @throws {Error} If validation fails
+     */
+    static validateInputs(formula, variableValues) {
+        if (!formula || !formula.variables) {
+            throw new Error('Invalid formula: formula and variables are required');
+        }
+        
+        if (!variableValues || typeof variableValues !== 'object') {
+            throw new Error('Invalid variableValues: must be an object');
+        }
+        
+        // Validate that all provided values are valid types
+        for (const [symbol, value] of Object.entries(variableValues)) {
+            // Skip null, undefined, empty string, or N/A values (these are valid)
+            if (value === null || value === undefined || value === '' || 
+                value === 'null' || value === 'N/A' || value === 'n/a' || 
+                value === 'na' || value === 'IDK' || value === 'idk') {
+                continue;
+            }
+            
+            // Validate type
+            if (typeof value !== 'number' && typeof value !== 'string') {
+                throw new Error(`Invalid type for ${symbol}: ${typeof value}. Expected number or string.`);
+            }
+            
+            // If it's a number, validate it's finite
+            if (typeof value === 'number') {
+                if (isNaN(value)) {
+                    throw new Error(`Invalid number for ${symbol}: NaN`);
+                }
+                if (!isFinite(value)) {
+                    throw new Error(`Invalid number for ${symbol}: ${value} (not finite)`);
+                }
+            }
+            
+            // If it's a string, validate it's not empty after trim
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed === '') {
+                    continue; // Empty string is valid (treated as null)
+                }
+                // Try to parse as number to catch obviously invalid formats early
+                const parsed = parseFloat(trimmed);
+                if (isNaN(parsed) && trimmed.toLowerCase() !== 'n/a' && trimmed.toLowerCase() !== 'na') {
+                    // Allow expressions like "2*pi", "pi/4", etc. - these will be parsed later
+                    // Only reject if it's clearly not a number and not a known special value
+                    if (!/^[0-9+\-*/().\sπpie]+$/i.test(trimmed)) {
+                        throw new Error(`Invalid number format for ${symbol}: "${value}". Expected a number or mathematical expression.`);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * SolverValidator - Validates solver inputs and results
  * Provides consistent error handling across all solvers
  */
@@ -724,7 +788,26 @@ class FormulaCalculator {
      */
     solve(variableValues) {
         // ENHANCED: Validate inputs first using InputValidator
-        InputValidator.validateInputs(this.formula, variableValues);
+        try {
+            if (typeof InputValidator !== 'undefined' && InputValidator && typeof InputValidator.validateInputs === 'function') {
+                InputValidator.validateInputs(this.formula, variableValues);
+            } else {
+                // Fallback validation if InputValidator is not available
+                if (!this.formula || !this.formula.variables) {
+                    throw new Error('Invalid formula: formula and variables are required');
+                }
+                if (!variableValues || typeof variableValues !== 'object') {
+                    throw new Error('Invalid variableValues: must be an object');
+                }
+            }
+        } catch (error) {
+            // If it's a ReferenceError about InputValidator, provide helpful message
+            if (error instanceof ReferenceError && error.message.includes('InputValidator')) {
+                throw new Error('InputValidator is not defined. The calculator script may not have loaded properly. Please refresh the page.');
+            }
+            // Re-throw other errors
+            throw error;
+        }
         
         const nullVars = [];
         const naVars = [];
@@ -745,8 +828,8 @@ class FormulaCalculator {
                 let numValue;
                 if (typeof value === 'number') {
                     if (!isNaN(value) && isFinite(value)) {
-                    numValue = value;
-                } else {
+                        numValue = value;
+                    } else {
                         throw new Error(`Invalid number for ${symbol}: ${value} (NaN or Infinity)`);
                     }
                 } else if (typeof value === 'string') {
@@ -1658,12 +1741,12 @@ class FormulaCalculator {
             SolverValidator.checkPositive(d, 'd (distance)');
             const result = H0 * d;
             return SolverValidator.validateResult(result, 'Hubble Law (v = H₀ × d)');
-        } else if (normalizedUnknown === 'H0' || unknownVar === 'H₀' || unknownVar === 'H0' || unknownVar === 'H_0') {
+        } else if (unknownVar === 'H₀' || unknownVar === 'H0' || unknownVar === 'H_0') {
             // H₀ = v/d
             SolverValidator.checkNonZero(d, 'd (distance)');
             const result = SolverValidator.safeDivide(v, d, 'd (distance)');
             return SolverValidator.validateResult(result, 'Hubble Law (H₀ = v/d)');
-        } else if (normalizedUnknown === 'd' || unknownVar === 'd') {
+        } else if (unknownVar === 'd') {
             // d = v/H₀
             SolverValidator.checkNonZero(H0, 'H₀ (Hubble constant)');
             const result = SolverValidator.safeDivide(v, H0, 'H₀ (Hubble constant)');
@@ -3129,30 +3212,25 @@ class FormulaCalculator {
             let expr = expression;
             let allVarsFound = true;
             
-            // ENHANCED: Find all variable names in expression (collect all matches first)
-            // Fix: Use matchAll to collect all matches before processing
+            // ENHANCED: Find all variable names in expression
+            // OPTIMIZED: Add directly to Set instead of intermediate array
             const varPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
             const variables = new Set();
             
-            // Collect all matches first to avoid losing matches during iteration
-            const allMatches = [];
+            // Collect all variable names directly into Set
             let match;
             while ((match = varPattern.exec(expression)) !== null) {
-                allMatches.push(match[1]);
-            }
-            
-            // Process collected matches
-            for (const varName of allMatches) {
+                const varName = match[1];
                 // Skip constants and the variable we're solving for
                 const lowerVarName = varName.toLowerCase();
-            const isConstant = [
-                'pi', 'π', 'e', 'E', 'G', 'c', 'h', 'k', 'σ', 'sigma',
-                'm_sun', 'm☉', 'm_☉', 'l_sun', 'l☉', 'l_☉', 'r_sun', 'r☉', 'r_☉',
-                'm_earth', 'm_⊕', 'au', 'm_e', 'm_h', 'sigma_t', 'σ_t'
-            ].includes(lowerVarName) || 
-            (globalConstants && globalConstants[varName] !== undefined) ||
-            (this.formula.constants && this.formula.constants[varName] !== undefined);
-            
+                const isConstant = [
+                    'pi', 'π', 'e', 'E', 'G', 'c', 'h', 'k', 'σ', 'sigma',
+                    'm_sun', 'm☉', 'm_☉', 'l_sun', 'l☉', 'l_☉', 'r_sun', 'r☉', 'r_☉',
+                    'm_earth', 'm_⊕', 'au', 'm_e', 'm_h', 'sigma_t', 'σ_t'
+                ].includes(lowerVarName) || 
+                (globalConstants && globalConstants[varName] !== undefined) ||
+                (this.formula.constants && this.formula.constants[varName] !== undefined);
+                
                 if (varName !== excludeVar && !isConstant) {
                     variables.add(varName);
                 }
@@ -3567,5 +3645,21 @@ class FormulaCalculator {
         
         return solutions;
     }
+}
+
+// Expose InputValidator globally for debugging and external access
+if (typeof window !== 'undefined') {
+    window.InputValidator = InputValidator;
+}
+
+// Also expose it in global scope (for Node.js environments or strict mode)
+if (typeof global !== 'undefined') {
+    global.InputValidator = InputValidator;
+}
+
+// Ensure it's accessible immediately
+if (typeof InputValidator === 'undefined') {
+    // This should never happen, but if it does, we'll know
+    console.error('InputValidator class was not properly defined!');
 }
 

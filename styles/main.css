@@ -789,7 +789,8 @@ header h1 {
 }
 
 /* Keyboard Focus Styles */
-.formula-card.keyboard-focused {
+.formula-card.keyboard-focused,
+.formula-card.highlighted {
     outline: 3px solid #667eea;
     outline-offset: 2px;
     box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.2);

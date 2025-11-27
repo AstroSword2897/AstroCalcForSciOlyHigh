@@ -8,37 +8,96 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('Formula Calculator', () => {
     test.beforeEach(async ({ page }) => {
+        // Listen for console errors
+        page.on('console', msg => {
+            if (msg.type() === 'error') {
+                console.log('Browser console error:', msg.text());
+            }
+        });
+        
         await page.goto('/');
+        
+        // Wait for formulas to load and be rendered
         await page.waitForSelector('#formula-list', { timeout: 10000 });
+        
+        // Wait for formulas array to be defined
+        await page.waitForFunction(() => {
+            return typeof formulas !== 'undefined' && formulas.length > 0;
+        }, { timeout: 10000 });
+        
+        // Wait for renderFormulaList to complete - check if cards exist OR error message exists
+        await page.waitForFunction(() => {
+            const cards = document.querySelectorAll('.formula-card');
+            const errorMsg = document.querySelector('#formula-list p');
+            return cards.length > 0 || (errorMsg && errorMsg.textContent.includes('Error'));
+        }, { timeout: 10000 });
+        
+        // Verify cards actually exist
+        const cardCount = await page.locator('.formula-card').count();
+        if (cardCount === 0) {
+            // Log what's in the formula-list
+            const listContent = await page.locator('#formula-list').textContent();
+            console.log('Formula list content:', listContent);
+            throw new Error('No formula cards found. Check console for errors.');
+        }
     });
 
     test('Solve any single variable: Leave 1 blank → correct output', async ({ page }) => {
         // Search for Kepler's law
-        await page.locator('#formula-search').fill('kepler third law');
-        await page.waitForTimeout(500);
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
-        await page.waitForTimeout(1000);
+        const searchInput = page.locator('#formula-search');
+        await searchInput.fill('kepler third law');
         
-        // Find input fields
-        const inputs = page.locator('input[type="number"], input[type="text"]');
+        // Wait for search to complete and results to appear
+        await page.waitForFunction(() => {
+            const cards = document.querySelectorAll('.formula-card');
+            return cards.length > 0;
+        }, { timeout: 5000 });
+        
+        // Wait a bit more for rendering
+        await page.waitForTimeout(300);
+        
+        // Press ArrowDown to select first card
+        await page.keyboard.press('ArrowDown');
+        await page.waitForTimeout(200);
+        
+        // Press Enter to open formula
+        await page.keyboard.press('Enter');
+        
+        // CRITICAL: Wait for input screen to be active first (parent screen)
+        // Use waitForFunction to check both class and visibility
+        await page.waitForFunction(() => {
+            const screen = document.getElementById('input-screen');
+            return screen && screen.classList.contains('active') && screen.offsetParent !== null;
+        }, { timeout: 5000 });
+        
+        // Then wait for calculator tab to be active and visible
+        await page.waitForFunction(() => {
+            const tab = document.getElementById('calculator-tab');
+            return tab && tab.classList.contains('active') && tab.offsetParent !== null;
+        }, { timeout: 5000 });
+        
+        // Wait for inputs to be rendered in calculator tab
+        await page.waitForSelector('#calculator-tab .unit-input-field', { timeout: 5000, state: 'visible' });
+        
+        // Find input fields ONLY in calculator tab (not classification tab)
+        const inputs = page.locator('#calculator-tab .unit-input-field');
         const inputCount = await inputs.count();
         
-        if (inputCount >= 2) {
-            // Fill all but one
-            await inputs.nth(0).fill('1.989e30'); // M
-            await inputs.nth(1).fill('1.496e11'); // a
-            // Leave T blank
-            
-            // Click calculate
-            const calculateBtn = page.locator('button:has-text("Calculate"), button:has-text("calculate")').first();
-            await calculateBtn.click();
-            await page.waitForTimeout(1000);
-            
-            // Check for result
-            const result = page.locator('.result, .calculation-result, [data-result]');
-            await expect(result.first()).toBeVisible({ timeout: 3000 });
-        }
+        expect(inputCount).toBeGreaterThanOrEqual(2);
+        
+        // Fill all but one
+        await inputs.nth(0).fill('1.989e30'); // M
+        await inputs.nth(1).fill('1.496e11'); // a
+        // Leave T blank
+        
+        // Click calculate
+        const calculateBtn = page.locator('#calculator-tab button:has-text("Calculate")').first();
+        await calculateBtn.click();
+        await page.waitForTimeout(1000);
+        
+        // Check for result
+        const result = page.locator('#calculator-tab .result, #calculator-tab .calculation-result, #calculator-tab [data-result]');
+        await expect(result.first()).toBeVisible({ timeout: 3000 });
     });
 
     test('Symbolic solve: Mark N/A → expression appears', async ({ page }) => {

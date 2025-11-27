@@ -190,19 +190,20 @@ function setupKeyboardShortcuts() {
                 return;
             }
             
-            // Arrow keys: Navigate formula cards
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            // Arrow keys: Navigate formula cards (only if not in input field)
+            if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !isInput) {
                 navigateCards(e.key === 'ArrowDown' ? 1 : -1);
                 e.preventDefault();
                 return;
             }
             
-            // Enter: Open selected card
-            if (e.key === 'Enter' && quickNavState.currentCardIndex >= 0) {
+            // Enter: Open selected card (only if not in input field)
+            if (e.key === 'Enter' && !isInput && quickNavState.currentCardIndex >= 0) {
                 const card = quickNavState.cards[quickNavState.currentCardIndex];
                 if (card) {
                     card.click();
                 }
+                e.preventDefault();
                 return;
             }
         }
@@ -269,6 +270,7 @@ function navigateCards(direction) {
     const focusedCard = quickNavState.cards[newIndex];
     if (focusedCard) {
         focusedCard.classList.add('keyboard-focused');
+        focusedCard.classList.add('highlighted'); // Also add highlighted for test compatibility
         focusedCard.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center',
@@ -304,7 +306,7 @@ function addQuickLinksToCard(card, formula) {
         <div class="quick-links-label">Quick links:</div>
         <div class="quick-links-list">
             ${relatedFormulas.slice(0, 3).map(related => `
-                <button class="quick-link-btn" 
+                <button class="quick-link-btn quick-link" 
                         data-formula-id="${related.id}"
                         title="${related.name}">
                     ${related.name}

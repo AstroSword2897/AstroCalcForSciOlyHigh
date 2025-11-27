@@ -1,5 +1,5 @@
 /**
- * User Interface Controller
+ * User Interface Controller - IMPROVED VERSION
  * 
  * Main UI controller for the AstroCalc application. Handles:
  * - Formula search and filtering with advanced matching algorithms
@@ -10,6 +10,13 @@
  * - FRQ (Free Response Question) support system integration
  * - Search results display with Explorer-style two-panel layout
  * 
+ * OFFLINE OPTIMIZATIONS:
+ * - No external API calls
+ * - Efficient caching strategies
+ * - Memory leak prevention
+ * - Optimized DOM operations
+ * - Performance monitoring
+ * 
  * Key Features:
  * - Multi-layer search scoring (name, description, concepts, patterns, semantic)
  * - Concept hierarchy expansion for remote matching
@@ -19,13 +26,102 @@
  * - Responsive design with mobile support
  */
 
+// ============================================================================
+// GLOBAL STATE & CONFIGURATION
+// ============================================================================
+
 // Global state variables
 let currentFormula = null; // Currently selected formula for calculator
 let calculator = null;
 let graphManager = null; // Graph manager (uses OfflineGraphManager for offline operation)
 
+// ============================================================================
+// PERFORMANCE MONITORING
+// ============================================================================
+
+// Performance monitoring
+const performance = {
+    searchTimes: [],
+    renderTimes: [],
+    lastSearchTime: 0,
+    
+    recordSearch(time) {
+        this.searchTimes.push(time);
+        this.lastSearchTime = time;
+        if (this.searchTimes.length > 50) this.searchTimes.shift();
+    },
+    
+    recordRender(time) {
+        this.renderTimes.push(time);
+        if (this.renderTimes.length > 50) this.renderTimes.shift();
+    },
+    
+    getAverageSearchTime() {
+        if (this.searchTimes.length === 0) return 0;
+        return this.searchTimes.reduce((a, b) => a + b, 0) / this.searchTimes.length;
+    },
+    
+    getAverageRenderTime() {
+        if (this.renderTimes.length === 0) return 0;
+        return this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length;
+    }
+};
+
+// ============================================================================
+// CACHING SYSTEMS
+// ============================================================================
+
+// LRU Cache for search results
+class LRUCache {
+    constructor(maxSize = 100) {
+        this.maxSize = maxSize;
+        this.cache = new Map();
+    }
+    
+    get(key) {
+        if (!this.cache.has(key)) return null;
+        const value = this.cache.get(key);
+        // Move to end (most recently used)
+        this.cache.delete(key);
+        this.cache.set(key, value);
+        return value;
+    }
+    
+    set(key, value) {
+        if (this.cache.has(key)) {
+            this.cache.delete(key);
+        } else if (this.cache.size >= this.maxSize) {
+            // Remove least recently used (first item)
+            const firstKey = this.cache.keys().next().value;
+            this.cache.delete(firstKey);
+        }
+        this.cache.set(key, value);
+    }
+    
+    clear() {
+        this.cache.clear();
+    }
+    
+    size() {
+        return this.cache.size;
+    }
+}
+
+// Search cache with LRU eviction
+const searchCache = typeof SimpleCache !== 'undefined' 
+    ? new SimpleCache(100) // Use SimpleCache if available
+    : new LRUCache(100); // Fallback to LRU cache
+
+// LaTeX conversion cache
+const latexCache = new Map();
+
+// ============================================================================
+// LATEX & MATHJAX RENDERING
+// ============================================================================
+
 /**
  * Convert Unicode math symbols to LaTeX for MathJax rendering
+ * IMPROVED: Better error handling and caching
  * 
  * Handles conversion of Unicode mathematical symbols (π, σ, λ, subscripts, superscripts, etc.)
  * to LaTeX format for proper rendering in MathJax. Supports:
@@ -46,7 +142,14 @@ let graphManager = null; // Graph manager (uses OfflineGraphManager for offline 
 function convertToLaTeX(text) {
     if (!text) return '';
     
-    // Step 1: Handle numeric subscripts/superscripts in plain text (like M1, M2, P2, a3)
+    // Check cache first
+    if (latexCache.has(text)) {
+        return latexCache.get(text);
+    }
+    
+    let result;
+    try {
+        // Step 1: Handle numeric subscripts/superscripts in plain text (like M1, M2, P2, a3)
     // This handles cases where formulas use M1 instead of M₁
     // Match pattern: letter followed by number (but not if it's part of a larger number or variable name)
     text = text.replace(/([A-Za-z])(\d+)(?![a-zA-Z0-9_])/g, function(match, base, num) {
@@ -232,13 +335,23 @@ function convertToLaTeX(text) {
         // Clean up multiple spaces but preserve single spaces
         .replace(/\s{2,}/g, ' ')
         .trim();
-    
-    // Wrap in math delimiters if not already wrapped
-    if (!latex.startsWith('$') && !latex.startsWith('\\(')) {
-        return `\\(${latex}\\)`;
+        
+        // Wrap in math delimiters if not already wrapped
+        if (!latex.startsWith('$') && !latex.startsWith('\\(')) {
+            result = `\\(${latex}\\)`;
+        } else {
+            result = latex;
+        }
+        
+        // Cache result
+        latexCache.set(text, result);
+        
+        return result;
+    } catch (error) {
+        console.warn('LaTeX conversion error:', error, text);
+        // Return original text on error, but don't cache errors
+        return text;
     }
-    
-    return latex;
 }
 
 // PERFORMANCE FIX: Debounce MathJax rendering to prevent excessive calls
@@ -960,6 +1073,8 @@ function setupSearchFunctionality() {
     
     // Filter and render formulas based on search term with scoring
     function filterAndRenderFormulas(searchTerm) {
+        const startTime = performance.now();
+        
         // PERFORMANCE: Removed console.log statements in hot path
         if (!searchTerm || searchTerm.trim() === '') {
             // Show all formulas
@@ -971,6 +1086,8 @@ function setupSearchFunctionality() {
         const cacheKey = searchTerm.toLowerCase().trim();
         const cachedResult = searchCache.get(cacheKey);
         if (cachedResult) {
+            const cacheTime = performance.now() - startTime;
+            performance.recordSearch(cacheTime);
             renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
             return;
         }
@@ -2672,6 +2789,14 @@ function setupSearchFunctionality() {
                 formulas: ['parallax_distance_radians', 'parallax_distance_arcsec', 'distance_modulus', 'luminosity_distance'],
                 score: 400
             },
+            'distance to star': {
+                formulas: ['parallax_distance_radians', 'parallax_distance_arcsec', 'distance_modulus', 'luminosity_distance', 'angular_size_distance'],
+                score: 650
+            },
+            'distance to': {
+                formulas: ['parallax_distance_radians', 'parallax_distance_arcsec', 'distance_modulus', 'luminosity_distance'],
+                score: 500
+            },
             'find distance': {
                 formulas: ['parallax_distance_radians', 'parallax_distance_arcsec', 'distance_modulus', 'luminosity_distance'],
                 score: 400
@@ -2730,6 +2855,14 @@ function setupSearchFunctionality() {
                 formulas: ['luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'magnitude_flux_relation'],
                 score: 400
             },
+            'how bright is the star': {
+                formulas: ['luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'magnitude_flux_relation', 'apparent_magnitude', 'absolute_magnitude'],
+                score: 700
+            },
+            'how bright is': {
+                formulas: ['luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'magnitude_flux_relation'],
+                score: 500
+            },
             'what is the luminosity': {
                 formulas: ['luminosity', 'flux_from_luminosity'],
                 score: 400
@@ -2743,6 +2876,18 @@ function setupSearchFunctionality() {
             'what is the mass': {
                 formulas: ['chandrasekhar_limit', 'jeans_mass', 'center_of_mass'],
                 score: 400
+            },
+            'determine the mass': {
+                formulas: ['chandrasekhar_limit', 'jeans_mass', 'kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary'],
+                score: 500
+            },
+            'determine the mass of the planet': {
+                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary', 'orbital_velocity'],
+                score: 700
+            },
+            'mass of the planet': {
+                formulas: ['kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary', 'orbital_velocity'],
+                score: 650
             },
             'how much mass': {
                 formulas: ['chandrasekhar_limit', 'jeans_mass'],
@@ -2763,6 +2908,18 @@ function setupSearchFunctionality() {
             'escape': {
                 formulas: ['escape_velocity'],
                 score: 500
+            },
+            'escape velocity': {
+                formulas: ['escape_velocity'],
+                score: 600
+            },
+            'escape velocity of': {
+                formulas: ['escape_velocity'],
+                score: 650
+            },
+            'escape velocity of earth': {
+                formulas: ['escape_velocity'],
+                score: 700
             },
             'leave planet': {
                 formulas: ['escape_velocity'],
@@ -3334,6 +3491,18 @@ function setupSearchFunctionality() {
             'temperature from peak wavelength': {
                 formulas: ['wiens_law'],
                 score: 600
+            },
+            'find temperature from peak wavelength': {
+                formulas: ['wiens_law'],
+                score: 700
+            },
+            'peak wavelength': {
+                formulas: ['wiens_law'],
+                score: 550
+            },
+            'find temperature from wavelength': {
+                formulas: ['wiens_law'],
+                score: 700
             },
             
             // Planck questions
@@ -4198,6 +4367,7 @@ function setupSearchFunctionality() {
 
 // Render filtered formulas with accuracy metrics
 function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
+    const startTime = performance.now();
     const formulaList = document.getElementById('formula-list');
     
     // CRITICAL: Check if element exists
@@ -4207,13 +4377,6 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             Array.from(document.querySelectorAll('[id]')).map(el => el.id));
         return;
     }
-    
-    console.log('✅ formula-list found, clearing and rendering...');
-    console.log('renderFilteredFormulas called:', { 
-        searchTerm, 
-        resultCount: scoredFormulas.length, 
-        maxScore 
-    });
     
     // CRITICAL: Force visibility IMMEDIATELY before any operations
     formulaList.style.display = 'block';
@@ -4530,7 +4693,10 @@ function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore =
                             <div class="search-result-item" 
                                  data-formula-id="${formula.id}"
                                  style="padding: 12px; margin-bottom: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; cursor: pointer; border: 2px solid rgba(255, 255, 255, 0.1); transition: all 0.2s;"
-                                 onclick="selectSearchResultFormula('${formula.id}')">
+                                 tabindex="0"
+                                 role="button"
+                                 aria-label="Select formula: ${escapeHtml(formula.name)}"
+                                 onclick="if(typeof window.selectSearchResultFormula === 'function') { window.selectSearchResultFormula('${formula.id}'); }">
                                 <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
                                     <div style="font-weight: 600; color: #a8c7ff; font-size: 0.95em;">${formula.name}</div>
                                     <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600;">
@@ -5255,20 +5421,37 @@ function selectFormula(formula) {
     document.getElementById('formula-selection').classList.remove('active');
     document.getElementById('input-screen').classList.add('active');
     
+    // CRITICAL: Ensure calculator tab is active and visible BEFORE rendering inputs
+    switchTab('calculator');
+    
     // Populate formula info
     document.getElementById('formula-name').textContent = formula.name;
     const equationEl = document.getElementById('formula-equation');
     equationEl.textContent = formula.equation;
     document.getElementById('formula-description').textContent = formula.description;
     
-    // Create variable inputs
+    // Create variable inputs (only in calculator tab)
     renderVariableInputs(formula);
+    
+    // Double-check calculator tab is visible after rendering (synchronous check)
+    const calculatorTab = document.getElementById('calculator-tab');
+    if (calculatorTab && !calculatorTab.classList.contains('active')) {
+        calculatorTab.classList.add('active');
+        calculatorTab.setAttribute('aria-hidden', 'false');
+    }
+    
+    // Ensure tab button is also active
+    const calculatorTabBtn = document.querySelector('[data-tab="calculator"]');
+    if (calculatorTabBtn && !calculatorTabBtn.classList.contains('active')) {
+        calculatorTabBtn.classList.add('active');
+        calculatorTabBtn.setAttribute('aria-selected', 'true');
+    }
     
     // Clear previous results
     document.getElementById('result-display').classList.remove('show');
     
     // Remove any existing usage instructions (always remove, never add)
-    const calculatorTab = document.getElementById('calculator-tab');
+    // Reuse calculatorTab variable declared above
     if (calculatorTab) {
         const existingInstructions = calculatorTab.querySelector('.usage-instructions-container');
         if (existingInstructions) {
