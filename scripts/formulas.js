@@ -33,7 +33,7 @@ var formulaCategories = {
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
-        'flux_temperature', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime',
+        'stefan_boltzmann_law', 'flux_temperature', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime',
         'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude', 'chandrasekhar_limit',
         'white_dwarf_mass_radius', 'blackbody_radiation', 'binary_white_dwarf',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
@@ -1192,6 +1192,58 @@ var formulas = [
         ],
         constants: {
             "σ": 5.670e-8
+        }
+    },
+    {
+        id: "stefan_boltzmann_law",
+        name: "Stefan-Boltzmann Law",
+        description: "Fundamental law of blackbody radiation relating total energy flux to temperature. The Stefan-Boltzmann law states that the total energy radiated per unit surface area of a blackbody per unit time is proportional to the fourth power of the blackbody's temperature. Essential for stellar physics, blackbody radiation, thermal physics, and understanding energy output from stars, planets, and other astronomical objects.",
+        equation: "F = σT⁴",
+        primaryUseCase: "flux from temperature using Stefan-Boltzmann law",
+        specificity: 8,
+        concepts: ["stefan-boltzmann", "stefan boltzmann law", "blackbody radiation", "thermal radiation", "energy flux", "temperature", "radiative flux", "stellar physics", "thermal physics", "energy output", "blackbody", "radiation law"],
+        keywords: ["stefan-boltzmann", "stefan boltzmann", "blackbody", "thermal radiation", "energy flux", "temperature", "radiation law", "stellar", "flux", "energy output"],
+        questionPatterns: [
+            "stefan boltzmann law",
+            "stefan-boltzmann law",
+            "what is the stefan boltzmann law",
+            "calculate flux from temperature",
+            "energy flux temperature",
+            "blackbody radiation flux",
+            "thermal radiation flux",
+            "stefan boltzmann constant",
+            "total energy radiated"
+        ],
+        variables: [
+            {
+                symbol: "F",
+                name: "Flux",
+                unit: "W/m²",
+                description: "Total energy flux, radiative flux, energy radiated per unit area per unit time. The total power per unit area emitted by a blackbody."
+            },
+            {
+                symbol: "σ",
+                name: "Stefan-Boltzmann Constant",
+                unit: "W/(m²·K⁴)",
+                description: "Stefan-Boltzmann constant, fundamental physical constant relating flux to temperature. Value: 5.670374419 × 10⁻⁸ W/(m²·K⁴)"
+            },
+            {
+                symbol: "T",
+                name: "Temperature",
+                unit: "Kelvin",
+                description: "Temperature of the blackbody, effective temperature, surface temperature. Must be in Kelvin for the formula to work correctly."
+            }
+        ],
+        constants: {
+            "σ": 5.670374419e-8  // Stefan-Boltzmann constant in W/(m²·K⁴)
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["luminosity", "flux_temperature", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime"],
+            uses: [],
+            generalizes: ["flux_temperature"],
+            specializes: []
         }
     },
     {

@@ -1245,6 +1245,7 @@ class FormulaCalculator {
         doppler_shift: function(unknownVar, vars) { return this.solveDopplerShift(unknownVar, vars); },
         doppler_shift_approx: function(unknownVar, vars) { return this.solveDopplerShiftApprox(unknownVar, vars); },
         flux_temperature: function(unknownVar, vars) { return this.solveFluxTemperature(unknownVar, vars); },
+        stefan_boltzmann_law: function(unknownVar, vars) { return this.solveFluxTemperature(unknownVar, vars); },
         light_gathering_power: function(unknownVar, vars) { return this.solveLightGatheringPower(unknownVar, vars); },
         magnification: function(unknownVar, vars) { return this.solveMagnification(unknownVar, vars); },
         f_ratio: function(unknownVar, vars) { return this.solveFRatio(unknownVar, vars); },
@@ -1430,6 +1431,7 @@ class FormulaCalculator {
                 return this.solveDopplerShiftApprox(unknownVar, vars);
             
             case 'flux_temperature':
+            case 'stefan_boltzmann_law':
                 return this.solveFluxTemperature(unknownVar, vars);
             
             case 'light_gathering_power':
