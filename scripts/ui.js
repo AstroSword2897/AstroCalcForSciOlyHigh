@@ -5193,15 +5193,16 @@ function renderFormulaList() {
             console.warn('formula-selection screen not active! Activating it...');
             formulaSelection.classList.add('active');
         }
-        // Force display style for Safari compatibility
-        formulaSelection.style.display = 'block';
-        formulaSelection.style.visibility = 'visible';
+        // Force display style for all browsers (critical fix)
+        formulaSelection.style.setProperty('display', 'block', 'important');
+        formulaSelection.style.setProperty('visibility', 'visible', 'important');
+        formulaSelection.style.setProperty('opacity', '1', 'important');
         
         // Also ensure input-screen is not active
         const inputScreen = document.getElementById('input-screen');
         if (inputScreen) {
             inputScreen.classList.remove('active');
-            inputScreen.style.display = 'none';
+            inputScreen.style.setProperty('display', 'none', 'important');
         }
     } else {
         console.error('formula-selection element not found!');
@@ -5327,11 +5328,19 @@ function renderFormulaList() {
             // Create category container
             const categoryContainer = document.createElement('div');
             categoryContainer.className = 'formula-category';
+            // Force visibility for all browsers
+            categoryContainer.style.setProperty('display', 'grid', 'important');
+            categoryContainer.style.setProperty('visibility', 'visible', 'important');
+            categoryContainer.style.setProperty('opacity', '1', 'important');
             
             // Add formulas to category
             categorizedFormulas[category].forEach(formula => {
                 const card = createFormulaCard(formula);
                 if (card) {
+                    // Force card visibility
+                    card.style.setProperty('display', 'block', 'important');
+                    card.style.setProperty('visibility', 'visible', 'important');
+                    card.style.setProperty('opacity', '1', 'important');
                     categoryContainer.appendChild(card);
                 } else {
                     console.warn(`Failed to create card for formula: ${formula.id || formula.name || 'unknown'}`);
