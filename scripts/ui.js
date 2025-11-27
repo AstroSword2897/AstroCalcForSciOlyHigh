@@ -5216,6 +5216,7 @@ function renderFormulaList() {
     formulaList.style.setProperty('opacity', '1', 'important');
     formulaList.style.setProperty('height', 'auto', 'important');
     formulaList.style.setProperty('min-height', '100px', 'important');
+    formulaList.style.setProperty('overflow', 'visible', 'important');
     
     // Also ensure parent containers are visible (critical for all browsers)
     const mainFormulasTab = document.getElementById('main-formulas-tab');
@@ -5224,6 +5225,15 @@ function renderFormulaList() {
         mainFormulasTab.style.setProperty('display', 'block', 'important');
         mainFormulasTab.style.setProperty('visibility', 'visible', 'important');
         mainFormulasTab.style.setProperty('opacity', '1', 'important');
+        mainFormulasTab.style.setProperty('overflow', 'visible', 'important');
+        
+        // Verify it's actually visible
+        const tabComputed = window.getComputedStyle(mainFormulasTab);
+        console.log('📊 main-formulas-tab computed:', {
+            display: tabComputed.display,
+            visibility: tabComputed.visibility,
+            opacity: tabComputed.opacity
+        });
     } else {
         console.error('❌ main-formulas-tab element not found!');
     }
@@ -5234,7 +5244,18 @@ function renderFormulaList() {
         mainTabContent.style.setProperty('display', 'block', 'important');
         mainTabContent.style.setProperty('visibility', 'visible', 'important');
         mainTabContent.style.setProperty('opacity', '1', 'important');
+        mainTabContent.style.setProperty('overflow', 'visible', 'important');
     }
+    
+    // Verify formula-list is actually visible after all changes
+    const listComputed = window.getComputedStyle(formulaList);
+    console.log('📊 formula-list computed:', {
+        display: listComputed.display,
+        visibility: listComputed.visibility,
+        opacity: listComputed.opacity,
+        height: listComputed.height,
+        overflow: listComputed.overflow
+    });
     
     // Check if formulaCategories is defined
     if (typeof formulaCategories === 'undefined') {
@@ -5334,6 +5355,10 @@ function renderFormulaList() {
         uncategorized.forEach(formula => {
             const card = createFormulaCard(formula);
             if (card) {
+                // Ensure card is visible
+                card.style.setProperty('display', 'block', 'important');
+                card.style.setProperty('visibility', 'visible', 'important');
+                card.style.setProperty('opacity', '1', 'important');
                 categoryContainer.appendChild(card);
             } else {
                 console.warn(`Failed to create card for uncategorized formula: ${formula.id || formula.name || 'unknown'}`);
