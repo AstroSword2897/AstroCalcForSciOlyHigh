@@ -507,7 +507,8 @@ function closeCommandPalette() {
  * Search command palette
  */
 // Add debouncing and caching for command palette search
-let searchCache = new Map();
+// Use different name to avoid conflict with searchCache in ui.js
+let commandPaletteCache = new Map();
 let searchDebounce = null;
 const MAX_CACHE_SIZE = 100;
 const MAX_RESULTS = 50;
@@ -529,8 +530,8 @@ function performCommandPaletteSearch(query, resultsContainer) {
     const queryLower = query.toLowerCase().trim();
     
     // Check cache
-    if (searchCache.has(queryLower)) {
-        renderCommandPaletteResults(searchCache.get(queryLower), resultsContainer);
+    if (commandPaletteCache.has(queryLower)) {
+        renderCommandPaletteResults(commandPaletteCache.get(queryLower), resultsContainer);
         return;
     }
     
@@ -608,12 +609,12 @@ function performCommandPaletteSearch(query, resultsContainer) {
     });
     
     // Cache results
-    searchCache.set(queryLower, results);
+    commandPaletteCache.set(queryLower, results);
     
     // Limit cache size
-    if (searchCache.size > MAX_CACHE_SIZE) {
-        const firstKey = searchCache.keys().next().value;
-        searchCache.delete(firstKey);
+    if (commandPaletteCache.size > MAX_CACHE_SIZE) {
+        const firstKey = commandPaletteCache.keys().next().value;
+        commandPaletteCache.delete(firstKey);
     }
     
     renderCommandPaletteResults(results, resultsContainer);
