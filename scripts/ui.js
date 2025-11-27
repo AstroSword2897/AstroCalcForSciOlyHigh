@@ -6423,10 +6423,14 @@ function renderVariableInputs(formula) {
         
         container.appendChild(inputDiv);
         
-        // Add input listeners to all unit input fields
-        alternativeUnits.forEach((unit, currentIndex) => {
+        // Cache DOM queries to avoid repeated lookups
+        const inputElements = alternativeUnits.map((unit, currentIndex) => {
             const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            const input = document.getElementById(inputId);
+            return { input: document.getElementById(inputId), unit, currentIndex };
+        }).filter(item => item.input !== null);
+        
+        // Add input listeners to all unit input fields
+        inputElements.forEach(({ input, currentIndex }) => {
             if (input) {
                 // FIXED: Store listeners for cleanup
                 const inputListener = (e) => {
@@ -6477,7 +6481,7 @@ function renderVariableInputs(formula) {
                         const variableValues = getCurrentVariableValues();
                         graphManager.updateGraph(currentFormula, variableValues);
                     }
-                }, 400);
+                }, TIMING.DEBOUNCE_INDICATORS);
             };
             naCheckbox.addEventListener('change', changeListener);
             activeInputListeners.set(naCheckbox, { changeListener });
