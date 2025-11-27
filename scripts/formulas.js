@@ -1197,12 +1197,12 @@ var formulas = [
     {
         id: "stefan_boltzmann_law",
         name: "Stefan-Boltzmann Law",
-        description: "Fundamental law of blackbody radiation relating total energy flux to temperature. The Stefan-Boltzmann law states that the total energy radiated per unit surface area of a blackbody per unit time is proportional to the fourth power of the blackbody's temperature. Essential for stellar physics, blackbody radiation, thermal physics, and understanding energy output from stars, planets, and other astronomical objects.",
+        description: "Fundamental law of blackbody radiation relating total energy flux to temperature. The Stefan-Boltzmann law states that the total energy radiated per unit surface area of a blackbody per unit time is proportional to the fourth power of the blackbody's temperature. This is one of the most important laws in astrophysics and thermal physics. The law applies to all blackbody sources including stars, planets, and laboratory sources. Essential for stellar physics, blackbody radiation, thermal physics, planetary science, and understanding energy output from astronomical objects. The fourth-power dependence means small temperature changes produce large flux changes, making temperature the dominant factor in determining radiative output. Critical for determining stellar effective temperatures, calculating planetary thermal emission, understanding stellar evolution, and interpreting observed fluxes. Used extensively in stellar structure models, planetary science, and thermal physics. The Stefan-Boltzmann constant (σ = 5.670374419 × 10⁻⁸ W/(m²·K⁴)) is a fundamental physical constant derived from quantum mechanics and statistical physics.",
         equation: "F = σT⁴",
-        primaryUseCase: "flux from temperature using Stefan-Boltzmann law",
-        specificity: 8,
-        concepts: ["stefan-boltzmann", "stefan boltzmann law", "blackbody radiation", "thermal radiation", "energy flux", "temperature", "radiative flux", "stellar physics", "thermal physics", "energy output", "blackbody", "radiation law"],
-        keywords: ["stefan-boltzmann", "stefan boltzmann", "blackbody", "thermal radiation", "energy flux", "temperature", "radiation law", "stellar", "flux", "energy output"],
+        primaryUseCase: "calculate flux from temperature using Stefan-Boltzmann law, determine temperature from observed flux, understand blackbody radiation",
+        specificity: 10,
+        concepts: ["stefan-boltzmann", "stefan boltzmann law", "blackbody radiation", "thermal radiation", "energy flux", "temperature", "radiative flux", "stellar physics", "thermal physics", "energy output", "blackbody", "radiation law", "effective temperature", "surface temperature", "stellar classification", "planetary science", "thermal emission", "bolometric flux", "radiative transfer", "stellar evolution", "hr diagram"],
+        keywords: ["stefan-boltzmann", "stefan boltzmann", "blackbody", "thermal radiation", "energy flux", "temperature", "radiation law", "stellar", "flux", "energy output", "bolometric", "thermal emission", "effective temperature", "surface temperature", "radiative", "blackbody radiation", "fourth power", "temperature flux"],
         questionPatterns: [
             "stefan boltzmann law",
             "stefan-boltzmann law",
@@ -1212,38 +1212,79 @@ var formulas = [
             "blackbody radiation flux",
             "thermal radiation flux",
             "stefan boltzmann constant",
-            "total energy radiated"
+            "total energy radiated",
+            "flux from temperature",
+            "temperature from flux",
+            "blackbody flux",
+            "thermal flux",
+            "radiative flux temperature",
+            "how to calculate flux from temperature",
+            "find flux from temperature",
+            "determine flux from temperature",
+            "energy output temperature",
+            "stellar flux temperature",
+            "planetary flux temperature"
         ],
         variables: [
             {
                 symbol: "F",
                 name: "Flux",
                 unit: "W/m²",
-                description: "Total energy flux, radiative flux, energy radiated per unit area per unit time. The total power per unit area emitted by a blackbody."
+                description: "Total energy flux, radiative flux, energy radiated per unit area per unit time. The total power per unit area emitted by a blackbody. Also called bolometric flux when integrated over all wavelengths. Essential for determining stellar effective temperatures and understanding energy output."
             },
             {
                 symbol: "σ",
                 name: "Stefan-Boltzmann Constant",
                 unit: "W/(m²·K⁴)",
-                description: "Stefan-Boltzmann constant, fundamental physical constant relating flux to temperature. Value: 5.670374419 × 10⁻⁸ W/(m²·K⁴)"
+                description: "Stefan-Boltzmann constant, fundamental physical constant relating flux to temperature. Value: 5.670374419 × 10⁻⁸ W/(m²·K⁴). Derived from fundamental constants including Planck's constant, speed of light, and Boltzmann's constant. One of the most important constants in thermal physics and astrophysics."
             },
             {
                 symbol: "T",
                 name: "Temperature",
                 unit: "Kelvin",
-                description: "Temperature of the blackbody, effective temperature, surface temperature. Must be in Kelvin for the formula to work correctly."
+                description: "Temperature of the blackbody, effective temperature, surface temperature. Must be in Kelvin for the formula to work correctly. The fourth-power dependence means temperature is the dominant factor in determining flux. Small temperature changes produce large flux changes."
             }
         ],
         constants: {
             "σ": 5.670374419e-8  // Stefan-Boltzmann constant in W/(m²·K⁴)
         },
         relationships: {
-            prerequisites: [],
-            derivedFrom: [],
-            relatedTo: ["luminosity", "flux_temperature", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime"],
-            uses: [],
+            prerequisites: ["wiens_law", "planck_relation"],
+            derivedFrom: ["planck_relation"],
+            relatedTo: ["luminosity", "flux_temperature", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime", "hr_color_index", "hr_absolute_magnitude", "planetary_equilibrium_temperature", "flux_from_luminosity", "mass_luminosity_relation"],
+            uses: ["wiens_law", "planck_relation"],
             generalizes: ["flux_temperature"],
             specializes: []
+        },
+        frqMetadata: {
+            commonMistakes: [
+                "Forgetting to convert temperature to Kelvin (using Celsius or Fahrenheit)",
+                "Using the wrong power (using T² or T³ instead of T⁴)",
+                "Confusing flux (F) with luminosity (L)",
+                "Not accounting for surface area when calculating total power",
+                "Mixing up the Stefan-Boltzmann constant value or units"
+            ],
+            typicalProblems: [
+                "Calculate the flux from a star given its effective temperature",
+                "Determine the temperature of a planet from its thermal emission",
+                "Compare energy output between stars of different temperatures",
+                "Calculate how flux changes with temperature",
+                "Determine stellar radius from luminosity and temperature"
+            ],
+            solutionSteps: [
+                "Identify what you're solving for (flux F or temperature T)",
+                "Ensure temperature is in Kelvin",
+                "Use the Stefan-Boltzmann constant: σ = 5.670 × 10⁻⁸ W/(m²·K⁴)",
+                "For flux: F = σT⁴",
+                "For temperature: T = (F/σ)^(1/4)",
+                "Check units and order of magnitude"
+            ],
+            contextNotes: [
+                "This is the fundamental law for blackbody radiation",
+                "The fourth-power dependence is critical - small temperature changes cause large flux changes",
+                "Essential for understanding stellar physics and planetary thermal emission",
+                "Often used in combination with luminosity formula: L = 4πR²σT⁴"
+            ]
         }
     },
     {
