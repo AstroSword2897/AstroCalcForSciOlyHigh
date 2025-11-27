@@ -577,46 +577,6 @@
                 
                 return tryRender();
             };
-                    
-                    // Force all containers visible first
-                    const formulaSelection = document.getElementById('formula-selection');
-                    if (formulaSelection) {
-                        formulaSelection.classList.add('active');
-                        formulaSelection.style.setProperty('display', 'block', 'important');
-                        formulaSelection.style.setProperty('visibility', 'visible', 'important');
-                    }
-                    
-                    const mainFormulasTab = document.getElementById('main-formulas-tab');
-                    if (mainFormulasTab) {
-                        mainFormulasTab.classList.add('active');
-                        mainFormulasTab.style.setProperty('display', 'block', 'important');
-                        mainFormulasTab.style.setProperty('visibility', 'visible', 'important');
-                    }
-                    
-                    // Render
-                    renderFormulaList();
-                    
-                    // Force visibility after render
-                    setTimeout(() => {
-                        const formulaList = document.getElementById('formula-list');
-                        if (formulaList) {
-                            formulaList.style.setProperty('display', 'block', 'important');
-                            formulaList.style.setProperty('visibility', 'visible', 'important');
-                            formulaList.style.setProperty('opacity', '1', 'important');
-                            
-                            const cards = formulaList.querySelectorAll('.formula-card');
-                            cards.forEach(card => {
-                                card.style.setProperty('display', 'block', 'important');
-                                card.style.setProperty('visibility', 'visible', 'important');
-                                card.style.setProperty('opacity', '1', 'important');
-                            });
-                            
-                            console.log(`✅ Force render complete. ${cards.length} cards should be visible.`);
-                        }
-                    }, 100);
-                    
-                    return true;
-            };
             
             // Log that functions are available
             console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
