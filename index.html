@@ -19,7 +19,8 @@
                     <p class="subtitle">Science Olympiad Astronomy Formula Calculator</p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <button id="diagnostic-btn" onclick="if(typeof astrocalcDiagnostics==='function'){astrocalcDiagnostics();}else{alert('Diagnostic function not loaded. Try hard refresh (Cmd+Shift+R)');}" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em;" title="Run diagnostics">🔧 Debug</button>
+                    <button id="diagnostic-btn" onclick="if(typeof astrocalcDiagnostics==='function'){astrocalcDiagnostics();}else{alert('Diagnostic function not loaded. Try hard refresh (Cmd+Shift+R)');}" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em; margin-right: 5px;" title="Run diagnostics">🔧 Debug</button>
+                    <button id="force-render-btn" onclick="if(typeof forceRenderCards==='function'){forceRenderCards();}else{alert('Force render function not loaded. Try hard refresh (Cmd+Shift+R)');}" style="background: #4ade80; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em;" title="Force render formula cards">🔄 Force Render</button>
                     <button id="accessibility-toggle" class="accessibility-toggle" title="Toggle reduced motion and performance mode" aria-label="Accessibility settings" style="font-size: 1.5em; display: flex; align-items: center; justify-content: center;">
                         🎨
                     </button>
