@@ -402,28 +402,35 @@ function renderMathJax(element) {
 
 // Initialize the application
 function initializeApp() {
+    console.log('Initializing app...');
+    console.log('Formulas defined:', typeof formulas !== 'undefined');
+    console.log('Formulas count:', typeof formulas !== 'undefined' ? formulas.length : 0);
+    
     // Initialize semantic search system
     if (typeof semanticSearchSystem !== 'undefined') {
         semanticSearchSystem.initializeEmbeddings();
     }
     
-    // Ensure formulas are loaded before rendering
-    if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-        renderFormulaList();
-    } else {
-        console.warn('Formulas not loaded yet, waiting...');
-        // Retry after a short delay
-        setTimeout(() => {
-            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
-                renderFormulaList();
-            } else {
-                console.error('Formulas still not loaded after delay');
+    // Wait for formulas with retry logic
+    function tryRenderFormulas(retries = 10) {
+        if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+            console.log(`Rendering ${formulas.length} formulas...`);
+            renderFormulaList();
+            setupEventListeners();
+            setupSearchFunctionality();
+        } else if (retries > 0) {
+            console.log(`Formulas not ready, retrying... (${retries} attempts left)`);
+            setTimeout(() => tryRenderFormulas(retries - 1), 200);
+        } else {
+            console.error('Formulas failed to load after all retries');
+            const formulaList = document.getElementById('formula-list');
+            if (formulaList) {
+                formulaList.innerHTML = '<p style="text-align: center; color: #ff6b6b; padding: 40px;">Error: Formulas failed to load. Please refresh the page.</p>';
             }
-        }, 100);
+        }
     }
     
-    setupEventListeners();
-    setupSearchFunctionality();
+    tryRenderFormulas();
 }
 
 // Handle both cases: DOM already loaded or still loading
