@@ -39,8 +39,8 @@ let graphManager = null; // Graph manager (uses OfflineGraphManager for offline 
 // PERFORMANCE MONITORING
 // ============================================================================
 
-// Performance monitoring
-const performance = {
+// Performance monitoring (renamed to avoid conflict with window.performance)
+const performanceMonitor = {
     searchTimes: [],
     renderTimes: [],
     lastSearchTime: 0,
@@ -1378,7 +1378,7 @@ function setupSearchFunctionality() {
         const cachedResult = searchCache.get(cacheKey);
         if (cachedResult) {
             const cacheTime = performance.now() - startTime;
-            performance.recordSearch(cacheTime);
+            performanceMonitor.recordSearch(cacheTime);
             renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
             return;
         }
