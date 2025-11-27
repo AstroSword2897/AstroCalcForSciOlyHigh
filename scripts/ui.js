@@ -5214,7 +5214,11 @@ function renderFormulaList() {
             // Add formulas to category
             categorizedFormulas[category].forEach(formula => {
                 const card = createFormulaCard(formula);
-                categoryContainer.appendChild(card);
+                if (card) {
+                    categoryContainer.appendChild(card);
+                } else {
+                    console.warn(`Failed to create card for formula: ${formula.id || formula.name || 'unknown'}`);
+                }
             });
             
             formulaList.appendChild(categoryContainer);
