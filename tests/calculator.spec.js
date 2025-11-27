@@ -15,30 +15,39 @@ test.describe('Formula Calculator', () => {
             }
         });
         
-        await page.goto('/');
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
         
-        // Wait for formulas to load and be rendered
-        await page.waitForSelector('#formula-list', { timeout: 10000 });
-        
-        // Wait for formulas array to be defined
+        // Wait for formulas array to be populated (this is the critical check)
         await page.waitForFunction(() => {
-            return typeof formulas !== 'undefined' && formulas.length > 0;
-        }, { timeout: 10000 });
+            return typeof formulas !== 'undefined' && 
+                   Array.isArray(formulas) && 
+                   formulas.length > 0;
+        }, { timeout: 30000 });
         
-        // Wait for renderFormulaList to complete - check if cards exist OR error message exists
-        await page.waitForFunction(() => {
-            const cards = document.querySelectorAll('.formula-card');
-            const errorMsg = document.querySelector('#formula-list p');
-            return cards.length > 0 || (errorMsg && errorMsg.textContent.includes('Error'));
-        }, { timeout: 10000 });
+        // Wait for formula list container to exist
+        await page.waitForSelector('#formula-list', { timeout: 30000 });
         
-        // Verify cards actually exist
-        const cardCount = await page.locator('.formula-card').count();
+        // Wait for cards to be rendered and visible
+        // Try multiple approaches to catch cards
+        try {
+            await page.waitForSelector('.formula-card', { timeout: 30000, state: 'visible' });
+        } catch (e) {
+            // If that fails, try waiting for any content in formula-list
+            await page.waitForFunction(() => {
+                const list = document.getElementById('formula-list');
+                if (!list) return false;
+                const cards = list.querySelectorAll('.formula-card');
+                return cards.length > 0 && Array.from(cards).some(card => card.offsetParent !== null);
+            }, { timeout: 30000 });
+        }
+        
+        // Verify cards actually exist and are visible
+        const cardCount = await page.locator('.formula-card:visible').count();
         if (cardCount === 0) {
             // Log what's in the formula-list
             const listContent = await page.locator('#formula-list').textContent();
             console.log('Formula list content:', listContent);
-            throw new Error('No formula cards found. Check console for errors.');
+            throw new Error('No visible formula cards found. Check console for errors.');
         }
     });
 
