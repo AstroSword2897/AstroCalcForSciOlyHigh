@@ -203,10 +203,43 @@
                         <h3>Formula Visualization</h3>
                         <p class="graph-description">Graph shows how the unknown variable changes with respect to other variables. Enter values in the Calculator tab to see the graph update in real-time.</p>
                     </div>
+                    
+                    <!-- ENHANCED: Graph Controls Panel -->
+                    <div id="graph-controls-panel" class="graph-controls-panel" style="display: none;">
+                        <div class="graph-controls-section">
+                            <h4>📊 Astro Presets</h4>
+                            <div id="graph-presets" class="graph-presets">
+                                <button class="preset-btn" data-preset="blackbody">Blackbody Curve</button>
+                                <button class="preset-btn" data-preset="kepler">Kepler's Third Law</button>
+                                <button class="preset-btn" data-preset="escape_velocity">Escape Velocity</button>
+                                <button class="preset-btn" data-preset="luminosity">Luminosity vs Radius</button>
+                                <button class="preset-btn" data-preset="spectrum">Spectrum Wavelengths</button>
+                            </div>
+                        </div>
+                        <div class="graph-controls-section">
+                            <h4>🎛️ Interactive Controls</h4>
+                            <div id="graph-sliders" class="graph-sliders"></div>
+                        </div>
+                        <div class="graph-controls-section">
+                            <h4>⚙️ Options</h4>
+                            <div class="graph-options">
+                                <label><input type="checkbox" id="show-error-bands"> Show Error Bands (±5%)</label>
+                                <label><input type="checkbox" id="show-second-curve"> Compare with Second Curve</label>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div id="desmos-graph" class="desmos-graph"></div>
                     <div class="graph-controls">
+                        <button id="toggle-graph-controls" class="toggle-controls-btn">⚙️ Show Controls</button>
                         <p class="graph-note">💡 <strong>Tip:</strong> Leave one variable as "null" in the Calculator tab to see how it varies with the other variables.</p>
                         <p class="graph-note">✅ <strong>Offline Mode:</strong> This graph works completely offline using HTML5 Canvas.</p>
+                    </div>
+                    <div id="graph-interpretation" class="graph-interpretation">
+                        <h4>📊 Graph Interpretation</h4>
+                        <div id="graph-interpretation-content" class="graph-interpretation-content">
+                            <p>Enter values in the Calculator tab to see graph interpretation here.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -314,7 +347,10 @@
             },
             // Configure for offline use - don't load fonts from CDN
             loader: {
-                load: ['[tex]/require', '[tex]/autoload', '[tex]/configmacros']
+                load: ['[tex]/require', '[tex]/autoload', '[tex]/configmacros'],
+                paths: {
+                    mathjax: 'libs/mathjax/es5'
+                }
             },
             startup: {
                 typeset: false
@@ -371,7 +407,7 @@
     <script src="scripts/graphManager.js"></script>
     
     <!-- 6. UI controller (depends on everything, must be last) -->
-    <script src="scripts/ui.js?v=2.0.3"></script>
+    <script src="scripts/ui.js?v=2.0.4"></script>
     
     <!-- 7. Integration test (optional, for verification) -->
     <script src="scripts/integrationTest.js"></script>

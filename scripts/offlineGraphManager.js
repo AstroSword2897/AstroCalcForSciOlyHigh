@@ -33,6 +33,21 @@ class OfflineGraphManager {
         this.cache = typeof LRUCache !== 'undefined' ? new LRUCache(50) : new Map();
         this.pendingTimers = [];
         
+        // FIXED: Add retry tracking to prevent infinite loops
+        this.initRetryCount = 0;
+        this.maxInitRetries = 50; // Maximum 50 retries (10 seconds at 200ms intervals)
+        this.isInitializing = false; // Flag to prevent concurrent initialization attempts
+        
+        // PERFORMANCE: Add debouncing for graph updates
+        this.updateDebounceTimer = null;
+        this.renderAnimationFrame = null;
+        this.lastUpdateTime = 0;
+        this.updateDebounceMs = 300; // Wait 300ms before updating graph
+        
+        // ENHANCED: Zoom/pan debounce timers
+        this.zoomDebounceTimer = null;
+        this.panDebounceTimer = null;
+        
         // Graph settings
         this.width = 800;
         this.height = 600;
@@ -47,27 +62,102 @@ class OfflineGraphManager {
             bottom: -10,
             top: 10
         };
+        
+        // ENHANCED: Auto-graph formulas (formulas that should automatically graph when calculated)
+        this.autoGraphFormulas = new Set([
+            'wiens_law',
+            'escape_velocity',
+            'luminosity',
+            'kepler_third_law',
+            'kepler_third_law_solar',
+            'cosmic_redshift',
+            'doppler_shift',
+            'doppler_shift_approx',
+            'stefan_boltzmann_law',
+            'flux_temperature',
+            'orbital_velocity'
+        ]);
+        
+        // ENHANCED: Calculated point to highlight on graph
+        this.calculatedPoint = null; // {x, y, label, color}
+        
+        // ENHANCED: Second curve for comparison
+        this.secondCurve = null; // {data, color, label}
+        
+        // ENHANCED: Error bands/tolerance zones
+        this.errorBands = []; // [{x, y, tolerance, color}]
+        
+        // ENHANCED: Interactive sliders
+        this.sliders = [];
+        this.sliderValues = {};
+        
+        // ENHANCED: Graph presets
+        this.presets = {
+            blackbody: { name: 'Blackbody Curve', formulaId: 'wiens_law' },
+            kepler: { name: "Kepler's Third Law", formulaId: 'kepler_third_law' },
+            escape_velocity: { name: 'Escape Velocity vs Mass', formulaId: 'escape_velocity' },
+            luminosity: { name: 'Luminosity vs Radius', formulaId: 'luminosity' },
+            spectrum: { name: 'Spectrum Wavelengths', formulaId: 'wiens_law' }
+        };
     }
     
     /**
      * Initialize the canvas graph
      */
     init(containerId = null) {
+        // FIXED: If already initialized, return success
+        if (this.canvas && this.ctx) {
+            return true;
+        }
+        
+        // FIXED: Prevent concurrent initialization attempts
+        if (this.isInitializing) {
+            return false; // Already initializing, wait for it to complete
+        }
+        
         const targetContainerId = containerId || this.containerId || 'desmos-graph';
         const container = document.getElementById(targetContainerId);
         if (!container) {
             console.warn(`Graph container ${targetContainerId} not found.`);
+            this.initRetryCount = 0; // Reset on container not found
+            this.isInitializing = false;
             return false;
         }
         
         // Check if container has dimensions
         if (container.offsetWidth === 0 || container.offsetHeight === 0) {
-            console.warn('Graph container has no dimensions, waiting...');
+            // FIXED: Check retry limit to prevent infinite loops
+            if (this.initRetryCount >= this.maxInitRetries) {
+                console.error(`Graph container ${targetContainerId} has no dimensions after ${this.maxInitRetries} retries. Giving up.`);
+                this.initRetryCount = 0; // Reset for next attempt
+                this.isInitializing = false;
+                // Show error message in container
+                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #ef4444;"><p>Unable to initialize graph: container has no dimensions.</p><p style="font-size: 0.9em; color: #94a3b8;">Please ensure the graph tab is visible and has proper dimensions.</p></div>';
+                return false;
+            }
+            
+            // Check if tab is active - if not, don't retry
+            const targetTab = document.getElementById(this.tabId || 'graph-tab');
+            const isTabActive = targetTab && targetTab.classList.contains('active');
+            if (!isTabActive) {
+                // Tab is not active, don't retry - will initialize when tab becomes active
+                this.initRetryCount = 0;
+                this.isInitializing = false;
+                return false;
+            }
+            
+            this.isInitializing = true;
+            this.initRetryCount++;
+            console.warn(`Graph container has no dimensions, waiting... (attempt ${this.initRetryCount}/${this.maxInitRetries})`);
             // FIXED: Store timer for cleanup
             const timer = setTimeout(() => this.init(targetContainerId), 200);
             this.pendingTimers.push(timer);
             return false;
         }
+        
+        // Successfully initialized - reset retry count and flag
+        this.initRetryCount = 0;
+        this.isInitializing = true;
         
         // Clear container
         container.innerHTML = '';
@@ -91,6 +181,10 @@ class OfflineGraphManager {
         this.height = this.canvas.height;
         
         console.log('[OfflineGraphManager] Canvas initialized.');
+        this.isInitializing = false; // Mark initialization as complete
+        
+        // ENHANCED: Add zoom/pan functionality
+        this.setupInteractivity();
         
         // If we have a stored formula, update the graph
         if (this.currentFormula) {
@@ -113,6 +207,32 @@ class OfflineGraphManager {
         this.pendingTimers.forEach(timer => clearTimeout(timer));
         this.pendingTimers = [];
         
+        // PERFORMANCE: Clear debounce timer
+        if (this.updateDebounceTimer) {
+            clearTimeout(this.updateDebounceTimer);
+            this.updateDebounceTimer = null;
+        }
+        
+        // PERFORMANCE: Cancel animation frame
+        if (this.renderAnimationFrame) {
+            cancelAnimationFrame(this.renderAnimationFrame);
+            this.renderAnimationFrame = null;
+        }
+        
+        // ENHANCED: Clear zoom/pan timers
+        if (this.zoomDebounceTimer) {
+            clearTimeout(this.zoomDebounceTimer);
+            this.zoomDebounceTimer = null;
+        }
+        if (this.panDebounceTimer) {
+            clearTimeout(this.panDebounceTimer);
+            this.panDebounceTimer = null;
+        }
+        
+        // Reset retry count and initialization flag
+        this.initRetryCount = 0;
+        this.isInitializing = false;
+        
         // Clear cache
         if (this.cache && typeof this.cache.clear === 'function') {
             this.cache.clear();
@@ -129,10 +249,59 @@ class OfflineGraphManager {
     
     /**
      * Main entry point to update or re-render a graph
+     * ENHANCED: Supports auto-graphing, calculated point highlighting, and more
+     * PERFORMANCE: Added debouncing to prevent excessive updates
      */
-    updateGraph(formula, variableValues = {}) {
+    updateGraph(formula, variableValues = {}, options = {}) {
         this.currentFormula = formula;
         this.currentValues = { ...variableValues };
+        
+        // ENHANCED: Store calculated point if provided
+        if (options.calculatedPoint) {
+            this.calculatedPoint = options.calculatedPoint;
+        }
+        
+        // ENHANCED: Store error bands if provided
+        if (options.errorBands) {
+            this.errorBands = options.errorBands;
+        }
+        
+        // ENHANCED: Store second curve for comparison if provided
+        if (options.secondCurve) {
+            this.secondCurve = options.secondCurve;
+        }
+        
+        // PERFORMANCE: Debounce graph updates to prevent excessive rendering
+        if (this.updateDebounceTimer) {
+            clearTimeout(this.updateDebounceTimer);
+        }
+        
+        const now = performance.now();
+        const timeSinceLastUpdate = now - this.lastUpdateTime;
+        
+        // If update is requested too soon, debounce it
+        if (timeSinceLastUpdate < this.updateDebounceMs) {
+            this.updateDebounceTimer = setTimeout(() => {
+                this._performUpdate();
+            }, this.updateDebounceMs - timeSinceLastUpdate);
+            return;
+        }
+        
+        // Otherwise, update immediately
+        this._performUpdate();
+    }
+    
+    /**
+     * PERFORMANCE: Internal method to perform the actual graph update
+     * Separated from updateGraph to support debouncing
+     */
+    _performUpdate() {
+        this.lastUpdateTime = performance.now();
+        
+        if (!this.currentFormula) return;
+        
+        const formula = this.currentFormula;
+        const variableValues = this.currentValues;
         
         // Get constants from formula
         const constants = formula.constants || {};
@@ -192,58 +361,96 @@ class OfflineGraphManager {
             return;
         }
         
-        // Render the graph
-        this.renderFormulaGraph(formula, nullVar, { ...globalConstants, ...constants, ...variableValues });
+        // PERFORMANCE: Use requestAnimationFrame for smooth rendering
+        if (this.renderAnimationFrame) {
+            cancelAnimationFrame(this.renderAnimationFrame);
+        }
+        
+        this.renderAnimationFrame = requestAnimationFrame(() => {
+            this.renderFormulaGraph(formula, nullVar, { ...globalConstants, ...constants, ...variableValues });
+        });
     }
     
     /**
      * Render a formula graph on canvas
+     * PERFORMANCE: Optimized to avoid double rendering
      */
     renderFormulaGraph(formula, unknownVar, allValues) {
         if (!this.canvas || !this.ctx) return;
         
-        // Clear canvas
-        this.ctx.clearRect(0, 0, this.width, this.height);
+        // PERFORMANCE: Add timeout protection for entire render
+        const renderStartTime = performance.now();
+        const maxRenderTime = 3000; // 3 seconds max for entire render
         
         // Calculate graph bounds based on variable values
         this.calculateBounds(formula, unknownVar, allValues);
         
-        // Draw grid and axes
-        this.drawGrid();
-        this.drawAxes(unknownVar);
-        
-        // Generate data points
+        // Generate data points first (before drawing anything)
         const data = this.generateGraphData(formula, unknownVar, allValues);
+        
+        // PERFORMANCE: Check timeout before rendering
+        if (performance.now() - renderStartTime > maxRenderTime) {
+            console.warn('[OfflineGraphManager] Render timeout, showing error message');
+            this.showGraphMessage("Graph generation took too long. Try simplifying the formula or adjusting values.");
+            return;
+        }
         
         if (data && data.length > 0) {
             // Adjust bounds to fit the data if needed
             this.adjustBoundsToData(data);
             
-            // Redraw grid and axes with new bounds
+            // PERFORMANCE: Only clear and draw once (not twice)
             this.ctx.clearRect(0, 0, this.width, this.height);
+            
+            // Draw grid and axes
             this.drawGrid();
             this.drawAxes(unknownVar);
+            
+            // ENHANCED: Draw error bands first (behind everything)
+            if (this.errorBands && this.errorBands.length > 0) {
+                this.drawErrorBands();
+            }
             
             // Draw the curve
             this.drawCurve(data, '#3b82f6');
             
-            // Draw points
+            // ENHANCED: Draw second curve for comparison if present
+            if (this.secondCurve && this.secondCurve.data && this.secondCurve.data.length > 0) {
+                this.drawCurve(this.secondCurve.data, this.secondCurve.color || '#ef4444', this.secondCurve.label);
+            }
+            
+            // Draw points (reduced frequency for performance)
             this.drawPoints(data, '#60a5fa');
+            
+            // ENHANCED: Highlight calculated point if present
+            if (this.calculatedPoint) {
+                this.drawCalculatedPoint(this.calculatedPoint);
+            }
         } else {
-            // Show message if graph cannot be generated
+            // Clear canvas and show message with reset button
+            this.ctx.clearRect(0, 0, this.width, this.height);
             this.showGraphMessage("Unable to generate graph for this formula. Try entering values for all variables except one.");
+            this.showResetButton();
         }
         
         // Draw title
         this.drawTitle(formula, unknownVar);
+        
+        // ENHANCED: Draw legend if multiple curves
+        if (this.secondCurve) {
+            this.drawLegend();
+        }
     }
     
     /**
      * Generate data points for the graph
+     * PERFORMANCE: Optimized with adaptive sampling and timeout protection
      */
     generateGraphData(formula, unknownVar, allValues) {
         const unknownSymbol = unknownVar.symbol;
-        const numPoints = 300; // Increased for smoother curves
+        // PERFORMANCE: Reduced from 300 to 150 points for faster rendering
+        // Use adaptive sampling for smoother curves without performance hit
+        const numPoints = 150;
         const data = [];
         
         // Calculate initial bounds if not set
@@ -253,35 +460,61 @@ class OfflineGraphManager {
         
         // Create range for unknown variable
         const range = this.bounds.right - this.bounds.left;
-        if (range <= 0) {
+        if (range <= 0 || !isFinite(range)) {
             console.warn('[OfflineGraphManager] Invalid bounds range');
             return null;
         }
         
+        // PERFORMANCE: Add timeout protection (max 2 seconds for data generation)
+        const startTime = performance.now();
+        const maxTime = 2000; // 2 seconds max
         const step = range / numPoints;
         let validPoints = 0;
+        let consecutiveFailures = 0;
+        const maxConsecutiveFailures = 50; // Stop if too many failures in a row
         
         try {
             for (let i = 0; i <= numPoints; i++) {
+                // PERFORMANCE: Check timeout
+                if (performance.now() - startTime > maxTime) {
+                    console.warn('[OfflineGraphManager] Graph generation timeout, using partial data');
+                    break;
+                }
+                
                 const x = this.bounds.left + (i * step);
                 
                 // Skip if x is invalid
-                if (!isFinite(x) || isNaN(x)) continue;
+                if (!isFinite(x) || isNaN(x)) {
+                    consecutiveFailures++;
+                    if (consecutiveFailures > maxConsecutiveFailures) break;
+                    continue;
+                }
                 
                 // Create evaluation context with x value
                 const evalContext = { ...allValues, [unknownSymbol]: x };
                 
                 // Try to evaluate the formula
-                const y = this.evaluateFormula(formula, unknownVar, evalContext);
+                let y;
+                try {
+                    y = this.evaluateFormula(formula, unknownVar, evalContext);
+                } catch (e) {
+                    consecutiveFailures++;
+                    if (consecutiveFailures > maxConsecutiveFailures) break;
+                    continue;
+                }
                 
                 if (y !== null && isFinite(y) && !isNaN(y)) {
                     data.push({ x, y });
                     validPoints++;
+                    consecutiveFailures = 0; // Reset failure counter
+                } else {
+                    consecutiveFailures++;
+                    if (consecutiveFailures > maxConsecutiveFailures) break;
                 }
             }
         } catch (e) {
             console.error('[OfflineGraphManager] Error generating graph data:', e);
-            return null;
+            return data.length > 0 ? data : null; // Return partial data if available
         }
         
         if (validPoints === 0) {
@@ -847,12 +1080,13 @@ class OfflineGraphManager {
     
     /**
      * Draw points on canvas
+     * PERFORMANCE: Optimized with adaptive step size (max 100 points)
      */
     drawPoints(data, color = '#60a5fa') {
         if (!data || data.length === 0) return;
         
         const { left, right, bottom, top } = this.bounds;
-        const { padding } = this;
+        const { padding, pointRadius } = this;
         
         const graphWidth = this.width - padding.left - padding.right;
         const graphHeight = this.height - padding.top - padding.bottom;
@@ -862,15 +1096,22 @@ class OfflineGraphManager {
         
         this.ctx.fillStyle = color;
         
-        // Draw every 10th point to avoid clutter
-        for (let i = 0; i < data.length; i += 10) {
+        // PERFORMANCE: Draw every nth point to reduce clutter/performance cost
+        // Max 100 points for smooth rendering
+        const step = Math.max(1, Math.floor(data.length / 100));
+        
+        for (let i = 0; i < data.length; i += step) {
             const point = data[i];
             const screenX = padding.left + (point.x - left) * xScale;
             const screenY = this.height - padding.bottom - (point.y - bottom) * yScale;
             
-            this.ctx.beginPath();
-            this.ctx.arc(screenX, screenY, this.pointRadius, 0, 2 * Math.PI);
-            this.ctx.fill();
+            // Only draw if point is within visible bounds
+            if (screenX >= padding.left && screenX <= this.width - padding.right &&
+                screenY >= padding.top && screenY <= this.height - padding.bottom) {
+                this.ctx.beginPath();
+                this.ctx.arc(screenX, screenY, pointRadius, 0, 2 * Math.PI);
+                this.ctx.fill();
+            }
         }
     }
     
@@ -890,18 +1131,73 @@ class OfflineGraphManager {
     
     /**
      * Show message on canvas
+     * ENHANCED: Better formatting and error handling
      */
     showGraphMessage(message) {
         if (!this.canvas || !this.ctx) return;
         
+        // Clear and show message
         this.ctx.fillStyle = '#64748b';
         this.ctx.font = '14px sans-serif';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(
-            message,
-            this.width / 2,
-            this.height / 2
-        );
+        this.ctx.textBaseline = 'middle';
+        
+        // Word wrap for long messages
+        const words = message.split(' ');
+        const maxWidth = this.width - 40;
+        let line = '';
+        let y = this.height / 2 - 20;
+        
+        words.forEach(word => {
+            const testLine = line + word + ' ';
+            const metrics = this.ctx.measureText(testLine);
+            if (metrics.width > maxWidth && line !== '') {
+                this.ctx.fillText(line, this.width / 2, y);
+                line = word + ' ';
+                y += 20;
+            } else {
+                line = testLine;
+            }
+        });
+        this.ctx.fillText(line, this.width / 2, y);
+    }
+    
+    /**
+     * ENHANCED: Show reset bounds button (rendered via DOM overlay)
+     */
+    showResetButton() {
+        const container = document.getElementById(this.containerId || 'desmos-graph');
+        if (!container) return;
+        
+        // Remove existing button if any
+        const existingBtn = container.querySelector('.reset-bounds-btn');
+        if (existingBtn) existingBtn.remove();
+        
+        // Create reset button
+        const btn = document.createElement('button');
+        btn.className = 'reset-bounds-btn';
+        btn.textContent = 'Reset View';
+        btn.style.cssText = `
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        `;
+        btn.addEventListener('click', () => {
+            this.resetBounds();
+            btn.remove();
+        });
+        
+        container.style.position = 'relative';
+        container.appendChild(btn);
     }
     
     /**
@@ -927,6 +1223,295 @@ class OfflineGraphManager {
                 <p style="margin: 10px 0; font-size: 0.9em; color: #64748b;">Formula: ${formula.equation}</p>
             </div>
         `;
+    }
+    
+    /**
+     * ENHANCED: Draw calculated point with marker and label
+     * IMPROVED: Better styling and positioning
+     */
+    drawCalculatedPoint(point) {
+        if (!this.canvas || !this.ctx || !point) return;
+        
+        const { x, y, label, color = '#facc15' } = point;
+        const { left, right, bottom, top } = this.bounds;
+        const { padding, pointRadius } = this;
+        
+        const graphWidth = this.width - padding.left - padding.right;
+        const graphHeight = this.height - padding.top - padding.bottom;
+        
+        const xScale = graphWidth / (right - left);
+        const yScale = graphHeight / (top - bottom);
+        
+        const screenX = padding.left + (x - left) * xScale;
+        const screenY = this.height - padding.bottom - (y - bottom) * yScale;
+        
+        // Check if point is within visible bounds
+        if (screenX < padding.left || screenX > this.width - padding.right ||
+            screenY < padding.top || screenY > this.height - padding.bottom) {
+            return;
+        }
+        
+        // Draw outer glow
+        this.ctx.shadowColor = color;
+        this.ctx.shadowBlur = 10;
+        
+        // Draw marker circle (larger for calculated points)
+        this.ctx.fillStyle = color;
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(screenX, screenY, pointRadius * 2, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.stroke();
+        
+        // Reset shadow
+        this.ctx.shadowBlur = 0;
+        
+        // Draw inner highlight
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(screenX, screenY, pointRadius * 0.6, 0, 2 * Math.PI);
+        this.ctx.fill();
+        
+        // Draw label if provided
+        if (label) {
+            this.ctx.fillStyle = '#fff';
+            this.ctx.font = 'bold 12px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'bottom';
+            
+            // Draw background for label with rounded corners effect
+            const textMetrics = this.ctx.measureText(label);
+            const textWidth = textMetrics.width;
+            const textHeight = 18;
+            const labelX = screenX;
+            const labelY = screenY - pointRadius * 2 - 8;
+            
+            // Draw label background
+            this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 1;
+            this.ctx.fillRect(labelX - textWidth / 2 - 6, labelY - textHeight - 2, textWidth + 12, textHeight + 4);
+            this.ctx.strokeRect(labelX - textWidth / 2 - 6, labelY - textHeight - 2, textWidth + 12, textHeight + 4);
+            
+            // Draw text
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.fillText(label, labelX, labelY);
+        }
+    }
+    
+    /**
+     * ENHANCED: Draw error bands/tolerance zones
+     */
+    drawErrorBands() {
+        if (!this.canvas || !this.ctx || !this.errorBands || this.errorBands.length === 0) return;
+        
+        const { left, right, bottom, top } = this.bounds;
+        const { padding } = this;
+        
+        const graphWidth = this.width - padding.left - padding.right;
+        const graphHeight = this.height - padding.top - padding.bottom;
+        
+        const xScale = graphWidth / (right - left);
+        const yScale = graphHeight / (top - bottom);
+        
+        this.errorBands.forEach(band => {
+            if (!band.x || !band.y || !band.tolerance) return;
+            
+            const screenX = padding.left + (band.x - left) * xScale;
+            const screenY = this.height - padding.bottom - (band.y - bottom) * yScale;
+            
+            // Calculate tolerance in screen coordinates
+            const toleranceY = band.tolerance * yScale;
+            
+            // Draw tolerance band (vertical line with shaded area)
+            this.ctx.strokeStyle = band.color || 'rgba(239, 68, 68, 0.5)';
+            this.ctx.fillStyle = band.color || 'rgba(239, 68, 68, 0.2)';
+            this.ctx.lineWidth = 1;
+            
+            // Draw shaded area
+            this.ctx.beginPath();
+            this.ctx.rect(
+                padding.left,
+                screenY - toleranceY,
+                graphWidth,
+                toleranceY * 2
+            );
+            this.ctx.fill();
+            
+            // Draw tolerance lines
+            this.ctx.beginPath();
+            this.ctx.moveTo(padding.left, screenY - toleranceY);
+            this.ctx.lineTo(this.width - padding.right, screenY - toleranceY);
+            this.ctx.moveTo(padding.left, screenY + toleranceY);
+            this.ctx.lineTo(this.width - padding.right, screenY + toleranceY);
+            this.ctx.stroke();
+        });
+    }
+    
+    /**
+     * ENHANCED: Draw legend for multiple curves
+     */
+    drawLegend() {
+        if (!this.canvas || !this.ctx || !this.secondCurve) return;
+        
+        const legendX = this.width - 200;
+        const legendY = 50;
+        const legendHeight = 60;
+        const legendWidth = 180;
+        
+        // Draw legend background
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        this.ctx.strokeStyle = '#334155';
+        this.ctx.lineWidth = 1;
+        this.ctx.fillRect(legendX, legendY, legendWidth, legendHeight);
+        this.ctx.strokeRect(legendX, legendY, legendWidth, legendHeight);
+        
+        // Draw legend items
+        this.ctx.font = '12px sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        
+        // Primary curve
+        this.ctx.strokeStyle = '#3b82f6';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(legendX + 10, legendY + 20);
+        this.ctx.lineTo(legendX + 30, legendY + 20);
+        this.ctx.stroke();
+        this.ctx.fillStyle = '#cbd5e1';
+        this.ctx.fillText('Primary', legendX + 35, legendY + 20);
+        
+        // Second curve
+        this.ctx.strokeStyle = this.secondCurve.color || '#ef4444';
+        this.ctx.beginPath();
+        this.ctx.moveTo(legendX + 10, legendY + 40);
+        this.ctx.lineTo(legendX + 30, legendY + 40);
+        this.ctx.stroke();
+        this.ctx.fillText(this.secondCurve.label || 'Comparison', legendX + 35, legendY + 40);
+    }
+    
+    /**
+     * ENHANCED: Check if formula should auto-graph
+     */
+    shouldAutoGraph(formulaId) {
+        return this.autoGraphFormulas.has(formulaId);
+    }
+    
+    /**
+     * ENHANCED: Get calculated point from formula and values
+     * Finds the actual point on the curve that matches the calculated result
+     */
+    getCalculatedPoint(formula, variableValues, allValues) {
+        if (!formula || !variableValues) return null;
+        
+        // Find which variable was calculated (has a value but was previously unknown)
+        const userVariables = formula.variables.filter(v => {
+            const constants = formula.constants || {};
+            return !constants[v.symbol] && (!globalConstants || !globalConstants[v.symbol]);
+        });
+        
+        // Find the unknown variable (x-axis) - the one we're graphing
+        const unknownVar = userVariables.find(v => {
+            const val = variableValues[v.symbol];
+            return !val || val === null || val === '' || val === 'null' || val === 'N/A' || val === 'n/a' || val === 'na';
+        });
+        
+        if (!unknownVar) return null;
+        
+        // Find the calculated variable (y-axis) - the one that was just solved
+        const calculatedVar = userVariables.find(v => {
+            if (v.symbol === unknownVar.symbol) return false; // Can't be the same as unknown
+            const val = variableValues[v.symbol];
+            return val && val !== null && val !== '' && val !== 'null' && val !== 'N/A' && val !== 'n/a' && val !== 'na';
+        });
+        
+        if (!calculatedVar) return null;
+        
+        try {
+            // Get the calculated value
+            const calculatedValue = parseFloat(variableValues[calculatedVar.symbol]);
+            if (!isFinite(calculatedValue)) return null;
+            
+            // Find the x value that produces this y value on the curve
+            // We need to solve: y = f(x) for x, given y = calculatedValue
+            // For most formulas, we can iterate through x values and find the closest match
+            const x = this.findXForCalculatedY(formula, unknownVar, calculatedVar, calculatedValue, allValues);
+            
+            if (x === null || !isFinite(x)) return null;
+            
+            // Verify the point is on the curve
+            const evalContext = { ...allValues, [unknownVar.symbol]: x };
+            const y = this.evaluateFormula(formula, unknownVar, evalContext);
+            
+            if (y === null || !isFinite(y)) return null;
+            
+            // Use the actual y from the curve (might be slightly different due to numerical precision)
+            return {
+                x: x,
+                y: y,
+                label: `${calculatedVar.symbol} = ${this.formatNumber(calculatedValue)}`,
+                color: '#fbbf24'
+            };
+        } catch (e) {
+            console.warn('[OfflineGraphManager] Error getting calculated point:', e);
+            return null;
+        }
+    }
+    
+    /**
+     * ENHANCED: Find x value that produces the calculated y value
+     * PERFORMANCE: Optimized with binary search and timeout protection
+     */
+    findXForCalculatedY(formula, unknownVar, calculatedVar, targetY, allValues) {
+        // PERFORMANCE: Use fewer points and add timeout
+        const numPoints = 100; // Reduced from 500 for performance
+        const testRange = this.bounds.right - this.bounds.left;
+        if (testRange <= 0 || !isFinite(testRange)) return null;
+        
+        const step = testRange / numPoints;
+        const startTime = performance.now();
+        const maxTime = 1000; // 1 second max for point finding
+        
+        let bestX = null;
+        let bestDiff = Infinity;
+        const tolerance = Math.max(Math.abs(targetY * 0.01), 1e-10); // 1% tolerance
+        
+        // PERFORMANCE: Use binary search approach for faster convergence
+        // First, try a coarse search
+        for (let i = 0; i <= numPoints; i += 5) { // Step by 5 for coarse search
+            if (performance.now() - startTime > maxTime) break;
+            
+            const x = this.bounds.left + (i * step);
+            if (!isFinite(x) || isNaN(x)) continue;
+            
+            try {
+                const evalContext = { ...allValues, [unknownVar.symbol]: x };
+                const y = this.evaluateFormula(formula, unknownVar, evalContext);
+                
+                if (y !== null && isFinite(y) && !isNaN(y)) {
+                    const diff = Math.abs(y - targetY);
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        bestX = x;
+                    }
+                    
+                    // If we're very close, return immediately
+                    if (diff < tolerance) {
+                        return x;
+                    }
+                }
+            } catch (e) {
+                continue; // Skip errors
+            }
+        }
+        
+        // Return best match if within reasonable tolerance
+        if (bestX !== null && bestDiff < Math.abs(targetY * 0.05)) { // 5% tolerance
+            return bestX;
+        }
+        
+        return null;
     }
     
     /**

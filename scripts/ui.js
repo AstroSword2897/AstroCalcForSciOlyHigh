@@ -1,5 +1,6 @@
 /**
  * User Interface Controller - IMPROVED VERSION
+ * Version: 2.0.4 (Cache-busting update)
  * 
  * Main UI controller for the AstroCalc application. Handles:
  * - Formula search and filtering with advanced matching algorithms
@@ -52,13 +53,13 @@ const eventListenerRegistry = new Map();
 /**
  * Add tracked event listener for proper cleanup
  */
-function addTrackedListener(element, event, handler) {
+function addTrackedListener(element, event, handler, useCapture = false) {
     if (!element) return;
-    element.addEventListener(event, handler);
+    element.addEventListener(event, handler, useCapture);
     if (!eventListenerRegistry.has(element)) {
         eventListenerRegistry.set(element, []);
     }
-    eventListenerRegistry.get(element).push({ event, handler });
+    eventListenerRegistry.get(element).push({ event, handler, useCapture });
 }
 
 /**
@@ -67,8 +68,8 @@ function addTrackedListener(element, event, handler) {
 function removeTrackedListeners(element) {
     if (!eventListenerRegistry.has(element)) return;
     const listeners = eventListenerRegistry.get(element);
-    listeners.forEach(({ event, handler }) => {
-        element.removeEventListener(event, handler);
+    listeners.forEach(({ event, handler, useCapture = false }) => {
+        element.removeEventListener(event, handler, useCapture);
     });
     eventListenerRegistry.delete(element);
 }
@@ -123,12 +124,76 @@ const performanceMonitor = {
 
 // NOTE: LRUCache is defined in utils.js - don't redeclare it here
 // Search cache with LRU eviction
-const searchCache = typeof SimpleCache !== 'undefined' 
-    ? new SimpleCache(100) // Use SimpleCache if available
-    : new LRUCache(100); // Fallback to LRU cache
+let searchCache;
+try {
+    if (typeof SimpleCache !== 'undefined') {
+        searchCache = new SimpleCache(100);
+    } else if (typeof LRUCache !== 'undefined') {
+        searchCache = new LRUCache(100);
+    } else {
+        searchCache = new Map();
+        console.warn('[Cache] LRUCache not available, using Map as fallback');
+    }
+} catch (error) {
+    console.error('[Cache] Error creating cache:', error);
+    searchCache = new Map(); // Fallback to Map
+}
 
 // LaTeX conversion cache
 const latexCache = new Map();
+
+// ============================================================================
+// DOM UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Force element visibility with all necessary style properties
+ * Consolidates redundant visibility operations throughout the codebase
+ * 
+ * @param {HTMLElement} element - Element to make visible
+ * @param {Object} options - Optional configuration
+ * @param {string} options.display - Display value (default: 'block')
+ * @param {boolean} options.forceReflow - Force browser reflow (default: false)
+ */
+function forceElementVisibility(element, options = {}) {
+    if (!element) return;
+    
+    const {
+        display = 'block',
+        forceReflow = false
+    } = options;
+    
+    element.style.display = display;
+    element.style.visibility = 'visible';
+    element.style.opacity = '1';
+    
+    if (forceReflow) {
+        // Force browser reflow to ensure styles are applied
+        void element.offsetHeight;
+    }
+}
+
+/**
+ * Standard error handling pattern
+ * Provides consistent error display and logging
+ * 
+ * @param {Error|string} error - Error object or message
+ * @param {string} context - Context where error occurred
+ * @param {boolean} showToUser - Whether to display error to user (default: true)
+ * @returns {string} User-friendly error message
+ */
+function handleError(error, context = 'Unknown', showToUser = true) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const fullMessage = `[${context}] ${errorMessage}`;
+    
+    console.error(fullMessage, error instanceof Error ? error : '');
+    
+    if (showToUser && typeof displayError === 'function') {
+        displayError(errorMessage);
+    }
+    
+    return errorMessage;
+}
 
 // ============================================================================
 // LATEX & MATHJAX RENDERING
@@ -455,15 +520,15 @@ function initializeApp() {
             // CRITICAL: Ensure DOM is ready before rendering
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => {
-                    renderFormulaList();
                     setupEventListeners();
                     setupSearchFunctionality();
+                    renderFormulaList(); // This will call setupFormulaCardEventDelegation at the end
                 });
             } else {
                 // DOM is ready, render immediately
-                renderFormulaList();
                 setupEventListeners();
                 setupSearchFunctionality();
+                renderFormulaList(); // This will call setupFormulaCardEventDelegation at the end
             }
         } else if (retries > 0) {
             console.log(`⏳ Formulas not ready, retrying... (${retries} attempts left)`);
@@ -736,35 +801,70 @@ ensureInitialization();
     // Make sure it's available immediately
     console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
 })();
-
-// Add event delegation for formula cards - FIXED: Handle all clicks properly
+    
+    // Add event delegation for formula cards - FIXED: Handle all clicks properly
 // This is set up in setupEventListeners, but we also set it up here for immediate availability
 function setupFormulaCardEventDelegation() {
     const formulaList = document.getElementById('formula-list');
+    if (!formulaList) {
+        console.warn('[Event Delegation] formula-list not found');
+        return;
+    }
+    
+    // Check if already set up using data attribute
+    if (formulaList.dataset.delegationSetup === 'true') {
+        console.log('[Event Delegation] Already set up, skipping');
+        return;
+    }
+    
+    // Add event listener directly (don't replace the element - that removes all cards!)
     if (formulaList) {
-        // Remove any existing listeners to prevent duplicates
-        const newFormulaList = formulaList.cloneNode(true);
-        formulaList.parentNode.replaceChild(newFormulaList, formulaList);
+        console.log('[Event Delegation] Setting up click handler on formula-list');
         
-        // Add fresh event listener
-        const freshFormulaList = document.getElementById('formula-list');
-        if (freshFormulaList) {
-            freshFormulaList.addEventListener('click', (e) => {
-                // Check if click is on a formula card or any element inside it
-                const card = e.target.closest('.formula-card');
-                if (card) {
-                    const formulaId = card.getAttribute('data-formula-id');
-                    if (formulaId && typeof formulas !== 'undefined') {
-                        const formula = formulas.find(f => f.id === formulaId);
-                        if (formula && typeof selectFormula === 'function') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            console.log('Card clicked via delegation:', formula.name);
-                            selectFormula(formula);
-                            return false;
-                        }
-                    }
+        // Use capture phase to catch events early, before any other handlers
+        const clickHandler = (e) => {
+            console.log('[Event Delegation] Click detected on:', e.target, e.target.className);
+            
+            // Check if click is on a formula card or any element inside it
+            const card = e.target.closest('.formula-card');
+            if (card) {
+                console.log('[Event Delegation] Found formula card');
+                const formulaId = card.getAttribute('data-formula-id');
+                console.log('[Event Delegation] Formula ID:', formulaId);
+                
+                if (!formulaId) {
+                    console.error('[Event Delegation] Card has no data-formula-id attribute!', card);
+                    return;
                 }
+                
+                if (typeof formulas === 'undefined') {
+                    console.error('[Event Delegation] formulas array is undefined!');
+                    return;
+                }
+                
+                const formula = formulas.find(f => f.id === formulaId);
+                if (!formula) {
+                    console.error('[Event Delegation] Formula not found for ID:', formulaId);
+                    return;
+                }
+                
+                if (typeof selectFormula !== 'function') {
+                    console.error('[Event Delegation] selectFormula is not a function!', typeof selectFormula);
+                    return;
+                }
+                
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                console.log('[Event Delegation] ✅ Calling selectFormula for:', formula.name);
+                
+                try {
+                    selectFormula(formula);
+                } catch (error) {
+                    console.error('[Event Delegation] Error calling selectFormula:', error);
+                }
+                return false;
+            }
             
             // Also handle search result items
             const searchResult = e.target.closest('.search-result-item');
@@ -811,10 +911,15 @@ function setupFormulaCardEventDelegation() {
                     }
                 }
             }
-        });
+        };
+        
+        // Add listener in capture phase to catch events early
+        addTrackedListener(formulaList, 'click', clickHandler, true);
+        // Also add in bubble phase as backup
+        addTrackedListener(formulaList, 'click', clickHandler, false);
         
         // Also handle Enter key on formula cards
-        formulaList.addEventListener('keydown', (e) => {
+        addTrackedListener(formulaList, 'keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 const card = e.target.closest('.formula-card');
                 if (card) {
@@ -831,6 +936,10 @@ function setupFormulaCardEventDelegation() {
                 }
             }
         });
+        
+        // Mark as set up using data attribute
+        formulaList.dataset.delegationSetup = 'true';
+        console.log('[Event Delegation] ✅ Formula card click handlers attached');
     }
 }
 
@@ -1363,7 +1472,494 @@ if (typeof formulas !== 'undefined' && formulas.length > 0) {
     semanticSearchSystem.initializeEmbeddings();
 }
 
-// Setup search functionality
+// ============================================================================
+// SEARCH & FILTERING SYSTEM
+// ============================================================================
+
+// ============================================================================
+// CONCEPT HIERARCHY (must be available globally before setupSearchFunctionality)
+// ============================================================================
+
+/**
+ * Hierarchical concept network - defines parent-child relationships
+ * Made available globally for formulas.js and other scripts
+ */
+function getConceptHierarchy() {
+    return {
+        // Top-level: Fundamental Physics
+        'fundamental physics': {
+            children: ['motion', 'energy', 'force', 'gravity', 'radiation', 'thermodynamics'],
+            level: 0
+        },
+        
+        // Motion & Dynamics
+        'motion': {
+            children: ['velocity', 'orbital velocity', 'rotational velocity', 'escape velocity', 'acceleration', 'momentum'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'velocity': {
+            children: ['orbital velocity', 'rotational velocity', 'escape velocity', 'tangential velocity'],
+            level: 2,
+            parent: 'motion',
+            siblings: ['acceleration', 'momentum']
+        },
+        'orbital velocity': {
+            children: [],
+            level: 3,
+            parent: 'velocity',
+            siblings: ['rotational velocity', 'escape velocity'],
+            related: ['orbital period', 'kepler', 'semi-major axis']
+        },
+        'rotational velocity': {
+            children: [],
+            level: 3,
+            parent: 'velocity',
+            siblings: ['orbital velocity', 'escape velocity'],
+            related: ['rotational period', 'angular frequency']
+        },
+        'escape velocity': {
+            children: [],
+            level: 3,
+            parent: 'velocity',
+            siblings: ['orbital velocity', 'rotational velocity'],
+            related: ['gravity', 'surface gravity', 'mass', 'radius']
+        },
+        'acceleration': {
+            children: ['surface gravity', 'centripetal acceleration'],
+            level: 2,
+            parent: 'motion',
+            siblings: ['velocity', 'momentum']
+        },
+        'momentum': {
+            children: ['angular momentum', 'linear momentum'],
+            level: 2,
+            parent: 'motion',
+            siblings: ['velocity', 'acceleration']
+        },
+        'angular momentum': {
+            children: ['angular momentum elliptical'],
+            level: 3,
+            parent: 'momentum',
+            related: ['rotational velocity', 'orbital velocity']
+        },
+        
+        // Energy
+        'energy': {
+            children: ['orbital energy', 'kinetic energy', 'potential energy', 'photon energy', 'radiative energy'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'orbital energy': {
+            children: ['vis viva'],
+            level: 2,
+            parent: 'energy',
+            related: ['orbital velocity', 'semi-major axis', 'period']
+        },
+        'photon energy': {
+            children: [],
+            level: 2,
+            parent: 'energy',
+            related: ['wavelength', 'planck relation', 'frequency']
+        },
+        
+        // Force & Gravity
+        'force': {
+            children: ['gravity', 'tidal force', 'centripetal force'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'gravity': {
+            children: ['surface gravity', 'escape velocity', 'tidal force'],
+            level: 2,
+            parent: 'force',
+            related: ['mass', 'radius', 'density']
+        },
+        'surface gravity': {
+            children: [],
+            level: 3,
+            parent: 'gravity',
+            related: ['mass', 'radius', 'escape velocity']
+        },
+        'tidal force': {
+            children: ['roche limit'],
+            level: 3,
+            parent: 'gravity',
+            related: ['mass', 'distance', 'hill radius']
+        },
+        'roche limit': {
+            children: [],
+            level: 4,
+            parent: 'tidal force',
+            related: ['mass', 'density', 'hill radius']
+        },
+        'hill radius': {
+            children: [],
+            level: 3,
+            parent: 'gravity',
+            related: ['mass', 'semi-major axis', 'roche limit']
+        },
+        
+        // Distance & Position
+        'distance': {
+            children: ['parallax', 'parallax distance', 'distance modulus', 'luminosity distance', 'angular diameter distance', 'semi-major axis'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'parallax': {
+            children: ['parallax distance radians', 'parallax distance arcsec', 'trigonometric parallax'],
+            level: 2,
+            parent: 'distance',
+            siblings: ['distance modulus', 'luminosity distance']
+        },
+        'parallax distance': {
+            children: ['parallax distance radians', 'parallax distance arcsec'],
+            level: 3,
+            parent: 'parallax',
+            related: ['distance modulus', 'standard candle']
+        },
+        'distance modulus': {
+            children: [],
+            level: 2,
+            parent: 'distance',
+            siblings: ['parallax', 'luminosity distance'],
+            related: ['magnitude', 'apparent magnitude', 'absolute magnitude', 'extinction']
+        },
+        'luminosity distance': {
+            children: [],
+            level: 2,
+            parent: 'distance',
+            siblings: ['parallax', 'distance modulus'],
+            related: ['luminosity', 'redshift', 'hubble']
+        },
+        'angular diameter distance': {
+            children: [],
+            level: 2,
+            parent: 'distance',
+            siblings: ['parallax', 'distance modulus'],
+            related: ['angular size', 'redshift']
+        },
+        'semi-major axis': {
+            children: [],
+            level: 2,
+            parent: 'distance',
+            related: ['orbital period', 'kepler', 'orbital velocity']
+        },
+        
+        // Time & Period
+        'period': {
+            children: ['orbital period', 'rotational period', 'synodic period'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'orbital period': {
+            children: [],
+            level: 2,
+            parent: 'period',
+            siblings: ['rotational period', 'synodic period'],
+            related: ['kepler', 'semi-major axis', 'mass', 'orbital velocity']
+        },
+        'synodic period': {
+            children: [],
+            level: 2,
+            parent: 'period',
+            siblings: ['orbital period'],
+            related: ['orbital period']
+        },
+        'rotational period': {
+            children: [],
+            level: 2,
+            parent: 'period',
+            siblings: ['orbital period'],
+            related: ['rotational velocity', 'angular frequency']
+        },
+        'lifetime': {
+            children: ['stellar lifetime', 'timescale'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'stellar lifetime': {
+            children: [],
+            level: 2,
+            parent: 'lifetime',
+            related: ['mass', 'luminosity', 'stellar evolution']
+        },
+        'timescale': {
+            children: ['synchrotron cooling timescale', 'tidal locking timescale', 'thermal timescale', 'dynamical timescale'],
+            level: 2,
+            parent: 'lifetime'
+        },
+        
+        // Mass
+        'mass': {
+            children: ['stellar mass', 'planetary mass', 'jeans mass', 'chandrasekhar limit'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'chandrasekhar limit': {
+            children: [],
+            level: 2,
+            parent: 'mass',
+            related: ['white dwarf', 'neutron star', 'compact object']
+        },
+        'jeans mass': {
+            children: [],
+            level: 2,
+            parent: 'mass',
+            related: ['density', 'temperature', 'gravitational collapse']
+        },
+        
+        // Temperature
+        'temperature': {
+            children: ['effective temperature', 'surface temperature', 'color temperature', 'planetary equilibrium temperature'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'effective temperature': {
+            children: [],
+            level: 2,
+            parent: 'temperature',
+            related: ['luminosity', 'radius', 'blackbody', 'wien law']
+        },
+        'planetary equilibrium temperature': {
+            children: [],
+            level: 2,
+            parent: 'temperature',
+            related: ['luminosity', 'distance', 'albedo']
+        },
+        
+        // Radiation & Stellar Properties
+        'radiation': {
+            children: ['blackbody', 'blackbody radiation', 'flux', 'luminosity', 'magnitude', 'wavelength'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'blackbody': {
+            children: ['blackbody radiation', 'wien law', 'planck relation'],
+            level: 2,
+            parent: 'radiation',
+            related: ['temperature', 'wavelength', 'flux']
+        },
+        'blackbody radiation': {
+            children: [],
+            level: 3,
+            parent: 'blackbody',
+            related: ['temperature', 'wavelength', 'flux', 'wien law']
+        },
+        'wien law': {
+            children: [],
+            level: 3,
+            parent: 'blackbody',
+            related: ['temperature', 'peak wavelength', 'wavelength']
+        },
+        'planck relation': {
+            children: [],
+            level: 3,
+            parent: 'blackbody',
+            related: ['photon energy', 'wavelength', 'frequency']
+        },
+        'flux': {
+            children: ['flux from luminosity', 'flux temperature', 'inverse square law brightness'],
+            level: 2,
+            parent: 'radiation',
+            related: ['luminosity', 'distance', 'magnitude']
+        },
+        'luminosity': {
+            children: ['flux from luminosity', 'mass luminosity relation'],
+            level: 2,
+            parent: 'radiation',
+            related: ['radius', 'temperature', 'magnitude', 'distance']
+        },
+        'magnitude': {
+            children: ['apparent magnitude', 'absolute magnitude', 'distance modulus', 'magnitude flux relation'],
+            level: 2,
+            parent: 'radiation',
+            related: ['flux', 'luminosity', 'distance']
+        },
+        'wavelength': {
+            children: ['peak wavelength', 'doppler shift'],
+            level: 2,
+            parent: 'radiation',
+            related: ['wien law', 'planck relation', 'redshift']
+        },
+        
+        // Spectroscopy
+        'spectroscopy': {
+            children: ['doppler', 'doppler shift', 'equivalent width', 'line profile'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'doppler': {
+            children: ['doppler shift', 'doppler shift approx', 'radial velocity'],
+            level: 2,
+            parent: 'spectroscopy',
+            related: ['velocity', 'redshift', 'wavelength']
+        },
+        'doppler shift': {
+            children: [],
+            level: 3,
+            parent: 'doppler',
+            related: ['velocity', 'redshift', 'wavelength', 'radial velocity curve']
+        },
+        'equivalent width': {
+            children: [],
+            level: 2,
+            parent: 'spectroscopy',
+            related: ['absorption', 'emission', 'line profile']
+        },
+        
+        // Cosmology
+        'cosmology': {
+            children: ['redshift', 'hubble', 'hubble law', 'lookback time', 'cosmic redshift'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'redshift': {
+            children: ['cosmic redshift', 'doppler shift'],
+            level: 2,
+            parent: 'cosmology',
+            related: ['hubble', 'distance', 'velocity']
+        },
+        'hubble': {
+            children: ['hubble law', 'hubble constant'],
+            level: 2,
+            parent: 'cosmology',
+            related: ['redshift', 'distance', 'velocity']
+        },
+        'hubble law': {
+            children: [],
+            level: 3,
+            parent: 'hubble',
+            related: ['redshift', 'distance', 'velocity', 'luminosity distance']
+        },
+        'lookback time': {
+            children: [],
+            level: 2,
+            parent: 'cosmology',
+            related: ['redshift', 'hubble', 'distance']
+        },
+        
+        // Stellar Evolution
+        'stellar evolution': {
+            children: ['main sequence', 'giant', 'white dwarf', 'neutron star', 'black hole', 'stellar lifetime'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'main sequence': {
+            children: ['mass luminosity relation', 'stellar lifetime'],
+            level: 2,
+            parent: 'stellar evolution',
+            related: ['mass', 'luminosity', 'temperature']
+        },
+        'white dwarf': {
+            children: ['white dwarf mass radius', 'chandrasekhar limit', 'binary white dwarf'],
+            level: 2,
+            parent: 'stellar evolution',
+            related: ['mass', 'radius', 'density']
+        },
+        'binary white dwarf': {
+            children: ['white dwarf orbital decay', 'white dwarf merger timescale'],
+            level: 3,
+            parent: 'white dwarf',
+            related: ['orbital period', 'mass', 'roche limit']
+        },
+        
+        // Binary Systems
+        'binary': {
+            children: ['binary white dwarf', 'kepler third law binary', 'center of mass'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'kepler third law binary': {
+            children: [],
+            level: 2,
+            parent: 'binary',
+            related: ['orbital period', 'mass', 'semi-major axis']
+        },
+        'center of mass': {
+            children: [],
+            level: 2,
+            parent: 'binary',
+            related: ['mass', 'distance', 'orbital period']
+        },
+        
+        // Kepler's Laws
+        'kepler': {
+            children: ['kepler third law', 'kepler third law solar', 'kepler third law binary'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'kepler third law': {
+            children: [],
+            level: 2,
+            parent: 'kepler',
+            related: ['orbital period', 'semi-major axis', 'mass']
+        },
+        
+        // Relativity
+        'relativity': {
+            children: ['schwarzschild radius', 'time dilation', 'length contraction', 'einstein radius'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'schwarzschild radius': {
+            children: [],
+            level: 2,
+            parent: 'relativity',
+            related: ['mass', 'black hole', 'event horizon']
+        },
+        'einstein radius': {
+            children: [],
+            level: 2,
+            parent: 'relativity',
+            related: ['gravitational lensing', 'mass', 'distance']
+        },
+        
+        // High Energy Astrophysics
+        'high energy': {
+            children: ['synchrotron', 'synchrotron power', 'magnetic energy density', 'max gamma bohm'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'synchrotron': {
+            children: ['synchrotron power', 'synchrotron cooling timescale'],
+            level: 2,
+            parent: 'high energy',
+            related: ['magnetic field', 'energy', 'radiation']
+        },
+        
+        // Telescopes & Optics
+        'telescopes': {
+            children: ['angular resolution', 'light gathering power', 'magnification', 'f ratio'],
+            level: 1,
+            parent: 'fundamental physics'
+        },
+        'angular resolution': {
+            children: [],
+            level: 2,
+            parent: 'telescopes',
+            related: ['wavelength', 'aperture', 'diffraction']
+        },
+        'light gathering power': {
+            children: [],
+            level: 2,
+            parent: 'telescopes',
+            related: ['aperture', 'magnitude', 'flux']
+        }
+    };
+}
+
+// Make getConceptHierarchy available globally immediately
+window.getConceptHierarchy = getConceptHierarchy;
+
+// ============================================================================
+// SEARCH FUNCTIONALITY
+// ============================================================================
+
+/**
+ * Setup search functionality with debouncing and caching
+ * Handles search input, clear button, and suggestion clicks
+ */
 function setupSearchFunctionality() {
     const searchInput = document.getElementById('formula-search');
     const clearBtn = document.getElementById('clear-search');
@@ -1459,13 +2055,22 @@ function setupSearchFunctionality() {
         
         // PERFORMANCE: Score formulas with early exit for low scores
         // Only do expensive semantic matching on top candidates
+        // ENHANCED: Now includes topic-based and context-aware scoring
         const allScoredFormulas = allFormulas.map(formula => {
             const scoreData = calculateSearchScore(formula, searchLower, searchWords);
             
             // Early exit if score is very low (skip expensive semantic matching)
-            if (scoreData.score < 10) {
+            // BUT still include topic/context scores for topic-relevant formulas
+            if (scoreData.score < 10 && (!scoreData.topicRelevanceScore || scoreData.topicRelevanceScore < 100) && 
+                (!scoreData.contextScore || scoreData.contextScore < 100)) {
                 scoreData.score = Math.max(0, scoreData.score || 0);
-                return { formula, score: scoreData.score, metrics: scoreData.metrics };
+                return { 
+                    formula, 
+                    score: scoreData.score, 
+                    metrics: scoreData.metrics,
+                    topicRelevanceScore: scoreData.topicRelevanceScore || 0,
+                    contextScore: scoreData.contextScore || 0
+                };
             }
             
             // Add contextual semantic matching score (only for promising candidates)
@@ -1500,18 +2105,55 @@ function setupSearchFunctionality() {
                 scoreData.score = 0;
             }
             
-            return { formula, score: scoreData.score, metrics: scoreData.metrics };
+            // Include topic and context scores for better relevance ranking
+            return { 
+                formula, 
+                score: scoreData.score, 
+                metrics: scoreData.metrics,
+                topicRelevanceScore: scoreData.topicRelevanceScore || 0,
+                contextScore: scoreData.contextScore || 0
+            };
         });
         
         // PERFORMANCE: Filter and sort in one pass, limit results early
+        // ENHANCED: Include topic-based relevance, not just literal matches
         let scoredFormulas = allScoredFormulas
           .filter(item => {
-              // Quick filter: Show formulas with ANY score > 0 OR any match type
-              const hasStrongMatch = item.metrics.nameMatch || item.metrics.questionPatternMatch || item.metrics.conceptMatch;
+              // CRITICAL: Name matches ALWAYS pass, regardless of score
+              // This ensures exact/partial name searches always show results
+              if (item.metrics.nameMatch) {
+                  return true;
+              }
+              
+              // Show formulas with:
+              // 1. Literal matches (concept, variable, etc.)
+              const hasStrongMatch = item.metrics.questionPatternMatch || item.metrics.conceptMatch;
               const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.variableMatch || item.metrics.categoryMatch;
-              return item.score > 0 || hasStrongMatch || hasAnyMatch;
+              
+              // 2. Topic relevance (even without literal matches)
+              const hasTopicRelevance = (item.topicRelevanceScore && item.topicRelevanceScore > 100) || 
+                                       (item.contextScore && item.contextScore > 100);
+              
+              // 3. Any score > 0 (includes topic/context scores)
+              return item.score > 0 || hasStrongMatch || hasAnyMatch || hasTopicRelevance;
           })
-          .sort((a, b) => b.score - a.score) // Sort by relevance (highest to lowest)
+          .sort((a, b) => {
+              // Sort by combined relevance: literal + topic + context
+              // Prioritize formulas with both literal and topic relevance
+              const aCombined = a.score + (a.topicRelevanceScore || 0) + (a.contextScore || 0);
+              const bCombined = b.score + (b.topicRelevanceScore || 0) + (b.contextScore || 0);
+              
+              // Boost formulas that have both literal AND topic relevance
+              const aHasBoth = (a.score > 0 || a.metrics.nameMatch || a.metrics.conceptMatch) && 
+                              (a.topicRelevanceScore > 100 || a.contextScore > 100);
+              const bHasBoth = (b.score > 0 || b.metrics.nameMatch || b.metrics.conceptMatch) && 
+                              (b.topicRelevanceScore > 100 || b.contextScore > 100);
+              
+              if (aHasBoth && !bHasBoth) return -1;
+              if (bHasBoth && !aHasBoth) return 1;
+              
+              return bCombined - aCombined;
+          })
           .slice(0, 50); // Limit to 50 results
         
         // ALWAYS show at least top 10 results, even if they have low scores
@@ -1539,6 +2181,269 @@ function setupSearchFunctionality() {
         renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
     }
     
+    // Extract concepts from text using key physics/astronomy terms
+    function extractConceptsFromText(text) {
+        const concepts = [];
+        const lowerText = text.toLowerCase();
+        
+        // Get the comprehensive physics terms dictionary (defined in parseNaturalLanguageQuery)
+        // We'll use a simplified version here, but the full matching happens in parseNaturalLanguageQuery
+        const keyTerms = [
+            'temperature', 'temp', 'hot', 'thermal', 'effective temperature', 'surface temperature',
+            'spectrum', 'spectral', 'light', 'wavelength', 'color', 'colour', 'peak wavelength',
+            'flux', 'luminosity', 'brightness', 'radiance', 'magnitude', 'apparent magnitude', 'absolute magnitude',
+            'distance', 'parallax', 'modulus', 'parallax distance', 'distance modulus', 'luminosity distance',
+            'velocity', 'speed', 'orbital velocity', 'escape velocity', 'rotational velocity',
+            'period', 'time', 'orbital period', 'rotational period', 'synodic period',
+            'mass', 'weight', 'stellar mass', 'planetary mass', 'solar mass', 'chandrasekhar limit',
+            'radius', 'size', 'diameter', 'semi-major axis', 'orbital distance',
+            'gravity', 'gravitational', 'surface gravity', 'gravitational acceleration',
+            'energy', 'photon energy', 'orbital energy', 'vis viva',
+            'redshift', 'doppler', 'doppler shift', 'cosmic redshift',
+            'blackbody', 'black body', 'wien', 'wien law', 'stefan', 'planck', 'blackbody radiation',
+            'kepler', 'orbital', 'orbit', 'kepler third law',
+            'white dwarf', 'star', 'stellar', 'planet', 'binary', 'binary system',
+            'telescope', 'angular resolution', 'light gathering power', 'magnification',
+            'hubble', 'hubble law', 'cosmology', 'cosmic expansion',
+            'tidal', 'tidal force', 'roche limit', 'hill radius'
+        ];
+        
+        // Match terms with word boundaries for better accuracy
+        keyTerms.forEach(term => {
+            const termLower = term.toLowerCase();
+            // Word boundary match (better accuracy)
+            const wordBoundaryRegex = new RegExp(`\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (wordBoundaryRegex.test(lowerText)) {
+                concepts.push(term);
+            } else if (lowerText.includes(termLower) && termLower.length >= 3) {
+                // Partial match for longer terms
+                concepts.push(term);
+            }
+        });
+        
+        return [...new Set(concepts)]; // Remove duplicates
+    }
+    
+    // Parse natural language query to extract intent and concepts
+    function parseNaturalLanguageQuery(searchLower, searchWords) {
+        const result = {
+            intent: 'search', // calculate, find, determine, how, what, etc.
+            concepts: [],
+            variables: [],
+            actions: [],
+            direction: null, // 'from', 'to', 'based_on', null
+            sourceConcepts: [], // What we're calculating FROM
+            targetConcepts: [] // What we're calculating TO
+        };
+        
+        // Remove common question words and extract intent
+        const questionWords = ['how', 'what', 'where', 'when', 'why', 'which', 'who'];
+        const actionWords = {
+            'calculate': ['calculate', 'compute', 'find', 'determine', 'solve', 'work out', 'figure out'],
+            'find': ['find', 'get', 'obtain', 'discover', 'locate'],
+            'determine': ['determine', 'figure', 'establish', 'ascertain'],
+            'convert': ['convert', 'transform', 'change'],
+            'relate': ['relate', 'connect', 'link', 'relationship', 'between']
+        };
+        
+        // Detect intent
+        for (const [intent, words] of Object.entries(actionWords)) {
+            if (words.some(word => searchLower.includes(word))) {
+                result.intent = intent;
+                result.actions.push(intent);
+                break;
+            }
+        }
+        
+        // ENHANCED: Detect directionality (FROM, TO, BASED ON)
+        const directionPatterns = {
+            'from': ['from', 'using', 'with', 'given', 'based on', 'based off', 'based off of', 'from the', 'using the', 'with the'],
+            'to': ['to', 'into', 'for', 'as', 'in terms of'],
+            'based_on': ['based on', 'based off', 'based off of', 'derived from', 'calculated from', 'determined from']
+        };
+        
+        // Check for direction indicators
+        for (const [direction, patterns] of Object.entries(directionPatterns)) {
+            for (const pattern of patterns) {
+                if (searchLower.includes(pattern)) {
+                    result.direction = direction;
+                    
+                    // Extract source and target concepts
+                    const parts = searchLower.split(new RegExp(`\\b${pattern}\\b`, 'i'));
+                    if (parts.length >= 2) {
+                        // First part is what we want (target)
+                        const targetText = parts[0].trim();
+                        // Second part is what we have (source)
+                        const sourceText = parts.slice(1).join(' ').trim();
+                        
+                        // Extract concepts from each part
+                        result.targetConcepts = extractConceptsFromText(targetText);
+                        result.sourceConcepts = extractConceptsFromText(sourceText);
+                    }
+                    break;
+                }
+            }
+            if (result.direction) break;
+        }
+        
+        // Extract key concepts (physics/astronomy terms) with comprehensive synonyms
+        // Note: This is a simplified version - the full version has many more terms
+        const physicsTerms = {
+            // Motion & Velocity
+            'velocity': ['velocity', 'speed', 'v', 'how fast', 'rate of motion', 'motion', 'moving', 'mph', 'kmh', 'mps'],
+            'orbital velocity': ['orbital velocity', 'orbital speed', 'circular motion', 'orbit speed', 'orbiting', 'revolve', 'orbital motion', 'circular orbit'],
+            'escape velocity': ['escape velocity', 'escape speed', 'leave planet', 'escape gravity', 'break free', 'get away from', 'escape from', 'break away'],
+            'rotational velocity': ['rotational velocity', 'rotation speed', 'spin', 'rotating', 'rotates', 'spinning', 'angular velocity', 'spin rate'],
+            'vis viva': ['vis viva', 'orbital energy', 'total energy', 'mechanical energy'],
+            
+            // Distance & Position
+            'distance': ['distance', 'd', 'how far', 'separation', 'away', 'far away', 'how far away', 'distant', 'separation distance'],
+            'parallax': ['parallax', 'parallax distance', 'stellar parallax', 'parallax method', 'trigonometric parallax', 'annual parallax'],
+            'radius': ['radius', 'r', 'size', 'diameter', 'how big', 'size of', 'stellar radius', 'planetary radius'],
+            'semi-major axis': ['semi-major axis', 'orbital distance', 'a', 'orbit size', 'orbit distance', 'semi major axis', 'orbital radius'],
+            'aphelion': ['aphelion', 'farthest point', 'maximum distance'],
+            'perihelion': ['perihelion', 'closest point', 'minimum distance', 'periapsis'],
+            'eccentricity': ['eccentricity', 'e', 'orbit shape', 'elliptical shape'],
+            
+            // Time & Period
+            'period': ['period', 'p', 'time', 'how long', 'duration', 't', 'time period'],
+            'orbital period': ['orbital period', 'orbit time', 'revolution', 'year', 'orbital time', 'revolution period'],
+            'synodic period': ['synodic period', 'synodic', 'apparent period', 'relative period'],
+            'lifetime': ['lifetime', 'age', 'how long', 'survive', 'live', 'stellar age', 'star age'],
+            'stellar lifetime': ['stellar lifetime', 'main sequence lifetime', 'star lifetime', 'stellar age'],
+            
+            // Mass & Gravity
+            'mass': ['mass', 'm', 'weight', 'how heavy', 'stellar mass', 'planetary mass', 'solar mass'],
+            'gravity': ['gravity', 'g', 'gravitational', 'surface gravity', 'acceleration', 'gravitational acceleration', 'g force'],
+            'escape': ['escape', 'leave', 'break free', 'get away'],
+            'chandrasekhar limit': ['chandrasekhar limit', 'chandrasekhar', 'white dwarf limit', 'maximum mass', 'wd limit'],
+            'jeans mass': ['jeans mass', 'jeans', 'gravitational collapse', 'critical mass'],
+            'center of mass': ['center of mass', 'barycenter', 'center of gravity', 'com'],
+            
+            // Energy & Luminosity
+            'luminosity': ['luminosity', 'l', 'brightness', 'how bright', 'intrinsic brightness', 'star brightness', 'stellar brightness', 'power output', 'radiative power'],
+            'flux': ['flux', 'f', 'observed brightness', 'apparent brightness', 'light received', 'light flux', 'radiation flux', 'energy flux', 'flux density'],
+            'magnitude': ['magnitude', 'm', 'apparent magnitude', 'absolute magnitude', 'brightness', 'star magnitude', 'stellar magnitude', 'photometric'],
+            'energy': ['energy', 'e', 'kinetic', 'potential', 'orbital energy', 'total energy', 'mechanical energy'],
+            'photon energy': ['photon energy', 'quantum energy', 'light energy', 'em energy'],
+            'inverse square law': ['inverse square law', 'isq', 'brightness law', 'flux law'],
+            
+            // Temperature & Radiation
+            'temperature': ['temperature', 't', 'temp', 'how hot', 'thermal', 'stellar temperature', 'surface temperature', 'effective temperature'],
+            'wavelength': ['wavelength', 'lambda', 'λ', 'color', 'frequency', 'em wavelength', 'light wavelength'],
+            'peak wavelength': ['peak wavelength', 'wien', 'maximum wavelength', 'lambda max', 'wien peak', 'wavelength peak'],
+            'blackbody': ['blackbody', 'radiation', 'thermal radiation', 'bb radiation', 'black body'],
+            'wien law': ['wien law', 'wien displacement', 'wien', 'wien displacement law'],
+            'stefan boltzmann': ['stefan boltzmann', 'stefan', 'sb law', 'stefan boltzmann law', 'radiative law'],
+            'planck': ['planck', 'planck relation', 'planck constant', 'quantum', 'photon'],
+            
+            // Stellar Properties
+            'star': ['star', 'stellar', 'sun', 'solar', 'stellar object'],
+            'main sequence': ['main sequence', 'ms star', 'dwarf star', 'main sequence star'],
+            'red giant': ['red giant', 'giant', 'giant star', 'evolved star'],
+            'white dwarf': ['white dwarf', 'dwarf', 'degenerate', 'wd', 'white dwarf star'],
+            'neutron star': ['neutron star', 'pulsar', 'ns', 'compact object'],
+            'black hole': ['black hole', 'bh', 'singularity', 'event horizon'],
+            'supernova': ['supernova', 'sn', 'explosion', 'stellar explosion'],
+            'planet': ['planet', 'planetary', 'exoplanet', 'extrasolar planet'],
+            'binary star': ['binary star', 'binary', 'double star', 'binary system'],
+            'hr diagram': ['hr diagram', 'hertzsprung russell', 'hr', 'color magnitude'],
+            'mass luminosity': ['mass luminosity', 'mass luminosity relation', 'ml relation'],
+            
+            // Cosmology
+            'hubble': ['hubble', 'expansion', 'universe', 'galaxy', 'redshift', 'hubble constant', 'h0', 'hubble law'],
+            'redshift': ['redshift', 'z', 'cosmic', 'doppler', 'cosmological redshift'],
+            'density': ['density', 'rho', 'ρ', 'critical density', 'mass density', 'energy density'],
+            'critical density': ['critical density', 'omega', 'closure density', 'flat universe'],
+            'dark matter': ['dark matter', 'dm', 'missing mass'],
+            'dark energy': ['dark energy', 'de', 'cosmological constant'],
+            'cmb': ['cmb', 'cosmic microwave background', 'microwave background', 'relic radiation'],
+            'lookback time': ['lookback time', 'light travel time', 'cosmic time'],
+            'friedmann': ['friedmann', 'friedmann equation', 'cosmological equation'],
+            
+            // Optics & Telescopes
+            'angular size': ['angular size', 'angular diameter', 'apparent size', 'how big', 'angular extent', 'angular measure'],
+            'angular resolution': ['angular resolution', 'resolution', 'resolving', 'resolving power', 'angular resolving'],
+            'magnification': ['magnification', 'zoom', 'enlarge', 'magnifying power', 'angular magnification'],
+            'light gathering': ['light gathering', 'light gathering power', 'aperture', 'collecting area'],
+            'f ratio': ['f ratio', 'f number', 'focal ratio', 'f/#', 'f stop'],
+            'aperture': ['aperture', 'diameter', 'telescope size', 'mirror size'],
+            'focal length': ['focal length', 'f', 'focus'],
+            
+            // Orbital Mechanics
+            'kepler': ['kepler', 'orbital', 'orbit', 'elliptical', 'kepler law', 'keplers law'],
+            'kepler third law': ['kepler third law', 'kepler 3', 'period distance', 'p2 a3'],
+            'tidal': ['tidal', 'tide', 'roche', 'disruption', 'tidal force', 'tidal effect'],
+            'roche limit': ['roche limit', 'roche', 'tidal disruption', 'disruption radius'],
+            'hill radius': ['hill radius', 'sphere of influence', 'gravitational influence', 'hill sphere'],
+            'tidal locking': ['tidal locking', 'synchronous rotation', 'tidally locked'],
+            'angular momentum': ['angular momentum', 'l', 'orbital angular momentum', 'spin angular momentum'],
+            
+            // Spectroscopy
+            'doppler': ['doppler', 'doppler shift', 'doppler effect', 'radial velocity'],
+            'spectroscopy': ['spectroscopy', 'spectrum', 'spectral', 'spectral line'],
+            'equivalent width': ['equivalent width', 'ew', 'line strength', 'absorption strength'],
+            'absorption': ['absorption', 'absorption line', 'spectral absorption'],
+            'emission': ['emission', 'emission line', 'spectral emission'],
+            'redshift z': ['redshift z', 'z', 'cosmological z'],
+            
+            // Exoplanets
+            'exoplanet': ['exoplanet', 'extrasolar planet', 'exo planet', 'alien planet'],
+            'transit': ['transit', 'transit method', 'transit depth', 'eclipse'],
+            'radial velocity': ['radial velocity', 'rv method', 'doppler method', 'wobble'],
+            'equilibrium temperature': ['equilibrium temperature', 'planet temperature', 'exoplanet temp', 'effective temp'],
+            'albedo': ['albedo', 'reflectivity', 'reflection coefficient'],
+            'greenhouse': ['greenhouse', 'greenhouse effect', 'atmospheric effect']
+        };
+        
+        // Match concepts with improved accuracy (word boundary matching)
+        for (const [concept, synonyms] of Object.entries(physicsTerms)) {
+            for (const syn of synonyms) {
+                const synLower = syn.toLowerCase();
+                // Exact match (highest priority)
+                if (searchLower === synLower) {
+                    result.concepts.push(concept);
+                    break;
+                }
+                // Word boundary match (better accuracy)
+                const wordBoundaryRegex = new RegExp(`\\b${synLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+                if (wordBoundaryRegex.test(searchLower)) {
+                    result.concepts.push(concept);
+                    break;
+                }
+                // Partial match (lower priority, but still valid)
+                if (searchLower.includes(synLower) && synLower.length >= 3) {
+                    result.concepts.push(concept);
+                    break;
+                }
+            }
+        }
+        
+        // Remove duplicate concepts
+        result.concepts = [...new Set(result.concepts)];
+        
+        // Extract variable symbols mentioned
+        if (typeof formulas !== 'undefined' && Array.isArray(formulas)) {
+            const allVarSymbols = new Set();
+            formulas.forEach(f => {
+                if (f.variables && Array.isArray(f.variables)) {
+                    f.variables.forEach(v => {
+                        if (v.symbol) allVarSymbols.add(v.symbol.toLowerCase());
+                        if (v.name) allVarSymbols.add(v.name.toLowerCase());
+                    });
+                }
+            });
+            
+            allVarSymbols.forEach(symbol => {
+                if (searchLower.includes(symbol) || searchWords.includes(symbol)) {
+                    result.variables.push(symbol);
+                }
+            });
+        }
+        
+        return result;
+    }
+    
     // Calculate search relevance score with advanced natural language understanding
     function calculateSearchScore(formula, searchLower, searchWords) {
         let score = 0;
@@ -1562,7 +2467,10 @@ function setupSearchFunctionality() {
             expandedConcepts: [],
             semanticMatch: false,
             synonymMatch: false,
-            dynamicBoost: 0
+            dynamicBoost: 0,
+            intentMatch: false,
+            targetMatch: false,
+            sourceMatch: false
         };
         
         // Parse question intent and extract key concepts
@@ -1570,6 +2478,55 @@ function setupSearchFunctionality() {
         
         // Store original concepts for display
         metrics.originalConcepts = [...parsedQuery.concepts];
+        
+        // INTENT-BASED SCORING: boost formulas that align with detected intent/actions
+        // NOTE: Intent scores are applied later, only when formula is topic-relevant
+        // This prevents irrelevant formulas from getting boosted just because query has "calculate", etc.
+        const intentWeights = {
+            calculate: 180,
+            find: 140,
+            determine: 140,
+            convert: 160,
+            relate: 120,
+            search: 80
+        };
+        // Store intent info for later conditional application
+        const hasIntent = parsedQuery.intent && intentWeights[parsedQuery.intent];
+        const hasMultipleActions = parsedQuery.actions && parsedQuery.actions.length > 1;
+        
+        // TARGET/SOURCE concept emphasis (distinguish what user wants vs has)
+        const formulaConceptsLower = (formula.concepts || []).map(c => c.toLowerCase());
+        const normalize = (text) => text.toLowerCase();
+        const targetMatches = (parsedQuery.targetConcepts || []).filter(concept => {
+            const conceptLower = normalize(concept);
+            return formulaConceptsLower.some(fc => fc.includes(conceptLower) || conceptLower.includes(fc));
+        });
+        if (targetMatches.length > 0) {
+            const targetBoost = 120 * targetMatches.length;
+            score += targetBoost;
+            metrics.targetMatch = true;
+            metrics.matchReasons.push(`Targets: ${targetMatches.join(', ')}`);
+            targetMatches.forEach(match => {
+                if (!metrics.matchedConcepts.includes(match)) {
+                    metrics.matchedConcepts.push(match);
+                }
+            });
+        }
+        const sourceMatches = (parsedQuery.sourceConcepts || []).filter(concept => {
+            const conceptLower = normalize(concept);
+            return formulaConceptsLower.some(fc => fc.includes(conceptLower) || conceptLower.includes(fc));
+        });
+        if (sourceMatches.length > 0) {
+            const sourceBoost = 60 * sourceMatches.length;
+            score += sourceBoost;
+            metrics.sourceMatch = true;
+            metrics.matchReasons.push(`Uses provided: ${sourceMatches.join(', ')}`);
+            sourceMatches.forEach(match => {
+                if (!metrics.matchedConcepts.includes(match)) {
+                    metrics.matchedConcepts.push(match);
+                }
+            });
+        }
         
         // Detect problem domain (e.g., distance, temperature, orbital)
         if (typeof conceptMatchingSystem !== 'undefined' && conceptMatchingSystem.detectProblemDomain) {
@@ -1600,18 +2557,63 @@ function setupSearchFunctionality() {
         }
         
         // Exact name match (highest priority) - Increased to 10000 for more accuracy
-        if (nameLower === searchLower) {
+        // Normalize apostrophes for better matching
+        const normalizedName = nameLower.replace(/[''"]/g, "'");
+        const normalizedSearch = searchLower.replace(/[''"]/g, "'");
+        
+        if (normalizedName === normalizedSearch) {
             score += 10000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Exact name match');
-        } else if (nameLower.startsWith(searchLower)) {
+        } else if (normalizedName.startsWith(normalizedSearch)) {
             score += 5000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Name starts with search term');
-        } else if (nameLower.includes(searchLower)) {
+        } else if (normalizedName.includes(normalizedSearch)) {
             score += 2000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Name contains search term');
+        }
+        
+        // ENHANCED: Also check if all search words appear in name (for partial name searches like "wien's law" or just "wien's")
+        const allWordsInName = searchWords.every(word => {
+            const normalizedWord = word.replace(/[''"]/g, "'");
+            return normalizedName.includes(normalizedWord);
+        });
+        if (allWordsInName) {
+            // If all words from search appear in name, it's a strong name match
+            // Works for both single-word searches ("wien's") and multi-word searches ("wien's law")
+            if (!metrics.nameMatch) {
+                const boost = searchWords.length >= 2 ? 3000 : 2500; // Slightly less for single word, but still strong
+                score += boost;
+                metrics.nameMatch = true;
+                metrics.matchReasons.push(`All search words found in name: "${searchWords.join(' ')}"`);
+            } else {
+                // Boost existing name match
+                score += 1000;
+                metrics.matchReasons.push(`All search words confirmed in name`);
+            }
+        }
+        
+        // CRITICAL: Special handling for single-word searches that match the start of a formula name
+        // e.g., "wien's" should match "Wien's Displacement Law"
+        if (searchWords.length === 1) {
+            const singleWord = searchWords[0].replace(/[''"]/g, "'").toLowerCase();
+            // Check if the word appears at the start of the name or as a complete word
+            if (normalizedName.startsWith(singleWord) || 
+                normalizedName.includes(singleWord + "'") ||
+                normalizedName.includes(" " + singleWord + " ") ||
+                normalizedName.includes(" " + singleWord + "'")) {
+                if (!metrics.nameMatch) {
+                    score += 5000; // Very strong match for single-word name searches
+                    metrics.nameMatch = true;
+                    metrics.matchReasons.push(`Single-word name match: "${singleWord}"`);
+                } else {
+                    // Boost existing match
+                    score += 2000;
+                    metrics.matchReasons.push(`Single-word boost: "${singleWord}"`);
+                }
+            }
         }
         
         // Boost for matching keywords in title (word-by-word)
@@ -1961,474 +2963,186 @@ function setupSearchFunctionality() {
             score += 100 * (strongMatchCount - 1); // Bonus for multiple strong matches
         }
         
-        return { score, metrics };
+        // TOPIC-BASED RELEVANCE SCORING: Score formulas based on topic/domain, not just literal matches
+        // This ensures topically relevant formulas appear even without exact word matches
+        let topicRelevanceScore = 0;
+        let contextScore = 0;
+        
+        // 1. Category/Domain Topic Matching
+        if (parsedQuery.concepts.length > 0) {
+            // Check if formula's category matches the query's topic domain
+            for (const [category, ids] of Object.entries(formulaCategories)) {
+                if (ids.includes(formula.id)) {
+                    const categoryLower = category.toLowerCase();
+                    const categoryWords = categoryLower.split(/\s+/);
+                    
+                    // Check if any query concepts match the category topic
+                    parsedQuery.concepts.forEach(concept => {
+                        const conceptLower = concept.toLowerCase();
+                        // Direct category match
+                        if (categoryLower.includes(conceptLower) || conceptLower.includes(categoryLower)) {
+                            topicRelevanceScore += 300;
+                            metrics.matchReasons.push(`Topic match: ${category}`);
+                        }
+                        // Word-level category match
+                        categoryWords.forEach(catWord => {
+                            if (catWord.length >= 4 && conceptLower.includes(catWord)) {
+                                topicRelevanceScore += 150;
+                            }
+                        });
+                    });
+                    
+                    // Check if formula's concepts align with query's topic domain
+                    if (formula.concepts && Array.isArray(formula.concepts)) {
+                        const formulaConceptsLower = formula.concepts.map(c => c.toLowerCase());
+                        const matchingConcepts = parsedQuery.concepts.filter(qc => {
+                            const qcLower = qc.toLowerCase();
+                            return formulaConceptsLower.some(fc => 
+                                fc.includes(qcLower) || qcLower.includes(fc) ||
+                                fc.split(/\s+/).some(fw => qcLower.includes(fw)) ||
+                                qcLower.split(/\s+/).some(qw => fc.includes(qw))
+                            );
+                        });
+                        if (matchingConcepts.length > 0) {
+                            topicRelevanceScore += 200 * matchingConcepts.length;
+                            metrics.matchReasons.push(`Topic concept alignment: ${matchingConcepts.join(', ')}`);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+        // 2. Context-Aware Scoring: Understand the situation with minimal detail
+        // Detect problem context from query patterns
+        const contextPatterns = {
+            'finding_distance': ['distance', 'how far', 'away', 'parallax', 'modulus'],
+            'finding_temperature': ['temperature', 'hot', 'wien', 'blackbody', 'effective temp'],
+            'finding_velocity': ['velocity', 'speed', 'orbital', 'escape', 'rotational'],
+            'finding_mass': ['mass', 'weight', 'chandrasekhar', 'jeans', 'stellar mass'],
+            'finding_luminosity': ['luminosity', 'brightness', 'flux', 'magnitude', 'power'],
+            'finding_period': ['period', 'time', 'orbital period', 'lifetime', 'age'],
+            'finding_size': ['radius', 'size', 'diameter', 'angular size', 'scale']
+        };
+        
+        // Check if query matches a problem context
+        for (const [context, keywords] of Object.entries(contextPatterns)) {
+            const contextMatches = keywords.filter(kw => searchLower.includes(kw)).length;
+            if (contextMatches > 0) {
+                // Check if formula is relevant to this context
+                const formulaText = `${nameLower} ${descLower}`.toLowerCase();
+                const formulaContextMatches = keywords.filter(kw => formulaText.includes(kw)).length;
+                
+                if (formulaContextMatches > 0) {
+                    let baseContextScore = 250 * (contextMatches + formulaContextMatches);
+                    
+                    // ENHANCED: Boost formulas with matching primaryUseCase
+                    if (formula.primaryUseCase) {
+                        const useCaseLower = formula.primaryUseCase.toLowerCase();
+                        // Check if primaryUseCase matches the context
+                        if (context === 'finding_temperature' && useCaseLower.includes('temperature')) {
+                            baseContextScore += 500; // Strong boost for temperature formulas
+                            metrics.matchReasons.push(`Primary use case match: ${formula.primaryUseCase}`);
+                        } else if (context === 'finding_distance' && useCaseLower.includes('distance')) {
+                            baseContextScore += 500;
+                            metrics.matchReasons.push(`Primary use case match: ${formula.primaryUseCase}`);
+                        } else if (context === 'finding_velocity' && useCaseLower.includes('velocity')) {
+                            baseContextScore += 500;
+                            metrics.matchReasons.push(`Primary use case match: ${formula.primaryUseCase}`);
+                        } else if (useCaseLower.includes(context.replace('finding_', ''))) {
+                            baseContextScore += 400;
+                            metrics.matchReasons.push(`Primary use case match: ${formula.primaryUseCase}`);
+                        }
+                    }
+                    
+                    // ENHANCED: Boost high-specificity formulas for context matches
+                    const specificity = formula.specificity || 5;
+                    if (specificity >= 9) {
+                        baseContextScore += 300; // Extra boost for very specific formulas (like Wien's law)
+                        metrics.matchReasons.push(`High specificity boost (${specificity}/10)`);
+                    } else if (specificity >= 7) {
+                        baseContextScore += 150;
+                    }
+                    
+                    contextScore += baseContextScore;
+                    metrics.matchReasons.push(`Context match: ${context.replace('_', ' ')}`);
+                }
+            }
+        }
+        
+        // 3. Domain-based topic relevance (from conceptMatchingSystem)
+        if (metrics.domain && metrics.domainBoost) {
+            topicRelevanceScore += 200 * metrics.domainBoost;
+        }
+        
+        // 4. Cross-concept topic relevance (formulas related to query concepts)
+        if (typeof crossConceptReinforcement !== 'undefined' && parsedQuery.concepts.length > 0) {
+            parsedQuery.concepts.forEach(concept => {
+                const reinforcementScore = crossConceptReinforcement.getReinforcementScore(concept, formula.id);
+                if (reinforcementScore > 0) {
+                    // ENHANCED: Higher multiplier for direct concept matches (like temperature -> Wien's law)
+                    const isDirectMatch = formula.concepts && formula.concepts.some(fc => 
+                        fc.toLowerCase().includes(concept.toLowerCase()) || 
+                        concept.toLowerCase().includes(fc.toLowerCase())
+                    );
+                    const multiplier = isDirectMatch ? 3 : 2; // 3x for direct matches, 2x for related
+                    topicRelevanceScore += reinforcementScore * multiplier;
+                    if (isDirectMatch) {
+                        metrics.matchReasons.push(`Direct concept reinforcement: ${concept}`);
+                    }
+                }
+            });
+        }
+        
+        // 5. ENHANCED: Special boost for temperature searches -> Wien's law
+        // This ensures Wien's displacement law ranks highest for temperature queries
+        if (parsedQuery.concepts.some(c => c.toLowerCase().includes('temperature') || c.toLowerCase() === 'temp')) {
+            if (formula.id === 'wiens_law') {
+                topicRelevanceScore += 400; // Strong boost for Wien's law on temperature searches
+                metrics.matchReasons.push('Temperature search → Wien\'s law priority boost');
+            }
+            // Also boost if primaryUseCase matches temperature
+            if (formula.primaryUseCase && formula.primaryUseCase.toLowerCase().includes('temperature')) {
+                const specificity = formula.specificity || 5;
+                topicRelevanceScore += 200 * (specificity / 10); // Scale with specificity
+                metrics.matchReasons.push(`Temperature primary use case: ${formula.primaryUseCase}`);
+            }
+        }
+        
+        // Combine literal score with topic relevance
+        let combinedScore = score + topicRelevanceScore + contextScore;
+        metrics.topicRelevanceScore = topicRelevanceScore;
+        metrics.contextScore = contextScore;
+        
+        // INTENT-BASED SCORING: Only apply if formula is topic-relevant
+        // This prevents irrelevant formulas from getting boosted just because query has "calculate", etc.
+        const hasRelevance = metrics.nameMatch || metrics.conceptMatch || metrics.variableMatch || 
+                            metrics.descriptionMatch || metrics.questionPatternMatch || 
+                            metrics.targetMatch || metrics.sourceMatch || 
+                            (metrics.matchedConcepts.length > 0) || (metrics.matchedVariables.length > 0) ||
+                            topicRelevanceScore > 100 || contextScore > 100; // Include topic/context relevance
+        
+        if (hasRelevance && hasIntent) {
+            const intentBoost = intentWeights[parsedQuery.intent];
+            score += intentBoost;
+            combinedScore += intentBoost;
+            metrics.intentMatch = true;
+            metrics.matchReasons.push(`Intent boost "${parsedQuery.intent}" (topic-relevant)`);
+        }
+        
+        if (hasRelevance && hasMultipleActions) {
+            const actionBoost = parsedQuery.actions.length * 30;
+            score += actionBoost;
+            combinedScore += actionBoost;
+            metrics.matchReasons.push(`Multiple actions detected (+${actionBoost})`);
+        }
+        
+        // Return combined score (literal + topic + context)
+        return { score: Math.max(score, combinedScore), metrics, topicRelevanceScore, contextScore };
     }
     
-    // Hierarchical concept network - defines parent-child relationships
-    function getConceptHierarchy() {
-        return {
-            // Top-level: Fundamental Physics
-            'fundamental physics': {
-                children: ['motion', 'energy', 'force', 'gravity', 'radiation', 'thermodynamics'],
-                level: 0
-            },
-            
-            // Motion & Dynamics
-            'motion': {
-                children: ['velocity', 'orbital velocity', 'rotational velocity', 'escape velocity', 'acceleration', 'momentum'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'velocity': {
-                children: ['orbital velocity', 'rotational velocity', 'escape velocity', 'tangential velocity'],
-                level: 2,
-                parent: 'motion',
-                siblings: ['acceleration', 'momentum']
-            },
-            'orbital velocity': {
-                children: [],
-                level: 3,
-                parent: 'velocity',
-                siblings: ['rotational velocity', 'escape velocity'],
-                related: ['orbital period', 'kepler', 'semi-major axis']
-            },
-            'rotational velocity': {
-                children: [],
-                level: 3,
-                parent: 'velocity',
-                siblings: ['orbital velocity', 'escape velocity'],
-                related: ['rotational period', 'angular frequency']
-            },
-            'escape velocity': {
-                children: [],
-                level: 3,
-                parent: 'velocity',
-                siblings: ['orbital velocity', 'rotational velocity'],
-                related: ['gravity', 'surface gravity', 'mass', 'radius']
-            },
-            'acceleration': {
-                children: ['surface gravity', 'centripetal acceleration'],
-                level: 2,
-                parent: 'motion',
-                siblings: ['velocity', 'momentum']
-            },
-            'momentum': {
-                children: ['angular momentum', 'linear momentum'],
-                level: 2,
-                parent: 'motion',
-                siblings: ['velocity', 'acceleration']
-            },
-            'angular momentum': {
-                children: ['angular momentum elliptical'],
-                level: 3,
-                parent: 'momentum',
-                related: ['rotational velocity', 'orbital velocity']
-            },
-            
-            // Energy
-            'energy': {
-                children: ['orbital energy', 'kinetic energy', 'potential energy', 'photon energy', 'radiative energy'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'orbital energy': {
-                children: ['vis viva'],
-                level: 2,
-                parent: 'energy',
-                related: ['orbital velocity', 'semi-major axis', 'period']
-            },
-            'photon energy': {
-                children: [],
-                level: 2,
-                parent: 'energy',
-                related: ['wavelength', 'planck relation', 'frequency']
-            },
-            
-            // Force & Gravity
-            'force': {
-                children: ['gravity', 'tidal force', 'centripetal force'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'gravity': {
-                children: ['surface gravity', 'escape velocity', 'tidal force'],
-                level: 2,
-                parent: 'force',
-                related: ['mass', 'radius', 'density']
-            },
-            'surface gravity': {
-                children: [],
-                level: 3,
-                parent: 'gravity',
-                related: ['mass', 'radius', 'escape velocity']
-            },
-            'tidal force': {
-                children: ['roche limit'],
-                level: 3,
-                parent: 'gravity',
-                related: ['mass', 'distance', 'hill radius']
-            },
-            'roche limit': {
-                children: [],
-                level: 4,
-                parent: 'tidal force',
-                related: ['mass', 'density', 'hill radius']
-            },
-            'hill radius': {
-                children: [],
-                level: 3,
-                parent: 'gravity',
-                related: ['mass', 'semi-major axis', 'roche limit']
-            },
-            
-            // Distance & Position
-            'distance': {
-                children: ['parallax', 'parallax distance', 'distance modulus', 'luminosity distance', 'angular diameter distance', 'semi-major axis'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'parallax': {
-                children: ['parallax distance radians', 'parallax distance arcsec', 'trigonometric parallax'],
-                level: 2,
-                parent: 'distance',
-                siblings: ['distance modulus', 'luminosity distance']
-            },
-            'parallax distance': {
-                children: ['parallax distance radians', 'parallax distance arcsec'],
-                level: 3,
-                parent: 'parallax',
-                related: ['distance modulus', 'standard candle']
-            },
-            'distance modulus': {
-                children: [],
-                level: 2,
-                parent: 'distance',
-                siblings: ['parallax', 'luminosity distance'],
-                related: ['magnitude', 'apparent magnitude', 'absolute magnitude', 'extinction']
-            },
-            'luminosity distance': {
-                children: [],
-                level: 2,
-                parent: 'distance',
-                siblings: ['parallax', 'distance modulus'],
-                related: ['luminosity', 'redshift', 'hubble']
-            },
-            'angular diameter distance': {
-                children: [],
-                level: 2,
-                parent: 'distance',
-                siblings: ['parallax', 'distance modulus'],
-                related: ['angular size', 'redshift']
-            },
-            'semi-major axis': {
-                children: [],
-                level: 2,
-                parent: 'distance',
-                related: ['orbital period', 'kepler', 'orbital velocity']
-            },
-            
-            // Time & Period
-            'period': {
-                children: ['orbital period', 'rotational period', 'synodic period'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'orbital period': {
-                children: [],
-                level: 2,
-                parent: 'period',
-                siblings: ['rotational period', 'synodic period'],
-                related: ['kepler', 'semi-major axis', 'mass', 'orbital velocity']
-            },
-            'synodic period': {
-                children: [],
-                level: 2,
-                parent: 'period',
-                siblings: ['orbital period'],
-                related: ['orbital period']
-            },
-            'rotational period': {
-                children: [],
-                level: 2,
-                parent: 'period',
-                siblings: ['orbital period'],
-                related: ['rotational velocity', 'angular frequency']
-            },
-            'lifetime': {
-                children: ['stellar lifetime', 'timescale'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'stellar lifetime': {
-                children: [],
-                level: 2,
-                parent: 'lifetime',
-                related: ['mass', 'luminosity', 'stellar evolution']
-            },
-            'timescale': {
-                children: ['synchrotron cooling timescale', 'tidal locking timescale', 'thermal timescale', 'dynamical timescale'],
-                level: 2,
-                parent: 'lifetime'
-            },
-            
-            // Mass
-            'mass': {
-                children: ['stellar mass', 'planetary mass', 'jeans mass', 'chandrasekhar limit'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'chandrasekhar limit': {
-                children: [],
-                level: 2,
-                parent: 'mass',
-                related: ['white dwarf', 'neutron star', 'compact object']
-            },
-            'jeans mass': {
-                children: [],
-                level: 2,
-                parent: 'mass',
-                related: ['density', 'temperature', 'gravitational collapse']
-            },
-            
-            // Temperature
-            'temperature': {
-                children: ['effective temperature', 'surface temperature', 'color temperature', 'planetary equilibrium temperature'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'effective temperature': {
-                children: [],
-                level: 2,
-                parent: 'temperature',
-                related: ['luminosity', 'radius', 'blackbody', 'wien law']
-            },
-            'planetary equilibrium temperature': {
-                children: [],
-                level: 2,
-                parent: 'temperature',
-                related: ['luminosity', 'distance', 'albedo']
-            },
-            
-            // Radiation & Stellar Properties
-            'radiation': {
-                children: ['blackbody', 'blackbody radiation', 'flux', 'luminosity', 'magnitude', 'wavelength'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'blackbody': {
-                children: ['blackbody radiation', 'wien law', 'planck relation'],
-                level: 2,
-                parent: 'radiation',
-                related: ['temperature', 'wavelength', 'flux']
-            },
-            'blackbody radiation': {
-                children: [],
-                level: 3,
-                parent: 'blackbody',
-                related: ['temperature', 'wavelength', 'flux', 'wien law']
-            },
-            'wien law': {
-                children: [],
-                level: 3,
-                parent: 'blackbody',
-                related: ['temperature', 'peak wavelength', 'wavelength']
-            },
-            'planck relation': {
-                children: [],
-                level: 3,
-                parent: 'blackbody',
-                related: ['photon energy', 'wavelength', 'frequency']
-            },
-            'flux': {
-                children: ['flux from luminosity', 'flux temperature', 'inverse square law brightness'],
-                level: 2,
-                parent: 'radiation',
-                related: ['luminosity', 'distance', 'magnitude']
-            },
-            'luminosity': {
-                children: ['flux from luminosity', 'mass luminosity relation'],
-                level: 2,
-                parent: 'radiation',
-                related: ['radius', 'temperature', 'magnitude', 'distance']
-            },
-            'magnitude': {
-                children: ['apparent magnitude', 'absolute magnitude', 'distance modulus', 'magnitude flux relation'],
-                level: 2,
-                parent: 'radiation',
-                related: ['flux', 'luminosity', 'distance']
-            },
-            'wavelength': {
-                children: ['peak wavelength', 'doppler shift'],
-                level: 2,
-                parent: 'radiation',
-                related: ['wien law', 'planck relation', 'redshift']
-            },
-            
-            // Spectroscopy
-            'spectroscopy': {
-                children: ['doppler', 'doppler shift', 'equivalent width', 'line profile'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'doppler': {
-                children: ['doppler shift', 'doppler shift approx', 'radial velocity'],
-                level: 2,
-                parent: 'spectroscopy',
-                related: ['velocity', 'redshift', 'wavelength']
-            },
-            'doppler shift': {
-                children: [],
-                level: 3,
-                parent: 'doppler',
-                related: ['velocity', 'redshift', 'wavelength', 'radial velocity curve']
-            },
-            'equivalent width': {
-                children: [],
-                level: 2,
-                parent: 'spectroscopy',
-                related: ['absorption', 'emission', 'line profile']
-            },
-            
-            // Cosmology
-            'cosmology': {
-                children: ['redshift', 'hubble', 'hubble law', 'lookback time', 'cosmic redshift'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'redshift': {
-                children: ['cosmic redshift', 'doppler shift'],
-                level: 2,
-                parent: 'cosmology',
-                related: ['hubble', 'distance', 'velocity']
-            },
-            'hubble': {
-                children: ['hubble law', 'hubble constant'],
-                level: 2,
-                parent: 'cosmology',
-                related: ['redshift', 'distance', 'velocity']
-            },
-            'hubble law': {
-                children: [],
-                level: 3,
-                parent: 'hubble',
-                related: ['redshift', 'distance', 'velocity', 'luminosity distance']
-            },
-            'lookback time': {
-                children: [],
-                level: 2,
-                parent: 'cosmology',
-                related: ['redshift', 'hubble', 'distance']
-            },
-            
-            // Stellar Evolution
-            'stellar evolution': {
-                children: ['main sequence', 'giant', 'white dwarf', 'neutron star', 'black hole', 'stellar lifetime'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'main sequence': {
-                children: ['mass luminosity relation', 'stellar lifetime'],
-                level: 2,
-                parent: 'stellar evolution',
-                related: ['mass', 'luminosity', 'temperature']
-            },
-            'white dwarf': {
-                children: ['white dwarf mass radius', 'chandrasekhar limit', 'binary white dwarf'],
-                level: 2,
-                parent: 'stellar evolution',
-                related: ['mass', 'radius', 'density']
-            },
-            'binary white dwarf': {
-                children: ['white dwarf orbital decay', 'white dwarf merger timescale'],
-                level: 3,
-                parent: 'white dwarf',
-                related: ['orbital period', 'mass', 'roche limit']
-            },
-            
-            // Binary Systems
-            'binary': {
-                children: ['binary white dwarf', 'kepler third law binary', 'center of mass'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'kepler third law binary': {
-                children: [],
-                level: 2,
-                parent: 'binary',
-                related: ['orbital period', 'mass', 'semi-major axis']
-            },
-            'center of mass': {
-                children: [],
-                level: 2,
-                parent: 'binary',
-                related: ['mass', 'distance', 'orbital period']
-            },
-            
-            // Kepler's Laws
-            'kepler': {
-                children: ['kepler third law', 'kepler third law solar', 'kepler third law binary'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'kepler third law': {
-                children: [],
-                level: 2,
-                parent: 'kepler',
-                related: ['orbital period', 'semi-major axis', 'mass']
-            },
-            
-            // Relativity
-            'relativity': {
-                children: ['schwarzschild radius', 'time dilation', 'length contraction', 'einstein radius'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'schwarzschild radius': {
-                children: [],
-                level: 2,
-                parent: 'relativity',
-                related: ['mass', 'black hole', 'event horizon']
-            },
-            'einstein radius': {
-                children: [],
-                level: 2,
-                parent: 'relativity',
-                related: ['gravitational lensing', 'mass', 'distance']
-            },
-            
-            // High Energy Astrophysics
-            'high energy': {
-                children: ['synchrotron', 'synchrotron power', 'magnetic energy density', 'max gamma bohm'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'synchrotron': {
-                children: ['synchrotron power', 'synchrotron cooling timescale'],
-                level: 2,
-                parent: 'high energy',
-                related: ['magnetic field', 'energy', 'radiation']
-            },
-            
-            // Telescopes & Optics
-            'telescopes': {
-                children: ['angular resolution', 'light gathering power', 'magnification', 'f ratio'],
-                level: 1,
-                parent: 'fundamental physics'
-            },
-            'angular resolution': {
-                children: [],
-                level: 2,
-                parent: 'telescopes',
-                related: ['wavelength', 'aperture', 'diffraction']
-            },
-            'light gathering power': {
-                children: [],
-                level: 2,
-                parent: 'telescopes',
-                related: ['aperture', 'magnitude', 'flux']
-            }
-        };
-    }
+    // Note: getConceptHierarchy is now defined at the top level of the file
+    // to make it available globally for formulas.js
     
     // Expand concepts using hierarchical relationships
     function expandConceptsWithHierarchy(concepts) {
@@ -2442,676 +3156,22 @@ function setupSearchFunctionality() {
                 if (node.parent) {
                     expanded.add(node.parent);
                 }
-                
                 // Add child concepts (more specific)
-                if (node.children && node.children.length > 0) {
+                if (node.children && Array.isArray(node.children)) {
                     node.children.forEach(child => expanded.add(child));
                 }
-                
                 // Add sibling concepts (related at same level)
-                if (node.siblings && node.siblings.length > 0) {
+                if (node.siblings && Array.isArray(node.siblings)) {
                     node.siblings.forEach(sibling => expanded.add(sibling));
                 }
-                
                 // Add related concepts (cross-references)
-                if (node.related && node.related.length > 0) {
+                if (node.related && Array.isArray(node.related)) {
                     node.related.forEach(related => expanded.add(related));
                 }
             }
         });
         
         return Array.from(expanded);
-    }
-    
-    // Helper function to extract concepts from text using comprehensive physics terms
-    function extractConceptsFromText(text) {
-        const concepts = [];
-        const lowerText = text.toLowerCase();
-        
-        // Get the comprehensive physics terms dictionary (defined in parseNaturalLanguageQuery)
-        // We'll use a simplified version here, but the full matching happens in parseNaturalLanguageQuery
-        const keyTerms = [
-            'temperature', 'temp', 'hot', 'thermal', 'effective temperature', 'surface temperature',
-            'spectrum', 'spectral', 'light', 'wavelength', 'color', 'colour', 'peak wavelength',
-            'flux', 'luminosity', 'brightness', 'radiance', 'magnitude', 'apparent magnitude', 'absolute magnitude',
-            'distance', 'parallax', 'modulus', 'parallax distance', 'distance modulus', 'luminosity distance',
-            'velocity', 'speed', 'orbital velocity', 'escape velocity', 'rotational velocity',
-            'period', 'time', 'orbital period', 'rotational period', 'synodic period',
-            'mass', 'weight', 'stellar mass', 'planetary mass', 'solar mass', 'chandrasekhar limit',
-            'radius', 'size', 'diameter', 'semi-major axis', 'orbital distance',
-            'gravity', 'gravitational', 'surface gravity', 'gravitational acceleration',
-            'energy', 'photon energy', 'orbital energy', 'vis viva',
-            'redshift', 'doppler', 'doppler shift', 'cosmic redshift',
-            'blackbody', 'black body', 'wien', 'wien law', 'stefan', 'planck', 'blackbody radiation',
-            'kepler', 'orbital', 'orbit', 'kepler third law',
-            'white dwarf', 'star', 'stellar', 'planet', 'binary', 'binary system',
-            'telescope', 'angular resolution', 'light gathering power', 'magnification',
-            'hubble', 'hubble law', 'cosmology', 'cosmic expansion',
-            'tidal', 'tidal force', 'roche limit', 'hill radius'
-        ];
-        
-        // Match terms with word boundaries for better accuracy
-        keyTerms.forEach(term => {
-            const termLower = term.toLowerCase();
-            // Word boundary match (better accuracy)
-            const wordBoundaryRegex = new RegExp(`\\b${termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-            if (wordBoundaryRegex.test(lowerText)) {
-                concepts.push(term);
-            } else if (lowerText.includes(termLower) && termLower.length >= 3) {
-                // Partial match for longer terms
-                concepts.push(term);
-            }
-        });
-        
-        return [...new Set(concepts)]; // Remove duplicates
-    }
-    
-    // Parse natural language query to extract intent and concepts
-    function parseNaturalLanguageQuery(searchLower, searchWords) {
-        const result = {
-            intent: 'search', // calculate, find, determine, how, what, etc.
-            concepts: [],
-            variables: [],
-            actions: [],
-            direction: null, // 'from', 'to', 'based_on', null
-            sourceConcepts: [], // What we're calculating FROM
-            targetConcepts: [] // What we're calculating TO
-        };
-        
-        // Remove common question words and extract intent
-        const questionWords = ['how', 'what', 'where', 'when', 'why', 'which', 'who'];
-        const actionWords = {
-            'calculate': ['calculate', 'compute', 'find', 'determine', 'solve', 'work out', 'figure out'],
-            'find': ['find', 'get', 'obtain', 'discover', 'locate'],
-            'determine': ['determine', 'figure', 'establish', 'ascertain'],
-            'convert': ['convert', 'transform', 'change'],
-            'relate': ['relate', 'connect', 'link', 'relationship', 'between']
-        };
-        
-        // Detect intent
-        for (const [intent, words] of Object.entries(actionWords)) {
-            if (words.some(word => searchLower.includes(word))) {
-                result.intent = intent;
-                result.actions.push(intent);
-                break;
-            }
-        }
-        
-        // ENHANCED: Detect directionality (FROM, TO, BASED ON)
-        const directionPatterns = {
-            'from': ['from', 'using', 'with', 'given', 'based on', 'based off', 'based off of', 'from the', 'using the', 'with the'],
-            'to': ['to', 'into', 'for', 'as', 'in terms of'],
-            'based_on': ['based on', 'based off', 'based off of', 'derived from', 'calculated from', 'determined from']
-        };
-        
-        // Check for direction indicators
-        for (const [direction, patterns] of Object.entries(directionPatterns)) {
-            for (const pattern of patterns) {
-                if (searchLower.includes(pattern)) {
-                    result.direction = direction;
-                    
-                    // Extract source and target concepts
-                    const parts = searchLower.split(new RegExp(`\\b${pattern}\\b`, 'i'));
-                    if (parts.length >= 2) {
-                        // First part is what we want (target)
-                        const targetText = parts[0].trim();
-                        // Second part is what we have (source)
-                        const sourceText = parts.slice(1).join(' ').trim();
-                        
-                        // Extract concepts from each part
-                        result.targetConcepts = extractConceptsFromText(targetText);
-                        result.sourceConcepts = extractConceptsFromText(sourceText);
-                    }
-                    break;
-                }
-            }
-            if (result.direction) break;
-        }
-        
-        // Extract key concepts (physics/astronomy terms) with comprehensive synonyms
-        const physicsTerms = {
-            // Motion & Velocity
-            'velocity': ['velocity', 'speed', 'v', 'how fast', 'rate of motion', 'motion', 'moving', 'mph', 'kmh', 'mps'],
-            'orbital velocity': ['orbital velocity', 'orbital speed', 'circular motion', 'orbit speed', 'orbiting', 'revolve', 'orbital motion', 'circular orbit'],
-            'escape velocity': ['escape velocity', 'escape speed', 'leave planet', 'escape gravity', 'break free', 'get away from', 'escape from', 'break away'],
-            'rotational velocity': ['rotational velocity', 'rotation speed', 'spin', 'rotating', 'rotates', 'spinning', 'angular velocity', 'spin rate'],
-            'vis viva': ['vis viva', 'orbital energy', 'total energy', 'mechanical energy'],
-            
-            // Distance & Position
-            'distance': ['distance', 'd', 'how far', 'separation', 'away', 'far away', 'how far away', 'distant', 'separation distance'],
-            'parallax': ['parallax', 'parallax distance', 'stellar parallax', 'parallax method', 'trigonometric parallax', 'annual parallax'],
-            'radius': ['radius', 'r', 'size', 'diameter', 'how big', 'size of', 'stellar radius', 'planetary radius'],
-            'semi-major axis': ['semi-major axis', 'orbital distance', 'a', 'orbit size', 'orbit distance', 'semi major axis', 'orbital radius'],
-            'aphelion': ['aphelion', 'farthest point', 'maximum distance'],
-            'perihelion': ['perihelion', 'closest point', 'minimum distance', 'periapsis'],
-            'eccentricity': ['eccentricity', 'e', 'orbit shape', 'elliptical shape'],
-            
-            // Time & Period
-            'period': ['period', 'p', 'time', 'how long', 'duration', 't', 'time period'],
-            'orbital period': ['orbital period', 'orbit time', 'revolution', 'year', 'orbital time', 'revolution period'],
-            'synodic period': ['synodic period', 'synodic', 'apparent period', 'relative period'],
-            'lifetime': ['lifetime', 'age', 'how long', 'survive', 'live', 'stellar age', 'star age'],
-            'stellar lifetime': ['stellar lifetime', 'main sequence lifetime', 'star lifetime', 'stellar age'],
-            
-            // Mass & Gravity
-            'mass': ['mass', 'm', 'weight', 'how heavy', 'stellar mass', 'planetary mass', 'solar mass'],
-            'gravity': ['gravity', 'g', 'gravitational', 'surface gravity', 'acceleration', 'gravitational acceleration', 'g force'],
-            'escape': ['escape', 'leave', 'break free', 'get away'],
-            'chandrasekhar limit': ['chandrasekhar limit', 'chandrasekhar', 'white dwarf limit', 'maximum mass', 'wd limit'],
-            'jeans mass': ['jeans mass', 'jeans', 'gravitational collapse', 'critical mass'],
-            'center of mass': ['center of mass', 'barycenter', 'center of gravity', 'com'],
-            
-            // Energy & Luminosity
-            'luminosity': ['luminosity', 'l', 'brightness', 'how bright', 'intrinsic brightness', 'star brightness', 'stellar brightness', 'power output', 'radiative power'],
-            'flux': ['flux', 'f', 'observed brightness', 'apparent brightness', 'light received', 'light flux', 'radiation flux', 'energy flux', 'flux density'],
-            'magnitude': ['magnitude', 'm', 'apparent magnitude', 'absolute magnitude', 'brightness', 'star magnitude', 'stellar magnitude', 'photometric'],
-            'energy': ['energy', 'e', 'kinetic', 'potential', 'orbital energy', 'total energy', 'mechanical energy'],
-            'photon energy': ['photon energy', 'quantum energy', 'light energy', 'em energy'],
-            'inverse square law': ['inverse square law', 'isq', 'brightness law', 'flux law'],
-            
-            // Temperature & Radiation
-            'temperature': ['temperature', 't', 'temp', 'how hot', 'thermal', 'stellar temperature', 'surface temperature', 'effective temperature'],
-            'wavelength': ['wavelength', 'lambda', 'λ', 'color', 'frequency', 'em wavelength', 'light wavelength'],
-            'peak wavelength': ['peak wavelength', 'wien', 'maximum wavelength', 'lambda max', 'wien peak', 'wavelength peak'],
-            'blackbody': ['blackbody', 'radiation', 'thermal radiation', 'bb radiation', 'black body'],
-            'wien law': ['wien law', 'wien displacement', 'wien', 'wien displacement law'],
-            'stefan boltzmann': ['stefan boltzmann', 'stefan', 'sb law', 'stefan boltzmann law', 'radiative law'],
-            'planck': ['planck', 'planck relation', 'planck constant', 'quantum', 'photon'],
-            
-            // Stellar Properties
-            'star': ['star', 'stellar', 'sun', 'solar', 'stellar object'],
-            'main sequence': ['main sequence', 'ms star', 'dwarf star', 'main sequence star'],
-            'red giant': ['red giant', 'giant', 'giant star', 'evolved star'],
-            'white dwarf': ['white dwarf', 'dwarf', 'degenerate', 'wd', 'white dwarf star'],
-            'neutron star': ['neutron star', 'pulsar', 'ns', 'compact object'],
-            'black hole': ['black hole', 'bh', 'singularity', 'event horizon'],
-            'supernova': ['supernova', 'sn', 'explosion', 'stellar explosion'],
-            'planet': ['planet', 'planetary', 'exoplanet', 'extrasolar planet'],
-            'binary star': ['binary star', 'binary', 'double star', 'binary system'],
-            'hr diagram': ['hr diagram', 'hertzsprung russell', 'hr', 'color magnitude'],
-            'mass luminosity': ['mass luminosity', 'mass luminosity relation', 'ml relation'],
-            
-            // Cosmology
-            'hubble': ['hubble', 'expansion', 'universe', 'galaxy', 'redshift', 'hubble constant', 'h0', 'hubble law'],
-            'redshift': ['redshift', 'z', 'cosmic', 'doppler', 'cosmological redshift'],
-            'density': ['density', 'rho', 'ρ', 'critical density', 'mass density', 'energy density'],
-            'critical density': ['critical density', 'omega', 'closure density', 'flat universe'],
-            'dark matter': ['dark matter', 'dm', 'missing mass'],
-            'dark energy': ['dark energy', 'de', 'cosmological constant'],
-            'cmb': ['cmb', 'cosmic microwave background', 'microwave background', 'relic radiation'],
-            'lookback time': ['lookback time', 'light travel time', 'cosmic time'],
-            'friedmann': ['friedmann', 'friedmann equation', 'cosmological equation'],
-            
-            // Optics & Telescopes
-            'angular size': ['angular size', 'angular diameter', 'apparent size', 'how big', 'angular extent', 'angular measure'],
-            'angular resolution': ['angular resolution', 'resolution', 'resolving', 'resolving power', 'angular resolving'],
-            'magnification': ['magnification', 'zoom', 'enlarge', 'magnifying power', 'angular magnification'],
-            'light gathering': ['light gathering', 'light gathering power', 'aperture', 'collecting area'],
-            'f ratio': ['f ratio', 'f number', 'focal ratio', 'f/#', 'f stop'],
-            'aperture': ['aperture', 'diameter', 'telescope size', 'mirror size'],
-            'focal length': ['focal length', 'f', 'focus'],
-            
-            // Orbital Mechanics
-            'kepler': ['kepler', 'orbital', 'orbit', 'elliptical', 'kepler law', 'keplers law'],
-            'kepler third law': ['kepler third law', 'kepler 3', 'period distance', 'p2 a3'],
-            'tidal': ['tidal', 'tide', 'roche', 'disruption', 'tidal force', 'tidal effect'],
-            'roche limit': ['roche limit', 'roche', 'tidal disruption', 'disruption radius'],
-            'hill radius': ['hill radius', 'sphere of influence', 'gravitational influence', 'hill sphere'],
-            'tidal locking': ['tidal locking', 'synchronous rotation', 'tidally locked'],
-            'angular momentum': ['angular momentum', 'l', 'orbital angular momentum', 'spin angular momentum'],
-            
-            // Spectroscopy
-            'doppler': ['doppler', 'doppler shift', 'doppler effect', 'radial velocity'],
-            'spectroscopy': ['spectroscopy', 'spectrum', 'spectral', 'spectral line'],
-            'equivalent width': ['equivalent width', 'ew', 'line strength', 'absorption strength'],
-            'absorption': ['absorption', 'absorption line', 'spectral absorption'],
-            'emission': ['emission', 'emission line', 'spectral emission'],
-            'redshift z': ['redshift z', 'z', 'cosmological z'],
-            
-            // Exoplanets
-            'exoplanet': ['exoplanet', 'extrasolar planet', 'exo planet', 'alien planet'],
-            'transit': ['transit', 'transit method', 'transit depth', 'eclipse'],
-            'radial velocity': ['radial velocity', 'rv method', 'doppler method', 'wobble'],
-            'equilibrium temperature': ['equilibrium temperature', 'planet temperature', 'exoplanet temp', 'effective temp'],
-            'albedo': ['albedo', 'reflectivity', 'reflection coefficient'],
-            'greenhouse': ['greenhouse', 'greenhouse effect', 'atmospheric effect'],
-            
-            // High Energy Astrophysics
-            'synchrotron': ['synchrotron', 'synchrotron radiation', 'magnetic radiation'],
-            'gamma ray': ['gamma ray', 'gamma', 'high energy', 'gamma radiation'],
-            'power law': ['power law', 'spectral index', 'alpha', 'spectrum slope'],
-            'cooling': ['cooling', 'cooling time', 'synchrotron cooling', 'radiative cooling'],
-            'magnetic field': ['magnetic field', 'b field', 'magnetic', 'b'],
-            'energy density': ['energy density', 'u', 'magnetic energy', 'radiation energy'],
-            
-            // Relativity
-            'schwarzschild': ['schwarzschild', 'schwarzschild radius', 'event horizon', 'black hole radius'],
-            'time dilation': ['time dilation', 'relativistic time', 'time slow'],
-            'length contraction': ['length contraction', 'lorentz contraction', 'relativistic length'],
-            'einstein radius': ['einstein radius', 'gravitational lensing', 'lensing', 'einstein ring'],
-            
-            // Stellar Structure
-            'hydrostatic': ['hydrostatic', 'hydrostatic balance', 'hydrostatic equilibrium', 'pressure balance'],
-            'pressure': ['pressure', 'gas pressure', 'radiation pressure', 'stellar pressure'],
-            
-            // Distance Measurements
-            'distance modulus': ['distance modulus', 'dm', 'magnitude distance', 'photometric distance'],
-            'luminosity distance': ['luminosity distance', 'dl', 'flux distance', 'standard candle'],
-            'angular diameter distance': ['angular diameter distance', 'da', 'size distance'],
-            'parallax distance': ['parallax distance', 'trigonometric distance', 'geometric distance'],
-            
-            // Miscellaneous
-            'binary': ['binary', 'binary system', 'double', 'pair', 'double star'],
-            'merger': ['merger', 'merging', 'coalescence', 'collision', 'coalesce'],
-            'orbital decay': ['orbital decay', 'decay', 'shrinking orbit', 'inspiral', 'spiral in'],
-            'color index': ['color index', 'b-v', 'color', 'stellar color', 'bv color'],
-            'stellar classification': ['stellar classification', 'spectral type', 'star type', 'classification', 'stellar type'],
-            
-            // Additional Motion Terms
-            'acceleration': ['acceleration', 'a', 'rate of change', 'deceleration'],
-            'angular velocity': ['angular velocity', 'omega', 'ω', 'angular speed', 'rotation rate'],
-            'centripetal': ['centripetal', 'centripetal force', 'circular force'],
-            'tangential velocity': ['tangential velocity', 'tangential speed', 'circumferential velocity'],
-            
-            // Additional Distance Terms
-            'parsec': ['parsec', 'pc', 'parallax second'],
-            'light year': ['light year', 'ly', 'lightyear'],
-            'astronomical unit': ['astronomical unit', 'au', 'astronomical units'],
-            'proper distance': ['proper distance', 'comoving distance', 'physical distance'],
-            'comoving distance': ['comoving distance', 'comoving', 'coordinate distance'],
-            
-            // Additional Time Terms
-            'age': ['age', 'stellar age', 'star age', 'system age'],
-            'timescale': ['timescale', 'time scale', 'characteristic time'],
-            'half life': ['half life', 'half-life', 'decay time'],
-            'dynamical time': ['dynamical time', 'dynamical timescale', 'free fall time'],
-            
-            // Additional Mass Terms
-            'solar mass': ['solar mass', 'm_sun', 'm☉', 'solar masses'],
-            'jupiter mass': ['jupiter mass', 'm_jup', 'mj', 'jovian mass'],
-            'earth mass': ['earth mass', 'm_earth', 'm⊕', 'terrestrial mass'],
-            'chandrasekhar': ['chandrasekhar', 'chandrasekhar mass', 'wd limit'],
-            'tov limit': ['tov limit', 'tov', 'tolman oppenheimer volkoff'],
-            
-            // Additional Energy Terms
-            'kinetic energy': ['kinetic energy', 'ke', 'motion energy', 'translational energy'],
-            'potential energy': ['potential energy', 'pe', 'gravitational energy', 'binding energy'],
-            'binding energy': ['binding energy', 'gravitational binding', 'system energy'],
-            'radiative energy': ['radiative energy', 'radiation energy', 'em energy'],
-            'thermal energy': ['thermal energy', 'heat energy', 'internal energy'],
-            
-            // Additional Temperature Terms
-            'effective temperature': ['effective temperature', 'teff', 't_eff', 'stellar temperature'],
-            'surface temperature': ['surface temperature', 'photospheric temperature', 'star surface temp'],
-            'color temperature': ['color temperature', 't_color', 'blackbody temperature'],
-            'brightness temperature': ['brightness temperature', 'tb', 'radio temperature'],
-            
-            // Additional Radiation Terms
-            'emission': ['emission', 'emission spectrum', 'emission line', 'emission feature'],
-            'absorption': ['absorption', 'absorption spectrum', 'absorption line', 'absorption feature'],
-            'continuum': ['continuum', 'continuous spectrum', 'blackbody continuum'],
-            'spectral energy distribution': ['sed', 'spectral energy distribution', 'energy distribution'],
-            'bolometric': ['bolometric', 'bolometric magnitude', 'total magnitude', 'bol'],
-            
-            // Additional Stellar Evolution Terms
-            'main sequence': ['main sequence', 'ms', 'dwarf', 'main sequence star'],
-            'giant': ['giant', 'giant star', 'red giant', 'blue giant'],
-            'supergiant': ['supergiant', 'supergiant star', 'red supergiant', 'blue supergiant'],
-            'subgiant': ['subgiant', 'subgiant branch'],
-            'horizontal branch': ['horizontal branch', 'hb', 'horizontal branch star'],
-            'asymptotic giant branch': ['agb', 'asymptotic giant branch', 'agb star'],
-            'white dwarf': ['white dwarf', 'wd', 'degenerate dwarf', 'compact object'],
-            'neutron star': ['neutron star', 'ns', 'pulsar', 'magnetar'],
-            'black hole': ['black hole', 'bh', 'singularity', 'event horizon'],
-            'protostar': ['protostar', 'protostellar', 'pre main sequence'],
-            't tauri': ['t tauri', 'ttauri', 'pre main sequence star'],
-            
-            // Additional Binary Terms
-            'eclipsing binary': ['eclipsing binary', 'eclipsing', 'eclipse', 'transit'],
-            'spectroscopic binary': ['spectroscopic binary', 'sb', 'spectroscopic', 'radial velocity binary'],
-            'visual binary': ['visual binary', 'visual pair', 'resolved binary'],
-            'contact binary': ['contact binary', 'overcontact', 'merging binary'],
-            'semi detached': ['semi detached', 'semi-detached', 'algol type'],
-            'detached binary': ['detached binary', 'detached', 'well separated'],
-            
-            // Additional Exoplanet Terms
-            'transit method': ['transit method', 'transit photometry', 'transit detection'],
-            'radial velocity method': ['radial velocity method', 'rv method', 'doppler method', 'wobble method'],
-            'microlensing': ['microlensing', 'gravitational microlensing', 'microlens'],
-            'direct imaging': ['direct imaging', 'direct detection', 'coronagraph'],
-            'habitable zone': ['habitable zone', 'hz', 'goldilocks zone', 'circumstellar habitable zone'],
-            'insolation': ['insolation', 'stellar flux', 'irradiance', 'incident flux'],
-            
-            // Additional Cosmology Terms
-            'scale factor': ['scale factor', 'a', 'cosmic scale', 'expansion factor'],
-            'redshift z': ['redshift z', 'z', 'cosmological redshift', 'cosmic z'],
-            'reionization': ['reionization', 'reionisation', 'epoch of reionization'],
-            'dark age': ['dark age', 'dark ages', 'cosmic dark age'],
-            'big bang': ['big bang', 'bb', 'big bang theory', 'cosmological model'],
-            'inflation': ['inflation', 'cosmic inflation', 'inflationary epoch'],
-            'baryon acoustic oscillations': ['bao', 'baryon acoustic oscillations', 'acoustic peaks'],
-            'cmb anisotropy': ['cmb anisotropy', 'cmb fluctuations', 'cosmic microwave background'],
-            
-            // Additional Relativity Terms
-            'general relativity': ['general relativity', 'gr', 'einstein', 'general theory'],
-            'special relativity': ['special relativity', 'sr', 'lorentz', 'special theory'],
-            'spacetime': ['spacetime', 'space time', 'space-time', 'four dimensional'],
-            'metric': ['metric', 'spacetime metric', 'metric tensor'],
-            'geodesic': ['geodesic', 'geodesic path', 'straightest path'],
-            'gravitational wave': ['gravitational wave', 'gw', 'gravitational radiation', 'ripple'],
-            'frame dragging': ['frame dragging', 'lense thirring', 'gravitomagnetism'],
-            
-            // Additional Optics Terms
-            'diffraction': ['diffraction', 'diffraction limit', 'airy disk', 'airy pattern'],
-            'rayleigh criterion': ['rayleigh criterion', 'rayleigh limit', 'resolution limit'],
-            'dawes limit': ['dawes limit', 'dawes', 'visual resolution'],
-            'seeing': ['seeing', 'atmospheric seeing', 'seeing disk', 'turbulence'],
-            'adaptive optics': ['adaptive optics', 'ao', 'wavefront correction'],
-            'interferometry': ['interferometry', 'interferometer', 'baseline', 'vlbi'],
-            
-            // Additional Spectroscopy Terms
-            'doppler broadening': ['doppler broadening', 'thermal broadening', 'line broadening'],
-            'natural broadening': ['natural broadening', 'natural width', 'intrinsic width'],
-            'pressure broadening': ['pressure broadening', 'collisional broadening', 'stark broadening'],
-            'rotational broadening': ['rotational broadening', 'v sin i', 'vsini'],
-            'zeeman effect': ['zeeman effect', 'zeeman', 'magnetic splitting'],
-            'fine structure': ['fine structure', 'fine structure splitting', 'fs'],
-            'hyperfine structure': ['hyperfine structure', 'hfs', 'hyperfine'],
-            
-            // Additional High Energy Terms
-            'inverse compton': ['inverse compton', 'ics', 'inverse compton scattering'],
-            'compton scattering': ['compton scattering', 'compton', 'compton effect'],
-            'synchrotron self absorption': ['ssa', 'synchrotron self absorption', 'self absorption'],
-            'cooling break': ['cooling break', 'cooling frequency', 'break frequency'],
-            'maxwellian': ['maxwellian', 'maxwell distribution', 'thermal distribution'],
-            'power law distribution': ['power law distribution', 'non thermal', 'nonthermal'],
-            
-            // Additional Planetary Terms
-            'roche lobe': ['roche lobe', 'roche radius', 'critical radius'],
-            'hill sphere': ['hill sphere', 'roche sphere', 'gravitational sphere'],
-            'libration': ['libration', 'librational motion', 'tadpole orbit'],
-            'resonance': ['resonance', 'orbital resonance', 'mean motion resonance'],
-            'tidal heating': ['tidal heating', 'tidal dissipation', 'tidal friction'],
-            'obliquity': ['obliquity', 'axial tilt', 'inclination'],
-            
-            // Additional Stellar Structure Terms
-            'hydrostatic equilibrium': ['hydrostatic equilibrium', 'hse', 'pressure balance'],
-            'virial theorem': ['virial theorem', 'virial', 'energy balance'],
-            'lane emden': ['lane emden', 'polytrope', 'polytropic'],
-            'convection': ['convection', 'convective', 'convective zone'],
-            'radiation zone': ['radiation zone', 'radiative zone', 'radiative transfer'],
-            'opacity': ['opacity', 'κ', 'kappa', 'absorption coefficient'],
-            
-            // Additional Magnitude Terms
-            'bolometric magnitude': ['bolometric magnitude', 'mbol', 'total magnitude'],
-            'visual magnitude': ['visual magnitude', 'mv', 'v magnitude'],
-            'photometric magnitude': ['photometric magnitude', 'photometry', 'magnitude system'],
-            'color magnitude diagram': ['cmd', 'color magnitude diagram', 'cm diagram'],
-            'isochrone': ['isochrone', 'isochrones', 'stellar isochrone'],
-            
-            // Additional Variable Star Terms
-            'cepheid': ['cepheid', 'cepheid variable', 'classical cepheid'],
-            'rr lyrae': ['rr lyrae', 'rr lyrae variable', 'rr lyr'],
-            'mira': ['mira', 'mira variable', 'long period variable'],
-            'delta scuti': ['delta scuti', 'δ scuti', 'dscuti'],
-            'beta cephei': ['beta cephei', 'β cephei', 'bcephei'],
-            'pulsation': ['pulsation', 'pulsating', 'radial pulsation'],
-            
-            // Additional Distance Ladder Terms
-            'distance ladder': ['distance ladder', 'cosmic distance ladder', 'distance scale'],
-            'standard candle': ['standard candle', 'standard candles', 'calibrated candle'],
-            'standard ruler': ['standard ruler', 'standard rulers', 'geometric distance'],
-            'parallax method': ['parallax method', 'trigonometric parallax', 'geometric parallax'],
-            'main sequence fitting': ['main sequence fitting', 'ms fitting', 'cluster distance'],
-            'tip of the red giant branch': ['trgb', 'tip of the red giant branch', 'trgb distance'],
-            
-            // Additional Motion & Dynamics Terms
-            'momentum': ['momentum', 'p', 'linear momentum', 'angular momentum'],
-            'force': ['force', 'f', 'gravitational force', 'centripetal force'],
-            'angular frequency': ['angular frequency', 'omega', 'ω', 'angular speed'],
-            'orbital elements': ['orbital elements', 'keplerian elements', 'orbital parameters'],
-            'eccentricity': ['eccentricity', 'e', 'orbit shape', 'ellipticity'],
-            'inclination': ['inclination', 'i', 'orbital inclination', 'tilt'],
-            'argument of periapsis': ['argument of periapsis', 'omega', 'ω', 'argument of perihelion'],
-            'longitude of ascending node': ['longitude of ascending node', 'omega', 'Ω', 'node'],
-            'true anomaly': ['true anomaly', 'nu', 'ν', 'orbital position'],
-            'mean anomaly': ['mean anomaly', 'm', 'orbital phase'],
-            'eccentric anomaly': ['eccentric anomaly', 'e', 'orbital angle'],
-            
-            // Additional Stellar Physics Terms
-            'stellar evolution': ['stellar evolution', 'star evolution', 'stellar life cycle'],
-            'nucleosynthesis': ['nucleosynthesis', 'fusion', 'nuclear fusion', 'stellar fusion'],
-            'proton proton chain': ['pp chain', 'proton proton chain', 'pp cycle'],
-            'cno cycle': ['cno cycle', 'carbon nitrogen oxygen', 'cno fusion'],
-            'triple alpha': ['triple alpha', '3α', 'helium burning'],
-            'main sequence turnoff': ['main sequence turnoff', 'turnoff point', 'ms turnoff'],
-            'red clump': ['red clump', 'rc', 'horizontal branch clump'],
-            'planetary nebula': ['planetary nebula', 'pn', 'nebula'],
-            'supernova type': ['supernova type', 'type ia', 'type ii', 'sn type'],
-            'nova': ['nova', 'classical nova', 'dwarf nova'],
-            'x ray binary': ['x ray binary', 'xrb', 'x ray source'],
-            'accretion disk': ['accretion disk', 'accretion', 'disk'],
-            'eddington luminosity': ['eddington luminosity', 'eddington limit', 'radiation pressure limit'],
-            'schwarzschild metric': ['schwarzschild metric', 'schwarzschild solution', 'black hole metric'],
-            'kerr metric': ['kerr metric', 'rotating black hole', 'kerr solution'],
-            
-            // Additional Cosmological Terms
-            'de sitter': ['de sitter', 'de sitter space', 'exponential expansion'],
-            'friedmann robertson walker': ['frw', 'friedmann robertson walker', 'frw metric'],
-            'comoving coordinates': ['comoving coordinates', 'comoving frame', 'comoving'],
-            'proper time': ['proper time', 'tau', 'τ', 'cosmic time'],
-            'conformal time': ['conformal time', 'eta', 'η', 'conformal'],
-            'particle horizon': ['particle horizon', 'cosmic horizon', 'observable universe'],
-            'apparent horizon': ['apparent horizon', 'trapped surface'],
-            'cosmic variance': ['cosmic variance', 'sample variance', 'cosmological variance'],
-            'baryon acoustic scale': ['bao scale', 'baryon acoustic scale', 'sound horizon'],
-            'last scattering': ['last scattering', 'recombination', 'cmb last scattering'],
-            'decoupling': ['decoupling', 'photon decoupling', 'matter radiation decoupling'],
-            
-            // Additional Spectroscopy Terms
-            'line profile': ['line profile', 'spectral line profile', 'line shape'],
-            'gaussian profile': ['gaussian profile', 'gaussian line', 'thermal broadening'],
-            'lorentzian profile': ['lorentzian profile', 'lorentzian line', 'natural broadening'],
-            'voigt profile': ['voigt profile', 'voigt line', 'combined profile'],
-            'full width half maximum': ['fwhm', 'full width half maximum', 'line width'],
-            'radial velocity curve': ['radial velocity curve', 'rv curve', 'velocity curve'],
-            'orbital solution': ['orbital solution', 'keplerian fit', 'orbit fit'],
-            'mass function': ['mass function', 'binary mass function', 'minimum mass'],
-            'spectral classification': ['spectral classification', 'spectral type', 'mk classification'],
-            'luminosity class': ['luminosity class', 'yerkes classification', 'mk class'],
-            'saha equation': ['saha equation', 'ionization equilibrium', 'saha'],
-            'boltzmann distribution': ['boltzmann distribution', 'maxwell boltzmann', 'thermal distribution'],
-            
-            // Additional Exoplanet Detection Terms
-            'transit depth': ['transit depth', 'delta', 'δ', 'dip'],
-            'transit duration': ['transit duration', 'transit time', 'eclipse duration'],
-            'impact parameter': ['impact parameter', 'b', 'transit geometry'],
-            'limb darkening': ['limb darkening', 'u', 'stellar limb'],
-            'rossiter mclaughlin': ['rossiter mclaughlin', 'rm effect', 'spin orbit'],
-            'doppler beaming': ['doppler beaming', 'relativistic beaming', 'beaming'],
-            'ellipsoidal variation': ['ellipsoidal variation', 'tidal distortion', 'ellipsoidal'],
-            'reflection modulation': ['reflection modulation', 'phase curve', 'albedo variation'],
-            'secondary eclipse': ['secondary eclipse', 'occultation', 'planet eclipse'],
-            'atmospheric transmission': ['atmospheric transmission', 'transmission spectrum', 'atmosphere'],
-            'emission spectrum': ['emission spectrum', 'thermal emission', 'planet emission'],
-            
-            // Additional High Energy Terms
-            'compton y parameter': ['compton y', 'y parameter', 'comptonization'],
-            'synchrotron self compton': ['ssc', 'synchrotron self compton', 'ssc scattering'],
-            'inverse compton scattering': ['ics', 'inverse compton', 'compton upscattering'],
-            'thomson scattering': ['thomson scattering', 'thomson', 'electron scattering'],
-            'klein nishina': ['klein nishina', 'kn scattering', 'relativistic scattering'],
-            'bremsstrahlung': ['bremsstrahlung', 'free free', 'thermal bremsstrahlung'],
-            'pair production': ['pair production', 'gamma gamma', 'pair creation'],
-            'photoionization': ['photoionization', 'photoion', 'ionization'],
-            'photodisintegration': ['photodisintegration', 'photodissociation', 'nuclear breakup'],
-            'hadronic interaction': ['hadronic', 'proton proton', 'pp interaction'],
-            'pion decay': ['pion decay', 'pi decay', 'neutral pion'],
-            'gamma ray attenuation': ['gamma ray attenuation', 'gamma absorption', 'pair opacity'],
-            
-            // Additional Relativistic Terms
-            'proper distance': ['proper distance', 'physical distance', 'comoving distance'],
-            'comoving volume': ['comoving volume', 'comoving', 'volume element'],
-            'redshift space distortion': ['rsd', 'redshift space distortion', 'peculiar velocity'],
-            'peculiar velocity': ['peculiar velocity', 'peculiar motion', 'local motion'],
-            'hubble flow': ['hubble flow', 'hubble expansion', 'cosmic flow'],
-            'virial mass': ['virial mass', 'virial theorem', 'dynamical mass'],
-            'toomre q': ['toomre q', 'toomre parameter', 'disk stability'],
-            'spiral density wave': ['spiral density wave', 'density wave theory', 'spiral arm'],
-            
-            // Additional Planetary Terms
-            'libration point': ['libration point', 'lagrange point', 'l point'],
-            'trojan asteroid': ['trojan', 'trojan asteroid', 'lagrange point asteroid'],
-            'secular resonance': ['secular resonance', 'long term resonance', 'apsidal resonance'],
-            'chaos': ['chaos', 'chaotic motion', 'orbital chaos'],
-            'kirkwood gap': ['kirkwood gap', 'resonance gap', 'asteroid gap'],
-            'yarkovsky effect': ['yarkovsky effect', 'yarkovsky', 'thermal force'],
-            'yorp effect': ['yorp effect', 'yorp', 'radiation torque'],
-            'poynting robertson': ['poynting robertson', 'pr drag', 'radiation drag'],
-            
-            // Additional Stellar Structure Terms
-            'lane emden equation': ['lane emden', 'polytrope', 'polytropic equation'],
-            'emden function': ['emden function', 'polytropic function', 'stellar structure'],
-            'isothermal sphere': ['isothermal sphere', 'isothermal', 'constant temperature'],
-            'plummer model': ['plummer model', 'plummer sphere', 'softened potential'],
-            'king model': ['king model', 'king profile', 'truncated isothermal'],
-            'hernquist profile': ['hernquist profile', 'hernquist model', 'galaxy profile'],
-            'nfw profile': ['nfw', 'navarro frenk white', 'nfw halo'],
-            'einasto profile': ['einasto profile', 'einasto', 'alpha profile'],
-            
-            // Additional Magnitude & Photometry Terms
-            'extinction': ['extinction', 'a', 'interstellar extinction', 'dust'],
-            'reddening': ['reddening', 'e', 'color excess', 'b v'],
-            'selective extinction': ['selective extinction', 'r', 'rv', 'extinction law'],
-            'cardelli law': ['cardelli law', 'cardelli', 'extinction curve'],
-            'k correction': ['k correction', 'k correction', 'redshift correction'],
-            'surface brightness': ['surface brightness', 'mu', 'μ', 'brightness per area'],
-            'surface brightness fluctuation': ['sbf', 'surface brightness fluctuation', 'distance indicator'],
-            
-            // Additional Binary & Multiple System Terms
-            'mass ratio': ['mass ratio', 'q', 'binary mass ratio'],
-            'orbital separation': ['orbital separation', 'a', 'semi major axis', 'binary separation'],
-            'common envelope': ['common envelope', 'ce', 'envelope ejection'],
-            'mass transfer': ['mass transfer', 'accretion', 'roche lobe overflow'],
-            'conservative mass transfer': ['conservative', 'mass conservation', 'stable transfer'],
-            'non conservative': ['non conservative', 'mass loss', 'wind'],
-            'thermal timescale': ['thermal timescale', 'kelvin helmholtz', 'kh timescale'],
-            'dynamical timescale': ['dynamical timescale', 'free fall', 'crossing time'],
-            'nuclear timescale': ['nuclear timescale', 'fusion timescale', 'burning time'],
-            'merger product': ['merger product', 'merged star', 'coalescence product'],
-            
-            // Additional Variable Star Terms
-            'period luminosity': ['period luminosity', 'pl relation', 'cepheid pl'],
-            'leavitt law': ['leavitt law', 'cepheid relation', 'period luminosity'],
-            'wesenheit function': ['wesenheit function', 'wesenheit', 'reddening free'],
-            'fourier decomposition': ['fourier decomposition', 'fourier', 'light curve analysis'],
-            'o c diagram': ['o c diagram', 'observed calculated', 'period change'],
-            'blazhko effect': ['blazhko effect', 'blazhko', 'modulation'],
-            'double mode': ['double mode', 'beat cepheid', 'multimode'],
-            'radial mode': ['radial mode', 'fundamental mode', 'first overtone'],
-            'non radial': ['non radial', 'g mode', 'p mode'],
-            
-            // Additional Distance Measurement Terms
-            'spectroscopic parallax': ['spectroscopic parallax', 'spectroscopic distance', 'hr distance'],
-            'moving cluster': ['moving cluster', 'convergent point', 'cluster parallax'],
-            'statistical parallax': ['statistical parallax', 'secular parallax', 'proper motion'],
-            'barycentric parallax': ['barycentric parallax', 'solar parallax', 'au'],
-            'dynamical parallax': ['dynamical parallax', 'binary parallax', 'orbital parallax'],
-            'expansion parallax': ['expansion parallax', 'nebular parallax', 'pn parallax'],
-            'light echo': ['light echo', 'echo', 'reflected light'],
-            'reverberation mapping': ['reverberation mapping', 'reverberation', 'echo mapping'],
-            
-            // Additional Cosmological Distance Terms
-            'transverse comoving': ['transverse comoving', 'dm', 'angular distance'],
-            'light travel distance': ['light travel distance', 'lookback distance', 'light cone'],
-            'particle horizon distance': ['particle horizon', 'horizon distance', 'causal horizon'],
-            'event horizon distance': ['event horizon distance', 'future horizon', 'cosmic horizon'],
-            
-            // Additional Stellar Classification Terms
-            'metallicity': ['metallicity', 'z', '[fe h]', 'metal abundance'],
-            'alpha enhancement': ['alpha enhancement', '[α fe]', 'alpha elements'],
-            'carbon enhancement': ['carbon enhancement', '[c fe]', 'carbon star'],
-            's process': ['s process', 'slow neutron', 's process element'],
-            'r process': ['r process', 'rapid neutron', 'r process element'],
-            'p process': ['p process', 'proton capture', 'p nuclide'],
-            
-            // Additional Telescope & Instrumentation Terms
-            'point spread function': ['psf', 'point spread function', 'seeing profile'],
-            'strehl ratio': ['strehl ratio', 'image quality', 'adaptive optics'],
-            'contrast ratio': ['contrast ratio', 'dynamic range', 'detection limit'],
-            'signal to noise': ['snr', 'signal to noise', 's n ratio'],
-            'integration time': ['integration time', 'exposure time', 'integration'],
-            'read noise': ['read noise', 'detector noise', 'readout noise'],
-            'dark current': ['dark current', 'dark signal', 'thermal noise'],
-            'quantum efficiency': ['qe', 'quantum efficiency', 'detector efficiency'],
-            'full well capacity': ['full well', 'saturation', 'well depth'],
-            
-            // Additional Observational Terms
-            'airmass': ['airmass', 'sec z', 'atmospheric path'],
-            'extinction coefficient': ['extinction coefficient', 'k', 'atmospheric extinction'],
-            'scintillation': ['scintillation', 'twinkling', 'atmospheric scintillation'],
-            'differential photometry': ['differential photometry', 'relative photometry', 'comparison'],
-            'all sky photometry': ['all sky', 'absolute photometry', 'standard'],
-            'photometric system': ['photometric system', 'ubv', 'johnson', 'cousins'],
-            'color transformation': ['color transformation', 'color term', 'photometric transformation'],
-            'standard star': ['standard star', 'photometric standard', 'calibration'],
-            'flat field': ['flat field', 'flat', 'illumination correction'],
-            
-            // Additional Data Analysis Terms
-            'chi squared': ['chi squared', 'χ²', 'goodness of fit', 'chisq'],
-            'reduced chi squared': ['reduced chi squared', 'reduced χ²', 'chi squared nu'],
-            'maximum likelihood': ['maximum likelihood', 'ml', 'likelihood'],
-            'bayesian': ['bayesian', 'bayes', 'posterior', 'prior'],
-            'markov chain monte carlo': ['mcmc', 'markov chain', 'monte carlo'],
-            'parameter estimation': ['parameter estimation', 'fitting', 'optimization'],
-            'uncertainty': ['uncertainty', 'error', 'sigma', 'confidence'],
-            'systematic error': ['systematic error', 'bias', 'systematic'],
-            'random error': ['random error', 'statistical error', 'noise'],
-            'propagation of errors': ['error propagation', 'uncertainty propagation', 'error analysis']
-        };
-        
-        // Match concepts with improved accuracy (word boundary matching)
-        for (const [concept, synonyms] of Object.entries(physicsTerms)) {
-            for (const syn of synonyms) {
-                const synLower = syn.toLowerCase();
-                // Exact match (highest priority)
-                if (searchLower === synLower) {
-                    result.concepts.push(concept);
-                    break;
-                }
-                // Word boundary match (better accuracy)
-                const wordBoundaryRegex = new RegExp(`\\b${synLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-                if (wordBoundaryRegex.test(searchLower)) {
-                    result.concepts.push(concept);
-                    break;
-                }
-                // Partial match (lower priority, but still valid)
-                if (searchLower.includes(synLower) && synLower.length >= 3) {
-                    result.concepts.push(concept);
-                    break;
-                }
-            }
-        }
-        
-        // Remove duplicate concepts
-        result.concepts = [...new Set(result.concepts)];
-        
-        // Extract variable symbols mentioned
-        const allVarSymbols = new Set();
-        formulas.forEach(f => {
-            f.variables.forEach(v => {
-                allVarSymbols.add(v.symbol.toLowerCase());
-                allVarSymbols.add(v.name.toLowerCase());
-            });
-        });
-        
-        allVarSymbols.forEach(symbol => {
-            if (searchLower.includes(symbol) || searchWords.includes(symbol)) {
-                result.variables.push(symbol);
-            }
-        });
-        
-        return result;
     }
     
     // Match question to formula using semantic understanding
@@ -4723,9 +4783,20 @@ function setupSearchFunctionality() {
     }
 }
 
-// Render filtered formulas with accuracy metrics
+// ============================================================================
+// RENDERING FUNCTIONS
+// ============================================================================
+
+/**
+ * Render filtered formulas with accuracy metrics
+ * Groups formulas by category and displays with confidence scores
+ * 
+ * @param {Array} scoredFormulas - Array of {formula, score, metrics} objects
+ * @param {string} searchTerm - Current search term (empty string for all formulas)
+ * @param {number} maxScore - Maximum score for normalization
+ */
 function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
-        const startTime = window.performance.now();
+    const startTime = window.performance.now();
     const formulaList = document.getElementById('formula-list');
     
     // CRITICAL: Check if element exists
@@ -4737,9 +4808,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     }
     
     // CRITICAL: Force visibility IMMEDIATELY before any operations
-    formulaList.style.display = 'block';
-    formulaList.style.visibility = 'visible';
-    formulaList.style.opacity = '1';
+    forceElementVisibility(formulaList, { display: 'block', forceReflow: true });
     formulaList.style.height = 'auto';
     
     // Clear the list
@@ -4806,6 +4875,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     // Group scored formulas by category and sort by score
     const categorizedFormulas = {};
     const uncategorized = [];
+    const renderedFormulaIds = new Set();
     
     scoredFormulas.forEach(({ formula, score, metrics }) => {
         let found = false;
@@ -4887,9 +4957,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
                 const card = createFormulaCard(formula, score, metrics, maxScore);
                 if (card) {
                     // Force visibility on card before appending
-                    card.style.display = 'block';
-                    card.style.visibility = 'visible';
-                    card.style.opacity = '1';
+                    forceElementVisibility(card);
                     fragment.appendChild(card);
                     cardsAdded++;
                 }
@@ -4899,9 +4967,7 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
             if (cardsAdded > 0) {
                 categoryContainer.appendChild(fragment);
                 // Force visibility on category container
-                categoryContainer.style.display = 'grid';
-                categoryContainer.style.visibility = 'visible';
-                categoryContainer.style.opacity = '1';
+                forceElementVisibility(categoryContainer, { display: 'grid' });
                 formulaList.appendChild(categoryContainer);
             }
         }
@@ -4988,29 +5054,34 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         // Try to force visibility
         if (mainFormulasTab) {
             mainFormulasTab.classList.add('active');
-            mainFormulasTab.style.display = 'block';
+            forceElementVisibility(mainFormulasTab);
         }
-        formulaList.style.display = 'block';
-        formulaList.style.visibility = 'visible';
-        formulaList.style.opacity = '1';
+        forceElementVisibility(formulaList, { forceReflow: true });
     }
     
     // PERFORMANCE: Single visibility pass instead of multiple
-    formulaList.style.display = 'block';
-    formulaList.style.visibility = 'visible';
-    formulaList.style.opacity = '1';
+    forceElementVisibility(formulaList, { forceReflow: true });
     
     // Ensure all cards are visible (single pass)
     const allCards = formulaList.querySelectorAll('.formula-card');
-    allCards.forEach(card => {
-        card.style.display = 'block';
-        card.style.visibility = 'visible';
-        card.style.opacity = '1';
-    });
+    allCards.forEach(card => forceElementVisibility(card));
     
     // Scroll to top of results if we have a search term (use instant scroll for performance)
     if (searchTerm && totalCards > 0) {
         formulaList.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }
+    
+    // CRITICAL: Re-setup event delegation after rendering search results
+    // This ensures clicks work on dynamically rendered cards
+    if (searchTerm && totalCards > 0) {
+        // Reset delegation flag so it can be set up again
+        if (formulaList) {
+            formulaList.dataset.delegationSetup = 'false';
+        }
+        // Set up event delegation for the newly rendered cards
+        setTimeout(() => {
+            setupFormulaCardEventDelegation();
+        }, 0);
     }
     
     // Highlight search term in results (async to not block rendering)
@@ -5019,7 +5090,15 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     }
 }
 
-// Render search results in Explorer-style two-panel layout
+/**
+ * Render search results in Explorer-style two-panel layout
+ * Left panel: scrollable list of results
+ * Right panel: detailed formula information
+ * 
+ * @param {Array} scoredFormulas - Array of {formula, score, metrics} objects
+ * @param {string} searchTerm - Current search term
+ * @param {number} maxScore - Maximum score for normalization
+ */
 function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore = 1) {
     const formulaList = document.getElementById('formula-list');
     if (!formulaList) return;
@@ -5254,6 +5333,10 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
     detailsPanel.innerHTML = detailsHTML;
 }
 
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
 /**
  * Helper function to escape HTML
  * 
@@ -5404,6 +5487,14 @@ function highlightSearchTerm(searchTerm) {
 }
 
 // Render the list of formulas
+// ============================================================================
+// FORMULA LIST RENDERING
+// ============================================================================
+
+/**
+ * Render the complete formula list
+ * Organizes formulas by category and creates interactive cards
+ */
 function renderFormulaList() {
     // Make sure this function is globally available
     if (typeof window !== 'undefined') {
@@ -5431,6 +5522,15 @@ function renderFormulaList() {
     
     console.log(`Rendering ${formulas.length} formulas...`);
     
+    // Re-setup event delegation after rendering (in case DOM was replaced)
+    // This ensures clicks work even if formula-list was recreated
+    // Call immediately - delegation works on parent, so it doesn't need cards to exist yet
+    setupFormulaCardEventDelegation();
+    // Also call in setTimeout as backup
+    setTimeout(() => {
+        setupFormulaCardEventDelegation();
+    }, 0);
+    
     // CRITICAL: Ensure the formula-selection screen is active (Safari fix)
     const formulaSelection = document.getElementById('formula-selection');
     if (formulaSelection) {
@@ -5455,6 +5555,12 @@ function renderFormulaList() {
     
     // Clear and populate formula list
     formulaList.innerHTML = '';
+    // Reset delegation flag so it can be set up again after rendering
+    // Also remove old listeners to prevent duplicates
+    if (formulaList.dataset.delegationSetup === 'true') {
+        removeTrackedListeners(formulaList);
+        delete formulaList.dataset.delegationSetup;
+    }
     
     // Ensure formula-list is visible (Cross-browser compatibility - CRITICAL)
     formulaList.style.setProperty('display', 'block', 'important');
@@ -5569,39 +5675,63 @@ function renderFormulaList() {
         'High Energy Astrophysics',
         'Stellar Structure'
     ];
+    const renderedCategories = new Set();
+    const renderedFormulaIds = new Set(); // Track which formulas have been rendered
     
-    categoryOrder.forEach(category => {
-        if (categorizedFormulas[category] && categorizedFormulas[category].length > 0) {
-            // Create category header
-            const categoryHeader = document.createElement('div');
-            categoryHeader.className = 'formula-category-header';
-            // SECURITY FIX: Escape category name
-            categoryHeader.innerHTML = `<h2>${escapeHtml(category)}</h2>`;
-            formulaList.appendChild(categoryHeader);
+    const renderCategory = (category) => {
+        const formulasInCategory = categorizedFormulas[category];
+        if (!formulasInCategory || formulasInCategory.length === 0) {
+            return;
+        }
+        renderedCategories.add(category);
+        
+        // Create category header
+        const categoryHeader = document.createElement('div');
+        categoryHeader.className = 'formula-category-header';
+        categoryHeader.innerHTML = `<h2>${escapeHtml(category)}</h2>`;
+        formulaList.appendChild(categoryHeader);
+        
+        // Create category container
+        const categoryContainer = document.createElement('div');
+        categoryContainer.className = 'formula-category';
+        categoryContainer.style.setProperty('display', 'grid', 'important');
+        categoryContainer.style.setProperty('visibility', 'visible', 'important');
+        categoryContainer.style.setProperty('opacity', '1', 'important');
+        
+        formulasInCategory.forEach(formula => {
+            // Skip if already rendered (prevents duplicates)
+            if (renderedFormulaIds.has(formula.id)) {
+                console.warn(`[Duplicate Prevention] Skipping duplicate formula: ${formula.id}`);
+                return;
+            }
             
-            // Create category container
-            const categoryContainer = document.createElement('div');
-            categoryContainer.className = 'formula-category';
-            // Force visibility for all browsers
-            categoryContainer.style.setProperty('display', 'grid', 'important');
-            categoryContainer.style.setProperty('visibility', 'visible', 'important');
-            categoryContainer.style.setProperty('opacity', '1', 'important');
-            
-            // Add formulas to category
-            categorizedFormulas[category].forEach(formula => {
-                const card = createFormulaCard(formula);
-                if (card) {
-                    // Force card visibility
-                    card.style.setProperty('display', 'block', 'important');
-                    card.style.setProperty('visibility', 'visible', 'important');
-                    card.style.setProperty('opacity', '1', 'important');
-                    categoryContainer.appendChild(card);
-                } else {
-                    console.warn(`Failed to create card for formula: ${formula.id || formula.name || 'unknown'}`);
-                }
-            });
-            
-            formulaList.appendChild(categoryContainer);
+            const card = createFormulaCard(formula);
+            if (card) {
+                card.style.setProperty('display', 'block', 'important');
+                card.style.setProperty('visibility', 'visible', 'important');
+                card.style.setProperty('opacity', '1', 'important');
+                card.style.setProperty('pointer-events', 'auto', 'important');
+                card.style.setProperty('cursor', 'pointer', 'important');
+                categoryContainer.appendChild(card);
+                renderedFormulaIds.add(formula.id);
+                
+                // Note: Click handlers are attached via event delegation on the parent
+                // (formula-list element), so individual cards don't need onclick handlers
+            } else {
+                console.warn(`Failed to create card for formula: ${formula.id || formula.name || 'unknown'}`);
+            }
+        });
+        
+        formulaList.appendChild(categoryContainer);
+    };
+    
+    // Render preferred order first
+    categoryOrder.forEach(renderCategory);
+    
+    // Render any remaining categories that weren't in the predefined order
+    Object.keys(categorizedFormulas).forEach(category => {
+        if (!renderedCategories.has(category)) {
+            renderCategory(category);
         }
     });
     
@@ -5616,13 +5746,22 @@ function renderFormulaList() {
         categoryContainer.className = 'formula-category';
         
         uncategorized.forEach(formula => {
+            // Skip if already rendered (prevents duplicates)
+            if (renderedFormulaIds.has(formula.id)) {
+                console.warn(`[Duplicate Prevention] Skipping duplicate uncategorized formula: ${formula.id}`);
+                return;
+            }
+            
             const card = createFormulaCard(formula);
             if (card) {
-                // Ensure card is visible
+                // Ensure card is visible and clickable
                 card.style.setProperty('display', 'block', 'important');
                 card.style.setProperty('visibility', 'visible', 'important');
                 card.style.setProperty('opacity', '1', 'important');
+                card.style.setProperty('pointer-events', 'auto', 'important');
+                card.style.setProperty('cursor', 'pointer', 'important');
                 categoryContainer.appendChild(card);
+                renderedFormulaIds.add(formula.id);
             } else {
                 console.warn(`Failed to create card for uncategorized formula: ${formula.id || formula.name || 'unknown'}`);
             }
@@ -5632,8 +5771,43 @@ function renderFormulaList() {
     }
     
     // Final verification: Count actual cards rendered
-    const actualCardCount = formulaList.querySelectorAll('.formula-card').length;
-    console.log(`✅ Rendered ${actualCardCount} formula cards in ${Object.keys(categorizedFormulas).length} categories (expected ${formulas.length})`);
+    let actualCardCount = formulaList.querySelectorAll('.formula-card').length;
+    if (renderedFormulaIds.size < formulas.length) {
+        const missingFormulas = formulas.filter(formula => {
+            if (!formula || !formula.id) {
+                return false;
+            }
+            return !renderedFormulaIds.has(formula.id);
+        });
+        if (missingFormulas.length > 0) {
+            console.warn(`⚠️ Rendering fallback for ${missingFormulas.length} missing formulas`);
+            const fallbackHeader = document.createElement('div');
+            fallbackHeader.className = 'formula-category-header';
+            fallbackHeader.innerHTML = '<h2>Additional Formulas</h2>';
+            formulaList.appendChild(fallbackHeader);
+            
+            const fallbackContainer = document.createElement('div');
+            fallbackContainer.className = 'formula-category';
+            fallbackContainer.style.setProperty('display', 'grid', 'important');
+            fallbackContainer.style.setProperty('visibility', 'visible', 'important');
+            fallbackContainer.style.setProperty('opacity', '1', 'important');
+            
+            missingFormulas.forEach(formula => {
+                const card = createFormulaCard(formula);
+                if (card) {
+                    card.style.setProperty('display', 'block', 'important');
+                    card.style.setProperty('visibility', 'visible', 'important');
+                    card.style.setProperty('opacity', '1', 'important');
+                    fallbackContainer.appendChild(card);
+                    renderedFormulaIds.add(formula.id);
+                }
+            });
+            
+            formulaList.appendChild(fallbackContainer);
+            actualCardCount = formulaList.querySelectorAll('.formula-card').length;
+        }
+    }
+    console.log(`✅ Rendered ${actualCardCount} formula cards (expected ${formulas.length})`);
     
     // Make diagnostics available
     if (typeof window !== 'undefined') {
@@ -5711,6 +5885,22 @@ function renderFormulaList() {
     } else {
         console.log('✅ All cards should now be visible. If not, check computed styles in DevTools.');
     }
+    
+    // Ensure event delegation is set up after rendering (as backup to direct handlers)
+    // Call immediately - delegation works on parent element, doesn't need cards to exist
+    if (typeof setupFormulaCardEventDelegation === 'function') {
+        setupFormulaCardEventDelegation();
+    }
+    // Also call in setTimeout as backup
+    setTimeout(() => {
+        if (typeof setupFormulaCardEventDelegation === 'function') {
+            setupFormulaCardEventDelegation();
+        }
+        // Also ensure main event listeners are set up (only if not already set up)
+        if (typeof setupEventListeners === 'function' && !eventListenersSetup) {
+            setupEventListeners();
+        }
+    }, 100); // Small delay to ensure DOM is ready
 }
 
 // Create a formula card element
@@ -5731,6 +5921,9 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
     card.setAttribute('data-formula-id', formula.id);
+    // Ensure card is clickable
+    card.style.cursor = 'pointer';
+    card.style.pointerEvents = 'auto';
     
     // PERFORMANCE FIX: Use event delegation instead of individual listeners
     // Event delegation is already set up on formulaList, so we don't need individual listeners
@@ -5903,15 +6096,12 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         `;
     }
     
-    // PERFORMANCE FIX: Keyboard support only (click handled by event delegation)
-    // Single listener, no duplicates
-    card.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            e.stopPropagation();
-            selectFormula(formula);
-        }
-    });
+    // Event delegation handles all clicks - no need for direct listeners
+    // Direct listeners are removed when innerHTML is cleared anyway
+    // Delegation on formula-list parent will catch all card clicks
+    // Just ensure card is properly marked for delegation
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', `Select formula: ${formula.name}`);
     
     // Final validation - ensure card has content
     if (!card || !card.innerHTML || card.innerHTML.trim().length === 0) {
@@ -5934,8 +6124,12 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
     return card;
 }
 
-// Make selectFormula available globally for onclick handlers
+// Make selectFormula available globally for onclick handlers and explorer
 window.selectFormula = selectFormula;
+// Ensure it's available immediately (before DOMContentLoaded)
+if (typeof selectFormula === 'function') {
+    window.selectFormula = selectFormula;
+}
 
 // Select a formula and show input screen
 // Helper function to safely initialize a graph manager
@@ -5978,122 +6172,511 @@ function waitForElement(element, timeout = 1000) {
     });
 }
 
+// ============================================================================
+// FORMULA SELECTION & NAVIGATION
+// ============================================================================
+
+/**
+ * Select a formula and switch to calculator view
+ * Initializes calculator, renders inputs, and updates UI state
+ * 
+ * @param {Object} formula - Formula object to select
+ */
 function selectFormula(formula) {
-    // Make sure function is available globally for onclick handlers
-    if (!window.selectFormula) {
-        window.selectFormula = selectFormula;
-    }
+    console.log('[selectFormula] Called with:', formula?.name || formula?.id || 'unknown');
     
-    // FIXED: Cleanup previous formula's resources to prevent memory leaks
-    cleanupGlobalState();
-    
-    // Track formula selection for dynamic prioritization
-    if (typeof semanticSearchSystem !== 'undefined' && formula.concepts) {
-        formula.concepts.forEach(concept => {
-            semanticSearchSystem.trackUsage(concept);
-        });
-        if (formula.keywords) {
-            formula.keywords.forEach(keyword => {
-                semanticSearchSystem.trackUsage(keyword);
+    try {
+        // Make sure function is available globally for onclick handlers
+        if (!window.selectFormula) {
+            window.selectFormula = selectFormula;
+        }
+        
+        if (!formula) {
+            console.error('[selectFormula] No formula provided!');
+            return;
+        }
+        
+        console.log('[selectFormula] Step 1: Cleaning up global state...');
+        // FIXED: Cleanup previous formula's resources to prevent memory leaks
+        if (typeof cleanupGlobalState === 'function') {
+            cleanupGlobalState();
+        } else {
+            console.warn('[selectFormula] cleanupGlobalState not available');
+        }
+        
+        // Track formula selection for dynamic prioritization
+        if (typeof semanticSearchSystem !== 'undefined' && formula.concepts) {
+            formula.concepts.forEach(concept => {
+                semanticSearchSystem.trackUsage(concept);
             });
+            if (formula.keywords) {
+                formula.keywords.forEach(keyword => {
+                    semanticSearchSystem.trackUsage(keyword);
+                });
+            }
         }
+        
+        console.log('[selectFormula] Step 2: Setting current formula and creating calculator...');
+        currentFormula = formula;
+        
+        if (typeof FormulaCalculator === 'undefined') {
+            console.error('[selectFormula] ❌ FormulaCalculator is not defined!');
+            return;
+        }
+        
+        calculator = new FormulaCalculator(formula);
+        console.log('[selectFormula] ✅ Calculator created');
+    
+        console.log('[selectFormula] Step 3: Initializing graph manager...');
+        // Initialize graph manager (uses OfflineGraphManager for offline operation)
+        if (typeof GraphManager !== 'undefined') {
+            if (!graphManager) {
+                graphManager = new GraphManager('desmos-graph', 'graph-tab');
+            }
+            // Update graph with current formula
+            graphManager.updateGraph(formula, {});
+            // Update graph interpretation
+            if (typeof updateGraphInterpretation === 'function') {
+                updateGraphInterpretation(formula, {});
+            }
+        }
+        
+        console.log('[selectFormula] Step 4: Switching to input screen...');
+        // Switch to input screen
+        const formulaSelection = document.getElementById('formula-selection');
+        const inputScreen = document.getElementById('input-screen');
+    
+    if (!formulaSelection) {
+        console.error('[selectFormula] ❌ formula-selection element not found!');
+    } else {
+        formulaSelection.classList.remove('active');
+        formulaSelection.style.setProperty('display', 'none', 'important');
     }
     
-    currentFormula = formula;
-    calculator = new FormulaCalculator(formula);
-    
-    // Initialize graph manager (uses OfflineGraphManager for offline operation)
-    if (typeof GraphManager !== 'undefined') {
-        if (!graphManager) {
-            graphManager = new GraphManager('desmos-graph', 'graph-tab');
-        }
-        // Update graph with current formula
-        graphManager.updateGraph(formula, {});
+    if (!inputScreen) {
+        console.error('[selectFormula] ❌ input-screen element not found!');
+    } else {
+        inputScreen.classList.add('active');
+        inputScreen.style.setProperty('display', 'block', 'important');
+        inputScreen.style.setProperty('visibility', 'visible', 'important');
+        inputScreen.style.setProperty('opacity', '1', 'important');
+        console.log('[selectFormula] ✅ Switched to input-screen');
     }
-    
-    // Switch to input screen
-    document.getElementById('formula-selection').classList.remove('active');
-    document.getElementById('input-screen').classList.add('active');
     
     // CRITICAL: Ensure calculator tab is active and visible BEFORE rendering inputs
     if (typeof switchTab === 'function') {
+        console.log('[selectFormula] Calling switchTab("calculator")');
         switchTab('calculator');
     } else {
+        console.warn('[selectFormula] switchTab function not available, using fallback');
         // Fallback: manually activate calculator tab
-        const calculatorTab = document.getElementById('calculator-tab');
-        if (calculatorTab) {
+        const calcTab = document.getElementById('calculator-tab');
+        if (calcTab) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            calculatorTab.classList.add('active');
-            const calculatorContent = document.getElementById('calculator-tab');
-            if (calculatorContent) {
-                calculatorContent.classList.add('active');
-                calculatorContent.style.setProperty('display', 'block', 'important');
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                content.style.setProperty('display', 'none', 'important');
+            });
+            calcTab.classList.add('active');
+            calcTab.style.setProperty('display', 'block', 'important');
+            calcTab.style.setProperty('visibility', 'visible', 'important');
+            calcTab.style.setProperty('opacity', '1', 'important');
+            console.log('[selectFormula] ✅ Calculator tab activated (fallback)');
+            
+            // Also activate the calculator tab button
+            const calculatorTabBtn = document.querySelector('[data-tab="calculator"]');
+            if (calculatorTabBtn) {
+                calculatorTabBtn.classList.add('active');
+                calculatorTabBtn.setAttribute('aria-selected', 'true');
             }
+        } else {
+            console.error('[selectFormula] ❌ calculator-tab element not found!');
         }
     }
     
     // Populate formula info
-    document.getElementById('formula-name').textContent = formula.name;
+    const formulaNameEl = document.getElementById('formula-name');
     const equationEl = document.getElementById('formula-equation');
-    equationEl.textContent = formula.equation;
-    document.getElementById('formula-description').textContent = formula.description;
+    const formulaDescEl = document.getElementById('formula-description');
     
-    // Create variable inputs (only in calculator tab)
-    renderVariableInputs(formula);
-    
-    // Double-check calculator tab is visible after rendering (synchronous check)
-    const calculatorTab = document.getElementById('calculator-tab');
-    if (calculatorTab && !calculatorTab.classList.contains('active')) {
-        calculatorTab.classList.add('active');
-        calculatorTab.setAttribute('aria-hidden', 'false');
+    if (!formulaNameEl) {
+        console.error('[selectFormula] ❌ formula-name element not found!');
+    } else {
+        formulaNameEl.textContent = formula.name;
     }
     
-    // Ensure tab button is also active
-    const calculatorTabBtn = document.querySelector('[data-tab="calculator"]');
-    if (calculatorTabBtn && !calculatorTabBtn.classList.contains('active')) {
-        calculatorTabBtn.classList.add('active');
-        calculatorTabBtn.setAttribute('aria-selected', 'true');
+    if (!equationEl) {
+        console.error('[selectFormula] ❌ formula-equation element not found!');
+    } else {
+        equationEl.textContent = formula.equation;
     }
     
-    // Clear previous results
-    document.getElementById('result-display').classList.remove('show');
-    
-    // Remove any existing usage instructions (always remove, never add)
-    // Reuse calculatorTab variable declared above
-    if (calculatorTab) {
-        const existingInstructions = calculatorTab.querySelector('.usage-instructions-container');
-        if (existingInstructions) {
-            existingInstructions.remove();
-        }
-        // Also remove contextual hints
-        const existingHints = calculatorTab.querySelector('.contextual-hints-container');
-        if (existingHints) {
-            existingHints.remove();
-        }
+    if (!formulaDescEl) {
+        console.error('[selectFormula] ❌ formula-description element not found!');
+    } else {
+        formulaDescEl.textContent = formula.description;
     }
     
-    // Update instruction banner with initial state
-    updateInstructionBanner([], null, 0, currentFormula.variables.filter(v => {
-        const constantSymbols = new Set();
-        if (currentFormula.constants) {
-            Object.keys(currentFormula.constants).forEach(key => constantSymbols.add(key));
+        console.log('[selectFormula] ✅ Formula info populated');
+        
+        console.log('[selectFormula] Step 6: Rendering variable inputs...');
+        // Create variable inputs (only in calculator tab)
+        if (typeof renderVariableInputs === 'function') {
+            renderVariableInputs(formula);
+        } else {
+            console.error('[selectFormula] ❌ renderVariableInputs function not available!');
         }
-        return !constantSymbols.has(v.symbol);
-    }).length);
-    
+        
+        console.log('[selectFormula] Step 8: Finalizing UI state...');
+        // Double-check calculator tab is visible after rendering (synchronous check)
+        const calcTabCheck = document.getElementById('calculator-tab');
+        if (calcTabCheck && !calcTabCheck.classList.contains('active')) {
+            calcTabCheck.classList.add('active');
+            calcTabCheck.setAttribute('aria-hidden', 'false');
+            calcTabCheck.style.setProperty('display', 'block', 'important');
+        }
+        
+        // Ensure tab button is also active
+        const calculatorTabBtn = document.querySelector('[data-tab="calculator"]');
+        if (calculatorTabBtn && !calculatorTabBtn.classList.contains('active')) {
+            calculatorTabBtn.classList.add('active');
+            calculatorTabBtn.setAttribute('aria-selected', 'true');
+        }
+        
+        // Clear previous results
+        const resultDisplay = document.getElementById('result-display');
+        if (resultDisplay) {
+            resultDisplay.classList.remove('show');
+        }
+        
+        // Remove any existing usage instructions (always remove, never add)
+        if (calcTabCheck) {
+            const existingInstructions = calcTabCheck.querySelector('.usage-instructions-container');
+            if (existingInstructions) {
+                existingInstructions.remove();
+            }
+            // Also remove contextual hints
+            const existingHints = calcTabCheck.querySelector('.contextual-hints-container');
+            if (existingHints) {
+                existingHints.remove();
+            }
+        }
+        
+        // Update instruction banner with initial state
+        if (typeof updateInstructionBanner === 'function' && currentFormula) {
+            updateInstructionBanner([], null, 0, currentFormula.variables.filter(v => {
+                const constantSymbols = new Set();
+                if (currentFormula.constants) {
+                    Object.keys(currentFormula.constants).forEach(key => constantSymbols.add(key));
+                }
+                return !constantSymbols.has(v.symbol);
+            }).length);
+        }
+        
+        console.log('[selectFormula] Step 9: Setting up delayed updates...');
         // Update solve indicators after a short delay to ensure DOM is ready
         setTimeout(() => {
-            updateSolveIndicators();
+            if (typeof updateSolveIndicators === 'function') {
+                updateSolveIndicators();
+            }
             // Also update graph if it's already initialized
             if (graphManager && currentFormula) {
                 const variableValues = getCurrentVariableValues();
                 graphManager.updateGraph(currentFormula, variableValues);
             }
         }, 150);
+        
+        // Display related formulas
+        if (typeof displayRelatedFormulas === 'function') {
+            displayRelatedFormulas(formula);
+        }
+        
+        console.log('[selectFormula] ✅ All steps completed successfully!');
+    } catch (error) {
+        console.error('[selectFormula] ❌ ERROR in selectFormula:', error);
+        console.error('[selectFormula] Error stack:', error.stack);
+        // Try to at least show the input screen even if there's an error
+        try {
+            const inputScreen = document.getElementById('input-screen');
+            if (inputScreen) {
+                inputScreen.classList.add('active');
+                inputScreen.style.setProperty('display', 'block', 'important');
+            }
+        } catch (e) {
+            console.error('[selectFormula] Failed to show input screen:', e);
+        }
+    }
+}
+
+// ENHANCED: Setup graph controls (presets, sliders, etc.)
+function setupGraphControls() {
+    // Toggle controls panel
+    const toggleBtn = document.getElementById('toggle-graph-controls');
+    const controlsPanel = document.getElementById('graph-controls-panel');
     
-    // Display related formulas
-    displayRelatedFormulas(formula);
+    if (toggleBtn && controlsPanel) {
+        toggleBtn.addEventListener('click', () => {
+            const isVisible = controlsPanel.style.display !== 'none';
+            controlsPanel.style.display = isVisible ? 'none' : 'block';
+            toggleBtn.textContent = isVisible ? '⚙️ Show Controls' : '⚙️ Hide Controls';
+        });
+    }
+    
+    // Preset buttons
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const preset = btn.getAttribute('data-preset');
+            applyGraphPreset(preset);
+        });
+    });
+    
+    // Error bands checkbox
+    const errorBandsCheckbox = document.getElementById('show-error-bands');
+    if (errorBandsCheckbox) {
+        errorBandsCheckbox.addEventListener('change', (e) => {
+            if (graphManager && currentFormula && e.target.checked) {
+                const variableValues = getCurrentVariableValues();
+                const errorBands = generateErrorBands(currentFormula, variableValues);
+                graphManager.updateGraph(currentFormula, variableValues, { errorBands });
+            } else if (graphManager && currentFormula) {
+                graphManager.updateGraph(currentFormula, getCurrentVariableValues(), { errorBands: [] });
+            }
+        });
+    }
+    
+    // Second curve checkbox
+    const secondCurveCheckbox = document.getElementById('show-second-curve');
+    if (secondCurveCheckbox) {
+        secondCurveCheckbox.addEventListener('change', (e) => {
+            if (graphManager && currentFormula && e.target.checked) {
+                const variableValues = getCurrentVariableValues();
+                const secondCurve = generateSecondCurve(currentFormula, variableValues);
+                graphManager.updateGraph(currentFormula, variableValues, { secondCurve });
+            } else if (graphManager && currentFormula) {
+                graphManager.updateGraph(currentFormula, getCurrentVariableValues(), { secondCurve: null });
+            }
+        });
+    }
+}
+
+// ENHANCED: Apply graph preset
+function applyGraphPreset(presetName) {
+    if (!presetName || !formulas) return;
+    
+    const presetMap = {
+        blackbody: 'wiens_law',
+        kepler: 'kepler_third_law',
+        escape_velocity: 'escape_velocity',
+        luminosity: 'luminosity',
+        spectrum: 'wiens_law'
+    };
+    
+    const formulaId = presetMap[presetName];
+    if (!formulaId) return;
+    
+    const formula = formulas.find(f => f.id === formulaId);
+    if (formula) {
+        selectFormula(formula);
+        // Switch to graph tab
+        setTimeout(() => {
+            switchTab('graph');
+        }, 100);
+    }
+}
+
+// ENHANCED: Generate error bands for tolerance checking
+function generateErrorBands(formula, variableValues) {
+    if (!formula || !variableValues) return [];
+    
+    // Find calculated point
+    if (!graphManager || !graphManager.offlineManager) return [];
+    
+    const calculatedPoint = graphManager.offlineManager.getCalculatedPoint(
+        formula,
+        variableValues,
+        { ...globalConstants, ...(formula.constants || {}), ...variableValues }
+    );
+    
+    if (!calculatedPoint) return [];
+    
+    // Create error band (±5% tolerance)
+    const tolerance = Math.abs(calculatedPoint.y * 0.05);
+    
+    return [{
+        x: calculatedPoint.x,
+        y: calculatedPoint.y,
+        tolerance: tolerance,
+        color: 'rgba(239, 68, 68, 0.3)'
+    }];
+}
+
+// ENHANCED: Generate detailed graph explanation
+function generateGraphExplanation(formula, variableValues) {
+    if (!formula) return null;
+    
+    const explanations = {
+        wiens_law: {
+            meaning: "This graph shows how the peak wavelength of blackbody radiation changes with temperature. Hotter objects emit shorter wavelengths (bluer light), while cooler objects emit longer wavelengths (redder light).",
+            shape: "The curve follows an inverse relationship: as temperature increases, peak wavelength decreases. This is why hot stars appear blue-white and cool stars appear red.",
+            variables: "Changing the temperature shifts the entire curve. Higher temperatures move the peak to shorter wavelengths (left on the graph).",
+            commonMistakes: "Don't confuse peak wavelength with total energy output. A hotter object has both a bluer peak AND more total energy."
+        },
+        escape_velocity: {
+            meaning: "This graph shows the minimum velocity needed to escape a gravitational field as a function of distance from the center. Closer objects need higher velocities to escape.",
+            shape: "The curve decreases with distance, following an inverse square root relationship. The velocity drops rapidly at first, then more slowly.",
+            variables: "Increasing mass increases escape velocity at all distances. Increasing radius decreases the required velocity.",
+            commonMistakes: "Remember that escape velocity is independent of the object's mass - a feather and a rock need the same speed to escape!"
+        },
+        luminosity: {
+            meaning: "This graph shows how stellar luminosity depends on radius and temperature. Luminosity increases dramatically with both size and temperature.",
+            shape: "The curve follows a power law (T⁴ relationship), so small temperature changes cause large luminosity changes. The curve is steep and upward-sloping.",
+            variables: "Temperature has the strongest effect (T⁴). Doubling temperature increases luminosity by 16x. Radius also matters (R² relationship).",
+            commonMistakes: "Don't confuse luminosity (total energy output) with brightness (energy per unit area). A large cool star can be more luminous than a small hot star."
+        },
+        kepler_third_law: {
+            meaning: "This graph shows the relationship between orbital period and semi-major axis. Larger orbits take longer to complete, following Kepler's famous law.",
+            shape: "The curve shows a power law relationship. Period increases with the 3/2 power of distance, creating a smooth upward curve.",
+            variables: "Orbital period depends on both distance (a³) and central mass. More massive central objects result in shorter periods for the same distance.",
+            commonMistakes: "Remember this applies to elliptical orbits too, using the semi-major axis. The period doesn't depend on eccentricity, only on the average distance."
+        },
+        cosmic_redshift: {
+            meaning: "This graph shows how observed wavelength changes with redshift. Higher redshift means the light has been stretched more by cosmic expansion.",
+            shape: "The relationship is linear for small redshifts. As redshift increases, the observed wavelength increases proportionally.",
+            variables: "Redshift directly measures the expansion of the universe. Higher redshift means the object is farther away and moving faster.",
+            commonMistakes: "Redshift is not a velocity - it's a measure of how much the universe has expanded since the light was emitted."
+        }
+    };
+    
+    const explanation = explanations[formula.id];
+    if (!explanation) {
+        // Generic explanation
+        return `
+            <p><strong>What this graph shows:</strong> This visualization helps you understand how the variables in ${formula.name} relate to each other.</p>
+            <p><strong>How to read it:</strong> The x-axis shows the unknown variable, and the y-axis shows how the dependent variable changes. Enter values in the Calculator tab to see your calculated point highlighted on the curve.</p>
+        `;
+    }
+    
+    return `
+        <p><strong>Physical Meaning:</strong> ${explanation.meaning}</p>
+        <p><strong>Why This Shape:</strong> ${explanation.shape}</p>
+        <p><strong>Changing Variables:</strong> ${explanation.variables}</p>
+        <p><strong>Common Mistakes:</strong> ${explanation.commonMistakes}</p>
+    `;
+}
+
+// ENHANCED: Generate second curve for comparison
+function generateSecondCurve(formula, variableValues) {
+    if (!formula || !variableValues || !graphManager || !graphManager.offlineManager) return null;
+    
+    // Create a modified version of the formula with slightly different parameters
+    // For example, for luminosity, compare with different temperature
+    const userVariables = formula.variables.filter(v => {
+        const constants = formula.constants || {};
+        return !constants[v.symbol] && (!globalConstants || !globalConstants[v.symbol]);
+    });
+    
+    const unknownVar = userVariables.find(v => {
+        const val = variableValues[v.symbol];
+        return !val || val === null || val === '' || val === 'null' || val === 'N/A';
+    });
+    
+    if (!unknownVar) return null;
+    
+    // Modify one parameter (e.g., temperature for luminosity)
+    const modifiedValues = { ...variableValues };
+    if (formula.id === 'luminosity' && modifiedValues.T) {
+        modifiedValues.T = parseFloat(modifiedValues.T) * 1.2; // 20% higher temperature
+    } else if (formula.id === 'escape_velocity' && modifiedValues.M) {
+        modifiedValues.M = parseFloat(modifiedValues.M) * 1.5; // 50% more mass
+    }
+    
+    const allValues = { ...globalConstants, ...(formula.constants || {}), ...modifiedValues };
+    const data = graphManager.offlineManager.generateGraphData(formula, unknownVar, allValues);
+    
+    if (!data || data.length === 0) return null;
+    
+    return {
+        data: data,
+        color: '#ef4444',
+        label: 'Comparison'
+    };
+}
+
+// Update graph interpretation section
+function updateGraphInterpretation(formula, variableValues = {}) {
+    const interpretationContainer = document.getElementById('graph-interpretation-content');
+    if (!interpretationContainer || !formula) {
+        return;
+    }
+    
+    try {
+        // Check if generateGraphInterpretation function exists
+        if (typeof generateGraphInterpretation === 'function') {
+            const interpretation = generateGraphInterpretation(formula);
+            
+            let html = '';
+            if (interpretation.overview) {
+                html += `<div class="interpretation-section"><p><strong>Overview:</strong> ${interpretation.overview}</p></div>`;
+            }
+            
+            if (interpretation.keyFeatures && interpretation.keyFeatures.length > 0) {
+                html += `<div class="interpretation-section"><strong>Key Features:</strong><ul>`;
+                interpretation.keyFeatures.forEach(feature => {
+                    html += `<li>${feature}</li>`;
+                });
+                html += `</ul></div>`;
+            }
+            
+            if (interpretation.howToUse && interpretation.howToUse.length > 0) {
+                html += `<div class="interpretation-section"><strong>How to Use:</strong><ul>`;
+                interpretation.howToUse.forEach(step => {
+                    html += `<li>${step}</li>`;
+                });
+                html += `</ul></div>`;
+            }
+            
+            if (interpretation.physicalMeaning) {
+                html += `<div class="interpretation-section"><p><strong>Physical Meaning:</strong> ${interpretation.physicalMeaning}</p></div>`;
+            }
+            
+            // ENHANCED: Add detailed graph explanation
+            if (!html) {
+                html = '<p>Enter values in the Calculator tab to see graph interpretation here.</p>';
+            }
+            
+            // ENHANCED: Add "Explain the Graph" section with educational context
+            const graphExplanation = generateGraphExplanation(formula, variableValues);
+            if (graphExplanation) {
+                html += `<div class="interpretation-section graph-explanation-section">
+                    <h4>📚 Understanding This Graph</h4>
+                    ${graphExplanation}
+                </div>`;
+            }
+            
+            interpretationContainer.innerHTML = html;
+        } else {
+            // Fallback: simple interpretation
+            const nullVar = formula.variables.find(v => {
+                const val = variableValues[v.symbol];
+                return !val || val === null || val === '' || val === 'null' || val === 'N/A';
+            });
+            
+            if (nullVar) {
+                interpretationContainer.innerHTML = `
+                    <p><strong>Graph shows:</strong> How ${nullVar.name} (${nullVar.symbol}) varies with the other variables.</p>
+                    <p>Enter values for the other variables in the Calculator tab to see the relationship.</p>
+                `;
+            } else {
+                interpretationContainer.innerHTML = `
+                    <p>All variables have values. The graph shows the relationship between variables.</p>
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('[Graph Interpretation] Error:', error);
+        interpretationContainer.innerHTML = '<p>Error generating graph interpretation.</p>';
+    }
 }
 
 // Display related formulas for the current formula with triple-layer reinforcement
@@ -6352,7 +6935,31 @@ function renderVariableInputs(formula) {
         
         const baseUnit = variable.unit;
         const fullUnitName = UnitConverter.formatUnit(baseUnit);
-        const alternativeUnits = UnitConverter.getAlternativeUnits(baseUnit);
+        
+        // ENHANCED: Context-aware unit selection based on variable symbol and name
+        // Detect if this is a wavelength variable (for small units) vs distance variable (for large units)
+        const isWavelengthVar = variable.symbol.toLowerCase().includes('lambda') || 
+                                variable.symbol.toLowerCase().includes('λ') ||
+                                variable.symbol.toLowerCase().includes('wavelength') ||
+                                variable.name.toLowerCase().includes('wavelength') ||
+                                baseUnit === 'nm' || baseUnit === 'μm' || baseUnit === 'mm' || baseUnit === 'cm';
+        
+        // Pass context to getAlternativeUnits if needed
+        let alternativeUnits = UnitConverter.getAlternativeUnits(baseUnit);
+        
+        // ENHANCED: Filter units to make sense for the variable type
+        if ((baseUnit === 'meters' || baseUnit === 'm') && !isWavelengthVar) {
+            // For distance variables (not wavelength), remove very small units
+            alternativeUnits = alternativeUnits.filter(u => 
+                !['nm', 'μm', 'mm', 'cm'].includes(u) || u === baseUnit
+            );
+        } else if (isWavelengthVar && (baseUnit === 'meters' || baseUnit === 'm')) {
+            // For wavelength variables, prefer small units
+            alternativeUnits = ['m', 'nm', 'μm', 'mm', 'cm'].filter(u => 
+                alternativeUnits.includes(u) || u === baseUnit
+            );
+        }
+        
         const isAngle = baseUnit.toLowerCase().includes('radian') || baseUnit.toLowerCase().includes('rad');
         
         // Create unit options note
@@ -6437,7 +7044,7 @@ function renderVariableInputs(formula) {
                         // Clear other unit inputs for this variable (using cached elements)
                         inputElements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
                             if (otherIndex !== currentIndex && otherInput) {
-                                otherInput.value = '';
+                                    otherInput.value = '';
                             }
                         });
                     }
@@ -6540,23 +7147,91 @@ function renderVariableInputs(formula) {
     });
 }
 
-// Setup event listeners
+// ============================================================================
+// EVENT HANDLERS & NAVIGATION
+// ============================================================================
+
+/**
+ * Setup all event listeners for the application
+ * Includes: back button, tab buttons, calculate button, classification buttons
+ */
+// Track if event listeners are set up to prevent duplicates
+let eventListenersSetup = false;
+
 function setupEventListeners() {
-    // Back button
-    document.getElementById('back-button').addEventListener('click', () => {
-        // FIXED: Cleanup resources to prevent memory leaks
-        cleanupGlobalState();
-        
-        document.getElementById('input-screen').classList.remove('active');
-        document.getElementById('formula-selection').classList.add('active');
-    });
+    console.log('[Event Listeners] setupEventListeners called, DOM ready:', document.readyState);
     
-    // Main page tab buttons (Formulas/Classification)
-    document.querySelectorAll('.main-tab-btn').forEach(btn => {
-        addTrackedListener(btn, 'click', () => {
-            const tabName = btn.getAttribute('data-main-tab');
-            switchMainTab(tabName);
-        });
+    // Only set up once to prevent duplicate listeners
+    if (eventListenersSetup) {
+        console.log('[Event Listeners] Already set up, skipping');
+        return;
+    }
+    
+    console.log('[Event Listeners] Setting up event handlers...');
+    
+    // Back button
+    const backButton = document.getElementById('back-button');
+    if (backButton) {
+        const backButtonHandler = (e) => {
+            console.log('[Back Button] Clicked');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // FIXED: Cleanup resources to prevent memory leaks
+            if (typeof cleanupGlobalState === 'function') {
+                cleanupGlobalState();
+            }
+            
+            const inputScreen = document.getElementById('input-screen');
+            const formulaSelection = document.getElementById('formula-selection');
+            
+            if (inputScreen) {
+                inputScreen.classList.remove('active');
+                inputScreen.style.setProperty('display', 'none', 'important');
+            }
+            
+            if (formulaSelection) {
+                formulaSelection.classList.add('active');
+                formulaSelection.style.setProperty('display', 'block', 'important');
+                console.log('[Back Button] ✅ Switched back to formula selection');
+            } else {
+                console.error('[Back Button] ❌ formula-selection element not found!');
+            }
+        };
+        
+        addTrackedListener(backButton, 'click', backButtonHandler);
+        // Also set onclick as fallback
+        backButton.onclick = backButtonHandler;
+        console.log('[Event Listeners] ✅ Back button handler attached');
+    } else {
+        console.warn('[Event Listeners] Back button not found');
+    }
+    
+    // Main page tab buttons (Formulas/Explorer/Classification)
+    const mainTabButtons = document.querySelectorAll('.main-tab-btn');
+    console.log(`[Event Listeners] Found ${mainTabButtons.length} main tab buttons`);
+    mainTabButtons.forEach(btn => {
+        const tabName = btn.getAttribute('data-main-tab');
+        console.log(`[Event Listeners] Setting up handler for tab: ${tabName}`);
+        
+        // Ensure button is clickable
+        btn.style.setProperty('pointer-events', 'auto', 'important');
+        btn.style.setProperty('cursor', 'pointer', 'important');
+        
+        const clickHandler = (e) => {
+            console.log(`[Tab Click] Main tab clicked: ${tabName}`);
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof switchMainTab === 'function') {
+                switchMainTab(tabName);
+            } else {
+                console.error('[Tab Click] switchMainTab function not available!');
+            }
+        };
+        
+        // Use multiple strategies
+        addTrackedListener(btn, 'click', clickHandler);
+        btn.onclick = clickHandler; // Fallback
     });
     
     // Input screen tab buttons (Calculator/Graph/Classification)
@@ -6576,13 +7251,18 @@ function setupEventListeners() {
     // Classification button (in input screen)
     const classifyBtn = document.getElementById('classify-btn');
     if (classifyBtn) {
-        classifyBtn.addEventListener('click', performClassification);
+        addTrackedListener(classifyBtn, 'click', performClassification);
     }
     
     // Main page classification button
     const mainClassifyBtn = document.getElementById('main-classify-btn');
     if (mainClassifyBtn) {
-        mainClassifyBtn.addEventListener('click', performMainClassification);
+        addTrackedListener(mainClassifyBtn, 'click', performMainClassification);
+    }
+    
+    // ENHANCED: Setup graph controls (presets, sliders, etc.)
+    if (typeof setupGraphControls === 'function') {
+        setupGraphControls();
     }
     
     // Protostar checkbox handlers - clear luminosity/white dwarf selection if protostar is checked
@@ -6647,7 +7327,9 @@ function setupEventListeners() {
     }
     
     // Clear button
-    document.getElementById('clear-btn').addEventListener('click', () => {
+    const clearBtn = document.getElementById('clear-btn');
+    if (clearBtn) {
+        addTrackedListener(clearBtn, 'click', () => {
         // Get list of constant symbols to exclude
         const constantSymbols = new Set();
         if (currentFormula && currentFormula.constants) {
@@ -6674,9 +7356,13 @@ function setupEventListeners() {
             });
         });
         
-        document.getElementById('result-display').classList.remove('show');
+        const resultDisplay = document.getElementById('result-display');
+        if (resultDisplay) resultDisplay.classList.remove('show');
         updateSolveIndicators();
-    });
+        });
+    } else {
+        console.warn('[Event Listeners] Clear button not found');
+    }
     
     // COMPETITIVE OPTIMIZATION: Enhanced Enter key handling
     // Enter calculates when ready, or navigates when not ready
@@ -6714,43 +7400,175 @@ function setupEventListeners() {
             }
         }
     });
+    
+    // Mark as set up
+    eventListenersSetup = true;
+    
+    // Verify handlers were attached
+    const mainTabBtnCount = document.querySelectorAll('.main-tab-btn').length;
+    const formulaCardCount = document.querySelectorAll('.formula-card').length;
+    console.log('[Event Listeners] ✅ All event handlers attached');
+    console.log(`[Event Listeners] Verified: ${mainTabBtnCount} tab buttons, ${formulaCardCount} formula cards`);
+    
+    // Make a test function available to verify clicks work
+    window.testEventHandlers = function() {
+        console.log('=== Testing Event Handlers ===');
+        const cards = document.querySelectorAll('.formula-card');
+        console.log(`Found ${cards.length} formula cards`);
+        if (cards.length > 0) {
+            const firstCard = cards[0];
+            const computed = window.getComputedStyle(firstCard);
+            console.log('First card:', {
+                id: firstCard.getAttribute('data-formula-id'),
+                className: firstCard.className,
+                pointerEvents: computed.pointerEvents,
+                cursor: computed.cursor,
+                zIndex: computed.zIndex,
+                position: computed.position,
+                hasOnclick: !!firstCard.onclick,
+                hasListeners: firstCard.getEventListeners ? firstCard.getEventListeners() : 'unknown'
+            });
+            
+            // Test if card is actually clickable
+            console.log('Testing click on first card...');
+            const testEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+            firstCard.dispatchEvent(testEvent);
+        }
+        
+        const tabs = document.querySelectorAll('.main-tab-btn');
+        console.log(`Found ${tabs.length} tab buttons`);
+        tabs.forEach((tab, i) => {
+            const tabName = tab.getAttribute('data-main-tab');
+            const computed = window.getComputedStyle(tab);
+            console.log(`Tab ${i} (${tabName}):`, {
+                exists: !!tab,
+                pointerEvents: computed.pointerEvents,
+                cursor: computed.cursor,
+                zIndex: computed.zIndex
+            });
+        });
+    };
+    
+    // Force re-setup function for debugging
+    window.forceReattachHandlers = function() {
+        console.log('[Force] Re-attaching all event handlers...');
+        eventListenersSetup = false;
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList && formulaList.dataset.delegationSetup) {
+            delete formulaList.dataset.delegationSetup;
+        }
+        setupEventListeners();
+        setupFormulaCardEventDelegation();
+        console.log('[Force] Handlers re-attached');
+    };
+    
+    // Test clicking the first card programmatically
+    window.testFirstCardClick = function() {
+        const firstCard = document.querySelector('.formula-card');
+        if (firstCard) {
+            console.log('[Test] Clicking first card programmatically...');
+            const formulaId = firstCard.getAttribute('data-formula-id');
+            console.log('[Test] Formula ID:', formulaId);
+            firstCard.click();
+        } else {
+            console.error('[Test] No cards found!');
+        }
+    };
+    
+    // Test clicking first tab
+    window.testFirstTabClick = function() {
+        const firstTab = document.querySelector('.main-tab-btn');
+        if (firstTab) {
+            console.log('[Test] Clicking first tab programmatically...');
+            const tabName = firstTab.getAttribute('data-main-tab');
+            console.log('[Test] Tab name:', tabName);
+            firstTab.click();
+        } else {
+            console.error('[Test] No tabs found!');
+        }
+    };
 }
 
 // Switch between main page tabs (Formulas/Classification/Desmos)
 function switchMainTab(tabName) {
+    console.log('[switchMainTab] Switching to tab:', tabName);
+    
     // Update main tab buttons
-    document.querySelectorAll('.main-tab-btn').forEach(btn => {
-        if (btn.getAttribute('data-main-tab') === tabName) {
+    const tabButtons = document.querySelectorAll('.main-tab-btn');
+    console.log(`[switchMainTab] Found ${tabButtons.length} tab buttons`);
+    tabButtons.forEach(btn => {
+        const btnTabName = btn.getAttribute('data-main-tab');
+        if (btnTabName === tabName) {
             btn.classList.add('active');
+            console.log(`[switchMainTab] Activated button for: ${tabName}`);
         } else {
             btn.classList.remove('active');
         }
     });
     
     // Update main tab content
-    document.querySelectorAll('.main-tab-content').forEach(content => {
+    const tabContents = document.querySelectorAll('.main-tab-content');
+    console.log(`[switchMainTab] Found ${tabContents.length} tab content areas`);
+    tabContents.forEach(content => {
         content.classList.remove('active');
+        content.style.setProperty('display', 'none', 'important');
     });
     
     if (tabName === 'formulas') {
-        document.getElementById('main-formulas-tab').classList.add('active');
+        const formulasTab = document.getElementById('main-formulas-tab');
+        if (formulasTab) {
+            formulasTab.classList.add('active');
+            formulasTab.style.setProperty('display', 'block', 'important');
+            formulasTab.style.setProperty('visibility', 'visible', 'important');
+            console.log('[switchMainTab] ✅ Formulas tab activated');
+        } else {
+            console.error('[switchMainTab] ❌ main-formulas-tab not found!');
+        }
     } else if (tabName === 'explorer') {
-        document.getElementById('main-explorer-tab').classList.add('active');
-        // Initialize Formula Explorer
-        if (typeof initFormulaExplorer === 'function') {
-            initFormulaExplorer();
+        const explorerTab = document.getElementById('main-explorer-tab');
+        if (explorerTab) {
+            explorerTab.classList.add('active');
+            explorerTab.style.setProperty('display', 'block', 'important');
+            explorerTab.style.setProperty('visibility', 'visible', 'important');
+            console.log('[switchMainTab] ✅ Explorer tab activated');
+            // Initialize Formula Explorer
+            if (typeof initFormulaExplorer === 'function') {
+                console.log('[switchMainTab] Initializing Formula Explorer...');
+                initFormulaExplorer();
+            } else {
+                console.error('[switchMainTab] ❌ initFormulaExplorer function not available!');
+            }
+        } else {
+            console.error('[switchMainTab] ❌ main-explorer-tab not found!');
         }
     } else if (tabName === 'classification') {
-        document.getElementById('main-classification-tab').classList.add('active');
-        // Initialize classifier if needed
-        if (!stellarClassifier) {
-            stellarClassifier = new StellarClassifier();
+        const classificationTab = document.getElementById('main-classification-tab');
+        if (classificationTab) {
+            classificationTab.classList.add('active');
+            classificationTab.style.setProperty('display', 'block', 'important');
+            classificationTab.style.setProperty('visibility', 'visible', 'important');
+            console.log('[switchMainTab] ✅ Classification tab activated');
+            // Initialize classifier if needed
+            if (!stellarClassifier) {
+                if (typeof StellarClassifier !== 'undefined') {
+                    stellarClassifier = new StellarClassifier();
+                    console.log('[switchMainTab] ✅ StellarClassifier initialized');
+                } else {
+                    console.error('[switchMainTab] ❌ StellarClassifier class not available!');
+                }
+            }
+        } else {
+            console.error('[switchMainTab] ❌ main-classification-tab not found!');
         }
+    } else {
+        console.warn(`[switchMainTab] Unknown tab name: ${tabName}`);
     }
 }
 
 // Switch between calculator, graph, and classification tabs (in input screen)
 function switchTab(tabName) {
+    console.log('[switchTab] Switching to tab:', tabName);
+    
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.getAttribute('data-tab') === tabName) {
@@ -6765,29 +7583,121 @@ function switchTab(tabName) {
     // Update tab content
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
+        content.style.setProperty('display', 'none', 'important');
     });
     
     if (tabName === 'calculator') {
-        const calculatorTab = document.getElementById('calculator-tab');
-        calculatorTab.classList.add('active');
-        calculatorTab.setAttribute('aria-hidden', 'false');
+        const calcTab = document.getElementById('calculator-tab');
+        if (calcTab) {
+            calcTab.classList.add('active');
+            calcTab.setAttribute('aria-hidden', 'false');
+            calcTab.style.setProperty('display', 'block', 'important');
+            calcTab.style.setProperty('visibility', 'visible', 'important');
+            calcTab.style.setProperty('opacity', '1', 'important');
+            console.log('[switchTab] ✅ Calculator tab activated and visible');
+        } else {
+            console.error('[switchTab] ❌ calculator-tab element not found!');
+        }
     } else if (tabName === 'graph') {
         const graphTab = document.getElementById('graph-tab');
-        graphTab.classList.add('active');
-        graphTab.setAttribute('aria-hidden', 'false');
-        // Update graph when tab becomes active
-        if (graphManager && currentFormula) {
-            // Get current variable values from inputs
-            const variableValues = getCurrentVariableValues();
-            graphManager.updateGraph(currentFormula, variableValues);
+        if (graphTab) {
+            graphTab.classList.add('active');
+            graphTab.setAttribute('aria-hidden', 'false');
+            graphTab.style.setProperty('display', 'block', 'important');
+            graphTab.style.setProperty('visibility', 'visible', 'important');
+            graphTab.style.setProperty('opacity', '1', 'important');
+            console.log('[switchTab] ✅ Graph tab activated and visible');
+            
+            // CRITICAL: Wait for container to have dimensions before updating graph
+            // The container needs to be visible and rendered to get proper dimensions
+            const graphContainer = document.getElementById('desmos-graph');
+            let retryCount = 0;
+            const maxRetries = 20; // Maximum 20 retries (1 second at 50ms intervals)
+            
+            const updateGraphAfterVisible = () => {
+                if (graphContainer && (graphContainer.offsetWidth === 0 || graphContainer.offsetHeight === 0)) {
+                    // FIXED: Add retry limit to prevent infinite loops
+                    if (retryCount >= maxRetries) {
+                        console.warn('[switchTab] Graph container not ready after max retries, proceeding anyway...');
+                        // Proceed with graph update - let graph manager handle initialization
+                    } else {
+                        retryCount++;
+                        console.log(`[switchTab] Graph container not ready, waiting... (attempt ${retryCount}/${maxRetries})`);
+                        setTimeout(updateGraphAfterVisible, 50);
+                        return;
+                    }
+                }
+                
+                // Container is ready (or we've given up waiting), update graph
+                // The graph manager's updateGraph will handle initialization with its own retry logic
+                console.log('[switchTab] Updating graph with current values...');
+                if (graphManager && currentFormula) {
+                    // Get current variable values from inputs
+                    const variableValues = getCurrentVariableValues();
+                    graphManager.updateGraph(currentFormula, variableValues);
+                    updateGraphInterpretation(currentFormula, variableValues);
+                } else if (currentFormula) {
+                    // Initialize graph manager if needed
+                    if (typeof GraphManager !== 'undefined') {
+                        if (!graphManager) {
+                            graphManager = new GraphManager('desmos-graph', 'graph-tab');
+                        }
+                        const variableValues = getCurrentVariableValues();
+                        graphManager.updateGraph(currentFormula, variableValues);
+                        updateGraphInterpretation(currentFormula, variableValues);
+                    }
+                } else {
+                    console.warn('[switchTab] No current formula available for graph');
+                }
+            };
+            
+            // Start the update process after a short delay to ensure DOM is ready
+            setTimeout(updateGraphAfterVisible, 100);
+        } else {
+            console.error('[switchTab] ❌ graph-tab element not found!');
         }
     } else if (tabName === 'classification') {
         const classificationTab = document.getElementById('classification-tab');
-        classificationTab.classList.add('active');
-        classificationTab.setAttribute('aria-hidden', 'false');
-        // Initialize classifier if needed
-        if (!stellarClassifier) {
-            stellarClassifier = new StellarClassifier();
+        if (classificationTab) {
+            classificationTab.classList.add('active');
+            classificationTab.setAttribute('aria-hidden', 'false');
+            classificationTab.style.setProperty('display', 'block', 'important');
+            classificationTab.style.setProperty('visibility', 'visible', 'important');
+            classificationTab.style.setProperty('opacity', '1', 'important');
+            console.log('[switchTab] ✅ Classification tab activated and visible');
+            
+            // Initialize classifier if needed
+            if (typeof StellarClassifier !== 'undefined') {
+                if (!stellarClassifier) {
+                    stellarClassifier = new StellarClassifier();
+                    console.log('[switchTab] ✅ StellarClassifier initialized');
+                }
+                
+                // Set up classification button handler
+                const classifyBtn = document.getElementById('classify-btn');
+                if (classifyBtn) {
+                    // Remove old listeners if any
+                    const newBtn = classifyBtn.cloneNode(true);
+                    classifyBtn.parentNode.replaceChild(newBtn, classifyBtn);
+                    
+                    // Add new listener
+                    newBtn.addEventListener('click', () => {
+                        console.log('[Classification Tab] Classify button clicked');
+                        if (typeof performClassification === 'function') {
+                            performClassification();
+                        } else {
+                            console.error('[Classification Tab] performClassification function not available');
+                        }
+                    });
+                    console.log('[switchTab] ✅ Classification button handler attached');
+                } else {
+                    console.warn('[switchTab] classify-btn not found');
+                }
+            } else {
+                console.error('[switchTab] ❌ StellarClassifier class not available!');
+            }
+        } else {
+            console.error('[switchTab] ❌ classification-tab element not found!');
         }
     }
 }
@@ -6864,7 +7774,14 @@ function getCurrentVariableValues() {
 // Update graph based on current inputs
 // Graph functionality removed - users can use offline tools like Desmos
 
-// Perform the calculation
+// ============================================================================
+// CALCULATION & RESULT DISPLAY
+// ============================================================================
+
+/**
+ * Perform the calculation for the current formula
+ * Collects variable values, validates inputs, and displays results
+ */
 function performCalculation() {
     if (!calculator || !currentFormula) {
         return;
@@ -6963,9 +7880,52 @@ function performCalculation() {
         displayResult(result);
         // Update solve indicators
         updateSolveIndicators();
-        // Update graph with new values
+        // ENHANCED: Update graph with new values and highlight calculated point
         if (graphManager && currentFormula) {
-            graphManager.updateGraph(currentFormula, variableValues);
+            // Check if this formula should auto-graph
+            const shouldAutoGraph = graphManager.offlineManager && 
+                graphManager.offlineManager.shouldAutoGraph(currentFormula.id);
+            
+            // Get calculated point if result is available
+            let calculatedPoint = null;
+            if (result && result.result !== undefined && result.variable) {
+                // Try to extract calculated point from the result
+                try {
+                    const calculatedValue = parseFloat(result.result);
+                    if (isFinite(calculatedValue)) {
+                        // Get the unknown variable (x-axis)
+                        const userVariables = currentFormula.variables.filter(v => {
+                            const constants = currentFormula.constants || {};
+                            return !constants[v.symbol] && (!globalConstants || !globalConstants[v.symbol]);
+                        });
+                        
+                        const unknownVar = userVariables.find(v => {
+                            const val = variableValues[v.symbol];
+                            return !val || val === null || val === '' || val === 'null' || val === 'N/A';
+                        });
+                        
+                        if (unknownVar && graphManager.offlineManager) {
+                            // Use the graph manager's method to get calculated point
+                            calculatedPoint = graphManager.offlineManager.getCalculatedPoint(
+                                currentFormula, 
+                                { ...variableValues, [result.variable]: result.result },
+                                { ...globalConstants, ...(currentFormula.constants || {}), ...variableValues, [result.variable]: result.result }
+                            );
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[UI] Error extracting calculated point:', e);
+                }
+            }
+            
+            // Update graph with calculated point highlighting
+            const graphOptions = {};
+            if (calculatedPoint) {
+                graphOptions.calculatedPoint = calculatedPoint;
+            }
+            
+            graphManager.updateGraph(currentFormula, variableValues, graphOptions);
+            updateGraphInterpretation(currentFormula, variableValues);
         }
     } catch (error) {
         console.error('[Calculation] Error:', error);
@@ -7244,6 +8204,14 @@ function displaySymbolicResult(result, varInfo) {
 }
 
 // Perform stellar classification
+// ============================================================================
+// STELLAR CLASSIFICATION
+// ============================================================================
+
+/**
+ * Perform stellar classification from calculator tab
+ * Uses temperature, luminosity class, and protostar status
+ */
 function performClassification() {
     if (!stellarClassifier) {
         stellarClassifier = new StellarClassifier();
@@ -7598,6 +8566,14 @@ function getVariableInstruction(variable, formula, isWillSolve) {
 }
 
 // Update visual indicators for which variable will be solved
+// ============================================================================
+// UI STATE MANAGEMENT
+// ============================================================================
+
+/**
+ * Update solve indicators based on current variable states
+ * Shows which variable will be solved and highlights relevant inputs
+ */
 function updateSolveIndicators() {
     if (!currentFormula) return;
     
@@ -7788,8 +8764,3 @@ function addContextualHints(formula, questionText = null) {
     }
     // Do not add any hints
 }
-
-/**
- * Setup graph control buttons (reset, export)
- */
-// Graph functions removed - users can use offline tools like Desmos

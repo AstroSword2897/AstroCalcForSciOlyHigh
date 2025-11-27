@@ -138,8 +138,9 @@ class GraphManager {
      * Main entry point to update or re-render a graph.
      * @param {Object} formula - Formula object with id, equation, variables, etc.
      * @param {Object} variableValues - Dictionary of variable:value pairs.
+     * @param {Object} options - Optional graph options (calculatedPoint, errorBands, secondCurve, etc.)
      */
-    updateGraph(formula, variableValues = {}) {
+    updateGraph(formula, variableValues = {}, options = {}) {
         // Always store the formula and values, even if tab isn't active
         this.currentFormula = formula;
         this.currentValues = { ...variableValues };
@@ -179,7 +180,7 @@ class GraphManager {
 
         // Check if we should use offline manager (Desmos unavailable)
         if (this.offlineManager) {
-            this.offlineManager.updateGraph(formula, variableValues);
+            this.offlineManager.updateGraph(formula, variableValues, options);
             return;
         }
         
@@ -190,7 +191,7 @@ class GraphManager {
                 console.log('[GraphManager.updateGraph] Desmos unavailable, using offline manager');
                 this.offlineManager = new OfflineGraphManager(this.containerId, this.tabId);
                 if (this.offlineManager.init(this.containerId)) {
-                    this.offlineManager.updateGraph(formula, variableValues);
+                    this.offlineManager.updateGraph(formula, variableValues, options);
                     return;
                 }
             }

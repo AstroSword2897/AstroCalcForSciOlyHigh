@@ -4,8 +4,8 @@
  * Caches all application resources for offline use
  */
 
-const CACHE_NAME = 'astrocalc-v2.0.3'; // Updated cache version - fixed visibility issues
-const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.3';
+const CACHE_NAME = 'astrocalc-v2.0.4'; // Updated cache version - fixed LRUCache and duplicates
+const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.4';
 
 // Resources to cache on install (OFFLINE-FIRST: All resources are local)
 const PRECACHE_RESOURCES = [
@@ -85,7 +85,50 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // For local resources, use cache-first strategy
+    const url = new URL(event.request.url);
+    const isVersionedJS = url.pathname.endsWith('.js') && url.searchParams.toString().length > 0;
+    
+    // For versioned JS files (with query params like ?v=2.0.4), use network-first to always get latest
+    // For other files, use cache-first for offline support
+    if (isVersionedJS) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    // Don't cache non-successful responses
+                    if (!response || response.status !== 200 || response.type !== 'basic') {
+                        return response;
+                    }
+                    
+                    // Clone the response for caching (but don't block on it)
+                    const responseToCache = response.clone();
+                    caches.open(RUNTIME_CACHE)
+                        .then((cache) => {
+                            cache.put(event.request, responseToCache);
+                        });
+                    
+                    return response;
+                })
+                .catch(() => {
+                    // Network failed, try cache as fallback
+                    return caches.match(event.request).then((cachedResponse) => {
+                        if (cachedResponse) {
+                            return cachedResponse;
+                        }
+                        // No cache either, return offline response
+                        return new Response('Offline', {
+                            status: 503,
+                            statusText: 'Service Unavailable',
+                            headers: new Headers({
+                                'Content-Type': 'text/plain'
+                            })
+                        });
+                    });
+                })
+        );
+        return;
+    }
+
+    // For other local resources, use cache-first strategy
     event.respondWith(
         caches.match(event.request)
             .then((cachedResponse) => {
