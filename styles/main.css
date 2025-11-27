@@ -2189,6 +2189,7 @@ input.unit-input-field {
 }
 
 .main-tab-content {
+    display: none; /* Hidden by default */
     display: none;
 }
 

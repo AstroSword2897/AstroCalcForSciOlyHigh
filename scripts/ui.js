@@ -434,8 +434,9 @@ function initializeApp() {
 }
 
 // Handle both cases: DOM already loaded or still loading
-// Use multiple strategies to ensure initialization happens
+// Use multiple strategies to ensure initialization happens across all browsers
 function ensureInitialization() {
+    // Strategy 1: DOMContentLoaded event
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializeApp);
     } else {
@@ -443,18 +444,42 @@ function ensureInitialization() {
         initializeApp();
     }
     
-    // Fallback: Also try after a short delay to catch edge cases
-    setTimeout(() => {
-        // Check if formulas are rendered
+    // Strategy 2: Window load event (for browsers that need it)
+    window.addEventListener('load', () => {
         const formulaList = document.getElementById('formula-list');
         if (formulaList && formulaList.children.length === 0) {
-            // No cards rendered yet, try again
+            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+                console.log('Window load: Rendering formulas...');
+                renderFormulaList();
+            }
+        }
+    });
+    
+    // Strategy 3: Fallback after delay (catches edge cases)
+    setTimeout(() => {
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList && formulaList.children.length === 0) {
             if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
                 console.log('Fallback: Rendering formulas after delay...');
                 renderFormulaList();
             }
         }
-    }, 500);
+    }, 1000);
+    
+    // Strategy 4: Force render on next tick (for Safari/WebKit)
+    if (typeof requestAnimationFrame !== 'undefined') {
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                const formulaList = document.getElementById('formula-list');
+                if (formulaList && formulaList.children.length === 0) {
+                    if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+                        console.log('RAF: Rendering formulas...');
+                        renderFormulaList();
+                    }
+                }
+            }, 100);
+        });
+    }
 }
 
 ensureInitialization();
@@ -5157,17 +5182,26 @@ function renderFormulaList() {
     // Clear and populate formula list
     formulaList.innerHTML = '';
     
-    // Ensure formula-list is visible (Safari compatibility)
+    // Ensure formula-list is visible (Cross-browser compatibility)
     formulaList.style.display = 'block';
     formulaList.style.visibility = 'visible';
     formulaList.style.opacity = '1';
     formulaList.style.height = 'auto';
+    formulaList.style.minHeight = '100px';
     
-    // Also ensure parent containers are visible
+    // Also ensure parent containers are visible (critical for all browsers)
     const mainFormulasTab = document.getElementById('main-formulas-tab');
     if (mainFormulasTab) {
         mainFormulasTab.classList.add('active');
         mainFormulasTab.style.display = 'block';
+        mainFormulasTab.style.visibility = 'visible';
+    }
+    
+    // Ensure main-tab-content is visible
+    const mainTabContent = document.querySelector('.main-tab-content.active');
+    if (mainTabContent) {
+        mainTabContent.style.display = 'block';
+        mainTabContent.style.visibility = 'visible';
     }
     
     // Check if formulaCategories is defined
