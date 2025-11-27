@@ -378,7 +378,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 // Register service worker
-                navigator.serviceWorker.register('./sw.js?v=2.0.2')
+                navigator.serviceWorker.register('./sw.js?v=2.0.3')
                     .then((registration) => {
                         console.log('[Service Worker] Registered successfully:', registration.scope);
                         
