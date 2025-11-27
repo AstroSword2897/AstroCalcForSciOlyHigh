@@ -5379,41 +5379,78 @@ function renderFormulaList() {
     
     // Final verification: Count actual cards rendered
     const actualCardCount = formulaList.querySelectorAll('.formula-card').length;
-    console.log(`Rendered ${actualCardCount} formula cards in ${Object.keys(categorizedFormulas).length} categories (expected ${formulas.length})`);
+    console.log(`✅ Rendered ${actualCardCount} formula cards in ${Object.keys(categorizedFormulas).length} categories (expected ${formulas.length})`);
     
     // Force a reflow to ensure browsers apply styles (critical for Safari/Chrome)
     void formulaList.offsetHeight;
     
-    // Double-check visibility after render (cross-browser fix)
-    setTimeout(() => {
-        const computedStyle = window.getComputedStyle(formulaList);
-        if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
-            console.warn('formula-list is hidden! Forcing visibility...');
-            formulaList.style.display = 'block';
-            formulaList.style.visibility = 'visible';
+    // AGGRESSIVE visibility fix - check and fix multiple times (cross-browser)
+    function forceVisibility() {
+        // Check and fix formula-list
+        const listComputed = window.getComputedStyle(formulaList);
+        if (listComputed.display === 'none' || listComputed.visibility === 'hidden' || listComputed.opacity === '0') {
+            console.warn('⚠️ formula-list is hidden! Forcing visibility...');
+            formulaList.style.setProperty('display', 'block', 'important');
+            formulaList.style.setProperty('visibility', 'visible', 'important');
+            formulaList.style.setProperty('opacity', '1', 'important');
         }
+        
+        // Check and fix all category containers
+        const categories = formulaList.querySelectorAll('.formula-category');
+        categories.forEach((cat, idx) => {
+            const catComputed = window.getComputedStyle(cat);
+            if (catComputed.display === 'none' || catComputed.visibility === 'hidden') {
+                console.warn(`⚠️ Category ${idx} is hidden! Forcing visibility...`);
+                cat.style.setProperty('display', 'grid', 'important');
+                cat.style.setProperty('visibility', 'visible', 'important');
+                cat.style.setProperty('opacity', '1', 'important');
+            }
+        });
+        
+        // Check and fix all cards
+        const cards = formulaList.querySelectorAll('.formula-card');
+        cards.forEach((card, idx) => {
+            const cardComputed = window.getComputedStyle(card);
+            if (cardComputed.display === 'none' || cardComputed.visibility === 'hidden') {
+                console.warn(`⚠️ Card ${idx} is hidden! Forcing visibility...`);
+                card.style.setProperty('display', 'block', 'important');
+                card.style.setProperty('visibility', 'visible', 'important');
+                card.style.setProperty('opacity', '1', 'important');
+            }
+        });
         
         // Check parent containers
         if (mainFormulasTab) {
             const tabStyle = window.getComputedStyle(mainFormulasTab);
             if (tabStyle.display === 'none') {
-                console.warn('main-formulas-tab is hidden! Forcing visibility...');
-                mainFormulasTab.style.display = 'block';
+                console.warn('⚠️ main-formulas-tab is hidden! Forcing visibility...');
+                mainFormulasTab.style.setProperty('display', 'block', 'important');
             }
         }
         
         if (formulaSelection) {
             const screenStyle = window.getComputedStyle(formulaSelection);
             if (screenStyle.display === 'none') {
-                console.warn('formula-selection is hidden! Forcing visibility...');
-                formulaSelection.style.display = 'block';
+                console.warn('⚠️ formula-selection is hidden! Forcing visibility...');
+                formulaSelection.style.setProperty('display', 'block', 'important');
             }
         }
-    }, 100);
+    }
+    
+    // Run immediately
+    forceVisibility();
+    
+    // Run again after short delay
+    setTimeout(forceVisibility, 100);
+    
+    // Run again after longer delay (for slow browsers)
+    setTimeout(forceVisibility, 500);
     
     if (actualCardCount === 0) {
         console.error('❌ No formula cards were rendered! Check createFormulaCard function.');
         formulaList.innerHTML = '<p style="text-align: center; color: #ff6b6b; padding: 40px;">Error: Formula cards failed to render. Check console for details.</p>';
+    } else {
+        console.log('✅ All cards should now be visible. If not, check computed styles in DevTools.');
     }
 }
 
