@@ -4653,6 +4653,8 @@ function setupSearchFunctionality() {
     }
 }
 
+}
+
 // Render filtered formulas with accuracy metrics
 function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
         const startTime = window.performance.now();
