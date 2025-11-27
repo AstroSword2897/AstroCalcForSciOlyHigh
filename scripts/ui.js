@@ -6555,7 +6555,7 @@ function setupEventListeners() {
     
     // Main page tab buttons (Formulas/Classification)
     document.querySelectorAll('.main-tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
+        addTrackedListener(btn, 'click', () => {
             const tabName = btn.getAttribute('data-main-tab');
             switchMainTab(tabName);
         });
