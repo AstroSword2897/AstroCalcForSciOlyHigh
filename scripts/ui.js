@@ -5469,6 +5469,15 @@ function renderFormulaList() {
     });
     
     console.log(`Grouped into ${Object.keys(categorizedFormulas).length} categories, ${uncategorized.length} uncategorized`);
+    console.log(`Total formulas: ${formulas.length}, Categorized: ${Object.values(categorizedFormulas).reduce((sum, arr) => sum + arr.length, 0)}, Uncategorized: ${uncategorized.length}`);
+    
+    // Log uncategorized formulas for debugging
+    if (uncategorized.length > 0) {
+        console.log('⚠️ Uncategorized formulas:', uncategorized.map(f => f.id || f.name).slice(0, 10));
+        if (uncategorized.length > 10) {
+            console.log(`... and ${uncategorized.length - 10} more uncategorized formulas`);
+        }
+    }
     
     // Render categorized formulas
     const categoryOrder = [
