@@ -407,11 +407,12 @@ class StandaloneGraphCalculator {
         item.innerHTML = `
             <div class="expression-controls">
                 <div class="expr-color-indicator" style="background: ${expr.color}"></div>
-                <input type="color" class="expr-color" value="${expr.color}" data-id="${expr.id}" title="Change color">
-                <input type="checkbox" class="expr-enabled" ${expr.enabled ? 'checked' : ''} data-id="${expr.id}" title="Toggle visibility">
+                <input type="color" class="expr-color" id="expr-color-${expr.id}" name="expr-color-${expr.id}" value="${expr.color}" data-id="${expr.id}" title="Change color" aria-label="Change color for expression ${expr.id}">
+                <input type="checkbox" class="expr-enabled" id="expr-enabled-${expr.id}" name="expr-enabled-${expr.id}" ${expr.enabled ? 'checked' : ''} data-id="${expr.id}" title="Toggle visibility" aria-label="Toggle visibility for expression ${expr.id}">
             </div>
-            <input type="text" class="expr-input" id="expr-input-${expr.id}" 
-                   value="${expr.expression}" placeholder="y = x^2" data-id="${expr.id}">
+            <label for="expr-input-${expr.id}" class="sr-only">Expression ${expr.id}</label>
+            <input type="text" class="expr-input" id="expr-input-${expr.id}" name="expr-input-${expr.id}"
+                   value="${expr.expression}" placeholder="y = x^2" data-id="${expr.id}" aria-label="Expression ${expr.id}">
             <button class="expr-delete" data-id="${expr.id}" title="Delete (Delete key)">×</button>
         `;
         

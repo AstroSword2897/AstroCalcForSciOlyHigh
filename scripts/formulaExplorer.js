@@ -645,12 +645,15 @@ function renderExplorerCalculatorInputs() {
                             <input
                                 type="text"
                                 inputmode="decimal"
+                                id="explorer-${escapeHtml(variable.symbol)}"
+                                name="explorer-${escapeHtml(variable.symbol)}"
                                 class="explorer-variable-input"
                                 data-variable-symbol="${escapeHtml(variable.symbol)}"
                                 placeholder="Enter ${escapeHtml(variable.name)}"
                                 value="${escapeHtml(currentValue)}"
                                 autocomplete="off"
                                 spellcheck="false"
+                                aria-label="${escapeHtml(variable.name)} (${escapeHtml(variable.unit)})"
                                 style="-moz-appearance: textfield; appearance: textfield;"
                             />
                             <p class="explorer-input-hint">${escapeHtml(variable.description)}</p>

@@ -1364,7 +1364,7 @@ function setupSearchFunctionality() {
     
     // Filter and render formulas based on search term with scoring
     function filterAndRenderFormulas(searchTerm) {
-        const startTime = performance.now();
+        const startTime = window.performance.now();
         
         // PERFORMANCE: Removed console.log statements in hot path
         if (!searchTerm || searchTerm.trim() === '') {
@@ -1377,7 +1377,7 @@ function setupSearchFunctionality() {
         const cacheKey = searchTerm.toLowerCase().trim();
         const cachedResult = searchCache.get(cacheKey);
         if (cachedResult) {
-            const cacheTime = performance.now() - startTime;
+            const cacheTime = window.performance.now() - startTime;
             performanceMonitor.recordSearch(cacheTime);
             renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
             return;
@@ -4674,7 +4674,7 @@ function setupSearchFunctionality() {
 
 // Render filtered formulas with accuracy metrics
 function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
-    const startTime = performance.now();
+        const startTime = window.performance.now();
     const formulaList = document.getElementById('formula-list');
     
     // CRITICAL: Check if element exists
@@ -6306,12 +6306,14 @@ function renderVariableInputs(formula) {
                     <input 
                         type="text" 
                         id="${inputId}" 
+                        name="${inputId}"
                         class="unit-input-field"
                         placeholder="${placeholder}"
                         data-symbol="${variable.symbol}"
                         data-unit="${unit}"
                         data-unit-index="${index}"
                         data-base-unit="${baseUnit}"
+                        aria-label="${variable.name} in ${unit}"
                     >
                 </div>
             `;
