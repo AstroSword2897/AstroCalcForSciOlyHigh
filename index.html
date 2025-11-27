@@ -510,9 +510,12 @@
             // Add force render function
             window.forceRenderCards = function() {
                 console.log('🔧 Force rendering cards...');
+                console.log('Checking for renderFormulaList...', typeof renderFormulaList);
+                console.log('Checking for formulas...', typeof formulas);
                 
                 // Wait for renderFormulaList to be available
-                function tryRender(retries = 10) {
+                function tryRender(retries = 20) {
+                    // Check if ui.js has loaded by checking for renderFormulaList
                     if (typeof renderFormulaList === 'function') {
                         // renderFormulaList is available, proceed
                         if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
@@ -566,10 +569,32 @@
                         // renderFormulaList not available yet
                         if (retries > 0) {
                             console.log(`⏳ Waiting for renderFormulaList... (${retries} attempts left)`);
+                            console.log('Available functions:', {
+                                renderFormulaList: typeof renderFormulaList,
+                                formulas: typeof formulas,
+                                selectFormula: typeof selectFormula
+                            });
                             setTimeout(() => tryRender(retries - 1), 200);
                         } else {
                             console.error('❌ renderFormulaList function not available after waiting!');
+                            console.error('💡 This means ui.js did not load properly.');
+                            console.error('💡 Check Network tab to see if scripts/ui.js loaded (should be 200 status)');
                             console.error('💡 Try: Hard refresh (Cmd+Shift+R) or clear cache');
+                            
+                            // Try to manually trigger script reload
+                            const script = document.createElement('script');
+                            script.src = 'scripts/ui.js?v=' + Date.now();
+                            script.onload = function() {
+                                console.log('✅ ui.js manually reloaded, trying render again...');
+                                if (typeof renderFormulaList === 'function') {
+                                    window.forceRenderCards();
+                                }
+                            };
+                            script.onerror = function() {
+                                console.error('❌ Failed to reload ui.js');
+                            };
+                            document.head.appendChild(script);
+                            
                             return false;
                         }
                     }
