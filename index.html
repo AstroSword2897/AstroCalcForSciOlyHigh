@@ -18,9 +18,12 @@
                     <h1>🌌 AstroCalc</h1>
                     <p class="subtitle">Science Olympiad Astronomy Formula Calculator</p>
                 </div>
-                <button id="accessibility-toggle" class="accessibility-toggle" title="Toggle reduced motion and performance mode" aria-label="Accessibility settings" style="font-size: 1.5em; display: flex; align-items: center; justify-content: center;">
-                    🎨
-                </button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="diagnostic-btn" onclick="if(typeof astrocalcDiagnostics==='function'){astrocalcDiagnostics();}else{alert('Diagnostic function not loaded. Try hard refresh (Cmd+Shift+R)');}" style="background: #667eea; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em;" title="Run diagnostics">🔧 Debug</button>
+                    <button id="accessibility-toggle" class="accessibility-toggle" title="Toggle reduced motion and performance mode" aria-label="Accessibility settings" style="font-size: 1.5em; display: flex; align-items: center; justify-content: center;">
+                        🎨
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -375,7 +378,11 @@
     <!-- 8. Diagnostic tools (inline to ensure they're always available) -->
     <script>
         // Diagnostic functions - define immediately, no waiting
-        window.astrocalcDiagnostics = function() {
+        // Make sure these are available as soon as script executes
+        (function() {
+            'use strict';
+            
+            window.astrocalcDiagnostics = function() {
                     console.log('=== AstroCalc Diagnostics ===');
                     console.log('1. Formulas:', {
                         defined: typeof formulas !== 'undefined',
@@ -497,10 +504,10 @@
                     console.log('=== End Diagnostics ===');
                     console.log('💡 Run astrocalcDiagnostics() anytime to check status');
                     console.log('💡 Run forceRenderCards() to force render with visibility fixes');
-        };
-        
-        // Add force render function
-        window.forceRenderCards = function() {
+            };
+            
+            // Add force render function
+            window.forceRenderCards = function() {
                     console.log('🔧 Force rendering cards...');
                     if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
                         console.error('❌ Formulas not loaded!');
@@ -550,10 +557,20 @@
                     }, 100);
                     
                     return true;
-        };
-        
-        // Log that functions are available
-        console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
+            };
+            
+            // Log that functions are available
+            console.log('✅ Diagnostic functions loaded: astrocalcDiagnostics(), forceRenderCards()');
+            
+            // Also make them available on page load
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('✅ Diagnostic functions ready after DOM load');
+                });
+            } else {
+                console.log('✅ Diagnostic functions ready (DOM already loaded)');
+            }
+        })();
     </script>
     
     <!-- Service Worker Registration for Offline Support -->
