@@ -5315,6 +5315,36 @@ function renderFormulaList() {
     const actualCardCount = formulaList.querySelectorAll('.formula-card').length;
     console.log(`Rendered ${actualCardCount} formula cards in ${Object.keys(categorizedFormulas).length} categories (expected ${formulas.length})`);
     
+    // Force a reflow to ensure browsers apply styles (critical for Safari/Chrome)
+    void formulaList.offsetHeight;
+    
+    // Double-check visibility after render (cross-browser fix)
+    setTimeout(() => {
+        const computedStyle = window.getComputedStyle(formulaList);
+        if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
+            console.warn('formula-list is hidden! Forcing visibility...');
+            formulaList.style.display = 'block';
+            formulaList.style.visibility = 'visible';
+        }
+        
+        // Check parent containers
+        if (mainFormulasTab) {
+            const tabStyle = window.getComputedStyle(mainFormulasTab);
+            if (tabStyle.display === 'none') {
+                console.warn('main-formulas-tab is hidden! Forcing visibility...');
+                mainFormulasTab.style.display = 'block';
+            }
+        }
+        
+        if (formulaSelection) {
+            const screenStyle = window.getComputedStyle(formulaSelection);
+            if (screenStyle.display === 'none') {
+                console.warn('formula-selection is hidden! Forcing visibility...');
+                formulaSelection.style.display = 'block';
+            }
+        }
+    }, 100);
+    
     if (actualCardCount === 0) {
         console.error('❌ No formula cards were rendered! Check createFormulaCard function.');
         formulaList.innerHTML = '<p style="text-align: center; color: #ff6b6b; padding: 40px;">Error: Formula cards failed to render. Check console for details.</p>';

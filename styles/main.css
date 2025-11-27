@@ -1282,6 +1282,9 @@ header h1 {
     min-height: 100px; /* Ensure space for content */
     position: relative;
     z-index: 1; /* Ensure cards appear above background */
+    display: block !important; /* Force visibility in all browsers */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .formula-category-header {
@@ -2193,7 +2196,9 @@ input.unit-input-field {
 }
 
 .main-tab-content.active {
-    display: block;
+    display: block !important; /* Force visibility in all browsers */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 /* Input screen tabs */
