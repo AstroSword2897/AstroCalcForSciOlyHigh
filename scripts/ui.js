@@ -434,12 +434,30 @@ function initializeApp() {
 }
 
 // Handle both cases: DOM already loaded or still loading
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeApp);
-} else {
-    // DOM already loaded, initialize immediately
-    initializeApp();
+// Use multiple strategies to ensure initialization happens
+function ensureInitialization() {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    } else {
+        // DOM already loaded, initialize immediately
+        initializeApp();
+    }
+    
+    // Fallback: Also try after a short delay to catch edge cases
+    setTimeout(() => {
+        // Check if formulas are rendered
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList && formulaList.children.length === 0) {
+            // No cards rendered yet, try again
+            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+                console.log('Fallback: Rendering formulas after delay...');
+                renderFormulaList();
+            }
+        }
+    }, 500);
 }
+
+ensureInitialization();
 
 // Add event delegation for formula cards - FIXED: Handle all clicks properly
 // This is set up in setupEventListeners, but we also set it up here for immediate availability
@@ -5118,11 +5136,38 @@ function renderFormulaList() {
     // Clear and populate formula list
     formulaList.innerHTML = '';
     
+    // Ensure formula-list is visible
+    formulaList.style.display = 'block';
+    formulaList.style.visibility = 'visible';
+    
+    // Check if formulaCategories is defined
+    if (typeof formulaCategories === 'undefined') {
+        console.error('formulaCategories is not defined! Cannot categorize formulas.');
+        // Render all formulas as uncategorized
+        const categoryContainer = document.createElement('div');
+        categoryContainer.className = 'formula-category';
+        formulas.forEach(formula => {
+            if (formula && formula.id) {
+                const card = createFormulaCard(formula);
+                if (card) {
+                    categoryContainer.appendChild(card);
+                }
+            }
+        });
+        formulaList.appendChild(categoryContainer);
+        console.log(`Rendered ${formulas.length} formula cards (uncategorized - formulaCategories missing)`);
+        return;
+    }
+    
     // Group formulas by category
     const categorizedFormulas = {};
     const uncategorized = [];
     
     formulas.forEach(formula => {
+        if (!formula || !formula.id) {
+            console.warn('Skipping invalid formula:', formula);
+            return;
+        }
         let found = false;
         for (const [category, ids] of Object.entries(formulaCategories)) {
             if (ids.includes(formula.id)) {
@@ -5138,6 +5183,8 @@ function renderFormulaList() {
             uncategorized.push(formula);
         }
     });
+    
+    console.log(`Grouped into ${Object.keys(categorizedFormulas).length} categories, ${uncategorized.length} uncategorized`);
     
     // Render categorized formulas
     const categoryOrder = [
@@ -5186,13 +5233,24 @@ function renderFormulaList() {
         
         uncategorized.forEach(formula => {
             const card = createFormulaCard(formula);
-            categoryContainer.appendChild(card);
+            if (card) {
+                categoryContainer.appendChild(card);
+            } else {
+                console.warn(`Failed to create card for uncategorized formula: ${formula.id || formula.name || 'unknown'}`);
+            }
         });
         
         formulaList.appendChild(categoryContainer);
     }
     
-    console.log(`Rendered ${formulas.length} formula cards in ${Object.keys(categorizedFormulas).length} categories`);
+    // Final verification: Count actual cards rendered
+    const actualCardCount = formulaList.querySelectorAll('.formula-card').length;
+    console.log(`Rendered ${actualCardCount} formula cards in ${Object.keys(categorizedFormulas).length} categories (expected ${formulas.length})`);
+    
+    if (actualCardCount === 0) {
+        console.error('❌ No formula cards were rendered! Check createFormulaCard function.');
+        formulaList.innerHTML = '<p style="text-align: center; color: #ff6b6b; padding: 40px;">Error: Formula cards failed to render. Check console for details.</p>';
+    }
 }
 
 // Create a formula card element
