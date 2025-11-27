@@ -672,22 +672,29 @@ ensureInitialization();
 function setupFormulaCardEventDelegation() {
     const formulaList = document.getElementById('formula-list');
     if (formulaList) {
-        formulaList.addEventListener('click', (e) => {
-            // Check if click is on a formula card or any element inside it
-            const card = e.target.closest('.formula-card');
-            if (card) {
-                const formulaId = card.getAttribute('data-formula-id');
-                if (formulaId) {
-                    const formula = formulas.find(f => f.id === formulaId);
-                    if (formula) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        console.log('Card clicked via delegation:', formula.name);
-                        selectFormula(formula);
-                        return false;
+        // Remove any existing listeners to prevent duplicates
+        const newFormulaList = formulaList.cloneNode(true);
+        formulaList.parentNode.replaceChild(newFormulaList, formulaList);
+        
+        // Add fresh event listener
+        const freshFormulaList = document.getElementById('formula-list');
+        if (freshFormulaList) {
+            freshFormulaList.addEventListener('click', (e) => {
+                // Check if click is on a formula card or any element inside it
+                const card = e.target.closest('.formula-card');
+                if (card) {
+                    const formulaId = card.getAttribute('data-formula-id');
+                    if (formulaId && typeof formulas !== 'undefined') {
+                        const formula = formulas.find(f => f.id === formulaId);
+                        if (formula && typeof selectFormula === 'function') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('Card clicked via delegation:', formula.name);
+                            selectFormula(formula);
+                            return false;
+                        }
                     }
                 }
-            }
             
             // Also handle search result items
             const searchResult = e.target.closest('.search-result-item');
@@ -5921,7 +5928,22 @@ function selectFormula(formula) {
     document.getElementById('input-screen').classList.add('active');
     
     // CRITICAL: Ensure calculator tab is active and visible BEFORE rendering inputs
-    switchTab('calculator');
+    if (typeof switchTab === 'function') {
+        switchTab('calculator');
+    } else {
+        // Fallback: manually activate calculator tab
+        const calculatorTab = document.getElementById('calculator-tab');
+        if (calculatorTab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            calculatorTab.classList.add('active');
+            const calculatorContent = document.getElementById('calculator-tab');
+            if (calculatorContent) {
+                calculatorContent.classList.add('active');
+                calculatorContent.style.setProperty('display', 'block', 'important');
+            }
+        }
+    }
     
     // Populate formula info
     document.getElementById('formula-name').textContent = formula.name;
