@@ -5319,6 +5319,10 @@ function highlightSearchTerm(searchTerm) {
 
 // Render the list of formulas
 function renderFormulaList() {
+    // Make sure this function is globally available
+    if (typeof window !== 'undefined') {
+        window.renderFormulaList = renderFormulaList;
+    }
     const formulaList = document.getElementById('formula-list');
     
     if (!formulaList) {
