@@ -5133,24 +5133,42 @@ function renderFormulaList() {
     
     console.log(`Rendering ${formulas.length} formulas...`);
     
-    // CRITICAL: Ensure the formula-selection screen is active
+    // CRITICAL: Ensure the formula-selection screen is active (Safari fix)
     const formulaSelection = document.getElementById('formula-selection');
-    if (formulaSelection && !formulaSelection.classList.contains('active')) {
-        console.warn('formula-selection screen not active! Activating it...');
-        formulaSelection.classList.add('active');
+    if (formulaSelection) {
+        if (!formulaSelection.classList.contains('active')) {
+            console.warn('formula-selection screen not active! Activating it...');
+            formulaSelection.classList.add('active');
+        }
+        // Force display style for Safari compatibility
+        formulaSelection.style.display = 'block';
+        formulaSelection.style.visibility = 'visible';
+        
         // Also ensure input-screen is not active
         const inputScreen = document.getElementById('input-screen');
         if (inputScreen) {
             inputScreen.classList.remove('active');
+            inputScreen.style.display = 'none';
         }
+    } else {
+        console.error('formula-selection element not found!');
     }
     
     // Clear and populate formula list
     formulaList.innerHTML = '';
     
-    // Ensure formula-list is visible
+    // Ensure formula-list is visible (Safari compatibility)
     formulaList.style.display = 'block';
     formulaList.style.visibility = 'visible';
+    formulaList.style.opacity = '1';
+    formulaList.style.height = 'auto';
+    
+    // Also ensure parent containers are visible
+    const mainFormulasTab = document.getElementById('main-formulas-tab');
+    if (mainFormulasTab) {
+        mainFormulasTab.classList.add('active');
+        mainFormulasTab.style.display = 'block';
+    }
     
     // Check if formulaCategories is defined
     if (typeof formulaCategories === 'undefined') {
