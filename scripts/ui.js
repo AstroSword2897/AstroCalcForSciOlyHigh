@@ -1013,6 +1013,25 @@ var semanticSearchSystem = {
             });
         }
         
+        // Tag indexing: Combine keywords, concepts, and question patterns for comprehensive search
+        const searchCorpus = [
+            formula.name || '',
+            formula.description || '',
+            (formula.keywords || []).join(' '),
+            (formula.concepts || []).join(' '),
+            (formula.questionPatterns || []).join(' ')
+        ].join(' ').toLowerCase();
+        
+        // Boost for tag matches
+        searchWords.forEach(word => {
+            if (word.length >= 3 && searchCorpus.includes(word.toLowerCase())) {
+                score += 6; // Tag match boost
+                if (!metrics.matchedConcepts.includes(word)) {
+                    metrics.matchedConcepts.push(word);
+                }
+            }
+        });
+        
         // Check formula keywords
         if (formula.keywords && Array.isArray(formula.keywords)) {
             formula.keywords.forEach(keyword => {
@@ -1311,6 +1330,22 @@ function setupSearchFunctionality() {
             metrics.matchReasons.push('Name contains search term');
         }
         
+        // Boost for matching keywords in title (word-by-word)
+        searchWords.forEach(word => {
+            if (nameLower.includes(word.toLowerCase())) {
+                score += 8; // Boost for each word match in title
+                metrics.matchReasons.push(`Title contains "${word}"`);
+            }
+        });
+        
+        // Boost for exact word matches in title
+        const nameWords = nameLower.split(/\s+/);
+        searchWords.forEach(word => {
+            if (nameWords.includes(word.toLowerCase())) {
+                score += 4; // Additional boost for exact word match
+            }
+        });
+        
         // Natural language question matching
         const questionMatch = matchQuestionToFormula(formula, parsedQuery, searchLower, searchWords);
         score += questionMatch.score;
@@ -1335,7 +1370,7 @@ function setupSearchFunctionality() {
             metrics.matchReasons.push(`Generic match penalty: -${penalty} points`);
         }
         
-        // Word-by-word matching in name (weighted by word importance)
+        // Word-by-word matching in name (weighted by word importance) - ENHANCED
         searchWords.forEach(word => {
             if (word.length >= 3) { // Only match words 3+ characters
                 if (nameLower === word) {
@@ -6026,7 +6061,7 @@ function setupEventListeners() {
     if (protostarCheckbox) {
         protostarCheckbox.addEventListener('change', (e) => {
             if (e.target.checked) {
-                const luminositySelect = document.getElementById('luminosity-class');
+                const luminositySelect = document.getElementById('calc-classification-luminosity-class');
                 if (luminositySelect) luminositySelect.value = '';
             }
         });
@@ -6043,7 +6078,7 @@ function setupEventListeners() {
         });
     }
     
-    const luminositySelect = document.getElementById('luminosity-class');
+    const luminositySelect = document.getElementById('calc-classification-luminosity-class');
     if (luminositySelect) {
         luminositySelect.addEventListener('change', (e) => {
             if (e.target.value) {
@@ -6054,7 +6089,7 @@ function setupEventListeners() {
     }
     
     // Allow Enter key in classification temperature inputs
-    const tempInput = document.getElementById('temperature-input');
+    const tempInput = document.getElementById('calc-classification-temperature-input');
     if (tempInput) {
         tempInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -6675,8 +6710,8 @@ function performClassification() {
         stellarClassifier = new StellarClassifier();
     }
     
-    const temperatureInput = document.getElementById('temperature-input');
-    const luminositySelect = document.getElementById('luminosity-class');
+    const temperatureInput = document.getElementById('calc-classification-temperature-input');
+    const luminositySelect = document.getElementById('calc-classification-luminosity-class');
     const protostarCheckbox = document.getElementById('protostar-checkbox');
     const resultDisplay = document.getElementById('classification-result');
     

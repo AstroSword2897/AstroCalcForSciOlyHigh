@@ -180,14 +180,32 @@ function setupKeyboardShortcuts() {
         
         // Tab navigation shortcuts (only when not in input)
         if (!isInput) {
-            // Number keys 1-4: Switch main tabs
-            if (e.key >= '1' && e.key <= '4' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                const tabs = ['formulas', 'explorer', 'classification', 'desmos'];
-                const tabIndex = parseInt(e.key) - 1;
-                if (tabs[tabIndex]) {
-                    switchMainTab(tabs[tabIndex]);
+            // Check if we're on the input screen (calculator sub-tabs)
+            const inputScreen = document.getElementById('input-screen');
+            const isOnInputScreen = inputScreen && inputScreen.classList.contains('active');
+            
+            if (isOnInputScreen) {
+                // Number keys 1-3: Switch calculator sub-tabs (Calculator, Graph, Classification)
+                if (e.key >= '1' && e.key <= '3' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                    const subTabs = ['calculator', 'graph', 'classification'];
+                    const tabIndex = parseInt(e.key) - 1;
+                    if (subTabs[tabIndex] && typeof switchTab === 'function') {
+                        switchTab(subTabs[tabIndex]);
+                        e.preventDefault();
+                    }
+                    return;
                 }
-                return;
+            } else {
+                // Number keys 1-4: Switch main tabs (Formulas, Explorer, Classification, etc.)
+                if (e.key >= '1' && e.key <= '4' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                    const tabs = ['formulas', 'explorer', 'classification', 'desmos'];
+                    const tabIndex = parseInt(e.key) - 1;
+                    if (tabs[tabIndex] && typeof switchMainTab === 'function') {
+                        switchMainTab(tabs[tabIndex]);
+                        e.preventDefault();
+                    }
+                    return;
+                }
             }
             
             // Arrow keys: Navigate formula cards (only if not in input field)

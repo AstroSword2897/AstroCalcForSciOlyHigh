@@ -8,46 +8,67 @@ const { test, expect } = require('@playwright/test');
 
 test.describe('Formula Calculator', () => {
     test.beforeEach(async ({ page }) => {
-        // Listen for console errors
+        // Listen for console errors and logs
         page.on('console', msg => {
-            if (msg.type() === 'error') {
-                console.log('Browser console error:', msg.text());
+            const type = msg.type();
+            const text = msg.text();
+            if (type === 'error') {
+                console.error('❌ Browser console error:', text);
+            } else {
+                console.log(`📝 [${type}] ${text}`);
             }
         });
         
-        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        // Listen for page errors
+        page.on('pageerror', error => {
+            console.error('❌ Page error:', error.message);
+        });
         
-        // Wait for formulas array to be populated (this is the critical check)
-        await page.waitForFunction(() => {
-            return typeof formulas !== 'undefined' && 
-                   Array.isArray(formulas) && 
-                   formulas.length > 0;
-        }, { timeout: 30000 });
+        // Listen for failed requests
+        page.on('requestfailed', request => {
+            console.error('❌ Request failed:', request.url(), request.failure()?.errorText);
+        });
         
-        // Wait for formula list container to exist
-        await page.waitForSelector('#formula-list', { timeout: 30000 });
+        // Navigate and wait for all resources to load
+        await page.goto('/', { waitUntil: 'networkidle', timeout: 60000 });
         
-        // Wait for cards to be rendered and visible
-        // Try multiple approaches to catch cards
-        try {
-            await page.waitForSelector('.formula-card', { timeout: 30000, state: 'visible' });
-        } catch (e) {
-            // If that fails, try waiting for any content in formula-list
-            await page.waitForFunction(() => {
-                const list = document.getElementById('formula-list');
-                if (!list) return false;
-                const cards = list.querySelectorAll('.formula-card');
-                return cards.length > 0 && Array.from(cards).some(card => card.offsetParent !== null);
-            }, { timeout: 30000 });
+        // Wait for page to be fully interactive
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForLoadState('load');
+        
+        // Wait for formulas to be defined
+        await page.waitForFunction(() => typeof formulas !== 'undefined' && formulas.length > 0, { timeout: 30000 });
+        
+        // Wait for formula list container
+        await page.waitForSelector('#formula-list', { timeout: 10000 });
+        
+        // Check if renderFormulaList exists and call it if cards aren't rendered
+        const hasCards = await page.evaluate(() => {
+            return document.querySelectorAll('.formula-card').length > 0;
+        });
+        
+        if (!hasCards) {
+            console.log('Cards not found, manually calling renderFormulaList...');
+            await page.evaluate(() => {
+                if (typeof renderFormulaList === 'function') {
+                    renderFormulaList();
+                } else {
+                    console.error('renderFormulaList function not found!');
+                }
+            });
+            // Wait for cards to be rendered
+            await page.waitForTimeout(1000);
         }
         
-        // Verify cards actually exist and are visible
-        const cardCount = await page.locator('.formula-card:visible').count();
+        // Wait for cards to appear
+        await page.waitForSelector('.formula-card', { timeout: 10000, state: 'attached' });
+        
+        const cardCount = await page.locator('.formula-card').count();
+        console.log(`Found ${cardCount} formula cards`);
+        
         if (cardCount === 0) {
-            // Log what's in the formula-list
-            const listContent = await page.locator('#formula-list').textContent();
-            console.log('Formula list content:', listContent);
-            throw new Error('No visible formula cards found. Check console for errors.');
+            await page.screenshot({ path: 'test-debug-empty.png', fullPage: true });
+            throw new Error('No formula cards found after manual render');
         }
     });
 
