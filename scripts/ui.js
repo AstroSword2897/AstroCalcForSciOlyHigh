@@ -5133,6 +5133,18 @@ function renderFormulaList() {
     
     console.log(`Rendering ${formulas.length} formulas...`);
     
+    // CRITICAL: Ensure the formula-selection screen is active
+    const formulaSelection = document.getElementById('formula-selection');
+    if (formulaSelection && !formulaSelection.classList.contains('active')) {
+        console.warn('formula-selection screen not active! Activating it...');
+        formulaSelection.classList.add('active');
+        // Also ensure input-screen is not active
+        const inputScreen = document.getElementById('input-screen');
+        if (inputScreen) {
+            inputScreen.classList.remove('active');
+        }
+    }
+    
     // Clear and populate formula list
     formulaList.innerHTML = '';
     
