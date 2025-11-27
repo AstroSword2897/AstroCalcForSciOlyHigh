@@ -28,6 +28,14 @@
             </div>
         </header>
 
+        <!-- Command Palette (hidden by default) -->
+        <div id="command-palette" class="command-palette" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 2px solid #667eea; border-radius: 12px; padding: 20px; z-index: 10000; min-width: 400px; max-width: 600px;">
+            <h3 style="color: #a8c7ff; margin-bottom: 15px;">Command Palette</h3>
+            <input type="text" id="command-palette-input" placeholder="Type a command..." style="width: 100%; padding: 10px; background: rgba(255, 255, 255, 0.1); border: 1px solid #334155; border-radius: 6px; color: white; font-size: 14px;">
+            <div id="command-palette-results" style="margin-top: 10px; max-height: 300px; overflow-y: auto;"></div>
+            <button onclick="document.getElementById('command-palette').style.display='none'" style="margin-top: 15px; padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">Close</button>
+        </div>
+
         <!-- Formula Selection Screen -->
         <div id="formula-selection" class="screen active">
             <div class="main-tab-container">

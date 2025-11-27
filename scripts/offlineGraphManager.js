@@ -324,11 +324,13 @@ class OfflineGraphManager {
         const isTabActive = targetTab && targetTab.classList.contains('active');
         const container = document.getElementById(this.containerId || 'desmos-graph');
         
-        // If tab is not active, still show message if no values
+        // ENHANCED: If tab is not active, store state but don't render yet
+        // The graph will render when the tab becomes active
         if (!isTabActive) {
             if (!hasAnyValues && container) {
                 this.showPlainTextMessage(formula, container);
             }
+            // Store state so graph can render immediately when tab becomes active
             return;
         }
         
@@ -664,12 +666,25 @@ class OfflineGraphManager {
             }
         }
         
-        // Replace variables with values
+        // ENHANCED: Replace variables with values, including constants
         let evalExpr = expression;
-        for (const [key, value] of Object.entries(values)) {
+        
+        // First, ensure constants are included in values
+        const allValuesWithConstants = {
+            ...(globalConstants || {}),
+            ...(formula.constants || {}),
+            ...values
+        };
+        
+        // Replace variables and constants with their numeric values
+        for (const [key, value] of Object.entries(allValuesWithConstants)) {
             if (value !== null && value !== undefined && key !== unknownSymbol) {
-                const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-                evalExpr = evalExpr.replace(regex, String(value));
+                // Only replace if it's a number (constants should be numbers)
+                const numValue = typeof value === 'number' ? value : parseFloat(value);
+                if (isFinite(numValue)) {
+                    const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+                    evalExpr = evalExpr.replace(regex, String(numValue));
+                }
             }
         }
         
@@ -1396,6 +1411,150 @@ class OfflineGraphManager {
      */
     shouldAutoGraph(formulaId) {
         return this.autoGraphFormulas.has(formulaId);
+    }
+    
+    /**
+     * ENHANCED: Setup zoom and pan interactivity
+     */
+    setupInteractivity() {
+        if (!this.canvas) return;
+        
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        // Store initial bounds for reset
+        const defaultBounds = {
+            left: this.bounds.left,
+            right: this.bounds.right,
+            bottom: this.bounds.bottom,
+            top: this.bounds.top
+        };
+        
+        // Mouse wheel zoom
+        this.canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            const scaleFactor = e.deltaY < 0 ? 0.9 : 1.1;
+            const bounds = this.bounds;
+            
+            // Get mouse position in graph coordinates
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const { padding } = this;
+            const graphWidth = this.width - padding.left - padding.right;
+            const graphHeight = this.height - padding.top - padding.bottom;
+            
+            const xScale = graphWidth / (bounds.right - bounds.left);
+            const yScale = graphHeight / (bounds.top - bounds.bottom);
+            
+            const graphX = bounds.left + (mouseX - padding.left) / xScale;
+            const graphY = bounds.bottom + (this.height - mouseY - padding.bottom) / yScale;
+            
+            // Zoom around mouse position
+            const width = (bounds.right - bounds.left) * scaleFactor;
+            const height = (bounds.top - bounds.bottom) * scaleFactor;
+            
+            this.bounds.left = graphX - (mouseX - padding.left) / xScale * scaleFactor;
+            this.bounds.right = this.bounds.left + width;
+            this.bounds.bottom = graphY - (this.height - mouseY - padding.bottom) / yScale * scaleFactor;
+            this.bounds.top = this.bounds.bottom + height;
+            
+            // Limit zoom to prevent extreme values
+            const minRange = 0.01;
+            const maxRange = 1e20;
+            if (this.bounds.right - this.bounds.left < minRange || 
+                this.bounds.top - this.bounds.bottom < minRange) {
+                this.bounds = { ...defaultBounds };
+            } else if (this.bounds.right - this.bounds.left > maxRange || 
+                       this.bounds.top - this.bounds.bottom > maxRange) {
+                this.bounds = { ...defaultBounds };
+            }
+            
+            // Debounce update
+            if (this.zoomDebounceTimer) {
+                clearTimeout(this.zoomDebounceTimer);
+            }
+            this.zoomDebounceTimer = setTimeout(() => {
+                this._performUpdate();
+            }, 50);
+        }, { passive: false });
+        
+        // Mouse drag pan
+        this.canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            const rect = this.canvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+            this.canvas.style.cursor = 'grabbing';
+        });
+        
+        this.canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            const dx = currentX - lastX;
+            const dy = currentY - lastY;
+            
+            const { padding } = this;
+            const graphWidth = this.width - padding.left - padding.right;
+            const graphHeight = this.height - padding.top - padding.bottom;
+            
+            const xScale = graphWidth / (this.bounds.right - this.bounds.left);
+            const yScale = graphHeight / (this.bounds.top - this.bounds.bottom);
+            
+            const dxGraph = -dx / xScale;
+            const dyGraph = dy / yScale;
+            
+            this.bounds.left += dxGraph;
+            this.bounds.right += dxGraph;
+            this.bounds.bottom += dyGraph;
+            this.bounds.top += dyGraph;
+            
+            lastX = currentX;
+            lastY = currentY;
+            
+            // Debounce update
+            if (this.panDebounceTimer) {
+                clearTimeout(this.panDebounceTimer);
+            }
+            this.panDebounceTimer = setTimeout(() => {
+                this._performUpdate();
+            }, 16); // ~60fps
+        });
+        
+        this.canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            this.canvas.style.cursor = 'default';
+        });
+        
+        this.canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            this.canvas.style.cursor = 'default';
+        });
+        
+        // Double-click to reset bounds
+        this.canvas.addEventListener('dblclick', () => {
+            this.bounds = { ...defaultBounds };
+            this._performUpdate();
+        });
+    }
+    
+    /**
+     * ENHANCED: Reset graph bounds to default
+     */
+    resetBounds() {
+        this.bounds = {
+            left: -10,
+            right: 10,
+            bottom: -10,
+            top: 10
+        };
+        this._performUpdate();
     }
     
     /**

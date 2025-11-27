@@ -39,8 +39,12 @@ function escapeHtml(text) {
 function initFormulaExplorer() {
     // Setup event handlers once (using delegation)
     if (!explorerEventHandlersSetup) {
-        setupFormulaExplorerEvents();
-        explorerEventHandlersSetup = true;
+        const handlersReady = setupFormulaExplorerEvents();
+        if (handlersReady) {
+            explorerEventHandlersSetup = true;
+        } else {
+            console.warn('[FormulaExplorer] Container not ready. Retrying on next render.');
+        }
     }
     
     // Render the explorer
@@ -53,7 +57,7 @@ function initFormulaExplorer() {
  */
 function setupFormulaExplorerEvents() {
     const container = document.getElementById('formula-explorer-container');
-    if (!container) return;
+    if (!container) return false;
     
     // Use event delegation on the container for all click events
     container.addEventListener('click', (e) => {
@@ -152,6 +156,8 @@ function setupFormulaExplorerEvents() {
             return false;
         }
     }, true); // Use capture phase to catch events early
+    
+    return true;
 }
 
 /**
@@ -534,6 +540,9 @@ function renderFormulaExplorer() {
             </div>
         </div>
     `;
+    
+    // Ensure interactions stay wired even if delegation is disrupted
+    attachExplorerButtonListeners();
 }
 
 /**
@@ -830,5 +839,84 @@ function renderExplorerEmptyState() {
     `;
 }
 
+/**
+ * Fallback listeners for browsers/contexts where delegated events don't fire
+ */
+function attachExplorerButtonListeners() {
+    const container = document.getElementById('formula-explorer-container');
+    if (!container) return;
+    
+    const bindClick = (selector, handler, flagName) => {
+        container.querySelectorAll(selector).forEach(el => {
+            if (el.hasAttribute(flagName)) return;
+            el.addEventListener('click', handler);
+            el.setAttribute(flagName, 'true');
+        });
+    };
+    
+    const bindInput = (selector, handler, flagName) => {
+        container.querySelectorAll(selector).forEach(el => {
+            if (el.hasAttribute(flagName)) return;
+            el.addEventListener('input', handler);
+            el.setAttribute(flagName, 'true');
+        });
+    };
+    
+    bindClick('.explorer-view-mode-btn', (e) => {
+        const mode = e.currentTarget.dataset.mode;
+        if (mode) setExplorerViewMode(mode);
+    }, 'data-bound-view-mode');
+    
+    bindClick('.explorer-category-btn', (e) => {
+        const category = e.currentTarget.dataset.category;
+        if (category) toggleExplorerCategory(category);
+    }, 'data-bound-category');
+    
+    bindClick('.explorer-formula-item', (e) => {
+        const formulaId = e.currentTarget.dataset.formulaId;
+        if (formulaId) selectExplorerFormula(formulaId);
+    }, 'data-bound-formula');
+    
+    bindClick('.explorer-use-formula-btn', (e) => {
+        const formulaId = e.currentTarget.dataset.useFormulaId;
+        if (!formulaId) return;
+        const formula = formulas.find(f => f.id === formulaId);
+        if (formula && typeof selectFormula === 'function') {
+            selectFormula(formula);
+            if (typeof switchMainTab === 'function') {
+                switchMainTab('formulas');
+            }
+        }
+    }, 'data-bound-use');
+    
+    bindClick('.explorer-related-formula-btn', (e) => {
+        const formulaId = e.currentTarget.dataset.relatedFormulaId;
+        if (formulaId) selectExplorerFormula(formulaId);
+    }, 'data-bound-related');
+    
+    bindClick('.explorer-calculate-btn', () => handleExplorerCalculate(), 'data-bound-calc');
+    bindClick('.explorer-copy-btn', () => handleExplorerCopyResult(), 'data-bound-copy');
+    
+    bindInput('#explorer-search-input', (evt) => {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            formulaExplorerState.searchQuery = evt.target.value;
+            renderFormulaExplorer();
+        }, 300);
+    }, 'data-bound-search');
+    
+    bindInput('.explorer-variable-input', (evt) => {
+        const symbol = evt.currentTarget.dataset.variableSymbol;
+        handleExplorerVariableChange(symbol, evt.currentTarget.value);
+    }, 'data-bound-variable');
+}
+
 // Make selectExplorerFormula available globally for onclick handlers
 window.selectExplorerFormula = selectExplorerFormula;
+
+// Expose a lightweight API so diagnostics/integration tests can verify loading
+window.FormulaExplorer = {
+    init: initFormulaExplorer,
+    render: renderFormulaExplorer,
+    state: formulaExplorerState
+};

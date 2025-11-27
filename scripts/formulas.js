@@ -33,9 +33,9 @@ var formulaCategories = {
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
-        'stefan_boltzmann_law', 'flux_temperature', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime',
+        'stefan_boltzmann_law', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime',
         'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude', 'chandrasekhar_limit',
-        'white_dwarf_mass_radius', 'blackbody_radiation', 'binary_white_dwarf',
+        'white_dwarf_mass_radius', 'blackbody_radiation',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
         'equivalent_width', 'luminosity_function', 'jeans_mass', 'intensity',
         'photon_momentum_energy', 'de_broglie_wavelength', 'apparent_magnitude_flux',
@@ -53,7 +53,7 @@ var formulaCategories = {
     'Cosmology & Relativity': [
         'hubble_law', 'friedmann_equation', 'critical_density', 'schwarzschild_radius',
         'time_dilation', 'length_contraction', 'parallax_distance_radians', 'parallax_distance_arcsec',
-        'cosmic_redshift', 'lookback_time', 'density_parameter', 'angular_diameter_distance',
+        'redshift_definition', 'lookback_time', 'density_parameter', 'angular_diameter_distance',
         'luminosity_distance', 'einstein_radius', 'matter_density_parameter',
         'vacuum_energy_density_parameter', 'curvature_density_parameter', 'scale_factor_redshift',
         'redshift_peculiar_velocity', 'comoving_distance', 'proper_distance_current',
@@ -401,9 +401,9 @@ var formulas = [
             "H₀": 70  // Approximate value in km/(s·Mpc)
         },
         relationships: {
-            prerequisites: ["doppler_shift", "cosmic_redshift"],
+            prerequisites: ["doppler_shift", "redshift_definition"],
             derivedFrom: [],
-            relatedTo: ["cosmic_redshift", "doppler_shift", "luminosity_distance", "lookback_time", "angular_diameter_distance"],
+            relatedTo: ["redshift_definition", "doppler_shift", "luminosity_distance", "lookback_time", "angular_diameter_distance"],
             uses: ["luminosity_distance", "lookback_time"],
             generalizes: [],
             specializes: []
@@ -832,6 +832,8 @@ var formulas = [
         equation: "λmax = b / T",
         primaryUseCase: "temperature from wavelength",
         specificity: 10,
+        concepts: ["temperature", "wien's law", "wien displacement", "wien", "peak wavelength", "blackbody radiation", "blackbody", "stellar temperature", "effective temperature", "surface temperature", "color temperature", "spectral classification", "stellar classification", "spectrum", "wavelength", "emission", "radiation", "thermal radiation"],
+        keywords: ["wien", "displacement", "peak", "wavelength", "temperature", "blackbody", "spectrum", "stellar", "emission", "thermal", "radiation", "classification"],
         questionPatterns: [
             "find temperature from spectrum",
             "temperature from light",
@@ -1165,36 +1167,6 @@ var formulas = [
         }
     },
     {
-        id: "flux_temperature",
-        name: "Flux from Temperature (Stefan-Boltzmann)",
-        description: "Total flux from temperature (Stefan-Boltzmann law). Relates the total energy flux radiated by a blackbody to its temperature using the Stefan-Boltzmann constant. The flux scales with the fourth power of temperature, making temperature the dominant factor in determining radiative output. Essential for understanding stellar energy output, planetary thermal emission, and blackbody radiation. Critical for stellar physics, thermal physics, and interpreting observed fluxes from astronomical sources. Used to determine temperatures from observed fluxes and to calculate energy output from known temperatures.",
-        equation: "F = σT⁴",
-        primaryUseCase: "flux from temperature",
-        specificity: 6,
-        questionPatterns: [
-            "flux from temperature",
-            "total radiation",
-            "energy output temperature"
-        ],
-        variables: [
-            {
-                symbol: "F",
-                name: "Flux",
-                unit: "W/m²",
-                description: "Radiative flux"
-            },
-            {
-                symbol: "T",
-                name: "Temperature",
-                unit: "Kelvin",
-                description: "Blackbody temperature"
-            }
-        ],
-        constants: {
-            "σ": 5.670e-8
-        }
-    },
-    {
         id: "stefan_boltzmann_law",
         name: "Stefan-Boltzmann Law",
         description: "Fundamental law of blackbody radiation relating total energy flux to temperature. The Stefan-Boltzmann law states that the total energy radiated per unit surface area of a blackbody per unit time is proportional to the fourth power of the blackbody's temperature. This is one of the most important laws in astrophysics and thermal physics. The law applies to all blackbody sources including stars, planets, and laboratory sources. Essential for stellar physics, blackbody radiation, thermal physics, planetary science, and understanding energy output from astronomical objects. The fourth-power dependence means small temperature changes produce large flux changes, making temperature the dominant factor in determining radiative output. Critical for determining stellar effective temperatures, calculating planetary thermal emission, understanding stellar evolution, and interpreting observed fluxes. Used extensively in stellar structure models, planetary science, and thermal physics. The Stefan-Boltzmann constant (σ = 5.670374419 × 10⁻⁸ W/(m²·K⁴)) is a fundamental physical constant derived from quantum mechanics and statistical physics.",
@@ -1251,9 +1223,9 @@ var formulas = [
         relationships: {
             prerequisites: ["wiens_law", "planck_relation"],
             derivedFrom: ["planck_relation"],
-            relatedTo: ["luminosity", "flux_temperature", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime", "hr_color_index", "hr_absolute_magnitude", "planetary_equilibrium_temperature", "flux_from_luminosity", "mass_luminosity_relation"],
+            relatedTo: ["luminosity", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime", "hr_color_index", "hr_absolute_magnitude", "planetary_equilibrium_temperature", "flux_from_luminosity", "mass_luminosity_relation"],
             uses: ["wiens_law", "planck_relation"],
-            generalizes: ["flux_temperature"],
+            generalizes: [],
             specializes: []
         },
         frqMetadata: {
@@ -2054,53 +2026,6 @@ var formulas = [
         }
     },
     {
-        id: "binary_white_dwarf",
-        name: "Binary White Dwarf System",
-        description: "Orbital period and separation for a binary white dwarf system",
-        equation: "P² = (4π²a³) / (G(M₁ + M₂))",
-        variables: [
-            {
-                symbol: "P",
-                name: "Orbital Period",
-                unit: "seconds",
-                description: "Orbital period of the binary system"
-            },
-            {
-                symbol: "a",
-                name: "Semi-major Axis",
-                unit: "meters",
-                description: "Semi-major axis of the binary orbit"
-            },
-            {
-                symbol: "M1",
-                name: "White Dwarf Mass 1",
-                unit: "kg",
-                description: "Mass of the first white dwarf"
-            },
-            {
-                symbol: "M2",
-                name: "White Dwarf Mass 2",
-                unit: "kg",
-                description: "Mass of the second white dwarf"
-            }
-        ],
-        constants: {
-            G: 6.67430e-11
-        },
-        questionPatterns: [
-            "what is the period of the white dwarves",
-            "period of white dwarf binary",
-            "orbital period white dwarf",
-            "how long do white dwarves take to orbit",
-            "white dwarf orbital period",
-            "binary white dwarf period",
-            "given total mass what is period",
-            "period binary white dwarf system",
-            "white dwarf binary period",
-            "calculate period white dwarf binary"
-        ]
-    },
-    {
         id: "white_dwarf_orbital_decay",
         name: "White Dwarf Binary Orbital Decay",
         description: "Rate of orbital decay due to gravitational wave emission in a binary white dwarf system",
@@ -2513,32 +2438,6 @@ var formulas = [
         }
     },
     {
-        id: "cosmic_redshift",
-        name: "Cosmic Redshift",
-        description: "Stretching of light due to universe expansion",
-        equation: "z = (λ_obs - λ_emit) / λ_emit",
-        variables: [
-            {
-                symbol: "z",
-                name: "Redshift",
-                unit: "dimensionless",
-                description: "Cosmological redshift parameter"
-            },
-            {
-                symbol: "λ_obs",
-                name: "Observed Wavelength",
-                unit: "meters",
-                description: "Wavelength as observed on Earth"
-            },
-            {
-                symbol: "λ_emit",
-                name: "Emitted Wavelength",
-                unit: "meters",
-                description: "Wavelength when emitted by the source"
-            }
-        ]
-    },
-    {
         id: "lookback_time",
         name: "Lookback Time (Approximate)",
         description: "Time since light was emitted",
@@ -2793,9 +2692,9 @@ var formulas = [
             }
         ],
         relationships: {
-            prerequisites: ["cosmic_redshift"],
-            derivedFrom: ["cosmic_redshift"],
-            relatedTo: ["cosmic_redshift", "hubble_law", "lookback_time", "luminosity_distance"],
+            prerequisites: ["redshift_definition"],
+            derivedFrom: ["redshift_definition"],
+            relatedTo: ["redshift_definition", "hubble_law", "lookback_time", "luminosity_distance"],
             uses: ["lookback_time", "luminosity_distance"],
             generalizes: [],
             specializes: []
@@ -2840,7 +2739,7 @@ var formulas = [
         relationships: {
             prerequisites: ["doppler_shift"],
             derivedFrom: ["doppler_shift"],
-            relatedTo: ["doppler_shift", "cosmic_redshift", "hubble_law"],
+            relatedTo: ["doppler_shift", "redshift_definition", "hubble_law"],
             uses: [],
             generalizes: [],
             specializes: ["doppler_shift"]
@@ -3002,7 +2901,7 @@ var formulas = [
         relationships: {
             prerequisites: ["schwarzschild_radius"],
             derivedFrom: [],
-            relatedTo: ["schwarzschild_radius", "time_dilation_gravitational", "cosmic_redshift"],
+            relatedTo: ["schwarzschild_radius", "time_dilation_gravitational", "redshift_definition"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -6805,9 +6704,9 @@ var formulas = [
             }
         ],
         relationships: {
-            prerequisites: ["cosmic_redshift"],
+            prerequisites: ["redshift_definition"],
             derivedFrom: [],
-            relatedTo: ["cosmic_redshift", "doppler_shift", "scale_factor_redshift"],
+            relatedTo: ["redshift_definition", "doppler_shift", "scale_factor_redshift"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -6850,12 +6749,12 @@ var formulas = [
             c: 2.99792458e8
         },
         relationships: {
-            prerequisites: ["cosmic_redshift", "hubble_law"],
-            derivedFrom: ["cosmic_redshift"],
-            relatedTo: ["cosmic_redshift", "hubble_law", "redshift_peculiar_velocity"],
+            prerequisites: ["redshift_definition", "hubble_law"],
+            derivedFrom: ["redshift_definition"],
+            relatedTo: ["redshift_definition", "hubble_law", "redshift_peculiar_velocity"],
             uses: [],
             generalizes: [],
-            specializes: ["cosmic_redshift"]
+            specializes: []
         },
         questionPatterns: [
             "velocity from redshift",
@@ -6892,9 +6791,9 @@ var formulas = [
             }
         ],
         relationships: {
-            prerequisites: ["cosmic_redshift"],
-            derivedFrom: ["cosmic_redshift"],
-            relatedTo: ["cosmic_redshift", "redshift_definition", "scale_factor_redshift"],
+            prerequisites: ["redshift_definition"],
+            derivedFrom: ["redshift_definition"],
+            relatedTo: ["redshift_definition", "scale_factor_redshift"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -6934,9 +6833,9 @@ var formulas = [
             }
         ],
         relationships: {
-            prerequisites: ["cosmic_redshift", "planck_relation"],
-            derivedFrom: ["cosmic_redshift"],
-            relatedTo: ["cosmic_redshift", "observed_wavelength_redshift", "planck_relation"],
+            prerequisites: ["redshift_definition", "planck_relation"],
+            derivedFrom: ["redshift_definition"],
+            relatedTo: ["redshift_definition", "observed_wavelength_redshift", "planck_relation"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -7020,7 +6919,7 @@ var formulas = [
         relationships: {
             prerequisites: ["scale_factor_redshift"],
             derivedFrom: ["scale_factor_redshift"],
-            relatedTo: ["scale_factor_redshift", "cosmic_redshift"],
+            relatedTo: ["scale_factor_redshift", "redshift_definition"],
             uses: [],
             generalizes: [],
             specializes: []

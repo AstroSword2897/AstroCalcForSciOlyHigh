@@ -35,6 +35,7 @@ class GraphManager {
         // Used to prevent redundant graph updates
         this.lastRenderedKey = null;
         this.pendingTimers = [];
+        this.pendingOptions = null; // ENHANCED: Store options when tab isn't active, so graph is ready when tab switches
     }
 
     /**
@@ -163,12 +164,24 @@ class GraphManager {
         const isTabActive = targetTab && targetTab.classList.contains('active');
         const container = document.getElementById(this.containerId || 'desmos-graph');
         
-        // If tab is not active, still show message if no values
+        // ENHANCED: Store options even if tab isn't active, so graph is ready when tab switches
+        if (options) {
+            this.pendingOptions = { ...options };
+        }
+        
+        // If tab is not active, still store state and show message if no values
         if (!isTabActive) {
             if (!hasAnyValues && container) {
                 this.showPlainTextMessage(formula, container);
             }
+            // Store the state so graph can render immediately when tab becomes active
             return;
+        }
+        
+        // If we have pending options from when tab wasn't active, use them now
+        if (this.pendingOptions) {
+            Object.assign(options, this.pendingOptions);
+            this.pendingOptions = null;
         }
 
         // Create cache key
