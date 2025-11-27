@@ -281,7 +281,9 @@ header h1 {
 }
 
 .screen.active {
-    display: block;
+    display: block !important; /* Force visibility in all browsers */
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .screen-header {
