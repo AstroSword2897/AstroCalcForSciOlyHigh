@@ -1257,17 +1257,17 @@ function setupSearchFunctionality() {
             metrics.matchReasons.push(`Hierarchical expansion: ${metrics.originalConcepts.length} → ${expandedConcepts.length} concepts`);
         }
         
-        // Exact name match (highest priority)
+        // Exact name match (highest priority) - Increased to 10000 for more accuracy
         if (nameLower === searchLower) {
-            score += 1000;
+            score += 10000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Exact name match');
         } else if (nameLower.startsWith(searchLower)) {
-            score += 500;
+            score += 5000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Name starts with search term');
         } else if (nameLower.includes(searchLower)) {
-            score += 200;
+            score += 2000;
             metrics.nameMatch = true;
             metrics.matchReasons.push('Name contains search term');
         }
@@ -5163,7 +5163,7 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         
         // Calculate absolute confidence based on score tiers
         let absoluteConfidence = 0;
-        if (score >= 1000) absoluteConfidence = 95; // Exact name match tier
+        if (score >= 10000) absoluteConfidence = 95; // Exact name match tier
         else if (score >= 800) absoluteConfidence = 90; // Very high relevance
         else if (score >= 600) absoluteConfidence = 80; // High relevance
         else if (score >= 400) absoluteConfidence = 65; // Medium-high relevance

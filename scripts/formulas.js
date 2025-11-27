@@ -504,7 +504,7 @@ var formulas = [
     {
         id: "parallax_distance_radians",
         name: "Parallax Distance (Radians)",
-        description: "Calculates distance to a star using parallax angle in radians (general form)",
+        description: "Calculates distance to a star using parallax angle in radians (general form). Parallax is the apparent shift in position of a nearby star against distant background stars as Earth orbits the Sun. This trigonometric method uses the parallax angle measured in radians to determine stellar distances. Essential for measuring distances to nearby stars, calibrating the cosmic distance ladder, and understanding stellar positions. The parallax method is the foundation of astrometry and distance measurement in astronomy. Works for any parallax angle but is most accurate for nearby stars with measurable parallax.",
         equation: "d = 1 AU / tan(p)",
         variables: [
             {
@@ -535,7 +535,7 @@ var formulas = [
     {
         id: "parallax_distance_arcsec",
         name: "Parallax Distance (Arcseconds)",
-        description: "Calculates distance to a star using parallax angle in arcseconds (small angle approximation)",
+        description: "Calculates distance to a star using parallax angle in arcseconds (small angle approximation). The most commonly used form of the parallax distance formula, where distance in parsecs equals 1 divided by parallax in arcseconds. This formula uses the small angle approximation (tan(p) ≈ p for small angles) which is highly accurate for stellar parallaxes. Essential for measuring distances to nearby stars, determining stellar absolute magnitudes, and calibrating the cosmic distance ladder. One parsec (pc) is defined as the distance at which a star has a parallax of 1 arcsecond. This is the standard method used by space missions like Hipparcos and Gaia for precise stellar distance measurements.",
         equation: "d ≈ 1 / p",
         variables: [
             {
@@ -566,7 +566,7 @@ var formulas = [
     {
         id: "max_gamma_bohm",
         name: "Maximum Gamma (Bohm Limit)",
-        description: "Maximum Lorentz factor from acceleration vs. loss, based on Bohm limit approximation",
+        description: "Maximum Lorentz factor from acceleration vs. loss, based on Bohm limit approximation. Determines the highest relativistic gamma factor that can be achieved by a charged particle in a magnetic field before energy losses from synchrotron radiation balance the acceleration. Critical for understanding particle acceleration in astrophysical environments like supernova remnants, active galactic nuclei, and gamma-ray bursts. The Bohm limit represents the maximum efficiency for diffusive shock acceleration, where particles can be accelerated up to this energy before radiative losses become dominant. Essential for modeling high-energy astrophysical sources and understanding the physics of cosmic ray acceleration.",
         equation: "γmax ≈ √(6πε / (σT B ξ))",
         variables: [
             {
@@ -596,7 +596,7 @@ var formulas = [
     {
         id: "cooling_break_gamma",
         name: "Cooling Break Lorentz Factor",
-        description: "Break Lorentz factor where electrons have cooled significantly due to synchrotron radiation",
+        description: "Break Lorentz factor where electrons have cooled significantly due to synchrotron radiation. Represents the critical energy at which relativistic electrons in a magnetic field have lost a significant fraction of their energy through synchrotron cooling. This break energy marks the transition in the synchrotron spectrum where the electron energy distribution changes due to cooling effects. Essential for modeling synchrotron spectra from astrophysical sources like supernova remnants, pulsar wind nebulae, and active galactic nuclei. The cooling break appears as a characteristic feature in the observed spectrum and provides information about the magnetic field strength, source age, and electron energy distribution.",
         equation: "γb = (6π m_e c) / (σ_T B² t_age)",
         variables: [
             {
@@ -627,7 +627,7 @@ var formulas = [
     {
         id: "cooling_break_frequency",
         name: "Cooling Break Frequency",
-        description: "Break frequency corresponding to the cooling break Lorentz factor",
+        description: "Break frequency corresponding to the cooling break Lorentz factor. The characteristic frequency in the synchrotron spectrum where the spectral index changes due to electron cooling. This frequency marks where electrons with the cooling break Lorentz factor emit their peak synchrotron radiation. Essential for interpreting observed synchrotron spectra from astrophysical sources, determining magnetic field strengths, and understanding the evolution of high-energy particle populations. The break frequency provides a direct observational signature of synchrotron cooling and can be used to estimate source parameters like magnetic field strength and age.",
         equation: "νb = (3eB / (4π m_e c)) × γb²",
         variables: [
             {
@@ -658,7 +658,7 @@ var formulas = [
     {
         id: "synchrotron_cooling_timescale",
         name: "Synchrotron Cooling Timescale",
-        description: "Characteristic time for an electron to lose energy via synchrotron radiation",
+        description: "Characteristic time for an electron to lose energy via synchrotron radiation. The timescale over which a relativistic electron loses a significant fraction of its energy through synchrotron emission in a magnetic field. This cooling timescale determines how long high-energy electrons can maintain their energy before radiative losses become dominant. Essential for understanding the evolution of synchrotron sources, modeling time-dependent spectra, and determining the maximum energy that electrons can reach in astrophysical environments. Shorter cooling timescales indicate stronger magnetic fields or higher electron energies, leading to more rapid energy loss and spectral evolution.",
         equation: "t_syn = (6π m_e c) / (σ_T B² γ)",
         variables: [
             {
@@ -689,7 +689,7 @@ var formulas = [
     {
         id: "synchrotron_power",
         name: "Synchrotron Power",
-        description: "Power radiated by a relativistic electron via synchrotron radiation",
+        description: "Power radiated by a relativistic electron via synchrotron radiation. The total electromagnetic power emitted by a relativistic charged particle (typically an electron) as it spirals in a magnetic field. Synchrotron radiation is the dominant energy loss mechanism for high-energy electrons in magnetic fields and produces the characteristic non-thermal spectra observed from many astrophysical sources. Essential for understanding energy losses in particle accelerators, modeling emission from supernova remnants, pulsar wind nebulae, active galactic nuclei, and gamma-ray bursts. The power scales with the square of the electron's Lorentz factor and the square of the magnetic field strength, making it extremely important for high-energy astrophysics.",
         equation: "P_syn = (4/3) σ_T c U_B γ²",
         variables: [
             {
@@ -719,7 +719,7 @@ var formulas = [
     {
         id: "magnetic_energy_density",
         name: "Magnetic Energy Density",
-        description: "Energy density stored in a magnetic field",
+        description: "Energy density stored in a magnetic field. The energy per unit volume contained in a magnetic field, representing the stored potential energy that can be converted to other forms. Essential for understanding magnetic field energetics in astrophysical contexts like pulsar magnetospheres, accretion disks, and interstellar medium. The magnetic energy density determines the strength of magnetic effects and plays a crucial role in magnetohydrodynamics, plasma physics, and high-energy astrophysics. Related to synchrotron radiation, particle acceleration, and magnetic field dynamics.",
         equation: "U_B = B² / (8π)",
         variables: [
             {
@@ -739,7 +739,7 @@ var formulas = [
     {
         id: "power_law_spectrum",
         name: "Power-Law Energy Spectrum",
-        description: "Differential number of particles per unit energy as a function of energy",
+        description: "Differential number of particles per unit energy as a function of energy. Describes the energy distribution of particles in a population, typically following a power-law spectrum. Essential for modeling particle populations in astrophysical sources like cosmic rays, supernova remnants, active galactic nuclei, and gamma-ray bursts. The power-law index determines the spectral shape and provides information about acceleration mechanisms, cooling processes, and source evolution. Critical for interpreting observed spectra and understanding particle acceleration physics in high-energy astrophysical environments.",
         equation: "N(E) = K E^(-p)",
         variables: [
             {
@@ -771,7 +771,7 @@ var formulas = [
     {
         id: "spectral_index",
         name: "Spectral Index",
-        description: "Relates power-law index to spectral index",
+        description: "Relates power-law index to spectral index. Connects the particle energy distribution index (p) to the observed synchrotron spectral index (α). This relationship is fundamental for interpreting synchrotron spectra from astrophysical sources. The spectral index describes how flux density changes with frequency, while the power-law index describes the particle energy distribution. Essential for modeling synchrotron emission from supernova remnants, pulsar wind nebulae, active galactic nuclei, and gamma-ray bursts. The relationship assumes isotropic pitch angle distribution and provides a direct link between particle physics and observed radiation.",
         equation: "α = (p - 1) / 2",
         variables: [
             {
@@ -791,7 +791,7 @@ var formulas = [
     {
         id: "chandrasekhar_limit",
         name: "Chandrasekhar Limit",
-        description: "Maximum stable mass for a white dwarf (order-of-magnitude)",
+        description: "Maximum stable mass for a white dwarf (order-of-magnitude). The Chandrasekhar limit represents the maximum mass that can be supported by electron degeneracy pressure against gravitational collapse. White dwarfs above this mass will collapse into neutron stars or black holes. This fundamental limit is approximately 1.4 solar masses and is critical for understanding stellar evolution, supernova Type Ia progenitors, and compact object formation. The limit depends on composition and represents a key milestone in stellar evolution theory. Essential for modeling white dwarf structure, supernova physics, and binary star evolution.",
         equation: "M_Ch ≈ 1.4 M_☉",
         variables: [
             {
@@ -808,7 +808,7 @@ var formulas = [
     {
         id: "white_dwarf_mass_radius",
         name: "White Dwarf Mass-Radius Relation",
-        description: "Non-relativistic approximation: radius inversely proportional to cube root of mass",
+        description: "Non-relativistic approximation: radius inversely proportional to cube root of mass. Describes how white dwarf radius decreases as mass increases, a consequence of electron degeneracy pressure. This inverse relationship means more massive white dwarfs are smaller and denser. Essential for understanding white dwarf structure, stellar evolution endpoints, and compact object physics. The relationship breaks down near the Chandrasekhar limit where relativistic effects become important. Critical for modeling white dwarf cooling, mass-radius observations, and binary white dwarf systems.",
         equation: "R ∝ 1 / M^(1/3)",
         variables: [
             {
@@ -828,7 +828,7 @@ var formulas = [
     {
         id: "wiens_law",
         name: "Wien's Displacement Law",
-        description: "Relates peak wavelength of blackbody radiation to temperature. Use this to find temperature from spectrum peak.",
+        description: "Relates peak wavelength of blackbody radiation to temperature. Wien's Displacement Law states that the wavelength at which a blackbody emits the most radiation is inversely proportional to its temperature. This fundamental law allows determination of stellar temperatures from observed spectra, color indices, and peak emission wavelengths. Essential for stellar classification, blackbody radiation analysis, and understanding the relationship between temperature and spectral characteristics. The law applies to all blackbody sources including stars, planets, and laboratory sources. Critical for interpreting stellar spectra, determining effective temperatures, and understanding the connection between temperature and observed color.",
         equation: "λmax = b / T",
         primaryUseCase: "temperature from wavelength",
         specificity: 10,
@@ -862,7 +862,7 @@ var formulas = [
     {
         id: "hydrostatic_balance",
         name: "Hydrostatic Balance",
-        description: "Pressure gradient balancing gravitational force in stellar interiors",
+        description: "Pressure gradient balancing gravitational force in stellar interiors. Hydrostatic equilibrium is the fundamental condition that maintains stellar structure, where the outward pressure gradient exactly balances the inward gravitational force at every point in the star. This equilibrium condition is essential for stellar structure models, determining how pressure, density, and temperature vary with radius. Critical for understanding stellar interiors, stellar evolution, and the stability of stars. The equation forms the basis of stellar structure calculations and is used in conjunction with equations of state, energy transport, and nuclear energy generation to model stellar properties.",
         equation: "dP/dr = -GM(r)ρ(r) / r²",
         variables: [
             {
@@ -906,7 +906,7 @@ var formulas = [
     {
         id: "kepler_third_law_binary",
         name: "Kepler's Third Law (Binary System)",
-        description: "Orbital period for a binary system",
+        description: "Orbital period for a binary system. Kepler's Third Law applied to binary star systems, where the orbital period depends on the semi-major axis and the combined mass of both stars. Essential for determining masses in binary systems, understanding stellar evolution in close binaries, and characterizing exoplanetary systems. The period increases with orbital separation and decreases with total mass. Critical for binary star analysis, mass determination, and understanding orbital dynamics in multi-body systems. Used extensively in stellar astronomy, exoplanet detection, and gravitational wave astronomy.",
         equation: "P² = (4π²a³) / (G(M₁ + M₂))",
         variables: [
             {
@@ -950,7 +950,7 @@ var formulas = [
     {
         id: "rotational_velocity",
         name: "Rotational Velocity",
-        description: "Equatorial rotational velocity of a rotating body",
+        description: "Equatorial rotational velocity of a rotating body. The linear speed at the equator of a rotating astronomical object, calculated from the rotation period and radius. Essential for understanding stellar rotation, planetary rotation, and the effects of rotation on stellar structure and evolution. Rotation affects stellar evolution, magnetic field generation, and can lead to stellar flattening at high rotation rates. Critical for interpreting spectroscopic observations, understanding stellar activity, and modeling rotating stellar atmospheres. Related to angular momentum, rotational energy, and centrifugal effects.",
         equation: "v = (2πR) / P_rot",
         variables: [
             {
@@ -986,7 +986,7 @@ var formulas = [
     {
         id: "average_density",
         name: "Average Density",
-        description: "Average density of a spherical body",
+        description: "Average density of a spherical body. The total mass divided by the volume of a spherical object, providing a fundamental physical property. Essential for understanding planetary composition, stellar structure, and compact object physics. Density determines whether an object is rocky, gaseous, or degenerate matter. Critical for planetary science, stellar evolution, and understanding the internal structure of astronomical objects. Used to classify planets, determine stellar types, and understand the physics of white dwarfs and neutron stars.",
         equation: "ρ = 3M / (4πR³)",
         variables: [
             {
@@ -1022,7 +1022,7 @@ var formulas = [
     {
         id: "flux_from_luminosity",
         name: "Flux from Luminosity",
-        description: "Observed flux based on intrinsic luminosity and distance",
+        description: "Observed flux based on intrinsic luminosity and distance. The inverse square law for light, relating the observed flux (power per unit area) to the intrinsic luminosity and distance. As light travels outward from a source, it spreads over an increasing area, causing flux to decrease with the square of distance. Essential for determining stellar luminosities from observed fluxes, calculating distances, and understanding how brightness relates to intrinsic properties. Fundamental to the cosmic distance ladder and stellar astronomy. Critical for interpreting observations and connecting observed brightness to physical properties of astronomical sources.",
         equation: "F = L / (4πd²)",
         variables: [
             {
@@ -1048,7 +1048,7 @@ var formulas = [
     {
         id: "magnitude_flux_relation",
         name: "Magnitude-Flux Relation",
-        description: "Compares brightness between two stars based on their magnitudes",
+        description: "Compares brightness between two stars based on their magnitudes. The fundamental relationship between magnitude differences and flux ratios in astronomy. The magnitude scale is logarithmic, where a difference of 5 magnitudes corresponds to a factor of 100 in flux. Essential for comparing stellar brightnesses, determining flux ratios from magnitude differences, and understanding the magnitude system. The negative sign indicates that brighter objects have smaller (more negative) magnitudes. Critical for photometry, stellar classification, and interpreting magnitude measurements in astronomy.",
         equation: "m₁ - m₂ = -2.5 log₁₀(F₁/F₂)",
         variables: [
             {
@@ -1080,7 +1080,7 @@ var formulas = [
     {
         id: "inverse_square_law_brightness",
         name: "Inverse Square Law (Brightness)",
-        description: "Relates brightness to luminosity and distance",
+        description: "Relates brightness to luminosity and distance. The inverse square law expressing how observed brightness decreases with distance from a luminous source. Brightness (observed flux) equals luminosity divided by the surface area of a sphere at distance d. Essential for determining distances from known luminosities, calculating luminosities from observed brightnesses, and understanding how distance affects observed properties. Fundamental to stellar astronomy, extragalactic astronomy, and the cosmic distance ladder. Critical for interpreting observations and connecting intrinsic and observed properties of astronomical sources.",
         equation: "b = L / (4πd²)",
         variables: [
             {
@@ -1109,7 +1109,7 @@ var formulas = [
     {
         id: "doppler_shift",
         name: "Doppler Shift",
-        description: "Relates observed wavelength shift to velocity",
+        description: "Relates observed wavelength shift to velocity. The Doppler effect for light, where motion toward or away from an observer causes a shift in observed wavelength. Blueshift (shorter wavelength) indicates motion toward the observer, while redshift (longer wavelength) indicates motion away. Essential for measuring stellar radial velocities, detecting exoplanets via the radial velocity method, determining galaxy recession velocities, and understanding cosmic expansion. Critical for spectroscopy, exoplanet detection, and cosmology. The formula applies to non-relativistic velocities; for high speeds, relativistic corrections are needed.",
         equation: "(λ_obs - λ_rest) / λ_rest = v / c",
         variables: [
             {
@@ -1138,7 +1138,7 @@ var formulas = [
     {
         id: "doppler_shift_approx",
         name: "Doppler Shift (Approximate)",
-        description: "Approximate formula for Doppler shift",
+        description: "Approximate formula for Doppler shift. Simplified version of the Doppler effect for non-relativistic velocities, where the velocity is directly proportional to the fractional wavelength shift. This approximation is valid when velocities are much less than the speed of light. Essential for measuring stellar radial velocities, detecting exoplanets, and determining galaxy motions. Used extensively in spectroscopy and radial velocity measurements. For high velocities approaching the speed of light, the full relativistic Doppler formula must be used.",
         equation: "v = c × (Δλ / λ)",
         variables: [
             {
@@ -1167,7 +1167,7 @@ var formulas = [
     {
         id: "flux_temperature",
         name: "Flux from Temperature (Stefan-Boltzmann)",
-        description: "Total flux from temperature (Stefan-Boltzmann law)",
+        description: "Total flux from temperature (Stefan-Boltzmann law). Relates the total energy flux radiated by a blackbody to its temperature using the Stefan-Boltzmann constant. The flux scales with the fourth power of temperature, making temperature the dominant factor in determining radiative output. Essential for understanding stellar energy output, planetary thermal emission, and blackbody radiation. Critical for stellar physics, thermal physics, and interpreting observed fluxes from astronomical sources. Used to determine temperatures from observed fluxes and to calculate energy output from known temperatures.",
         equation: "F = σT⁴",
         primaryUseCase: "flux from temperature",
         specificity: 6,
@@ -1249,7 +1249,7 @@ var formulas = [
     {
         id: "light_gathering_power",
         name: "Light Gathering Power",
-        description: "Ratio of light gathering ability of telescope to human eye",
+        description: "Ratio of light gathering ability of telescope to human eye. Compares the light-collecting power of a telescope to the human eye, showing how much brighter objects appear through a telescope. Light gathering power scales with the square of the diameter ratio, meaning a telescope with twice the diameter collects four times as much light. Essential for understanding telescope performance, comparing different telescope sizes, and determining the limiting magnitude of observations. Critical for telescope selection, observation planning, and understanding the advantages of larger apertures in astronomy.",
         equation: "LGP = (D_obj / D_eye)²",
         variables: [
             {
@@ -1275,7 +1275,7 @@ var formulas = [
     {
         id: "magnification",
         name: "Telescope Magnification",
-        description: "Magnification power of a telescope",
+        description: "Magnification power of a telescope. The angular magnification provided by a telescope, determined by the ratio of objective to eyepiece focal lengths. Magnification determines how much larger objects appear compared to the naked eye. Essential for understanding telescope performance, selecting appropriate eyepieces, and planning observations. Higher magnification provides larger images but reduces field of view and brightness. Critical for telescope design, observation planning, and understanding the trade-offs between magnification, field of view, and image brightness.",
         equation: "M = f_obj / f_eye",
         variables: [
             {
@@ -1301,7 +1301,7 @@ var formulas = [
     {
         id: "f_ratio",
         name: "f-ratio",
-        description: "Focal ratio of a telescope",
+        description: "Focal ratio of a telescope. The f-number or f-ratio, defined as the focal length divided by the aperture diameter. Determines the speed of a telescope (how fast it collects light) and affects image brightness and field of view. Lower f-ratios (faster systems) provide brighter images and wider fields of view, while higher f-ratios (slower systems) provide higher magnification and narrower fields. Essential for understanding telescope characteristics, comparing different telescope designs, and selecting appropriate instruments for specific observations. Critical for astrophotography, where f-ratio affects exposure times and image quality.",
         equation: "f_ratio = f / D",
         variables: [
             {
