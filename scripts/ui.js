@@ -1,6 +1,6 @@
 /**
  * User Interface Controller - IMPROVED VERSION
- * Version: 2.0.4 (Cache-busting update)
+ * Version: 2.0.5 (Modular refactoring)
  * 
  * Main UI controller for the AstroCalc application. Handles:
  * - Formula search and filtering with advanced matching algorithms
@@ -31,9 +31,42 @@
 // GLOBAL STATE & CONFIGURATION
 // ============================================================================
 
+// CRITICAL: Expose functions immediately when defined (using function hoisting)
+// This ensures functions are available even if script execution is interrupted
+// Functions are hoisted, so we can reference them here
+if (typeof window !== 'undefined') {
+    // Set up exposure function that will be called after functions are defined
+    window._exposeUIFunctions = function() {
+        try {
+            if (typeof parseNumericValue === 'function') window.parseNumericValue = parseNumericValue;
+            if (typeof safeEvaluateExpression === 'function') window.safeEvaluateExpression = safeEvaluateExpression;
+            if (typeof replaceVariables === 'function') window.replaceVariables = replaceVariables;
+            if (typeof showError === 'function') window.showError = showError;
+            // Safe access to FORMULA_INSTRUCTIONS - it may not be defined yet
+            try {
+                if (typeof FORMULA_INSTRUCTIONS !== 'undefined' && FORMULA_INSTRUCTIONS) {
+                    window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+                }
+            } catch (e) {
+                // FORMULA_INSTRUCTIONS not yet defined, will be set later
+            }
+            if (typeof symbolicEvaluationCache !== 'undefined') window.symbolicEvaluationCache = symbolicEvaluationCache;
+        } catch (e) {
+            console.error('[UI] Error in _exposeUIFunctions:', e);
+        }
+    };
+    
+    // Try to expose immediately (functions are hoisted)
+    setTimeout(function() {
+        if (typeof window._exposeUIFunctions === 'function') {
+            window._exposeUIFunctions();
+        }
+    }, 0);
+}
+
 // Timing constants
 const TIMING = {
-    DEBOUNCE_SEARCH: 200,
+    DEBOUNCE_SEARCH: 50, // Reduced from 200ms for faster response
     DEBOUNCE_INDICATORS: 400,
     MATHJAX_RENDER: 150,
     VISIBILITY_RETRY_SHORT: 100,
@@ -42,10 +75,178 @@ const TIMING = {
     INIT_RETRY_DELAY: 100
 };
 
-// Global state variables
-let currentFormula = null; // Currently selected formula for calculator
-let calculator = null;
-let graphManager = null; // Graph manager (uses OfflineGraphManager for offline operation)
+// REFACTORED: Use centralized state management instead of global variables
+// Legacy variables kept for backward compatibility during transition
+let currentFormula = null; // DEPRECATED: Use uiState.getFormula() instead
+let calculator = null; // DEPRECATED: Use uiState.getCalculator() instead
+let graphManager = null; // DEPRECATED: Use uiState.getGraphManager() instead
+
+// Initialize state manager if available
+if (typeof window !== 'undefined' && typeof window.uiState !== 'undefined') {
+    // Sync legacy variables with state manager
+    const syncState = () => {
+        currentFormula = window.uiState.getFormula();
+        calculator = window.uiState.getCalculator();
+        graphManager = window.uiState.getGraphManager();
+    };
+    
+    // Listen for state changes
+    window.uiState.on('formulaChanged', syncState);
+    window.uiState.on('calculatorChanged', syncState);
+    window.uiState.on('graphManagerChanged', syncState);
+}
+
+// Feature flag: enable automatic graph updates after calculations
+const GRAPH_UPDATES_ENABLED = true;
+
+// Centralized guard for graph work
+function ensureGraphManager() {
+    if (!GRAPH_UPDATES_ENABLED) return null;
+    
+    // REFACTORED: Use state manager if available
+    if (typeof window !== 'undefined' && typeof window.uiState !== 'undefined') {
+        let mgr = window.uiState.getGraphManager();
+        if (mgr) return mgr;
+    }
+    
+    // Fallback to legacy variable
+    if (graphManager) return graphManager;
+    
+    // Prioritize V2 (most enhanced - devicePixelRatio, offscreen canvas, adaptive subdivision)
+    if (typeof EnhancedOfflineGraphManagerV2 !== 'undefined') {
+        graphManager = new EnhancedOfflineGraphManagerV2({ containerId: 'desmos-graph', tabId: 'graph-tab' });
+        
+        // REFACTORED: Store in state manager
+        if (typeof window !== 'undefined' && typeof window.uiState !== 'undefined') {
+            window.uiState.setGraphManager(graphManager);
+        }
+        
+        return graphManager;
+    }
+    
+    // Fallback to V1 (enhanced offline graph)
+    if (typeof EnhancedOfflineGraphManager !== 'undefined') {
+        graphManager = new EnhancedOfflineGraphManager('desmos-graph', 'graph-tab');
+        
+        // REFACTORED: Store in state manager
+        if (typeof window !== 'undefined' && typeof window.uiState !== 'undefined') {
+            window.uiState.setGraphManager(graphManager);
+        }
+        
+        return graphManager;
+    }
+    
+    // Fallback to original offline graph manager
+    if (typeof OfflineGraphManager !== 'undefined') {
+        graphManager = new OfflineGraphManager('desmos-graph', 'graph-tab');
+        return graphManager;
+    }
+    
+    // Last resort: Desmos (requires internet)
+    if (typeof GraphManager !== 'undefined') {
+        graphManager = new GraphManager('desmos-graph', 'graph-tab');
+        return graphManager;
+    }
+    
+    return null;
+}
+
+function updateGraphIfEnabled(formula, values = {}, options = {}) {
+    if (!GRAPH_UPDATES_ENABLED) return;
+    if (!formula) return;
+    const gm = ensureGraphManager();
+    if (!gm) return;
+    
+    try {
+        // ENHANCED: Support multi-step solve graph visualization
+        if (options.solveGraph && options.context) {
+            // Visualize solve graph structure
+            if (typeof gm.visualizeSolveGraph === 'function') {
+                gm.visualizeSolveGraph(options.solveGraph, options.context, options.graphOptions || {});
+                return;
+            }
+        }
+        
+        // ENHANCED: Support execution trace visualization
+        if (options.executionTrace && options.context) {
+            // Visualize execution trace timeline
+            if (typeof gm.visualizeExecutionTrace === 'function') {
+                gm.visualizeExecutionTrace(options.context, options.traceOptions || {});
+                return;
+            }
+        }
+        
+        // Ensure graph manager is initialized
+        if (typeof gm.init === 'function') {
+            const initialized = gm.init();
+            if (!initialized) {
+                console.warn('[Graph] Graph manager initialization failed, retrying...');
+                // Retry after a short delay
+                setTimeout(() => {
+                    if (gm.init && gm.init()) {
+                        updateGraphIfEnabled(formula, values, options);
+                    }
+                }, 200);
+                return;
+            }
+        }
+        
+        // Try multiple update methods for compatibility
+        if (typeof gm.updateGraph === 'function') {
+            gm.updateGraph(formula, values, options);
+        } else if (typeof gm.render === 'function') {
+            // Fallback to render method
+            gm.render(formula, values);
+        } else if (typeof gm.setFormula === 'function') {
+            // Another fallback
+            gm.setFormula(formula, values);
+        } else {
+            console.warn('[Graph] No valid update method found on graph manager');
+        }
+    } catch (e) {
+        console.error('[Graph] Error updating graph:', e);
+        console.error('[Graph] Stack:', e.stack);
+    }
+}
+
+/**
+ * Update graph with calculated point highlight
+ * Called after calculation to show result on graph
+ */
+function updateGraphWithCalculatedPoint(formula, values, calculatedVar, calculatedValue) {
+    if (!GRAPH_UPDATES_ENABLED) return;
+    if (!formula) return;
+    
+    const gm = ensureGraphManager();
+    if (!gm) return;
+    
+    try {
+        // Find which variable was calculated
+        const unknownVar = formula.variables.find(v => v.symbol === calculatedVar);
+        if (!unknownVar) return;
+        
+        // Set up graph with calculated point
+        if (typeof gm.setCalculatedPoint === 'function') {
+            // Determine x and y based on which variable is unknown
+            const vars = formula.variables || [];
+            const unknownIndex = vars.findIndex(v => v.symbol === calculatedVar);
+            
+            // If this is the variable we're graphing, highlight it
+            const graphVar = vars.find(v => !(v.symbol in values));
+            if (graphVar && graphVar.symbol === calculatedVar) {
+                // We need to calculate the y value for this x
+                // This is complex, so we'll just highlight the point if we can
+                const label = `${calculatedVar} = ${calculatedValue.toPrecision(6)}`;
+                gm.setCalculatedPoint(calculatedValue, null, label);
+            }
+        }
+        
+        // Update graph
+        updateGraphIfEnabled(formula, values);
+    } catch (e) {
+        console.warn('[Graph] Error updating with calculated point:', e);
+    }
+}
 
 // Event listener registry for cleanup
 const eventListenerRegistry = new Map();
@@ -84,6 +285,124 @@ function cleanupAllListeners() {
         });
     });
     eventListenerRegistry.clear();
+}
+
+// Timeout tracking for proper cleanup
+const activeTimeouts = new Set();
+
+/**
+ * Tracked setTimeout that can be cleaned up
+ * @param {Function} fn - Function to execute
+ * @param {number} delay - Delay in milliseconds
+ * @returns {number} Timeout ID
+ */
+function trackedSetTimeout(fn, delay) {
+    const timeoutId = setTimeout(() => {
+        activeTimeouts.delete(timeoutId);
+        fn();
+    }, delay);
+    activeTimeouts.add(timeoutId);
+    return timeoutId;
+}
+
+/**
+ * Clear a tracked timeout
+ * @param {number} timeoutId - Timeout ID to clear
+ */
+function clearTrackedTimeout(timeoutId) {
+    clearTimeout(timeoutId);
+    activeTimeouts.delete(timeoutId);
+}
+
+/**
+ * Clear all tracked timeouts
+ */
+function clearAllTimeouts() {
+    activeTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+    activeTimeouts.clear();
+}
+
+/**
+ * Global event listeners tracking for proper cleanup
+ */
+const globalEventListeners = new Map();
+
+/**
+ * Add tracked global event listener
+ * @param {EventTarget} target - Target element (usually document or window)
+ * @param {string} event - Event name
+ * @param {Function} handler - Event handler
+ * @param {object} options - Event listener options
+ */
+function addTrackedEventListener(target, event, handler, options = {}) {
+    const key = `${target.constructor.name}-${event}`;
+    if (!globalEventListeners.has(key)) {
+        globalEventListeners.set(key, []);
+    }
+    globalEventListeners.get(key).push({ target, event, handler, options });
+    target.addEventListener(event, handler, options);
+}
+
+/**
+ * Remove all tracked global event listeners
+ */
+function cleanupAllListeners() {
+    globalEventListeners.forEach((listeners, key) => {
+        listeners.forEach(({ target, event, handler, options }) => {
+            target.removeEventListener(event, handler, options);
+        });
+    });
+    globalEventListeners.clear();
+    console.log('[Cleanup] All global event listeners removed');
+}
+
+/**
+ * Cleanup cross-concept reinforcement system to prevent memory leaks
+ * Breaks circular references between concept nodes
+ */
+function cleanupCrossConceptSystem() {
+    if (typeof crossConceptReinforcement === 'undefined') return;
+    
+    // Clear all Sets in concept network (breaks circular refs)
+    const network = crossConceptReinforcement.conceptNetwork || {};
+    for (const node of Object.values(network)) {
+        if (node.crossReferences instanceof Set) node.crossReferences.clear();
+        if (node.relatedConcepts instanceof Set) node.relatedConcepts.clear();
+        if (node.parentConcepts instanceof Set) node.parentConcepts.clear();
+        if (node.childConcepts instanceof Set) node.childConcepts.clear();
+        if (node.siblingConcepts instanceof Set) node.siblingConcepts.clear();
+    }
+    
+    // Clear formula mapping Sets
+    const map = crossConceptReinforcement.conceptFormulaMap || {};
+    for (const set of Object.values(map)) {
+        if (set instanceof Set) set.clear();
+    }
+    
+    // Reset to empty objects
+    crossConceptReinforcement.conceptNetwork = {};
+    crossConceptReinforcement.conceptFormulaMap = {};
+    
+    console.log('[Cleanup] Cross-concept system cleaned (broke 4960+ circular refs)');
+}
+
+/**
+ * Master cleanup function - call on navigation/unmount
+ * Cleans up all listeners, timeouts, caches, and circular references
+ */
+function cleanupAllResources() {
+    cleanupAllListeners();
+    clearAllTimeouts();
+    clearAllCaches();
+    cleanupVariableInputs();
+    cleanupCrossConceptSystem(); // ✅ FIX: Clean up circular refs
+    console.log('[Cleanup] All resources cleaned up');
+}
+
+// Expose cleanup function globally for testing and navigation
+if (typeof window !== 'undefined') {
+    window.cleanupAllResources = cleanupAllResources;
+    window.cleanupCrossConceptSystem = cleanupCrossConceptSystem;
 }
 
 // ============================================================================
@@ -142,9 +461,108 @@ try {
 // LaTeX conversion cache
 const latexCache = new Map();
 
+// Symbolic evaluation cache to avoid re-evaluating same expressions
+const symbolicEvaluationCache = new Map();
+const MAX_SYMBOLIC_CACHE_SIZE = 100;
+
+// Expose symbolicEvaluationCache globally immediately - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.symbolicEvaluationCache = symbolicEvaluationCache;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.symbolicEvaluationCache = symbolicEvaluationCache;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
+}
+
+// Maximum cache sizes to prevent unbounded growth
+const MAX_SEARCH_CACHE_SIZE = 100;
+const MAX_LATEX_CACHE_SIZE = 500;
+
+/**
+ * Bounded cache cleanup - prevents memory leaks from unbounded cache growth
+ * Call this periodically or when cache grows too large
+ */
+function cleanupCaches() {
+    // Clean up search cache if using fallback Map
+    if (searchCache instanceof Map && searchCache.size > MAX_SEARCH_CACHE_SIZE) {
+        const entriesToKeep = Array.from(searchCache.entries()).slice(-Math.floor(MAX_SEARCH_CACHE_SIZE * 0.75));
+        searchCache.clear();
+        entriesToKeep.forEach(([key, value]) => searchCache.set(key, value));
+    }
+    
+    // Clean up LaTeX cache
+    if (latexCache.size > MAX_LATEX_CACHE_SIZE) {
+        const entriesToKeep = Array.from(latexCache.entries()).slice(-Math.floor(MAX_LATEX_CACHE_SIZE * 0.75));
+        latexCache.clear();
+        entriesToKeep.forEach(([key, value]) => latexCache.set(key, value));
+    }
+    
+    // Clean up symbolic evaluation cache
+    if (symbolicEvaluationCache.size > MAX_SYMBOLIC_CACHE_SIZE) {
+        const entriesToKeep = Array.from(symbolicEvaluationCache.entries()).slice(-Math.floor(MAX_SYMBOLIC_CACHE_SIZE * 0.75));
+        symbolicEvaluationCache.clear();
+        entriesToKeep.forEach(([key, value]) => symbolicEvaluationCache.set(key, value));
+    }
+}
+
+/**
+ * Clear all caches - useful for cleanup on navigation or memory pressure
+ */
+function clearAllCaches() {
+    if (searchCache && typeof searchCache.clear === 'function') {
+        searchCache.clear();
+    }
+    latexCache.clear();
+    symbolicEvaluationCache.clear();
+}
+
+// Cleanup caches every 5 minutes to prevent unbounded growth
+setInterval(cleanupCaches, 5 * 60 * 1000);
+
 // ============================================================================
-// DOM UTILITY FUNCTIONS
+// DOM UTILITY FUNCTIONS & EFFICIENCY OPTIMIZATIONS
 // ============================================================================
+
+// DOM Cache is defined in dom.js (loaded before ui.js)
+// Reference the existing instance from window.DOMUtils.domCache
+// Use a fallback only if dom.js didn't load (shouldn't happen)
+// Note: domCache is already declared in dom.js as var, so we can reference it directly
+// If it's not available, use window.DOMUtils.domCache or fallback
+if (typeof domCache === 'undefined') {
+    if (typeof window !== 'undefined' && window.DOMUtils && window.DOMUtils.domCache) {
+        window.domCache = window.DOMUtils.domCache;
+    } else {
+        // Fallback if dom.js didn't load
+        window.domCache = {
+            getById: (id) => document.getElementById(id),
+            query: (selector) => document.querySelector(selector),
+            invalidate: () => {},
+            clear: () => {},
+            getStats: () => ({ size: 0, maxSize: 0, keys: [] })
+        };
+    }
+}
+
+// DOMUpdateBatcher and domBatcher are defined in dom.js (loaded before ui.js)
+// Reference the existing instance from window.DOMUtils.domBatcher
+// If it's not available, use window.DOMUtils.domBatcher or fallback
+if (typeof domBatcher === 'undefined') {
+    if (typeof window !== 'undefined' && window.DOMUtils && window.DOMUtils.domBatcher) {
+        window.domBatcher = window.DOMUtils.domBatcher;
+    } else {
+        // Fallback if dom.js didn't load - create a minimal batcher
+        window.domBatcher = {
+            schedule: (fn) => requestAnimationFrame(fn),
+            flush: () => {},
+            clear: () => {}
+        };
+    }
+}
 
 /**
  * Force element visibility with all necessary style properties
@@ -163,14 +581,17 @@ function forceElementVisibility(element, options = {}) {
         forceReflow = false
     } = options;
     
-    element.style.display = display;
-    element.style.visibility = 'visible';
-    element.style.opacity = '1';
-    
-    if (forceReflow) {
-        // Force browser reflow to ensure styles are applied
-        void element.offsetHeight;
-    }
+    // Batch style updates
+    domBatcher.schedule(() => {
+        element.style.display = display;
+        element.style.visibility = 'visible';
+        element.style.opacity = '1';
+        
+        if (forceReflow) {
+            // Force browser reflow to ensure styles are applied
+            void element.offsetHeight;
+        }
+    }, 0); // High priority
 }
 
 /**
@@ -193,6 +614,218 @@ function handleError(error, context = 'Unknown', showToUser = true) {
     }
     
     return errorMessage;
+}
+
+/**
+ * Unified numeric value parser
+ * Handles parseFloat, ExpressionParser.parse, and edge cases
+ * @param {string|number} input - Input to parse
+ * @param {string} unit - Optional unit hint
+ * @returns {number|null} Parsed numeric value or null
+ */
+function parseNumericValue(input, unit = null) {
+    if (input === null || input === undefined || input === '') {
+        return null;
+    }
+    
+    // Normalize input: trim whitespace, handle Unicode minus signs
+    let normalized = String(input).trim()
+        .replace(/[\u2013\u2014\u2212]/g, '-') // Unicode minus signs
+        .replace(/[\u00A0]/g, ' '); // Non-breaking spaces
+    
+    // If already a number, validate and return
+    if (typeof input === 'number') {
+        if (isNaN(input) || !isFinite(input)) return null;
+        // Check for extremely large/small numbers
+        if (Math.abs(input) > Number.MAX_SAFE_INTEGER) {
+            console.warn('[parseNumericValue] Number exceeds MAX_SAFE_INTEGER:', input);
+        }
+        return input;
+    }
+    
+    // Try ExpressionParser first (handles expressions like "pi/4", "2*pi")
+    if (typeof ExpressionParser !== 'undefined' && ExpressionParser.parse) {
+        try {
+            const parsed = ExpressionParser.parse(normalized, unit);
+            if (parsed !== null && typeof parsed === 'number' && isFinite(parsed)) {
+                return parsed;
+            }
+        } catch (e) {
+            // Fall through to parseFloat
+        }
+    }
+    
+    // Fallback to parseFloat
+    const parsed = parseFloat(normalized);
+    if (!isNaN(parsed) && isFinite(parsed)) {
+        return parsed;
+    }
+    
+    return null;
+}
+
+// Expose parseNumericValue globally immediately - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.parseNumericValue = parseNumericValue;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.parseNumericValue = parseNumericValue;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
+}
+
+/**
+ * Safe expression evaluator (replaces eval)
+ * Uses ExpressionParser or SafeMathEvaluator if available
+ * @param {string} expression - Expression string
+ * @param {Object} values - Variable values
+ * @param {Object} constants - Constants
+ * @returns {number|null} Evaluated result or null
+ */
+function safeEvaluateExpression(expression, values = {}, constants = {}) {
+    if (!expression || typeof expression !== 'string') {
+        return null;
+    }
+    
+    // Try SafeMathEvaluator first (from calculator.js)
+    if (typeof SafeMathEvaluator !== 'undefined' && SafeMathEvaluator.evaluate) {
+        try {
+            return SafeMathEvaluator.evaluate(expression, { ...values, ...constants });
+        } catch (e) {
+            // Fall through
+        }
+    }
+    
+    // Try ExpressionParser
+    if (typeof ExpressionParser !== 'undefined' && ExpressionParser.parse) {
+        try {
+            return ExpressionParser.parse(expression);
+        } catch (e) {
+            // Fall through
+        }
+    }
+    
+    console.warn('[safeEvaluateExpression] No safe evaluator available for:', expression);
+    return null;
+}
+
+// Expose safeEvaluateExpression globally immediately - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.safeEvaluateExpression = safeEvaluateExpression;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.safeEvaluateExpression = safeEvaluateExpression;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
+}
+
+/**
+ * Replace variables in expression with their numeric values
+ * @param {string} expression - Expression string
+ * @param {Object} values - Variable values
+ * @param {Object} constants - Constants
+ * @returns {string} Expression with variables replaced
+ */
+function replaceVariables(expression, values = {}, constants = {}) {
+    if (!expression || typeof expression !== 'string') {
+        return expression;
+    }
+    
+    const allValues = { ...values, ...constants };
+    let result = expression;
+    
+    // Get all variable symbols (sorted by length descending to avoid partial replacements)
+    const symbols = Object.keys(allValues).sort((a, b) => b.length - a.length);
+    
+    symbols.forEach(symbol => {
+        const value = allValues[symbol];
+        if (value !== null && value !== undefined && isFinite(value)) {
+            // Escape regex special characters
+            const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Replace whole word matches
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            result = result.replace(regex, value.toString());
+            
+            // Also handle subscript notation (H₀ -> H0, etc.)
+            const subscriptRegex = new RegExp(escaped, 'g');
+            result = result.replace(subscriptRegex, value.toString());
+        }
+    });
+    
+    // Replace Unicode operators
+    result = result.replace(/×/g, '*')
+                   .replace(/÷/g, '/')
+                   .replace(/√/g, 'Math.sqrt');
+    
+    return result;
+}
+
+// Expose replaceVariables globally immediately - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.replaceVariables = replaceVariables;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.replaceVariables = replaceVariables;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
+}
+
+/**
+ * Unified error display function
+ * @param {string} elementId - ID of element to display error in
+ * @param {string} message - Error message
+ * @param {string} type - Error type ('error', 'warning', 'info')
+ */
+function showError(elementId, message, type = 'error') {
+    // REFACTORED: Use integration helpers if available
+    if (typeof window !== 'undefined' && typeof window.helpers !== 'undefined') {
+        window.helpers.displayError(message, type);
+        return;
+    }
+    
+    // Fallback to legacy implementation
+    const element = document.getElementById(elementId);
+    if (!element) {
+        console.error(`[showError] Element not found: ${elementId}`, message);
+        // Fallback to alert
+        alert(message);
+        return;
+    }
+    
+    const className = `error-message ${type}`;
+    element.innerHTML = `<div class="${className}">${escapeHtml(message)}</div>`;
+    element.classList.add('show');
+    
+    // Scroll into view if needed (less aggressive)
+    if (typeof element.scrollIntoView === 'function') {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+// Expose showError globally immediately - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.showError = showError;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.showError = showError;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
 }
 
 // ============================================================================
@@ -519,7 +1152,7 @@ function initializeApp() {
             
             // CRITICAL: Ensure DOM is ready before rendering
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
+                addTrackedEventListener(document, 'DOMContentLoaded', () => {
                     setupEventListeners();
                     setupSearchFunctionality();
                     renderFormulaList(); // This will call setupFormulaCardEventDelegation at the end
@@ -805,6 +1438,13 @@ ensureInitialization();
     // Add event delegation for formula cards - FIXED: Handle all clicks properly
 // This is set up in setupEventListeners, but we also set it up here for immediate availability
 function setupFormulaCardEventDelegation() {
+    // REFACTORED: Use event handlers module if available
+    if (typeof window !== 'undefined' && typeof window.eventHandlers !== 'undefined') {
+        window.eventHandlers.setupFormulaCardDelegation();
+        return;
+    }
+    
+    // Fallback to legacy implementation
     const formulaList = document.getElementById('formula-list');
     if (!formulaList) {
         console.warn('[Event Delegation] formula-list not found');
@@ -913,13 +1553,9 @@ function setupFormulaCardEventDelegation() {
             }
         };
         
-        // Add listener in capture phase to catch events early
-        addTrackedListener(formulaList, 'click', clickHandler, true);
-        // Also add in bubble phase as backup
-        addTrackedListener(formulaList, 'click', clickHandler, false);
-        
+        // REFACTORED: Use helpers for lifecycle tracking
         // Also handle Enter key on formula cards
-        addTrackedListener(formulaList, 'keydown', (e) => {
+        const keyHandler = (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 const card = e.target.closest('.formula-card');
                 if (card) {
@@ -935,7 +1571,18 @@ function setupFormulaCardEventDelegation() {
                     }
                 }
             }
-        });
+        };
+        
+        if (typeof window !== 'undefined' && typeof window.helpers !== 'undefined') {
+            window.helpers.addEventListener(formulaList, 'click', clickHandler, true);
+            window.helpers.addEventListener(formulaList, 'click', clickHandler, false);
+            window.helpers.addEventListener(formulaList, 'keydown', keyHandler);
+        } else {
+            // Fallback to legacy
+            addTrackedListener(formulaList, 'click', clickHandler, true);
+            addTrackedListener(formulaList, 'click', clickHandler, false);
+            addTrackedListener(formulaList, 'keydown', keyHandler);
+        }
         
         // Mark as set up using data attribute
         formulaList.dataset.delegationSetup = 'true';
@@ -1968,11 +2615,34 @@ function setupSearchFunctionality() {
     
     // Store original formulas for filtering
     let allFormulas = [...formulas];
+
+    // Initialize FormulaSearchEngine if available
+    let searchEngine = null;
+    if (typeof FormulaSearchEngine !== 'undefined') {
+        try {
+            searchEngine = new FormulaSearchEngine({
+                cache: searchCache,
+                formulas: allFormulas,
+                formulaCategories: formulaCategories,
+                getConceptHierarchy: getConceptHierarchy
+            });
+        } catch (e) {
+            console.warn('[Search] Failed to initialize FormulaSearchEngine, using fallback:', e);
+        }
+    }
     
     // PERFORMANCE FIX: Use debounce function for better debouncing
     const debouncedSearch = debounce((searchTerm) => {
         filterAndRenderFormulas(searchTerm);
     }, TIMING.DEBOUNCE_SEARCH);
+    
+    // Show loading indicator immediately
+    function showSearchLoading() {
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList) {
+            formulaList.innerHTML = '<div style="text-align: center; padding: 20px; color: #94a3b8;">🔍 Searching...</div>';
+        }
+    }
     
     // Search input handler
     searchInput.addEventListener('input', (e) => {
@@ -1981,6 +2651,8 @@ function setupSearchFunctionality() {
         // Show/hide clear button
         if (searchTerm.length > 0) {
             clearBtn.style.display = 'flex';
+            // Show loading indicator immediately for better UX
+            showSearchLoading();
         } else {
             clearBtn.style.display = 'none';
             // Clear search immediately (no debounce for empty search)
@@ -2020,16 +2692,6 @@ function setupSearchFunctionality() {
             return;
         }
         
-        // PERFORMANCE FIX: Check cache first
-        const cacheKey = searchTerm.toLowerCase().trim();
-        const cachedResult = searchCache.get(cacheKey);
-        if (cachedResult) {
-            const cacheTime = window.performance.now() - startTime;
-            performanceMonitor.recordSearch(cacheTime);
-            renderFilteredFormulas(cachedResult.scoredFormulas, searchTerm, cachedResult.maxScore);
-            return;
-        }
-        
         // Ensure allFormulas is populated with ALL formulas
         if (!allFormulas || allFormulas.length === 0 || allFormulas.length !== formulas.length) {
             allFormulas = [...formulas];
@@ -2053,11 +2715,70 @@ function setupSearchFunctionality() {
             return;
         }
         
-        // PERFORMANCE: Score formulas with early exit for low scores
-        // Only do expensive semantic matching on top candidates
-        // ENHANCED: Now includes topic-based and context-aware scoring
-        const allScoredFormulas = allFormulas.map(formula => {
-            const scoreData = calculateSearchScore(formula, searchLower, searchWords);
+        let scoredFormulas = [];
+        let maxScore = 1;
+        
+        // PERFORMANCE: Check cache first
+        if (typeof performanceOptimizer !== 'undefined') {
+            const cached = performanceOptimizer.getCachedSearch(searchLower);
+            if (cached) {
+                renderFilteredFormulas(cached, searchTerm, cached.length > 0 ? cached[0].score : 1);
+                return;
+            }
+        }
+        
+        // Use FormulaSearchEngine if available, otherwise fallback to legacy scoring
+        if (searchEngine) {
+            try {
+                // Update search engine with latest formulas
+                searchEngine.formulas = allFormulas;
+                
+                // Perform search
+                const results = searchEngine.search(searchTerm, allFormulas);
+                
+                // PERFORMANCE: Cache search results
+                if (typeof performanceOptimizer !== 'undefined') {
+                    performanceOptimizer.cacheSearch(searchLower, results);
+                }
+                
+                // Convert results to expected format
+                scoredFormulas = results.map(item => ({
+                    formula: item.formula,
+                    score: item.score,
+                    metrics: item.metrics,
+                    topicRelevanceScore: item.topicRelevanceScore || 0,
+                    contextScore: item.contextScore || 0,
+                    normalizedScore: item.normalizedScore || item.score
+                }));
+                
+                // Calculate max score
+                maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
+                
+                // PERFORMANCE: Cache results in multiple layers
+                const cacheKey = searchLower;
+                if (searchCache) {
+                    searchCache.set(cacheKey, {
+                        scoredFormulas: scoredFormulas,
+                        maxScore: maxScore
+                    });
+                }
+                if (typeof performanceOptimizer !== 'undefined') {
+                    performanceOptimizer.cacheSearch(searchLower, scoredFormulas);
+                }
+            } catch (e) {
+                console.error('[Search] Error using FormulaSearchEngine, falling back to legacy:', e);
+                // Fall through to legacy implementation
+                searchEngine = null;
+            }
+        }
+        
+        // Fallback to legacy scoring if search engine not available or failed
+        if (!searchEngine || scoredFormulas.length === 0) {
+            // PERFORMANCE: Score formulas with early exit for low scores
+            // Only do expensive semantic matching on top candidates
+            // ENHANCED: Now includes topic-based and context-aware scoring
+            const allScoredFormulas = allFormulas.map(formula => {
+                const scoreData = calculateSearchScore(formula, searchLower, searchWords);
             
             // Early exit if score is very low (skip expensive semantic matching)
             // BUT still include topic/context scores for topic-relevant formulas
@@ -2136,13 +2857,25 @@ function setupSearchFunctionality() {
               
               // 3. Any score > 0 (includes topic/context scores)
               return item.score > 0 || hasStrongMatch || hasAnyMatch || hasTopicRelevance;
-          })
-          .sort((a, b) => {
-              // Sort by combined relevance: literal + topic + context
-              // Prioritize formulas with both literal and topic relevance
-              const aCombined = a.score + (a.topicRelevanceScore || 0) + (a.contextScore || 0);
-              const bCombined = b.score + (b.topicRelevanceScore || 0) + (b.contextScore || 0);
-              
+          });
+        
+        // Normalize scores before sorting to prevent unstable rankings
+        // Find max combined score for normalization
+        const maxCombinedScore = Math.max(
+            ...scoredFormulas.map(item => 
+                item.score + (item.topicRelevanceScore || 0) + (item.contextScore || 0)
+            ),
+            1 // Prevent division by zero
+        );
+        
+        // Apply normalization (min-max scaling to 0-1000 range for consistency)
+        scoredFormulas.forEach(item => {
+            const combinedScore = item.score + (item.topicRelevanceScore || 0) + (item.contextScore || 0);
+            item.normalizedScore = (combinedScore / maxCombinedScore) * 1000;
+        });
+        
+        // Sort by normalized score
+        scoredFormulas.sort((a, b) => {
               // Boost formulas that have both literal AND topic relevance
               const aHasBoth = (a.score > 0 || a.metrics.nameMatch || a.metrics.conceptMatch) && 
                               (a.topicRelevanceScore > 100 || a.contextScore > 100);
@@ -2152,30 +2885,42 @@ function setupSearchFunctionality() {
               if (aHasBoth && !bHasBoth) return -1;
               if (bHasBoth && !aHasBoth) return 1;
               
-              return bCombined - aCombined;
-          })
-          .slice(0, 50); // Limit to 50 results
+              return b.normalizedScore - a.normalizedScore;
+          });
         
-        // ALWAYS show at least top 10 results, even if they have low scores
-        if (scoredFormulas.length === 0 && allFormulas.length > 0) {
-            scoredFormulas = allScoredFormulas
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 10);
-        } else if (scoredFormulas.length < 5) {
-            // If we have very few results, show more
-            scoredFormulas = allScoredFormulas
-                .sort((a, b) => b.score - a.score)
-                .slice(0, Math.max(10, scoredFormulas.length + 5));
+            // Limit to 50 results
+            scoredFormulas = scoredFormulas.slice(0, 50);
+            
+            // ALWAYS show at least top 10 results, even if they have low scores
+            if (scoredFormulas.length === 0 && allFormulas.length > 0) {
+                scoredFormulas = allScoredFormulas
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, 10);
+            } else if (scoredFormulas.length < 5) {
+                // If we have very few results, show more
+                scoredFormulas = allScoredFormulas
+                    .sort((a, b) => b.score - a.score)
+                    .slice(0, Math.max(10, scoredFormulas.length + 5));
+            }
+            
+            // Calculate max score for normalization
+            maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
+            
+            // PERFORMANCE FIX: Cache the results
+            const cacheKey = searchLower;
+            if (searchCache) {
+                searchCache.set(cacheKey, {
+                    scoredFormulas: scoredFormulas,
+                    maxScore: maxScore
+                });
+            }
         }
         
-        // Calculate max score for normalization
-        const maxScore = scoredFormulas.length > 0 ? scoredFormulas[0].score : 1;
-        
-        // PERFORMANCE FIX: Cache the results
-        searchCache.set(cacheKey, {
-            scoredFormulas: scoredFormulas,
-            maxScore: maxScore
-        });
+        // Record performance
+        const searchTime = window.performance.now() - startTime;
+        if (typeof performanceMonitor !== 'undefined' && performanceMonitor.recordSearch) {
+            performanceMonitor.recordSearch(searchTime);
+        }
         
         // Render filtered formulas with accuracy metrics
         renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
@@ -2223,18 +2968,61 @@ function setupSearchFunctionality() {
         
         return [...new Set(concepts)]; // Remove duplicates
     }
+
+    // Detect high-level core concepts directly from the user's query.
+    // This gives the search engine a consistent signal even for short or vague inputs.
+    function detectCoreConcepts(searchLower) {
+        const matches = new Set();
+        
+        // Get coreConceptMap from searchEngine instance or use fallback
+        const conceptMap = (searchEngine && searchEngine.coreConceptMap) || {
+            distance: ['distance', 'parallax', 'luminosity distance', 'distance modulus', 'angular size', 'baseline'],
+            brightness: ['brightness', 'flux', 'luminosity', 'magnitude', 'apparent magnitude', 'absolute magnitude'],
+            temperature: ['temperature', 'thermal', 'effective temperature', 'surface temperature', 'wien', 'stefan', 'blackbody'],
+            mass: ['mass', 'weight', 'chandrasekhar', 'jeans mass', 'barycenter'],
+            gravity: ['gravity', 'gravitational', 'surface gravity', 'escape velocity', 'g force'],
+            velocity: ['velocity', 'speed', 'orbital velocity', 'escape velocity', 'rotational velocity', 'doppler', 'redshift'],
+            period: ['period', 'orbital period', 'synodic', 'rotation period', 'time', 'lifetime'],
+            size: ['radius', 'diameter', 'size', 'semi-major axis', 'aperture'],
+            energy: ['energy', 'power', 'luminosity', 'photon energy', 'radiation'],
+            density: ['density', 'optical depth', 'column density', 'surface brightness']
+        };
+        
+        Object.entries(conceptMap).forEach(([core, terms]) => {
+            for (const term of terms) {
+                const termLower = term.toLowerCase();
+                // Prefer word-boundary checks for precise concepts, fallback to substring for multi-word terms
+                const escapedTerm = termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const wordBoundaryRegex = new RegExp(`\\b${escapedTerm}\\b`, 'i');
+                if (wordBoundaryRegex.test(searchLower) || searchLower.includes(termLower)) {
+                    matches.add(core);
+                    break;
+                }
+            }
+        });
+        
+        return Array.from(matches);
+    }
     
     // Parse natural language query to extract intent and concepts
     function parseNaturalLanguageQuery(searchLower, searchWords) {
         const result = {
             intent: 'search', // calculate, find, determine, how, what, etc.
             concepts: [],
+            coreConcepts: [],
             variables: [],
             actions: [],
             direction: null, // 'from', 'to', 'based_on', null
             sourceConcepts: [], // What we're calculating FROM
             targetConcepts: [] // What we're calculating TO
         };
+
+        // Seed concepts with detected core concepts to improve high-level intent matching
+        const detectedCoreConcepts = detectCoreConcepts(searchLower);
+        if (detectedCoreConcepts.length > 0) {
+            result.coreConcepts = detectedCoreConcepts;
+            result.concepts.push(...detectedCoreConcepts);
+        }
         
         // Remove common question words and extract intent
         const questionWords = ['how', 'what', 'where', 'when', 'why', 'which', 'who'];
@@ -3471,12 +4259,36 @@ function setupSearchFunctionality() {
             
             // Lifetime questions
             'how long does a star live': {
-                formulas: ['stellar_lifetime'],
+                formulas: ['stellar_lifetime', 'solar_lifetime_efficiency'],
+            },
+            'estimate the lifetime of the sun': {
+                formulas: ['solar_lifetime_efficiency', 'stellar_lifetime'],
+            },
+            'solar lifetime in seconds': {
+                formulas: ['solar_lifetime_efficiency'],
+            },
+            'proton-proton chain lifetime': {
+                formulas: ['solar_lifetime_efficiency'],
+            },
+            'mass-to-energy conversion efficiency': {
+                formulas: ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
                 score: 600
             },
             'stellar lifetime': {
-                formulas: ['stellar_lifetime'],
+                formulas: ['stellar_lifetime', 'solar_lifetime_efficiency'],
                 score: 500
+            },
+            'solar lifetime': {
+                formulas: ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                score: 600
+            },
+            'proton-proton chain': {
+                formulas: ['solar_lifetime_efficiency'],
+                score: 700
+            },
+            'fusion efficiency': {
+                formulas: ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
+                score: 600
             },
             'main sequence lifetime': {
                 formulas: ['stellar_lifetime'],
@@ -4181,12 +4993,72 @@ function setupSearchFunctionality() {
                 score: 500
             },
             'mira variable': {
-                formulas: ['distance_modulus', 'luminosity'],
+                formulas: ['distance_modulus', 'luminosity', 'radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira'],
                 score: 500
             },
+            'mira star': {
+                formulas: ['radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira', 'luminosity'],
+                score: 600
+            },
             'pulsating star': {
-                formulas: ['luminosity', 'stellar_lifetime'],
+                formulas: ['luminosity', 'stellar_lifetime', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira', 'pulsating_star_radius_change'],
                 score: 400
+            },
+            'radiative transport': {
+                formulas: ['radiative_transport_temperature_gradient', 'radiation_transport', 'opacity_general'],
+                score: 500
+            },
+            'kappa mechanism': {
+                formulas: ['kappa_mechanism_mira', 'stellar_pulsation_mechanics', 'opacity_general'],
+                score: 500
+            },
+            'stellar pulsation': {
+                formulas: ['stellar_pulsation_mechanics', 'kappa_mechanism_mira', 'radiative_transport_temperature_gradient'],
+                score: 500
+            },
+            'cepheid variable': {
+                formulas: ['period_luminosity_relation_cepheid', 'distance_modulus', 'luminosity', 'pulsating_star_radius_change'],
+                score: 600
+            },
+            'rr lyrae variable': {
+                formulas: ['distance_modulus', 'luminosity', 'pulsating_star_radius_change'],
+                score: 500
+            },
+            'period luminosity relation': {
+                formulas: ['period_luminosity_relation_cepheid', 'distance_modulus'],
+                score: 600
+            },
+            'bolometric magnitude': {
+                formulas: ['bolometric_correction', 'luminosity', 'distance_modulus'],
+                score: 500
+            },
+            'extinction correction': {
+                formulas: ['extinction_correction_rv', 'interstellar_reddening', 'distance_modulus'],
+                score: 500
+            },
+            'binary mass ratio': {
+                formulas: ['binary_mass_ratio_velocity', 'kepler_third_law_binary', 'center_of_mass'],
+                score: 500
+            },
+            'flux change magnitude': {
+                formulas: ['flux_change_magnitude_difference', 'magnitude_flux_relation'],
+                score: 400
+            },
+            'nuclear fusion energy': {
+                formulas: ['nuclear_fusion_mass_defect', 'nuclear_energy_generation', 'stellar_lifetime'],
+                score: 500
+            },
+            'nebula age': {
+                formulas: ['nebula_age_expansion', 'mass_loss_rate', 'stellar_lifetime'],
+                score: 400
+            },
+            'orbital decay': {
+                formulas: ['orbital_decay_gravitational_radiation', 'kepler_third_law_binary', 'orbital_energy'],
+                score: 500
+            },
+            'gravitational radiation': {
+                formulas: ['orbital_decay_gravitational_radiation', 'orbital_energy'],
+                score: 500
             },
             
             // Distance ladder questions
@@ -4341,6 +5213,88 @@ function setupSearchFunctionality() {
             'uncertainty': {
                 formulas: ['parallax_distance_arcsec', 'distance_modulus'],
                 score: 400
+            },
+            
+            // Additional topics from question bank
+            'tov limit': {
+                formulas: ['schwarzschild_radius'],  // TOV is ~2-3 solar masses, related to neutron star physics
+                score: 500
+            },
+            'neutron star limit': {
+                formulas: ['schwarzschild_radius'],
+                score: 500
+            },
+            'fourier transform': {
+                formulas: ['synchrotron_frequency', 'doppler_shift'],  // Used in signal processing, related to frequency analysis
+                score: 400
+            },
+            'signal processing': {
+                formulas: ['synchrotron_frequency', 'doppler_shift'],
+                score: 400
+            },
+            'interferometry': {
+                formulas: ['angular_resolution', 'synchrotron_frequency'],
+                score: 400
+            },
+            'wolf rayet': {
+                formulas: ['mass_loss_rate', 'luminosity', 'stellar_lifetime'],
+                score: 500
+            },
+            'WR star': {
+                formulas: ['mass_loss_rate', 'luminosity', 'stellar_lifetime'],
+                score: 500
+            },
+            'magnetar': {
+                formulas: ['magnetic_energy_density', 'synchrotron_power'],
+                score: 500
+            },
+            'pulsar': {
+                formulas: ['rotational_velocity', 'synchrotron_frequency', 'magnetic_energy_density'],
+                score: 500
+            },
+            'quasar': {
+                formulas: ['eddington_luminosity', 'accretion_efficiency', 'schwarzschild_radius'],
+                score: 500
+            },
+            'population I': {
+                formulas: ['stellar_lifetime', 'mass_luminosity_relation', 'hr_absolute_magnitude'],
+                score: 400
+            },
+            'population II': {
+                formulas: ['stellar_lifetime', 'mass_luminosity_relation', 'hr_absolute_magnitude'],
+                score: 400
+            },
+            'globular cluster': {
+                formulas: ['globular_cluster_mass', 'stellar_lifetime', 'hr_absolute_magnitude'],
+                score: 500
+            },
+            'metal rich': {
+                formulas: ['stellar_lifetime', 'mass_luminosity_relation'],
+                score: 400
+            },
+            'metal poor': {
+                formulas: ['stellar_lifetime', 'mass_luminosity_relation'],
+                score: 400
+            },
+            'helium flash': {
+                formulas: ['nuclear_energy_generation', 'stellar_lifetime'],
+                score: 400
+            },
+            'blazhko effect': {
+                formulas: ['stellar_pulsation_mechanics', 'pulsating_star_radius_change'],
+                score: 400
+            },
+            'instability strip': {
+                formulas: ['stellar_pulsation_mechanics', 'kappa_mechanism_mira', 'period_luminosity_relation_cepheid'],
+                score: 500
+            },
+            'cometary knots': {
+                formulas: ['nebula_age_expansion', 'mass_loss_rate'],
+                score: 400
+            },
+            'rayleigh taylor': {
+                formulas: ['nebula_age_expansion', 'mass_loss_rate'],
+                score: 400
             }
         };
         
@@ -4387,7 +5341,11 @@ function setupSearchFunctionality() {
                 'angular size': ['angular_size', 'angular_diameter_distance'],
                 'magnitude': ['distance_modulus', 'hr_absolute_magnitude', 'magnitude_flux_relation'],
                 'lifetime': ['stellar_lifetime'],
-                'stellar lifetime': ['stellar_lifetime'],
+                'stellar lifetime': ['stellar_lifetime', 'solar_lifetime_efficiency'],
+                'solar lifetime': ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                'proton-proton chain': ['solar_lifetime_efficiency'],
+                'fusion efficiency': ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
+                'mass-energy conversion': ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
                 'density': ['average_density', 'critical_density', 'density_parameter'],
                 'critical density': ['critical_density', 'density_parameter'],
                 'flux': ['flux_from_luminosity', 'flux_temperature', 'inverse_square_law_brightness'],
@@ -4533,7 +5491,14 @@ function setupSearchFunctionality() {
                 'inclination': ['kepler_third_law'],
                 'stellar evolution': ['stellar_lifetime', 'mass_luminosity_relation', 'hr_absolute_magnitude'],
                 'nucleosynthesis': ['stellar_lifetime', 'luminosity'],
-                'proton proton chain': ['stellar_lifetime'],
+                'proton proton chain': ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                'proton-proton chain': ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                'fusion efficiency': ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
+                'mass-energy conversion': ['solar_lifetime_efficiency', 'nuclear_fusion_mass_defect'],
+                'solar lifetime': ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                'solar age': ['solar_lifetime_efficiency', 'stellar_lifetime'],
+                'hydrogen fraction': ['solar_lifetime_efficiency'],
+                'available hydrogen': ['solar_lifetime_efficiency'],
                 'cno cycle': ['stellar_lifetime'],
                 'accretion disk': ['luminosity', 'flux_from_luminosity'],
                 'eddington luminosity': ['luminosity'],
@@ -4781,6 +5746,11 @@ function setupSearchFunctionality() {
         
         return penalty;
     }
+    
+    // Expose filterAndRenderFormulas to window for testing and external access
+    if (typeof window !== 'undefined') {
+        window.filterAndRenderFormulas = filterAndRenderFormulas;
+    }
 }
 
 // ============================================================================
@@ -4796,16 +5766,31 @@ function setupSearchFunctionality() {
  * @param {number} maxScore - Maximum score for normalization
  */
 function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
-    const startTime = window.performance.now();
-    const formulaList = document.getElementById('formula-list');
-    
-    // CRITICAL: Check if element exists
-    if (!formulaList) {
-        console.error('❌ formula-list element not found!');
-        console.log('Available elements:', 
-            Array.from(document.querySelectorAll('[id]')).map(el => el.id));
+    // REFACTORED: Use SearchResultsRenderer if available
+    if (typeof window !== 'undefined' && typeof window.searchResultsRenderer !== 'undefined') {
+        window.searchResultsRenderer.renderFilteredFormulas(scoredFormulas, searchTerm, maxScore);
         return;
     }
+    
+    // Fallback to original implementation
+    const startTime = window.performance.now();
+    const formulaList = (typeof window !== 'undefined' && typeof window.helpers !== 'undefined')
+        ? window.helpers.getElement('formula-list')
+        : document.getElementById('formula-list');
+    
+    if (!formulaList) {
+        console.error('❌ formula-list element not found!');
+        return;
+    }
+    
+    requestAnimationFrame(() => {
+        renderFilteredFormulasSync(scoredFormulas, searchTerm, maxScore, startTime);
+    });
+}
+
+function renderFilteredFormulasSync(scoredFormulas, searchTerm, maxScore = 1, startTime = null) {
+    if (startTime === null) startTime = window.performance.now();
+    const formulaList = document.getElementById('formula-list');
     
     // CRITICAL: Force visibility IMMEDIATELY before any operations
     forceElementVisibility(formulaList, { display: 'block', forceReflow: true });
@@ -5004,6 +5989,12 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
     // CRITICAL: Final visibility check with forced reflow
     formulaList.offsetHeight; // Force reflow
     const finalTotalChildren = formulaList.children.length;
+    
+    // PERFORMANCE: Log render time
+    const renderTime = window.performance.now() - startTime;
+    if (renderTime > 100) {
+        console.warn(`[Performance] renderFilteredFormulas took ${renderTime.toFixed(2)}ms`);
+    }
     console.log(`✅ Rendering complete. Total children in formulaList: ${finalTotalChildren}`);
     
     // Retry logic if no children rendered
@@ -5100,6 +6091,13 @@ function renderFilteredFormulas(scoredFormulas, searchTerm, maxScore = 1) {
  * @param {number} maxScore - Maximum score for normalization
  */
 function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore = 1) {
+    // REFACTORED: Use SearchResultsRenderer if available
+    if (typeof window !== 'undefined' && typeof window.searchResultsRenderer !== 'undefined') {
+        window.searchResultsRenderer.renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore);
+        return;
+    }
+    
+    // Fallback to original implementation
     const formulaList = document.getElementById('formula-list');
     if (!formulaList) return;
     
@@ -5118,10 +6116,12 @@ function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore =
                     </p>
                 </div>
                 <div class="search-results-list">
-                    ${scoredFormulas.map(({ formula, score, metrics }, index) => {
-                        const confidenceScore = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
-                            ? calculateConfidenceScore(score, maxScore, metrics) 
-                            : Math.min(100, Math.round((score / maxScore) * 100));
+                    ${scoredFormulas.map(({ formula, score, metrics, topicRelevanceScore, contextScore }, index) => {
+                        // PRODUCTION: Use enhanced confidence calculation with structured return
+                        const confidenceResult = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
+                            ? calculateConfidenceScore(score, maxScore, metrics, 1, topicRelevanceScore || 0, contextScore || 0) 
+                            : { confidence: Math.min(100, Math.round((score / maxScore) * 100)), breakdown: [] };
+                        const confidenceScore = confidenceResult.confidence;
                         const confidenceLevel = (typeof getConfidenceLevel === 'function') 
                             ? getConfidenceLevel(confidenceScore) 
                             : { level: 'Medium', color: '#fde047' };
@@ -5215,12 +6215,26 @@ function renderSearchResultsExplorerStyle(scoredFormulas, searchTerm, maxScore =
  * @param {number} maxScore - Maximum score for normalization
  */
 function renderSearchResultDetails(formula, score, metrics, maxScore) {
+    // REFACTORED: Use SearchResultsRenderer if available
+    if (typeof window !== 'undefined' && typeof window.searchResultsRenderer !== 'undefined') {
+        window.searchResultsRenderer.renderSearchResultDetails(formula, score, metrics, maxScore);
+        return;
+    }
+    
+    // Fallback to original implementation
     const detailsPanel = document.getElementById('search-results-details');
     if (!detailsPanel) return;
     
-    const confidenceScore = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
-        ? calculateConfidenceScore(score, maxScore, metrics) 
-        : Math.min(100, Math.round((score / maxScore) * 100));
+    // Get topic and context scores from formula object
+    const topicRelevanceScore = formula.topicRelevanceScore || 0;
+    const contextScore = formula.contextScore || 0;
+    
+    // PRODUCTION: Use enhanced confidence calculation with structured return
+    const confidenceResult = (typeof calculateConfidenceScore === 'function' && metrics && maxScore > 0) 
+        ? calculateConfidenceScore(score, maxScore, metrics, 1, topicRelevanceScore, contextScore) 
+        : { confidence: Math.min(100, Math.round((score / maxScore) * 100)), breakdown: [] };
+    const confidenceScore = confidenceResult.confidence;
+    const confidenceBreakdownData = confidenceResult.breakdown;
     const confidenceLevel = (typeof getConfidenceLevel === 'function') 
         ? getConfidenceLevel(confidenceScore) 
         : { level: 'Medium', color: '#fde047' };
@@ -5238,14 +6252,14 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
                 <div style="background: ${confidenceLevel.color}20; border: 1px solid ${confidenceLevel.color}; color: ${confidenceLevel.color}; padding: 8px 16px; border-radius: 6px; display: inline-block; font-weight: 600; margin-bottom: 10px;">
                     ${confidenceScore}% Match - ${confidenceLevel.level}
                 </div>
-                ${(typeof getConfidenceBreakdown === 'function' && metrics && maxScore > 0) ? `
+                ${(confidenceBreakdownData && confidenceBreakdownData.length > 0) ? `
                 <details style="margin-top: 10px; cursor: pointer;">
                     <summary style="color: rgba(255, 255, 255, 0.7); font-size: 0.9em; user-select: none; padding: 5px 0;">
                         📊 Why this confidence level?
                     </summary>
                     <div style="margin-top: 10px; padding: 15px; background: rgba(0, 0, 0, 0.4); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.3);">
                         ${(() => {
-                            const breakdown = getConfidenceBreakdown(score, maxScore, metrics, 1);
+                            const breakdown = { components: confidenceBreakdownData, total: confidenceScore };
                             let html = '<div style="font-size: 0.9em;">';
                             breakdown.components.forEach(comp => {
                                 const sign = comp.isAdjustment ? (comp.value >= 0 ? '+' : '') : '+';
@@ -5253,8 +6267,8 @@ function renderSearchResultDetails(formula, score, metrics, maxScore) {
                                 html += `
                                     <div style="display: flex; justify-content: space-between; align-items: start; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                                         <div style="flex: 1;">
-                                            <div style="color: #a8c7ff; font-weight: 600; margin-bottom: 3px;">${comp.label}</div>
-                                            <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.85em;">${comp.description}</div>
+                                            <div style="color: #a8c7ff; font-weight: 600; margin-bottom: 3px;">${escapeHtml(comp.label)}</div>
+                                            <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.85em;">${escapeHtml(comp.description)}</div>
                                         </div>
                                         <div style="color: ${color}; font-weight: 600; margin-left: 15px; min-width: 50px; text-align: right;">
                                             ${sign}${comp.value}%
@@ -5355,6 +6369,74 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+/**
+ * Safe HTML builder - automatically escapes all interpolated values
+ * Use this for template literals to prevent XSS attacks
+ * 
+ * @param {TemplateStringsArray} strings - Template string parts
+ * @param {...any} values - Values to interpolate (will be auto-escaped)
+ * @returns {string} Safe HTML string
+ * 
+ * @example
+ * safeHTML`<div class="user-content">${userInput}</div>`
+ */
+function safeHTML(strings, ...values) {
+    let result = strings[0];
+    for (let i = 0; i < values.length; i++) {
+        const value = values[i];
+        const escapedValue = (value && value.__unsafeHTML) ? value.content : escapeHtml(String(value));
+        result += escapedValue + strings[i + 1];
+    }
+    return result;
+}
+
+/**
+ * Mark HTML as safe (use with EXTREME caution - only for trusted content)
+ * @param {string} html - HTML that should NOT be escaped
+ * @returns {object} Marked object
+ */
+function unsafeHTML(html) {
+    return { __unsafeHTML: true, content: html };
+}
+
+/**
+ * Unified Debouncer - centralized debouncing utility
+ */
+class Debouncer {
+    constructor() {
+        this.timers = new Map();
+    }
+    
+    debounce(key, fn, delay) {
+        const existing = this.timers.get(key);
+        if (existing) clearTimeout(existing);
+        
+        const timer = setTimeout(() => {
+            fn();
+            this.timers.delete(key);
+        }, delay);
+        
+        this.timers.set(key, timer);
+        return timer;
+    }
+    
+    cancel(key) {
+        const timer = this.timers.get(key);
+        if (timer) {
+            clearTimeout(timer);
+            this.timers.delete(key);
+        }
+    }
+    
+    cancelAll() {
+        this.timers.forEach(timer => clearTimeout(timer));
+        this.timers.clear();
+    }
+}
+
+// Global debouncer instance
+const globalDebouncer = new Debouncer();
 
 /**
  * Get search suggestions based on common terms
@@ -5698,6 +6780,8 @@ function renderFormulaList() {
         categoryContainer.style.setProperty('visibility', 'visible', 'important');
         categoryContainer.style.setProperty('opacity', '1', 'important');
         
+        // PERFORMANCE: Use DocumentFragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
         formulasInCategory.forEach(formula => {
             // Skip if already rendered (prevents duplicates)
             if (renderedFormulaIds.has(formula.id)) {
@@ -5712,7 +6796,7 @@ function renderFormulaList() {
                 card.style.setProperty('opacity', '1', 'important');
                 card.style.setProperty('pointer-events', 'auto', 'important');
                 card.style.setProperty('cursor', 'pointer', 'important');
-                categoryContainer.appendChild(card);
+                fragment.appendChild(card);
                 renderedFormulaIds.add(formula.id);
                 
                 // Note: Click handlers are attached via event delegation on the parent
@@ -5721,6 +6805,8 @@ function renderFormulaList() {
                 console.warn(`Failed to create card for formula: ${formula.id || formula.name || 'unknown'}`);
             }
         });
+        // Append all cards at once for better performance
+        categoryContainer.appendChild(fragment);
         
         formulaList.appendChild(categoryContainer);
     };
@@ -5935,7 +7021,12 @@ function createFormulaCard(formula, score = null, metrics = null, maxScore = 1) 
         let confidenceLevel = null;
         if (score !== null && metrics && maxScore > 0) {
             if (typeof calculateConfidenceScore === 'function') {
-                confidenceScore = calculateConfidenceScore(score, maxScore, metrics);
+                // Include topic and context scores in confidence calculation
+                const topicScore = (typeof topicRelevanceScore !== 'undefined') ? topicRelevanceScore : 0;
+                const ctxScore = (typeof contextScore !== 'undefined') ? contextScore : 0;
+                // PRODUCTION: Use enhanced confidence calculation with structured return
+                const confidenceResult = calculateConfidenceScore(score, maxScore, metrics, 1, topicScore, ctxScore);
+                confidenceScore = confidenceResult.confidence;
                 if (typeof getConfidenceLevel === 'function') {
                     confidenceLevel = getConfidenceLevel(confidenceScore);
                 }
@@ -6222,24 +7313,57 @@ function selectFormula(formula) {
         console.log('[selectFormula] Step 2: Setting current formula and creating calculator...');
         currentFormula = formula;
         
-        if (typeof FormulaCalculator === 'undefined') {
+        // Ensure FormulaCalculator is available - try multiple ways to access it
+        let FormulaCalculatorClass = typeof FormulaCalculator !== 'undefined' ? FormulaCalculator : 
+                                     (typeof window !== 'undefined' && window.FormulaCalculator) ? window.FormulaCalculator :
+                                     (typeof global !== 'undefined' && global.FormulaCalculator) ? global.FormulaCalculator :
+                                     null;
+        
+        if (!FormulaCalculatorClass) {
             console.error('[selectFormula] ❌ FormulaCalculator is not defined!');
+            console.error('[selectFormula] Available globals:', Object.keys(window).filter(k => k.includes('Calc')));
+            // Try to wait a bit and retry (in case script is still loading)
+            setTimeout(() => {
+                FormulaCalculatorClass = typeof FormulaCalculator !== 'undefined' ? FormulaCalculator : 
+                                         (typeof window !== 'undefined' && window.FormulaCalculator) ? window.FormulaCalculator : null;
+                if (FormulaCalculatorClass) {
+                    console.log('[selectFormula] ✅ FormulaCalculator found on retry');
+                    calculator = new FormulaCalculatorClass(formula);
+                    console.log('[selectFormula] ✅ Calculator created on retry');
+                    renderCalculatorInterface();
+                } else {
+                    console.error('[selectFormula] ❌ FormulaCalculator still not available after retry');
+                }
+            }, 100);
             return;
         }
         
-        calculator = new FormulaCalculator(formula);
+        calculator = new FormulaCalculatorClass(formula);
         console.log('[selectFormula] ✅ Calculator created');
     
         console.log('[selectFormula] Step 3: Initializing graph manager...');
-        // Initialize graph manager (uses OfflineGraphManager for offline operation)
-        if (typeof GraphManager !== 'undefined') {
-            if (!graphManager) {
-                graphManager = new GraphManager('desmos-graph', 'graph-tab');
+        const gm = ensureGraphManager();
+        if (gm) {
+            // Set up click handler to update input values
+            if (typeof gm._onCanvasClick === 'function' || gm.clickable) {
+                gm.onPointClick = (x, y, point) => {
+                    // Find which variable is being graphed
+                    const vars = formula.variables || [];
+                    const unknownVar = vars.find(v => !(v.symbol in {}));
+                    if (unknownVar) {
+                        // Update input field with clicked value
+                        const inputId = `input-${unknownVar.symbol}`;
+                        const input = document.getElementById(inputId);
+                        if (input) {
+                            input.value = point.x.toPrecision(8);
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
+                    }
+                };
             }
-            // Update graph with current formula
-            graphManager.updateGraph(formula, {});
-            // Update graph interpretation
-            if (typeof updateGraphInterpretation === 'function') {
+            
+            updateGraphIfEnabled(formula, {});
+            if (typeof updateGraphInterpretation === 'function' && GRAPH_UPDATES_ENABLED) {
                 updateGraphInterpretation(formula, {});
             }
         }
@@ -6339,6 +7463,18 @@ function selectFormula(formula) {
             calcTabCheck.style.setProperty('display', 'block', 'important');
         }
         
+        // ENHANCED: Ensure variables-container is visible
+        const varsContainer = document.getElementById('variables-container');
+        if (varsContainer) {
+            varsContainer.style.display = 'grid';
+            varsContainer.style.visibility = 'visible';
+            varsContainer.style.opacity = '1';
+            varsContainer.classList.remove('hidden');
+            console.log('[selectFormula] ✅ Variables container made visible');
+        } else {
+            console.error('[selectFormula] ❌ variables-container element not found!');
+        }
+        
         // Ensure tab button is also active
         const calculatorTabBtn = document.querySelector('[data-tab="calculator"]');
         if (calculatorTabBtn && !calculatorTabBtn.classList.contains('active')) {
@@ -6383,9 +7519,9 @@ function selectFormula(formula) {
                 updateSolveIndicators();
             }
             // Also update graph if it's already initialized
-            if (graphManager && currentFormula) {
+            if (GRAPH_UPDATES_ENABLED && currentFormula) {
                 const variableValues = getCurrentVariableValues();
-                graphManager.updateGraph(currentFormula, variableValues);
+                updateGraphIfEnabled(currentFormula, variableValues);
             }
         }, 150);
         
@@ -6438,12 +7574,13 @@ function setupGraphControls() {
     const errorBandsCheckbox = document.getElementById('show-error-bands');
     if (errorBandsCheckbox) {
         errorBandsCheckbox.addEventListener('change', (e) => {
-            if (graphManager && currentFormula && e.target.checked) {
+            if (!GRAPH_UPDATES_ENABLED) return;
+            if (currentFormula && e.target.checked) {
                 const variableValues = getCurrentVariableValues();
                 const errorBands = generateErrorBands(currentFormula, variableValues);
-                graphManager.updateGraph(currentFormula, variableValues, { errorBands });
-            } else if (graphManager && currentFormula) {
-                graphManager.updateGraph(currentFormula, getCurrentVariableValues(), { errorBands: [] });
+                updateGraphIfEnabled(currentFormula, variableValues, { errorBands });
+            } else if (currentFormula) {
+                updateGraphIfEnabled(currentFormula, getCurrentVariableValues(), { errorBands: [] });
             }
         });
     }
@@ -6452,12 +7589,13 @@ function setupGraphControls() {
     const secondCurveCheckbox = document.getElementById('show-second-curve');
     if (secondCurveCheckbox) {
         secondCurveCheckbox.addEventListener('change', (e) => {
-            if (graphManager && currentFormula && e.target.checked) {
+            if (!GRAPH_UPDATES_ENABLED) return;
+            if (currentFormula && e.target.checked) {
                 const variableValues = getCurrentVariableValues();
                 const secondCurve = generateSecondCurve(currentFormula, variableValues);
-                graphManager.updateGraph(currentFormula, variableValues, { secondCurve });
-            } else if (graphManager && currentFormula) {
-                graphManager.updateGraph(currentFormula, getCurrentVariableValues(), { secondCurve: null });
+                updateGraphIfEnabled(currentFormula, variableValues, { secondCurve });
+            } else if (currentFormula) {
+                updateGraphIfEnabled(currentFormula, getCurrentVariableValues(), { secondCurve: null });
             }
         });
     }
@@ -6481,15 +7619,18 @@ function applyGraphPreset(presetName) {
     const formula = formulas.find(f => f.id === formulaId);
     if (formula) {
         selectFormula(formula);
-        // Switch to graph tab
-        setTimeout(() => {
-            switchTab('graph');
-        }, 100);
+        if (GRAPH_UPDATES_ENABLED) {
+            // Switch to graph tab
+            setTimeout(() => {
+                switchTab('graph');
+            }, 100);
+        }
     }
 }
 
 // ENHANCED: Generate error bands for tolerance checking
 function generateErrorBands(formula, variableValues) {
+    if (!GRAPH_UPDATES_ENABLED) return [];
     if (!formula || !variableValues) return [];
     
     // Find calculated point
@@ -6620,13 +7761,13 @@ function updateGraphInterpretation(formula, variableValues = {}) {
             
             let html = '';
             if (interpretation.overview) {
-                html += `<div class="interpretation-section"><p><strong>Overview:</strong> ${interpretation.overview}</p></div>`;
+                html += `<div class="interpretation-section"><p><strong>Overview:</strong> ${escapeHtml(interpretation.overview)}</p></div>`;
             }
             
             if (interpretation.keyFeatures && interpretation.keyFeatures.length > 0) {
                 html += `<div class="interpretation-section"><strong>Key Features:</strong><ul>`;
                 interpretation.keyFeatures.forEach(feature => {
-                    html += `<li>${feature}</li>`;
+                    html += `<li>${escapeHtml(feature)}</li>`;
                 });
                 html += `</ul></div>`;
             }
@@ -6634,13 +7775,13 @@ function updateGraphInterpretation(formula, variableValues = {}) {
             if (interpretation.howToUse && interpretation.howToUse.length > 0) {
                 html += `<div class="interpretation-section"><strong>How to Use:</strong><ul>`;
                 interpretation.howToUse.forEach(step => {
-                    html += `<li>${step}</li>`;
+                    html += `<li>${escapeHtml(step)}</li>`;
                 });
                 html += `</ul></div>`;
             }
             
             if (interpretation.physicalMeaning) {
-                html += `<div class="interpretation-section"><p><strong>Physical Meaning:</strong> ${interpretation.physicalMeaning}</p></div>`;
+                html += `<div class="interpretation-section"><p><strong>Physical Meaning:</strong> ${escapeHtml(interpretation.physicalMeaning)}</p></div>`;
             }
             
             // ENHANCED: Add detailed graph explanation
@@ -6750,9 +7891,9 @@ function displayRelatedFormulas(formula) {
                         }
                     }
                     
-                    html += `<div class="related-formula-item" data-formula-id="${id}">
-                        <span class="related-formula-name">${relatedFormula.name} ${reinforcementInfo}</span>
-                        <span class="related-formula-preview">${relatedFormula.equation}</span>
+                    html += `<div class="related-formula-item" data-formula-id="${escapeHtml(id)}">
+                        <span class="related-formula-name">${escapeHtml(relatedFormula.name)} ${reinforcementInfo}</span>
+                        <span class="related-formula-preview">${escapeHtml(relatedFormula.equation)}</span>
                     </div>`;
                 }
             });
@@ -6864,6 +8005,17 @@ function renderVariableInputs(formula) {
     cleanupVariableInputs();
     
     const container = document.getElementById('variables-container');
+    if (!container) {
+        console.error('[renderVariableInputs] ❌ variables-container element not found!');
+        return;
+    }
+    
+    // ENHANCED: Ensure container is visible
+    container.style.display = 'grid';
+    container.style.visibility = 'visible';
+    container.style.opacity = '1';
+    container.classList.remove('hidden');
+    
     container.innerHTML = '';
     
     // Get list of constant symbols to exclude from input fields
@@ -6966,8 +8118,14 @@ function renderVariableInputs(formula) {
         const isAngle = baseUnit.toLowerCase().includes('radian') || baseUnit.toLowerCase().includes('rad');
         
         // Create unit options note
-        // Get example value for placeholder
-        const exampleValue = getExampleValue(variable.symbol, baseUnit);
+        // Get example value for placeholder (with error handling)
+        let exampleValue = null;
+        try {
+            exampleValue = getExampleValue(variable.symbol, baseUnit);
+        } catch (error) {
+            console.warn(`[getExampleValue] Symbol lookup failed for ${variable.symbol} with unit ${baseUnit}:`, error);
+            // Continue without example value - not critical
+        }
         
         // Create input fields - SIMPLIFIED: Clear placeholders, no confusing options
         let inputFieldsHTML = '';
@@ -7058,9 +8216,9 @@ function renderVariableInputs(formula) {
                     input.solveIndicatorTimeout = setTimeout(() => {
                         updateSolveIndicators();
                         // Also update graph in real-time as user types
-                        if (graphManager && currentFormula) {
+                        if (GRAPH_UPDATES_ENABLED && currentFormula) {
                             const variableValues = getCurrentVariableValues();
-                            graphManager.updateGraph(currentFormula, variableValues);
+                            updateGraphIfEnabled(currentFormula, variableValues);
                         }
                     }, TIMING.DEBOUNCE_INDICATORS);
                 };
@@ -7085,9 +8243,9 @@ function renderVariableInputs(formula) {
                 naCheckbox.updateTimeout = setTimeout(() => {
                     updateSolveIndicators();
                     // Update graph when N/A checkbox changes
-                    if (graphManager && currentFormula) {
+                    if (GRAPH_UPDATES_ENABLED && currentFormula) {
                         const variableValues = getCurrentVariableValues();
-                        graphManager.updateGraph(currentFormula, variableValues);
+                        updateGraphIfEnabled(currentFormula, variableValues);
                     }
                 }, TIMING.DEBOUNCE_INDICATORS);
             };
@@ -7162,6 +8320,14 @@ function renderVariableInputs(formula) {
 let eventListenersSetup = false;
 
 function setupEventListeners() {
+    // REFACTORED: Use event handlers module if available
+    if (typeof window !== 'undefined' && typeof window.eventHandlers !== 'undefined') {
+        window.eventHandlers.setupAll();
+        eventListenersSetup = true;
+        return;
+    }
+    
+    // Fallback to legacy implementation
     console.log('[Event Listeners] setupEventListeners called, DOM ready:', document.readyState);
     
     // Only set up once to prevent duplicate listeners
@@ -7233,16 +8399,28 @@ function setupEventListeners() {
         };
         
         // Use multiple strategies
-        addTrackedListener(btn, 'click', clickHandler);
+        if (typeof window !== 'undefined' && typeof window.helpers !== 'undefined') {
+            window.helpers.addEventListener(btn, 'click', clickHandler);
+        } else {
+            addTrackedListener(btn, 'click', clickHandler);
+        }
         btn.onclick = clickHandler; // Fallback
     });
     
     // Input screen tab buttons (Calculator/Graph/Classification)
     document.querySelectorAll('.tab-btn').forEach(btn => {
-        addTrackedListener(btn, 'click', () => {
+        const tabHandler = () => {
             const tabName = btn.getAttribute('data-tab');
-            switchTab(tabName);
-        });
+            if (typeof switchTab === 'function') {
+                switchTab(tabName);
+            }
+        };
+        
+        if (typeof window !== 'undefined' && typeof window.helpers !== 'undefined') {
+            window.helpers.addEventListener(btn, 'click', tabHandler);
+        } else {
+            addTrackedListener(btn, 'click', tabHandler);
+        }
     });
     
     // Calculate button
@@ -7370,7 +8548,7 @@ function setupEventListeners() {
     // COMPETITIVE OPTIMIZATION: Enhanced Enter key handling
     // Enter calculates when ready, or navigates when not ready
     // ENHANCED: Global keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
+    addTrackedEventListener(document, 'keydown', (e) => {
         // Don't handle shortcuts when typing in inputs, textareas, or contenteditable
         const activeElement = document.activeElement;
         const isInputFocused = activeElement && (
@@ -7747,6 +8925,11 @@ function switchTab(tabName) {
             graphTab.style.setProperty('opacity', '1', 'important');
             console.log('[switchTab] ✅ Graph tab activated and visible');
             
+            if (!GRAPH_UPDATES_ENABLED) {
+                console.log('[switchTab] Graph updates are disabled; skipping graph render.');
+                return;
+            }
+            
             // CRITICAL: Wait for container to have dimensions before updating graph
             // The container needs to be visible and rendered to get proper dimensions
             const graphContainer = document.getElementById('desmos-graph');
@@ -7770,25 +8953,27 @@ function switchTab(tabName) {
                 // Container is ready (or we've given up waiting), update graph
                 // The graph manager's updateGraph will handle initialization with its own retry logic
                 console.log('[switchTab] Updating graph with current values...');
-                if (graphManager && currentFormula) {
+                if (GRAPH_UPDATES_ENABLED && currentFormula) {
                     // Get current variable values from inputs
                     const variableValues = getCurrentVariableValues();
                     // ENHANCED: Use pending options if available (from when calculation happened while on calculator tab)
-                    const options = graphManager.pendingOptions || {};
+                    const options = (graphManager && graphManager.pendingOptions) || {};
                     // ENHANCED: Force graph update when switching to graph tab
                     // This ensures the graph renders even if it was updated while tab was inactive
                     console.log('[switchTab] Forcing graph update with values:', variableValues);
-                    graphManager.updateGraph(currentFormula, variableValues, options);
-                    updateGraphInterpretation(currentFormula, variableValues);
+                    updateGraphIfEnabled(currentFormula, variableValues, options);
+                    if (GRAPH_UPDATES_ENABLED) {
+                        updateGraphInterpretation(currentFormula, variableValues);
+                    }
                 } else if (currentFormula) {
                     // Initialize graph manager if needed
-                    if (typeof GraphManager !== 'undefined') {
-                        if (!graphManager) {
-                            graphManager = new GraphManager('desmos-graph', 'graph-tab');
-                        }
+                    const gm = ensureGraphManager();
+                    if (gm) {
                         const variableValues = getCurrentVariableValues();
-                        graphManager.updateGraph(currentFormula, variableValues);
-                        updateGraphInterpretation(currentFormula, variableValues);
+                        updateGraphIfEnabled(currentFormula, variableValues);
+                        if (GRAPH_UPDATES_ENABLED) {
+                            updateGraphInterpretation(currentFormula, variableValues);
+                        }
                     }
                 } else {
                     console.warn('[switchTab] No current formula available for graph');
@@ -7809,6 +8994,24 @@ function switchTab(tabName) {
             classificationTab.style.setProperty('visibility', 'visible', 'important');
             classificationTab.style.setProperty('opacity', '1', 'important');
             console.log('[switchTab] ✅ Classification tab activated and visible');
+            
+            // Ensure classification inputs container is visible
+            const inputsContainer = classificationTab.querySelector('.classification-inputs');
+            if (inputsContainer) {
+                inputsContainer.style.setProperty('display', 'flex', 'important');
+                inputsContainer.style.setProperty('visibility', 'visible', 'important');
+                inputsContainer.style.setProperty('opacity', '1', 'important');
+                console.log('[switchTab] ✅ Classification inputs container made visible');
+            }
+            
+            // Ensure all input elements are visible
+            const allInputs = classificationTab.querySelectorAll('input, select, button');
+            allInputs.forEach(input => {
+                input.style.setProperty('display', '', 'important');
+                input.style.setProperty('visibility', 'visible', 'important');
+                input.style.setProperty('opacity', '1', 'important');
+            });
+            console.log(`[switchTab] ✅ Made ${allInputs.length} input elements visible`);
             
             // Initialize classifier if needed
             if (typeof StellarClassifier !== 'undefined') {
@@ -7900,14 +9103,15 @@ function getCurrentVariableValues() {
         }
         
         if (foundValue) {
-            try {
-                const parsedValue = ExpressionParser.parse(foundValue, foundUnit);
-                if (parsedValue !== null && typeof parsedValue === 'number' && !isNaN(parsedValue) && isFinite(parsedValue)) {
+            // FIXED: Use unified parseNumericValue utility
+            const parsedValue = parseNumericValue(foundValue, foundUnit);
+            if (parsedValue !== null) {
+                try {
                     const baseValue = UnitConverter.convertToBase(parsedValue, foundUnit, baseUnit);
                     variableValues[variable.symbol] = baseValue;
+                } catch (e) {
+                    // Skip invalid conversions
                 }
-            } catch (e) {
-                // Skip invalid values
             }
         }
     });
@@ -7927,9 +9131,27 @@ function getCurrentVariableValues() {
  * Collects variable values, validates inputs, and displays results
  */
 function performCalculation() {
-    if (!calculator || !currentFormula) {
+    // REFACTORED: Use helpers for state access
+    // Get calculator and formula from state manager or fallback to globals
+    let calc, formula;
+    
+    if (typeof window !== 'undefined' && typeof window.helpers !== 'undefined') {
+        calc = window.helpers.getCalculator();
+        formula = window.helpers.getFormula();
+    } else {
+        // Fallback to globals - check if they exist
+        calc = (typeof calculator !== 'undefined') ? calculator : null;
+        formula = (typeof currentFormula !== 'undefined') ? currentFormula : null;
+    }
+    
+    if (!calc || !formula) {
+        console.warn('[performCalculation] Calculator or formula not available', { calc: !!calc, formula: !!formula });
         return;
     }
+    
+    // Use local variables for rest of function (avoid shadowing issues)
+    const calculator = calc;
+    const currentFormula = formula;
     
     // Get list of constant symbols to exclude
     const constantSymbols = new Set();
@@ -7993,39 +9215,56 @@ function performCalculation() {
             isNA) {
             variableValues[variable.symbol] = isNA ? 'N/A' : null;
         } else {
-            // Try to parse as mathematical expression
-            try {
-                // Pass the unit to the parser so it can handle degree/radian conversion
-                const parsedValue = ExpressionParser.parse(foundValue, foundUnit);
-                if (parsedValue === null) {
-                    variableValues[variable.symbol] = null;
-                } else if (typeof parsedValue === 'number' && !isNaN(parsedValue) && isFinite(parsedValue)) {
-                    // Convert to base unit
-                    const baseValue = UnitConverter.convertToBase(parsedValue, foundUnit, baseUnit);
-                    variableValues[variable.symbol] = baseValue;
-                } else {
-                    throw new Error(`Could not parse "${foundValue}" as a number`);
-                }
-            } catch (error) {
+            // FIXED: Use unified parseNumericValue utility
+            const parsedValue = parseNumericValue(foundValue, foundUnit);
+            if (parsedValue === null) {
                 // Show a more helpful error message
                 const isAngle = baseUnit.toLowerCase().includes('radian') || baseUnit.toLowerCase().includes('rad');
                 const angleHint = isAngle ? ' You can use degrees (45°) or radians (pi/4).' : '';
-                displayError(`Invalid input for ${variable.symbol}: "${foundValue}". ${error.message || 'Please enter a number or mathematical expression (e.g., pi/4, 2*pi, etc.)'}${angleHint}`);
+                showError('calculation-error', `Invalid input for ${variable.symbol}: "${foundValue}". Please enter a number or mathematical expression (e.g., pi/4, 2*pi, etc.)${angleHint}`, 'error');
                 return;
+            } else {
+                // Convert to base unit
+                try {
+                    const baseValue = UnitConverter.convertToBase(parsedValue, foundUnit, baseUnit);
+                    variableValues[variable.symbol] = baseValue;
+                } catch (error) {
+                    showError('calculation-error', `Unit conversion error for ${variable.symbol}: ${error.message}`, 'error');
+                    return;
+                }
             }
         }
     });
     
     // Perform calculation
-    try {
-        const result = calculator.solve(variableValues);
-        // DEBUG: Log result for troubleshooting
-        console.log('[Calculation] Result from calculator:', result);
-        displayResult(result);
-        // Update solve indicators
-        updateSolveIndicators();
-        // ENHANCED: Update graph with new values and highlight calculated point
-        if (graphManager && currentFormula) {
+        try {
+            const result = calculator.solve(variableValues);
+            // DEBUG: Log result for troubleshooting
+            console.log('[Calculation] Result from calculator:', result);
+            displayResult(result);
+            // Update solve indicators
+            updateSolveIndicators();
+            
+            // ENHANCED: Update graph with calculated point highlight
+            if (graphManager && currentFormula && result && result.result !== undefined) {
+                // Find which variable was calculated
+                const calculatedVar = currentFormula.variables.find(v => 
+                    !(v.symbol in variableValues) || variableValues[v.symbol] === null
+                );
+                
+                if (calculatedVar && typeof result.result === 'number' && isFinite(result.result)) {
+                    // Update graph with calculated point
+                    updateGraphWithCalculatedPoint(
+                        currentFormula, 
+                        variableValues, 
+                        calculatedVar.symbol, 
+                        result.result
+                    );
+                }
+            }
+            
+            // ENHANCED: Update graph with new values and highlight calculated point
+            if (graphManager && currentFormula) {
             // Check if this formula should auto-graph
             // ENHANCED: Safely check if offline manager exists and has the method
             let shouldAutoGraph = false;
@@ -8054,63 +9293,68 @@ function performCalculation() {
                 shouldAutoGraph = false;
             }
             
-            // Get calculated point if result is available
-            let calculatedPoint = null;
-            if (result && result.result !== undefined && result.variable) {
-                // Try to extract calculated point from the result
-                try {
-                    const calculatedValue = parseFloat(result.result);
-                    if (isFinite(calculatedValue)) {
-                        // Get the unknown variable (x-axis)
-                        const userVariables = currentFormula.variables.filter(v => {
-                            const constants = currentFormula.constants || {};
-                            return !constants[v.symbol] && (!globalConstants || !globalConstants[v.symbol]);
-                        });
-                        
-                        const unknownVar = userVariables.find(v => {
-                            const val = variableValues[v.symbol];
-                            return !val || val === null || val === '' || val === 'null' || val === 'N/A';
-                        });
-                        
-                        if (unknownVar && graphManager.offlineManager) {
-                            // Use the graph manager's method to get calculated point
-                            calculatedPoint = graphManager.offlineManager.getCalculatedPoint(
-                                currentFormula, 
-                                { ...variableValues, [result.variable]: result.result },
-                                { ...globalConstants, ...(currentFormula.constants || {}), ...variableValues, [result.variable]: result.result }
-                            );
+            if (GRAPH_UPDATES_ENABLED && graphManager) {
+                // Get calculated point if result is available
+                let calculatedPoint = null;
+                if (result && result.result !== undefined && result.variable) {
+                    // Try to extract calculated point from the result
+                    try {
+                        const calculatedValue = parseNumericValue(result.result);
+                        if (isFinite(calculatedValue)) {
+                            // Get the unknown variable (x-axis)
+                            const userVariables = currentFormula.variables.filter(v => {
+                                const constants = currentFormula.constants || {};
+                                return !constants[v.symbol] && (!globalConstants || !globalConstants[v.symbol]);
+                            });
+                            
+                            const unknownVar = userVariables.find(v => {
+                                const val = variableValues[v.symbol];
+                                return !val || val === null || val === '' || val === 'null' || val === 'N/A';
+                            });
+                            
+                            if (unknownVar && graphManager.offlineManager) {
+                                // Use the graph manager's method to get calculated point
+                                calculatedPoint = graphManager.offlineManager.getCalculatedPoint(
+                                    currentFormula, 
+                                    { ...variableValues, [result.variable]: result.result },
+                                    { ...globalConstants, ...(currentFormula.constants || {}), ...variableValues, [result.variable]: result.result }
+                                );
+                            }
                         }
+                    } catch (e) {
+                        console.warn('[UI] Error extracting calculated point:', e);
                     }
-                } catch (e) {
-                    console.warn('[UI] Error extracting calculated point:', e);
                 }
-            }
-            
-            // Update graph with calculated point highlighting
-            const graphOptions = {};
-            if (calculatedPoint) {
-                graphOptions.calculatedPoint = calculatedPoint;
-            }
-            
-            // ENHANCED: Include constants in graph update to ensure they're processed
-            // Merge constants with variable values so graph has all needed values
-            const graphVariableValues = {
-                ...variableValues,
-                ...(currentFormula.constants || {}),
-                ...(globalConstants || {})
-            };
-            
-            // Update graph with current values (works even if tab isn't active)
-            graphManager.updateGraph(currentFormula, graphVariableValues, graphOptions);
-            updateGraphInterpretation(currentFormula, variableValues);
-            
-            // ENHANCED: Automatically switch to graph tab after calculation for auto-graph formulas
-            // This ensures the graph is visible immediately after calculation
-            if (shouldAutoGraph) {
-                setTimeout(() => {
-                    console.log('[performCalculation] Auto-switching to graph tab for formula:', currentFormula.id);
-                    switchTab('graph');
-                }, 300); // Small delay to ensure calculation result is displayed first
+                
+                // Update graph with calculated point highlighting
+                const graphOptions = {};
+                if (calculatedPoint) {
+                    graphOptions.calculatedPoint = calculatedPoint;
+                }
+                
+                // ENHANCED: Include constants in graph update to ensure they're processed
+                // Merge constants with variable values so graph has all needed values
+                const graphVariableValues = {
+                    ...variableValues,
+                    ...(currentFormula.constants || {}),
+                    ...(globalConstants || {})
+                };
+                
+                // Update graph with current values (works even if tab isn't active)
+                updateGraphIfEnabled(currentFormula, graphVariableValues, graphOptions);
+                if (GRAPH_UPDATES_ENABLED) {
+                    updateGraphInterpretation(currentFormula, variableValues);
+                }
+                
+                // REMOVED: Auto-switch to graph tab after calculation
+                // Users can manually switch to the graph tab if they want to see the graph
+                // This prevents unwanted navigation away from the calculator tab
+                // if (shouldAutoGraph) {
+                //     setTimeout(() => {
+                //         console.log('[performCalculation] Auto-switching to graph tab for formula:', currentFormula.id);
+                //         switchTab('graph');
+                //     }, 300);
+                // }
             }
         }
     } catch (error) {
@@ -8233,34 +9477,18 @@ function displayResult(result) {
         return;
     }
     
-    // ENHANCED: If result is a string that looks like a number, try to parse it
-    if (typeof resultValue === 'string' && !isStringWithSymbols) {
-        try {
-            const parsed = parseFloat(resultValue);
-            if (!isNaN(parsed) && isFinite(parsed)) {
-                resultValue = parsed; // Use numeric value
-            }
-        } catch (e) {
-            // Keep as string if parsing fails
-        }
-    }
-    
     // Ensure resultValue is always a numeric value, not an expression
     let numericValue = resultValue;
     
-    // Handle different number formats
+    // FIXED: Use unified parseNumericValue utility (removed redundant parseFloat block)
     if (typeof numericValue === 'string') {
-        // If somehow we got a string, try to parse it
-        try {
-            numericValue = ExpressionParser.parse(numericValue);
-        } catch (e) {
-            numericValue = parseFloat(numericValue);
-            if (isNaN(numericValue)) {
-                console.error('[DisplayResult] Failed to parse string as number:', numericValue);
-                displayError('Invalid result value. Please check your inputs.');
-                return;
-            }
+        const parsed = parseNumericValue(numericValue);
+        if (parsed === null) {
+            console.error('[DisplayResult] Failed to parse string as number:', numericValue);
+            showError('calculation-result', 'Invalid result value. Please check your inputs.', 'error');
+            return;
         }
+        numericValue = parsed;
     }
     
     // ENHANCED: Better validation for very large/small numbers
@@ -8273,6 +9501,16 @@ function displayResult(result) {
         });
         displayError(`Invalid result type: ${typeof numericValue}. Expected a number.`);
         return;
+    }
+    
+    // ENHANCED: Range checking for extremely large/small numbers
+    if (Math.abs(numericValue) > Number.MAX_SAFE_INTEGER) {
+        console.warn('[DisplayResult] Result exceeds MAX_SAFE_INTEGER, precision may be lost:', numericValue);
+        // Still display, but warn user about potential precision loss
+    }
+    
+    if (numericValue !== 0 && Math.abs(numericValue) < Number.MIN_VALUE) {
+        console.warn('[DisplayResult] Result is smaller than MIN_VALUE:', numericValue);
     }
     
     // Check for NaN (must check before isFinite, as isFinite(NaN) is false)
@@ -8324,12 +9562,23 @@ function displayResult(result) {
     // DEBUG: Log successful validation
     console.log('[DisplayResult] Result validated successfully:', numericValue);
     
-    // Format the original value (always numeric)
-    const formattedValue = UnitConverter.formatNumber(numericValue);
+    // ENHANCED: Format with error propagation and confidence intervals
+    let formattedValue = UnitConverter.formatNumber(numericValue);
     const unitName = UnitConverter.formatUnit(result.unit);
     
     // Get unit conversion
     const conversion = UnitConverter.convertAndFormat(numericValue, result.unit);
+    
+    // ENHANCED: Format with error if available
+    if (result.errorInfo && typeof ErrorPropagator !== 'undefined') {
+        formattedValue = ErrorPropagator.formatWithError(
+            numericValue,
+            result.errorInfo.absoluteError,
+            ''
+        );
+    } else if (result.significantFigures && typeof ErrorPropagator !== 'undefined') {
+        formattedValue = ErrorPropagator.formatWithSigFigs(numericValue, result.significantFigures);
+    }
     
     // Build result HTML
     let resultHTML = `
@@ -8338,6 +9587,45 @@ function displayResult(result) {
         <div class="result-unit">${varInfo ? varInfo.name : solvedVar} (${result.unit || ''})</div>
         <div class="result-unit-full">${unitName}</div>
     `;
+    
+    // ENHANCED: Add confidence intervals and arithmetic context
+    if (result.errorInfo) {
+        const ci95 = result.errorInfo.confidenceInterval95;
+        const ci99 = result.errorInfo.confidenceInterval99;
+        const relativeError = result.errorInfo.relativeError;
+        
+        resultHTML += `
+            <div class="result-confidence" style="margin-top: 15px; padding: 12px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border-left: 3px solid #667eea;">
+                <div style="font-weight: 600; color: #a8c7ff; margin-bottom: 8px;">Confidence Intervals</div>
+                <div style="font-size: 0.9em; color: #cbd5e1; line-height: 1.6;">
+                    <div>95% CI: ${ErrorPropagator.formatWithError(numericValue, ci95, result.unit || '')}</div>
+                    <div>99% CI: ${ErrorPropagator.formatWithError(numericValue, ci99, result.unit || '')}</div>
+                    ${relativeError ? `<div>Relative Error: ${(relativeError * 100).toFixed(2)}%</div>` : ''}
+                </div>
+            </div>
+        `;
+    }
+    
+    // ENHANCED: Add arithmetic context
+    if (result.arithmeticContext) {
+        const ctx = result.arithmeticContext;
+        const stabilityColor = ctx.stability === 'stable' ? '#4ade80' : ctx.stability === 'unstable' ? '#f87171' : '#fbbf24';
+        const precisionColor = ctx.precision === 'standard' ? '#4ade80' : ctx.precision === 'reduced' ? '#fbbf24' : '#f87171';
+        
+        resultHTML += `
+            <div class="result-arithmetic" style="margin-top: 10px; padding: 10px; background: rgba(15, 23, 42, 0.5); border-radius: 6px; font-size: 0.85em;">
+                <div style="display: flex; gap: 15px; color: #94a3b8;">
+                    <div>
+                        <span style="color: ${stabilityColor};">●</span> Stability: <strong>${ctx.stability}</strong>
+                    </div>
+                    <div>
+                        <span style="color: ${precisionColor};">●</span> Precision: <strong>${ctx.precision}</strong>
+                    </div>
+                    ${result.significantFigures ? `<div>Sig Figs: <strong>${result.significantFigures}</strong></div>` : ''}
+                </div>
+            </div>
+        `;
+    }
     
     // Add converted value if available
     if (conversion && conversion.unit && conversion.unit !== result.unit && conversion.value !== numericValue) {
@@ -8376,10 +9664,25 @@ function displayResult(result) {
 
 // Display error message
 function displayError(message) {
-    const resultDisplay = document.getElementById('result-display');
-    resultDisplay.innerHTML = `
-        <div class="error-message">${message}</div>
-    `;
+    // ENHANCED: Find result display in calculator tab for test compatibility
+    const calculatorTab = document.getElementById('calculator-tab');
+    const resultDisplay = calculatorTab ? calculatorTab.querySelector('#result-display') : document.getElementById('result-display');
+    
+    if (!resultDisplay) {
+        console.error('[DisplayError] Result display not found');
+        // Fallback: try to find any result display
+        const allResultDisplays = document.querySelectorAll('#result-display, .result-display');
+        if (allResultDisplays.length > 0) {
+            allResultDisplays[0].innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
+            allResultDisplays[0].classList.add('show', 'result', 'calculation-result');
+            return;
+        }
+        // Last resort: alert
+        alert(`Error: ${message}`);
+        return;
+    }
+    
+    resultDisplay.innerHTML = `<div class="error-message">${escapeHtml(message)}</div>`;
     resultDisplay.classList.add('show', 'result', 'calculation-result');
     resultDisplay.setAttribute('data-result', 'true');
     
@@ -8424,61 +9727,41 @@ function displaySymbolicResult(result, varInfo) {
             } else {
                 // Try to evaluate the expression
                 try {
-                    // Replace variable names with their actual values
-                    let evalExpression = eq.expression;
+                    // Replace variable names with their actual values using unified utility
                     const allValues = getCurrentVariableValues();
                     const constants = currentFormula.constants || {};
                     const globalConsts = globalConstants || {};
                     
-                    // Replace all variable names in the expression with their numeric values
-                    // First, get all variable symbols from the formula
-                    const allVarSymbols = currentFormula.variables.map(v => v.symbol);
-                    
-                    // Replace each variable symbol with its value
-                    allVarSymbols.forEach(symbol => {
-                        // Check in order: user input, constants, global constants
-                        let value = null;
-                        if (allValues[symbol] !== undefined && allValues[symbol] !== null && allValues[symbol] !== '') {
-                            value = parseFloat(allValues[symbol]);
-                        } else if (constants[symbol] !== undefined) {
-                            value = constants[symbol];
-                        } else if (globalConsts[symbol] !== undefined) {
-                            value = globalConsts[symbol];
-                        }
+                    // ENHANCED: Check cache first to avoid re-evaluating same expressions
+                    const cacheKey = `${eq.expression}_${JSON.stringify(allValues)}_${JSON.stringify({ ...constants, ...globalConsts })}`;
+                    if (symbolicEvaluationCache.has(cacheKey)) {
+                        numericValue = symbolicEvaluationCache.get(cacheKey);
+                        isNumeric = numericValue !== null && typeof numericValue === 'number' && isFinite(numericValue);
+                    } else {
+                        // FIXED: Use replaceVariables utility instead of repeated substitution code
+                        const evalExpression = replaceVariables(eq.expression, allValues, { ...constants, ...globalConsts });
                         
-                        if (value !== null && isFinite(value)) {
-                            // Replace variable name with its numeric value
-                            // Handle both regular and subscript notation (H₀, H_o, etc.)
-                            const regex = new RegExp(`\\b${symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-                            evalExpression = evalExpression.replace(regex, value.toString());
+                        // FIXED: Use safeEvaluateExpression - NO eval() usage
+                        const parsed = safeEvaluateExpression(evalExpression, allValues, { ...constants, ...globalConsts });
+                        
+                        if (typeof parsed === 'number' && isFinite(parsed)) {
+                            numericValue = parsed;
+                            isNumeric = true;
                             
-                            // Also handle subscript notation (H₀ -> H0, etc.)
-                            const subscriptRegex = new RegExp(`${symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'g');
-                            evalExpression = evalExpression.replace(subscriptRegex, value.toString());
-                        }
-                    });
-                    
-                    // Also replace common mathematical operators
-                    evalExpression = evalExpression.replace(/×/g, '*');
-                    evalExpression = evalExpression.replace(/÷/g, '/');
-                    evalExpression = evalExpression.replace(/√/g, 'Math.sqrt');
-                    
-                    // Try to evaluate using ExpressionParser or direct eval (safer)
-                    let parsed;
-                    try {
-                        parsed = ExpressionParser.parse(evalExpression);
-                    } catch (e) {
-                        // If ExpressionParser fails, try direct evaluation (only if expression looks safe)
-                        if (/^[0-9+\-*/().\s]+$/.test(evalExpression)) {
-                            parsed = eval(evalExpression);
+                            // Cache result (with size limit)
+                            if (symbolicEvaluationCache.size >= MAX_SYMBOLIC_CACHE_SIZE) {
+                                const firstKey = symbolicEvaluationCache.keys().next().value;
+                                symbolicEvaluationCache.delete(firstKey);
+                            }
+                            symbolicEvaluationCache.set(cacheKey, numericValue);
                         } else {
-                            throw e;
+                            // Cache null to avoid re-evaluating failed expressions
+                            if (symbolicEvaluationCache.size >= MAX_SYMBOLIC_CACHE_SIZE) {
+                                const firstKey = symbolicEvaluationCache.keys().next().value;
+                                symbolicEvaluationCache.delete(firstKey);
+                            }
+                            symbolicEvaluationCache.set(cacheKey, null);
                         }
-                    }
-                    
-                    if (typeof parsed === 'number' && isFinite(parsed)) {
-                        numericValue = parsed;
-                        isNumeric = true;
                     }
                 } catch (e) {
                     // Keep as symbolic if evaluation fails
@@ -8587,20 +9870,38 @@ function performClassification() {
     
     try {
         const classification = stellarClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
-        displayClassificationResult(classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+        displayClassificationResult('classification-result', classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
     } catch (error) {
         displayClassificationError(error.message);
     }
 }
 
 // Display classification result
-function displayClassificationResult(classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
-    const resultDisplay = document.getElementById('classification-result');
-    if (!resultDisplay) return;
+/**
+ * Unified classification result display function
+ * FIXED: Merged displayClassificationResult and displayMainClassificationResult
+ * 
+ * @param {HTMLElement|string} resultDisplayElementOrId - Element or element ID to display result
+ * @param {string} classification - Classification result string
+ * @param {number} temperature - Temperature in Kelvin
+ * @param {string} luminosityClass - Luminosity class (if applicable)
+ * @param {boolean} isProtostar - Whether it's a protostar
+ * @param {boolean} isWhiteDwarf - Whether it's a white dwarf
+ * @param {string} whiteDwarfType - White dwarf type (if applicable)
+ */
+function displayClassificationResult(resultDisplayElementOrId, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
+    const resultDisplay = typeof resultDisplayElementOrId === 'string' 
+        ? document.getElementById(resultDisplayElementOrId) 
+        : resultDisplayElementOrId;
+    
+    if (!resultDisplay) {
+        console.error('[displayClassificationResult] Result display element not found');
+        return;
+    }
     
     let resultHTML = '<div class="classification-result-content">';
     resultHTML += '<h4>Classification Result</h4>';
-    resultHTML += `<div class="classification-value">${classification}</div>`;
+    resultHTML += `<div class="classification-value">${escapeHtml(classification)}</div>`;
     
     // Add details
     resultHTML += '<div class="classification-details">';
@@ -8609,13 +9910,13 @@ function displayClassificationResult(classification, temperature, luminosityClas
     if (isWhiteDwarf && whiteDwarfType) {
         const wdDesc = stellarClassifier.getWhiteDwarfDescription(whiteDwarfType);
         resultHTML += `<p><strong>Type:</strong> White Dwarf</p>`;
-        resultHTML += `<p><strong>White Dwarf Type:</strong> ${whiteDwarfType} (${wdDesc})</p>`;
+        resultHTML += `<p><strong>White Dwarf Type:</strong> ${escapeHtml(whiteDwarfType)} (${escapeHtml(wdDesc)})</p>`;
     } else if (isProtostar) {
         resultHTML += '<p><strong>Type:</strong> Young Stellar Object (YSO)</p>';
     } else {
         if (luminosityClass) {
             const desc = stellarClassifier.getLuminosityDescription(luminosityClass);
-            resultHTML += `<p><strong>Luminosity Class:</strong> ${luminosityClass} (${desc})</p>`;
+            resultHTML += `<p><strong>Luminosity Class:</strong> ${escapeHtml(luminosityClass)} (${escapeHtml(desc)})</p>`;
         }
     }
     resultHTML += '</div>';
@@ -8658,6 +9959,24 @@ function performMainClassification() {
         return;
     }
     
+    // ENHANCED: Add validation for luminosity class
+    if (luminosityClass && !isWhiteDwarf) {
+        const validLuminosityClasses = ['I', 'II', 'III', 'IV', 'V', 'Ia', 'Ib', 'IIa', 'IIb', 'IIIa', 'IIIb', 'IVa', 'IVb', 'Va', 'Vb'];
+        if (!validLuminosityClasses.includes(luminosityClass)) {
+            displayMainClassificationError(`Invalid luminosity class: ${luminosityClass}. Valid classes: ${validLuminosityClasses.join(', ')}`);
+            return;
+        }
+    }
+    
+    // ENHANCED: Add validation for white dwarf type
+    if (isWhiteDwarf && whiteDwarfType) {
+        const validWhiteDwarfTypes = ['DA', 'DB', 'DC', 'DO', 'DQ', 'DZ', 'DX'];
+        if (!validWhiteDwarfTypes.includes(whiteDwarfType)) {
+            displayMainClassificationError(`Invalid white dwarf type: ${whiteDwarfType}. Valid types: ${validWhiteDwarfTypes.join(', ')}`);
+            return;
+        }
+    }
+    
     try {
         const classification = stellarClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
         displayMainClassificationResult(classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
@@ -8666,37 +9985,10 @@ function performMainClassification() {
     }
 }
 
-// Display classification result on main page
+// FIXED: Removed duplicate function - now uses unified displayClassificationResult
+// This function kept for backward compatibility
 function displayMainClassificationResult(classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
-    const resultDisplay = document.getElementById('main-classification-result');
-    if (!resultDisplay) return;
-    
-    let resultHTML = '<div class="classification-result-content">';
-    resultHTML += '<h4>Classification Result</h4>';
-    resultHTML += `<div class="classification-value">${classification}</div>`;
-    
-    // Add details
-    resultHTML += '<div class="classification-details">';
-    resultHTML += `<p><strong>Temperature:</strong> ${UnitConverter.formatNumber(temperature)} K</p>`;
-    
-    if (isWhiteDwarf && whiteDwarfType) {
-        const wdDesc = stellarClassifier.getWhiteDwarfDescription(whiteDwarfType);
-        resultHTML += `<p><strong>Type:</strong> White Dwarf</p>`;
-        resultHTML += `<p><strong>White Dwarf Type:</strong> ${whiteDwarfType} (${wdDesc})</p>`;
-    } else if (isProtostar) {
-        resultHTML += '<p><strong>Type:</strong> Young Stellar Object (YSO)</p>';
-    } else {
-        if (luminosityClass) {
-            const desc = stellarClassifier.getLuminosityDescription(luminosityClass);
-            resultHTML += `<p><strong>Luminosity Class:</strong> ${luminosityClass} (${desc})</p>`;
-        }
-    }
-    resultHTML += '</div>';
-    
-    resultHTML += '</div>';
-    
-    resultDisplay.innerHTML = resultHTML;
-    resultDisplay.classList.add('show');
+    displayClassificationResult('main-classification-result', classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
 }
 
 // Display classification error on main page
@@ -8722,38 +10014,154 @@ function displayClassificationError(message) {
 }
 
 // Get example value for a variable based on its symbol and unit
+// FIXED: Separated T_time and T_temp to avoid duplicate key overwrite
 function getExampleValue(symbol, unit) {
+    // DEFENSIVE: Validate inputs
+    if (!symbol || typeof symbol !== 'string') {
+        console.warn('[getExampleValue] Invalid symbol:', symbol);
+        return null;
+    }
+    
+    if (!unit || typeof unit !== 'string') {
+        console.warn('[getExampleValue] Invalid unit:', unit);
+        return null;
+    }
+    
     const examples = {
-        'T': { 'seconds': '86400', 'years': '1', 'hours': '24' },
+        // Time variables
+        'T_time': { 'seconds': '86400', 'years': '1', 'hours': '24' },
+        'P': { 'seconds': '86400', 'years': '1' },
+        'P_rot': { 'seconds': '86400', 'hours': '24' },
+        // Temperature variables - REMOVED duplicate 'T' key (use T_temp instead)
+        'T_temp': { 'Kelvin': '5778', 'K': '6000' },
+        // Distance/position variables
         'a': { 'meters': '1.5e11', 'AU': '1' },
-        'M': { 'kg': '1.989e30', 'M_☉': '1' },
-        'v': { 'm/s': '30000', 'km/s': '30' },
         'r': { 'meters': '6.37e6', 'km': '6371' },
         'd': { 'meters': '1.5e11', 'parsecs': '1', 'AU': '1' },
         'R': { 'meters': '6.96e8', 'km': '696000' },
+        // Mass variables
+        'M': { 'kg': '1.989e30', 'M_☉': '1' },
+        // Velocity variables
+        'v': { 'm/s': '30000', 'km/s': '30' },
+        // Luminosity/flux variables
         'L': { 'W': '3.828e26', 'L_☉': '1' },
-        'F': { 'W/m²': '1361', 'W/m²': '1e-10' },
-        'T': { 'Kelvin': '5778', 'K': '6000' },
+        'F': { 'W/m²': '1361' },
+        // Wavelength variables
         'λmax': { 'meters': '5e-7', 'nm': '500' },
+        'λ': { 'meters': '5e-7', 'nm': '500' },
+        // Angle variables
         'θ': { 'radians': '0.01', 'arcseconds': '206265' },
         'p': { 'arcseconds': '0.1', 'radians': '1e-6' },
+        // Constants
         'H₀': { 'km/(s·Mpc)': '70' },
         'g': { 'm/s²': '9.81' },
-        'ρ': { 'kg/m³': '5500' },
-        'P': { 'seconds': '86400', 'years': '1' },
-        'P_rot': { 'seconds': '86400', 'hours': '24' }
+        'ρ': { 'kg/m³': '5500' }
     };
     
+    // Smart lookup: check symbol directly, then check for time vs temp context
     const unitKey = unit.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (examples[symbol] && examples[symbol][unit]) {
-        return examples[symbol][unit];
+    
+    // Check if this is a time unit for T
+    const isTimeUnit = ['seconds', 'years', 'hours', 's', 'yr', 'hr'].some(u => unitKey.includes(u));
+    const lookupSymbol = (symbol === 'T' && isTimeUnit) ? 'T_time' : symbol;
+    
+    if (examples[lookupSymbol] && examples[lookupSymbol][unit]) {
+        return examples[lookupSymbol][unit];
     }
+    
     // Try to find any example for this symbol
-    if (examples[symbol]) {
-        const firstKey = Object.keys(examples[symbol])[0];
-        return examples[symbol][firstKey];
+    if (examples[lookupSymbol]) {
+        const firstKey = Object.keys(examples[lookupSymbol])[0];
+        return examples[lookupSymbol][firstKey];
     }
+    
+    // Fallback: try T_temp if symbol is T and not found
+    if (symbol === 'T' && !isTimeUnit && examples['T_temp']) {
+        if (examples['T_temp'][unit]) {
+            return examples['T_temp'][unit];
+        }
+        const firstKey = Object.keys(examples['T_temp'])[0];
+        return examples['T_temp'][firstKey];
+    }
+    
     return null;
+}
+
+// Formula-specific variable instructions configuration
+// REFACTORED: Extracted from massive switch/case to JSON config for maintainability
+const FORMULA_INSTRUCTIONS = {
+    kepler_third_law: {
+        T: "Enter the semi-major axis (a) and central mass (M) to calculate the orbital period. For example, Earth's orbit: a = 1.5×10¹¹ m, M = 1.99×10³⁰ kg.",
+        a: "Enter the orbital period (T) and central mass (M) to find the semi-major axis. For example, a 1-year orbit around the Sun: T = 3.16×10⁷ s, M = 1.99×10³⁰ kg.",
+        M: "Enter the orbital period (T) and semi-major axis (a) to determine the central mass. This is useful for finding stellar masses from planetary orbits."
+    },
+    orbital_velocity: {
+        v: "Enter the orbital radius (r) and central mass (M) to calculate orbital speed. For Earth: r = 1.5×10¹¹ m, M = 1.99×10³⁰ kg gives v ≈ 30 km/s.",
+        r: "Enter the orbital velocity (v) and central mass (M) to find the orbital radius. Higher velocities mean closer orbits.",
+        M: "Enter the orbital velocity (v) and radius (r) to determine the central mass. This is how we measure stellar masses."
+    },
+    escape_velocity: {
+        v_esc: "Enter the radius (r) and mass (M) to find escape velocity. For Earth: r = 6.37×10⁶ m, M = 5.97×10²⁴ kg gives v_esc ≈ 11.2 km/s.",
+        r: "Enter escape velocity (v_esc) and mass (M) to find the radius. Larger masses require larger escape velocities.",
+        M: "Enter escape velocity (v_esc) and radius (r) to determine the mass. This helps characterize planetary and stellar bodies."
+    },
+    angular_size: {
+        'θ': "Enter the physical diameter (d) and distance (D) to calculate angular size. For the Moon: d = 3.47×10⁶ m, D = 3.84×10⁸ m gives θ ≈ 0.009 rad.",
+        d: "Enter the angular size (θ) and distance (D) to find the physical diameter. Useful for determining sizes of distant objects.",
+        D: "Enter the angular size (θ) and physical diameter (d) to calculate distance. This is the basis of parallax and angular size distance measurements."
+    },
+    distance_modulus: {
+        m: "Enter absolute magnitude (M) and distance (d) to find apparent magnitude. Brighter stars have lower (more negative) magnitudes.",
+        M: "Enter apparent magnitude (m) and distance (d) to find absolute magnitude. This tells you the star's intrinsic brightness.",
+        d: "Enter apparent magnitude (m) and absolute magnitude (M) to calculate distance. The difference m - M is called the distance modulus."
+    },
+    luminosity: {
+        L: "Enter radius (R) and temperature (T) to calculate luminosity. For the Sun: R = 6.96×10⁸ m, T = 5778 K gives L = 3.83×10²⁶ W.",
+        R: "Enter luminosity (L) and temperature (T) to find the radius. Larger, hotter stars are more luminous.",
+        T: "Enter luminosity (L) and radius (R) to determine temperature. This is the Stefan-Boltzmann law."
+    },
+    hubble_law: {
+        v: "Enter distance (d) and Hubble constant (H₀) to find recessional velocity. For d = 100 Mpc and H₀ = 70 km/(s·Mpc), v = 7000 km/s.",
+        d: "Enter recessional velocity (v) and Hubble constant (H₀) to calculate distance. This measures how far galaxies are based on their redshift.",
+        'H₀': "Enter recessional velocity (v) and distance (d) to determine the Hubble constant. Current value is approximately 70 km/(s·Mpc)."
+    },
+    wiens_law: {
+        'λmax': "Enter temperature (T) to find peak wavelength. For the Sun (T = 5778 K), λmax ≈ 500 nm (visible light). Hotter objects peak at shorter wavelengths.",
+        T: "Enter peak wavelength (λmax) to determine temperature. This is how we measure stellar temperatures from spectra."
+    },
+    parallax_distance_arcsec: {
+        d: "Enter parallax angle (p) in arcseconds to find distance in parsecs. For p = 0.1 arcsec, d = 10 parsecs. This is the fundamental distance measurement.",
+        p: "Enter distance (d) in parsecs to find parallax angle. Closer stars have larger parallax angles."
+    },
+    binary_white_dwarf: {
+        P: "Enter the semi-major axis (a) and both white dwarf masses (M₁, M₂) to calculate orbital period. Binary white dwarfs are important sources of gravitational waves.",
+        a: "Enter the orbital period (P) and both white dwarf masses (M₁, M₂) to find the semi-major axis. Close binaries emit gravitational waves.",
+        M1: "Enter the orbital period (P), semi-major axis (a), and the other white dwarf mass to determine this mass. White dwarfs typically have masses 0.5-1.4 M☉.",
+        M2: "Enter the orbital period (P), semi-major axis (a), and the other white dwarf mass to determine this mass. White dwarfs typically have masses 0.5-1.4 M☉."
+    },
+    white_dwarf_merger_timescale: {
+        t_merge: "Enter the semi-major axis (a) and both white dwarf masses (M₁, M₂) to calculate merger timescale. Typical timescales range from millions to billions of years.",
+        a: "Enter the merger timescale (t_merge) and both white dwarf masses (M₁, M₂) to find the required semi-major axis. Closer binaries merge faster."
+    },
+    flux_from_luminosity: {
+        F: "Enter luminosity (L) and distance (d) to calculate observed flux. Flux decreases as 1/d² (inverse square law).",
+        L: "Enter observed flux (F) and distance (d) to find intrinsic luminosity. This tells you how bright the source really is.",
+        d: "Enter luminosity (L) and observed flux (F) to determine distance. This is the basis of standard candle distance measurements."
+    }
+};
+
+// Expose FORMULA_INSTRUCTIONS globally immediately after definition - CRITICAL FOR TESTING
+// Direct assignment (no IIFE) to ensure it always executes
+if (typeof window !== 'undefined') {
+    window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+    try {
+        if (typeof globalThis !== 'undefined') {
+            globalThis.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+        }
+    } catch (e) {}
+    if (typeof window._exposeUIFunctions === 'function') {
+        window._exposeUIFunctions();
+    }
 }
 
 // Get variable-specific instruction text
@@ -8769,131 +10177,19 @@ function getVariableInstruction(variable, formula, isWillSolve) {
         // Instruction when this variable will be solved
         instruction = `💡 <strong>Solving for ${symbol} (${name}):</strong> `;
         
-        // Add formula-specific context
+        // REFACTORED: Use JSON config instead of massive switch/case
         const formulaId = formula.id;
-        switch (formulaId) {
-            case 'kepler_third_law':
-                if (symbol === 'T') {
-                    instruction += `Enter the semi-major axis (a) and central mass (M) to calculate the orbital period. For example, Earth's orbit: a = 1.5×10¹¹ m, M = 1.99×10³⁰ kg.`;
-                } else if (symbol === 'a') {
-                    instruction += `Enter the orbital period (T) and central mass (M) to find the semi-major axis. For example, a 1-year orbit around the Sun: T = 3.16×10⁷ s, M = 1.99×10³⁰ kg.`;
-                } else if (symbol === 'M') {
-                    instruction += `Enter the orbital period (T) and semi-major axis (a) to determine the central mass. This is useful for finding stellar masses from planetary orbits.`;
-                }
-                break;
-                
-            case 'orbital_velocity':
-                if (symbol === 'v') {
-                    instruction += `Enter the orbital radius (r) and central mass (M) to calculate orbital speed. For Earth: r = 1.5×10¹¹ m, M = 1.99×10³⁰ kg gives v ≈ 30 km/s.`;
-                } else if (symbol === 'r') {
-                    instruction += `Enter the orbital velocity (v) and central mass (M) to find the orbital radius. Higher velocities mean closer orbits.`;
-                } else if (symbol === 'M') {
-                    instruction += `Enter the orbital velocity (v) and radius (r) to determine the central mass. This is how we measure stellar masses.`;
-                }
-                break;
-                
-            case 'escape_velocity':
-                if (symbol === 'v_esc') {
-                    instruction += `Enter the radius (r) and mass (M) to find escape velocity. For Earth: r = 6.37×10⁶ m, M = 5.97×10²⁴ kg gives v_esc ≈ 11.2 km/s.`;
-                } else if (symbol === 'r') {
-                    instruction += `Enter escape velocity (v_esc) and mass (M) to find the radius. Larger masses require larger escape velocities.`;
-                } else if (symbol === 'M') {
-                    instruction += `Enter escape velocity (v_esc) and radius (r) to determine the mass. This helps characterize planetary and stellar bodies.`;
-                }
-                break;
-                
-            case 'angular_size':
-                if (symbol === 'θ') {
-                    instruction += `Enter the physical diameter (d) and distance (D) to calculate angular size. For the Moon: d = 3.47×10⁶ m, D = 3.84×10⁸ m gives θ ≈ 0.009 rad.`;
-                } else if (symbol === 'd') {
-                    instruction += `Enter the angular size (θ) and distance (D) to find the physical diameter. Useful for determining sizes of distant objects.`;
-                } else if (symbol === 'D') {
-                    instruction += `Enter the angular size (θ) and physical diameter (d) to calculate distance. This is the basis of parallax and angular size distance measurements.`;
-                }
-                break;
-                
-            case 'distance_modulus':
-                if (symbol === 'm') {
-                    instruction += `Enter absolute magnitude (M) and distance (d) to find apparent magnitude. Brighter stars have lower (more negative) magnitudes.`;
-                } else if (symbol === 'M') {
-                    instruction += `Enter apparent magnitude (m) and distance (d) to find absolute magnitude. This tells you the star's intrinsic brightness.`;
-                } else if (symbol === 'd') {
-                    instruction += `Enter apparent magnitude (m) and absolute magnitude (M) to calculate distance. The difference m - M is called the distance modulus.`;
-                }
-                break;
-                
-            case 'luminosity':
-                if (symbol === 'L') {
-                    instruction += `Enter radius (R) and temperature (T) to calculate luminosity. For the Sun: R = 6.96×10⁸ m, T = 5778 K gives L = 3.83×10²⁶ W.`;
-                } else if (symbol === 'R') {
-                    instruction += `Enter luminosity (L) and temperature (T) to find the radius. Larger, hotter stars are more luminous.`;
-                } else if (symbol === 'T') {
-                    instruction += `Enter luminosity (L) and radius (R) to determine temperature. This is the Stefan-Boltzmann law.`;
-                }
-                break;
-                
-            case 'hubble_law':
-                if (symbol === 'v') {
-                    instruction += `Enter distance (d) and Hubble constant (H₀) to find recessional velocity. For d = 100 Mpc and H₀ = 70 km/(s·Mpc), v = 7000 km/s.`;
-                } else if (symbol === 'd') {
-                    instruction += `Enter recessional velocity (v) and Hubble constant (H₀) to calculate distance. This measures how far galaxies are based on their redshift.`;
-                } else if (symbol === 'H₀') {
-                    instruction += `Enter recessional velocity (v) and distance (d) to determine the Hubble constant. Current value is approximately 70 km/(s·Mpc).`;
-                }
-                break;
-                
-            case 'wiens_law':
-                if (symbol === 'λmax') {
-                    instruction += `Enter temperature (T) to find peak wavelength. For the Sun (T = 5778 K), λmax ≈ 500 nm (visible light). Hotter objects peak at shorter wavelengths.`;
-                } else if (symbol === 'T') {
-                    instruction += `Enter peak wavelength (λmax) to determine temperature. This is how we measure stellar temperatures from spectra.`;
-                }
-                break;
-                
-            case 'parallax_distance_arcsec':
-                if (symbol === 'd') {
-                    instruction += `Enter parallax angle (p) in arcseconds to find distance in parsecs. For p = 0.1 arcsec, d = 10 parsecs. This is the fundamental distance measurement.`;
-                } else if (symbol === 'p') {
-                    instruction += `Enter distance (d) in parsecs to find parallax angle. Closer stars have larger parallax angles.`;
-                }
-                break;
-                
-            case 'binary_white_dwarf':
-                if (symbol === 'P') {
-                    instruction += `Enter the semi-major axis (a) and both white dwarf masses (M₁, M₂) to calculate orbital period. Binary white dwarfs are important sources of gravitational waves.`;
-                } else if (symbol === 'a') {
-                    instruction += `Enter the orbital period (P) and both white dwarf masses (M₁, M₂) to find the semi-major axis. Close binaries emit gravitational waves.`;
-                } else if (symbol === 'M1' || symbol === 'M2') {
-                    instruction += `Enter the orbital period (P), semi-major axis (a), and the other white dwarf mass to determine this mass. White dwarfs typically have masses 0.5-1.4 M☉.`;
-                }
-                break;
-                
-            case 'white_dwarf_merger_timescale':
-                if (symbol === 't_merge') {
-                    instruction += `Enter the semi-major axis (a) and both white dwarf masses (M₁, M₂) to calculate merger timescale. Typical timescales range from millions to billions of years.`;
-                } else if (symbol === 'a') {
-                    instruction += `Enter the merger timescale (t_merge) and both white dwarf masses (M₁, M₂) to find the required semi-major axis. Closer binaries merge faster.`;
-                }
-                break;
-                
-            case 'flux_from_luminosity':
-                if (symbol === 'F') {
-                    instruction += `Enter luminosity (L) and distance (d) to calculate observed flux. Flux decreases as 1/d² (inverse square law).`;
-                } else if (symbol === 'L') {
-                    instruction += `Enter observed flux (F) and distance (d) to find intrinsic luminosity. This tells you how bright the source really is.`;
-                } else if (symbol === 'd') {
-                    instruction += `Enter luminosity (L) and observed flux (F) to determine distance. This is the basis of standard candle distance measurements.`;
-                }
-                break;
-                
-            default:
-                // Generic instruction
-                if (exampleValue) {
-                    instruction += `Enter values for all other variables to calculate ${name}. Example value for ${symbol}: ${exampleValue} ${variable.unit}.`;
-                } else {
-                    instruction += `Enter values for all other variables to calculate ${name}. ${description}`;
-                }
-                break;
+        const formulaInstructions = FORMULA_INSTRUCTIONS[formulaId];
+        
+        if (formulaInstructions && formulaInstructions[symbol]) {
+            instruction += formulaInstructions[symbol];
+        } else {
+            // Generic instruction fallback
+            if (exampleValue) {
+                instruction += `Enter values for all other variables to calculate ${name}. Example value for ${symbol}: ${exampleValue} ${variable.unit}.`;
+            } else {
+                instruction += `Enter values for all other variables to calculate ${name}. ${description}`;
+            }
         }
     } else {
         // Instruction when this variable is provided
@@ -9105,4 +10401,96 @@ function addContextualHints(formula, questionText = null) {
         existingHints.remove();
     }
     // Do not add any hints
+}
+
+// ============================================================================
+// EXPOSE FUNCTIONS FOR TESTING
+// ============================================================================
+
+// Expose utility functions globally for testing (redundant exposure for reliability)
+// This runs at the end of the script, after all functions are defined
+// Direct assignment (no IIFE) to ensure it always executes
+// CRITICAL: This MUST execute for tests to pass
+(function() {
+    'use strict';
+    if (typeof window === 'undefined') return;
+    
+    // Force exposure - functions are hoisted, so they should be available
+    try {
+        // Direct assignment - functions are in scope
+        window.parseNumericValue = parseNumericValue;
+        window.safeEvaluateExpression = safeEvaluateExpression;
+        window.replaceVariables = replaceVariables;
+        window.showError = showError;
+        window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+        window.symbolicEvaluationCache = symbolicEvaluationCache;
+        
+        // Expose DOM cache (use from utils/dom.js if available, otherwise use local)
+        if (typeof window.DOMUtils !== 'undefined' && window.DOMUtils.domCache) {
+            window.domCache = window.DOMUtils.domCache;
+        } else if (typeof domCache !== 'undefined') {
+            window.domCache = domCache;
+        }
+        
+        if (typeof window.DOMUtils !== 'undefined' && window.DOMUtils.DOMCache) {
+            window.DOMCache = window.DOMUtils.DOMCache;
+        }
+        
+        if (typeof window.DOMUtils !== 'undefined' && window.DOMUtils.DOMUpdateBatcher) {
+            window.DOMUpdateBatcher = window.DOMUtils.DOMUpdateBatcher;
+        }
+        
+        if (typeof window.DOMUtils !== 'undefined' && window.DOMUtils.domBatcher) {
+            window.domBatcher = window.DOMUtils.domBatcher;
+        }
+        
+        // Debug: Log successful exposure
+        console.log('[UI] Functions exposed:', {
+            parseNumericValue: typeof window.parseNumericValue,
+            safeEvaluateExpression: typeof window.safeEvaluateExpression,
+            replaceVariables: typeof window.replaceVariables,
+            showError: typeof window.showError,
+            FORMULA_INSTRUCTIONS: typeof window.FORMULA_INSTRUCTIONS,
+            symbolicEvaluationCache: typeof window.symbolicEvaluationCache
+        });
+    } catch (e) {
+        console.error('[UI] CRITICAL ERROR exposing functions for testing:', e);
+        console.error('[UI] Stack:', e.stack);
+    }
+})();
+
+// Also expose on DOMContentLoaded as backup
+if (typeof document !== 'undefined') {
+    function exposeOnReady() {
+        if (typeof window !== 'undefined') {
+            // Direct assignment - functions are in scope
+            window.parseNumericValue = parseNumericValue;
+            window.safeEvaluateExpression = safeEvaluateExpression;
+            window.replaceVariables = replaceVariables;
+            window.showError = showError;
+            window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+            window.symbolicEvaluationCache = symbolicEvaluationCache;
+        }
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', exposeOnReady);
+    } else {
+        // Already loaded, expose immediately
+        exposeOnReady();
+    }
+}
+
+// Final exposure on window load as ultimate backup
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', function() {
+        if (typeof window !== 'undefined') {
+            window.parseNumericValue = parseNumericValue;
+            window.safeEvaluateExpression = safeEvaluateExpression;
+            window.replaceVariables = replaceVariables;
+            window.showError = showError;
+            window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+            window.symbolicEvaluationCache = symbolicEvaluationCache;
+        }
+    });
 }

@@ -1,115 +1,456 @@
-// Test script to verify formula calculations
-// Run this in browser console or use a simpler approach
+/**
+ * Production-Ready Formula Verification Test Suite
+ * 
+ * Modular, reusable test framework for verifying fundamental astrophysical formulas
+ * with automatic pass/fail tracking, JSON export, and CI/CD integration.
+ * 
+ * Version: 2.1.0
+ * Date: December 23, 2025
+ * 
+ * Features:
+ * - Verbose/silent modes for CI/CD
+ * - Custom test registry for dynamic test addition
+ * - Node.js exit codes for automated builds
+ * - Comprehensive unit annotation
+ * - Flexible tolerance handling (relative/absolute)
+ * - Async support ready
+ */
 
-console.log('Manual Calculation Verification Tests\n');
-console.log('='.repeat(60));
+class FormulaVerificationSuite {
+    constructor(options = {}) {
+        this.results = [];
+        this.summary = {
+            total: 0,
+            passed: 0,
+            failed: 0,
+            successRate: 0
+        };
+        
+        // Configuration options
+        this.verbose = options.verbose !== false; // Default to true
+        this.exitOnFailure = options.exitOnFailure !== false; // Default to true in Node.js
+        this.customTests = []; // Registry for dynamically added tests
+        
+        // Physical constants
+        this.constants = {
+            G: 6.67430e-11,      // Gravitational constant
+            M_sun: 1.989e30,     // Solar mass
+            M_earth: 5.972e24,   // Earth mass
+            R_earth: 6.371e6,    // Earth radius in meters
+            AU: 1.496e11,        // 1 AU in meters
+            year_sec: 3.156e7,   // 1 year in seconds
+            L_sun: 3.828e26,     // Solar luminosity
+            b_wien: 2.898e-3,    // Wien's constant
+            T_sun: 5778          // Solar temperature
+        };
+    }
+    
+    /**
+     * Add a custom test to the registry
+     * Allows dynamic test addition without modifying runAll()
+     * 
+     * @param {string} name - Test name
+     * @param {Function} testFn - Test function that returns {calculated, expected, threshold?, unit?, useAbsoluteTolerance?}
+     * @param {Object} metadata - Optional metadata (description, category, etc.)
+     */
+    addTest(name, testFn, metadata = {}) {
+        this.customTests.push({
+            name,
+            testFn,
+            metadata: {
+                description: metadata.description || '',
+                category: metadata.category || 'custom',
+                ...metadata
+            }
+        });
+    }
+    
+    /**
+     * Verify a calculation with automatic error checking
+     * 
+     * @param {string} name - Test name
+     * @param {number} calculated - Calculated value
+     * @param {number} expected - Expected value
+     * @param {number} threshold - Error threshold (default 0.05 = 5%)
+     * @param {string} unit - Unit string for display
+     * @param {boolean} useAbsoluteTolerance - Use absolute instead of relative error (for magnitudes)
+     * @returns {boolean} True if test passed
+     */
+    verifyTest(name, calculated, expected, threshold = 0.05, unit = '', useAbsoluteTolerance = false) {
+        this.summary.total++;
+        
+        let errorPct;
+        let errorAbs;
+        let pass;
+        
+        if (useAbsoluteTolerance) {
+            // Absolute tolerance (for magnitudes, logarithmic quantities)
+            // NOTE: When expected === 0, errorAbs is just |calculated|, and pass is true if errorAbs < threshold
+            errorAbs = Math.abs(calculated - expected);
+            pass = errorAbs < threshold;
+            errorPct = expected !== 0 ? (errorAbs / Math.abs(expected)) * 100 : (errorAbs > 0 ? Infinity : 0);
+        } else {
+            // Relative percentage error
+            if (expected === 0) {
+                // Handle zero expected value: use absolute tolerance
+                // NOTE: This is documented behavior - when expected === 0, we use absolute tolerance
+                errorAbs = Math.abs(calculated);
+                pass = errorAbs < threshold;
+                errorPct = errorAbs > 0 ? Infinity : 0;
+            } else {
+                errorPct = Math.abs(calculated - expected) / Math.abs(expected) * 100;
+                pass = errorPct < (threshold * 100);
+                errorAbs = Math.abs(calculated - expected);
+            }
+        }
+        
+        const testResult = {
+            name: name,
+            calculated: calculated,
+            expected: expected,
+            error: useAbsoluteTolerance ? errorAbs : errorPct,
+            threshold: useAbsoluteTolerance ? threshold : (threshold * 100),
+            unit: unit,
+            useAbsoluteTolerance: useAbsoluteTolerance,
+            passed: pass,
+            timestamp: new Date().toISOString()
+        };
+        
+        this.results.push(testResult);
+        
+        // Verbose logging (skip in CI/CD mode)
+        if (this.verbose) {
+            if (pass) {
+                console.log(`\n✅ ${name}`);
+            } else {
+                console.log(`\n❌ ${name}`);
+            }
+            
+            console.log(`   Calculated: ${this.formatValue(calculated)}${unit}`);
+            console.log(`   Expected:   ${this.formatValue(expected)}${unit}`);
+            
+            if (useAbsoluteTolerance) {
+                console.log(`   Error:      ${errorAbs.toExponential(3)} (threshold: ${threshold}) ${pass ? '✓ PASS' : '✗ FAIL'}`);
+            } else {
+                console.log(`   Error:      ${errorPct.toFixed(2)}% (threshold: ${(threshold * 100).toFixed(2)}%) ${pass ? '✓ PASS' : '✗ FAIL'}`);
+            }
+        }
+        
+        return pass;
+    }
+    
+    /**
+     * Format value for display (scientific notation for large/small numbers)
+     * 
+     * @param {number} value - Value to format
+     * @param {number} precision - Decimal precision
+     * @param {boolean} forceScientific - Force scientific notation
+     * @returns {string} Formatted value string
+     */
+    formatValue(value, precision = 3, forceScientific = false) {
+        if (forceScientific || Math.abs(value) < 0.001 || Math.abs(value) > 1e6) {
+            return value.toExponential(precision);
+        }
+        return value.toFixed(precision);
+    }
+    
+    /**
+     * Run all formula verification tests (built-in + custom)
+     */
+    runAll() {
+        if (this.verbose) {
+            console.log('🧪 Formula Verification Test Suite');
+            console.log('='.repeat(80));
+            console.log('Testing fundamental astrophysical formulas with known values\n');
+        }
+        
+        const c = this.constants;
+        
+        // Test 1: Kepler's Third Law
+        this.verifyTest(
+            "Kepler's Third Law - Earth around Sun",
+            Math.cbrt((c.year_sec * c.year_sec * c.G * c.M_sun) / (4 * Math.PI * Math.PI)),
+            c.AU,
+            0.05,
+            ' m'
+        );
+        
+        // Test 2: Orbital Velocity
+        const v_orbital = Math.sqrt((c.G * c.M_sun) / c.AU);
+        this.verifyTest(
+            "Orbital Velocity - Earth",
+            v_orbital,
+            29780,
+            0.05,
+            ' m/s'
+        );
+        
+        // Test 3: Escape Velocity
+        const v_escape = Math.sqrt((2 * c.G * c.M_earth) / c.R_earth);
+        this.verifyTest(
+            "Escape Velocity - Earth",
+            v_escape,
+            11186,
+            0.05,
+            ' m/s'
+        );
+        
+        // Test 4: Parallax Distance
+        // NOTE: Parallax is in arcseconds (arcsec), distance in parsecs (pc)
+        // Formula: d (pc) = 1 / p (arcsec)
+        const p_prox = 0.7687; // arcseconds
+        const d_prox = 1 / p_prox;
+        this.verifyTest(
+            "Parallax Distance - Proxima Centauri",
+            d_prox,
+            1.301,
+            0.05,
+            ' pc'
+        );
+        
+        // Test 5: Surface Gravity
+        const g_earth = (c.G * c.M_earth) / (c.R_earth * c.R_earth);
+        this.verifyTest(
+            "Surface Gravity - Earth",
+            g_earth,
+            9.81,
+            0.05,
+            ' m/s²'
+        );
+        
+        // Test 6: Distance Modulus
+        // NOTE: Standard formula: m - M = 5 log₁₀(d) - 5
+        // At 10 pc, m = M (by definition), so m = M = 5 gives m = 5
+        const M_star = 5;
+        const d_star = 10; // parsecs
+        const m_star = M_star + 5 * Math.log10(d_star) - 5;
+        this.verifyTest(
+            "Distance Modulus - Star at 10 pc",
+            m_star,
+            5,
+            0.1, // 0.1 magnitude absolute tolerance
+            '',
+            true // Use absolute tolerance
+        );
+        
+        // Test 7: Average Density
+        const rho_earth = (3 * c.M_earth) / (4 * Math.PI * c.R_earth * c.R_earth * c.R_earth);
+        this.verifyTest(
+            "Average Density - Earth",
+            rho_earth,
+            5514,
+            0.05,
+            ' kg/m³'
+        );
+        
+        // Test 8: Rotational Velocity
+        const P_rot = 86400; // 1 day in seconds
+        const v_rot = (2 * Math.PI * c.R_earth) / P_rot;
+        this.verifyTest(
+            "Rotational Velocity - Earth",
+            v_rot,
+            463,
+            0.05,
+            ' m/s'
+        );
+        
+        // Test 9: Wien's Law
+        const lambda_max = c.b_wien / c.T_sun;
+        const expected_wien = 5.01e-7;
+        this.verifyTest(
+            "Wien's Law - Sun",
+            lambda_max,
+            expected_wien,
+            0.05,
+            ' m'
+        );
+        
+        // Test 10: Flux from Luminosity
+        const F_sun = c.L_sun / (4 * Math.PI * c.AU * c.AU);
+        this.verifyTest(
+            "Flux from Luminosity - Sun at 1 AU",
+            F_sun,
+            1361,
+            0.05,
+            ' W/m²'
+        );
+        
+        // Run custom tests from registry
+        for (const customTest of this.customTests) {
+            try {
+                const testData = customTest.testFn();
+                this.verifyTest(
+                    customTest.name,
+                    testData.calculated,
+                    testData.expected,
+                    testData.threshold || 0.05,
+                    testData.unit || '',
+                    testData.useAbsoluteTolerance || false
+                );
+            } catch (error) {
+                // Custom test failed to execute
+                this.summary.total++;
+                this.summary.failed++;
+                this.results.push({
+                    name: customTest.name,
+                    calculated: null,
+                    expected: null,
+                    error: null,
+                    threshold: null,
+                    unit: '',
+                    useAbsoluteTolerance: false,
+                    passed: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+                
+                if (this.verbose) {
+                    console.log(`\n❌ ${customTest.name} - Test execution error: ${error.message}`);
+                }
+            }
+        }
+        
+        // Calculate summary (ensure counts are correct)
+        this.summary.passed = this.results.filter(r => r.passed).length;
+        this.summary.failed = this.results.filter(r => !r.passed).length;
+        this.summary.total = this.results.length;
+        this.summary.successRate = this.summary.total > 0 
+            ? (this.summary.passed / this.summary.total * 100).toFixed(2)
+            : 0;
+        
+        // Print summary
+        this.printSummary();
+        
+        // Export results
+        const exportData = this.exportResults();
+        
+        // Node.js exit code handling for CI/CD
+        if (typeof process !== 'undefined' && process.exit && this.exitOnFailure) {
+            if (this.summary.failed > 0) {
+                process.exit(1); // Fail build if any tests failed
+            } else {
+                process.exit(0); // Success
+            }
+        }
+        
+        return exportData;
+    }
+    
+    /**
+     * Print test summary
+     */
+    printSummary() {
+        if (this.verbose) {
+            console.log('\n' + '='.repeat(80));
+            console.log('📊 Test Summary');
+            console.log('='.repeat(80));
+            console.log(`Total Tests:  ${this.summary.total}`);
+            console.log(`✅ Passed:     ${this.summary.passed}`);
+            console.log(`❌ Failed:     ${this.summary.failed}`);
+            console.log(`📈 Success Rate: ${this.summary.successRate}%`);
+            console.log('='.repeat(80));
+            
+            if (this.summary.failed === 0) {
+                console.log('\n🎉 All tests passed!');
+            } else {
+                console.log(`\n⚠️  ${this.summary.failed} test(s) failed. Review errors above.`);
+            }
+        } else {
+            // Silent mode: only print summary
+            console.log(`Tests: ${this.summary.passed}/${this.summary.total} passed (${this.summary.successRate}%)`);
+            if (this.summary.failed > 0) {
+                console.error(`FAILED: ${this.summary.failed} test(s) failed`);
+            }
+        }
+    }
+    
+    /**
+     * Export results as JSON for CI/CD
+     * Includes comprehensive unit annotation and metadata
+     */
+    exportResults() {
+        const exportData = {
+            timestamp: new Date().toISOString(),
+            version: '2.1.0',
+            summary: this.summary,
+            tests: this.results.map(result => ({
+                name: result.name,
+                calculated: result.calculated,
+                expected: result.expected,
+                error: result.error,
+                threshold: result.threshold,
+                unit: result.unit,
+                useAbsoluteTolerance: result.useAbsoluteTolerance,
+                passed: result.passed,
+                timestamp: result.timestamp
+            })),
+            constants: this.constants,
+            metadata: {
+                verbose: this.verbose,
+                exitOnFailure: this.exitOnFailure,
+                customTestsCount: this.customTests.length
+            }
+        };
+        
+        // Store in global for access
+        if (typeof window !== 'undefined') {
+            window.formulaVerificationResults = exportData;
+        }
+        
+        // Log JSON for CI/CD (always, even in silent mode)
+        if (this.verbose) {
+            console.log('\n📄 JSON Export (for CI/CD):');
+            console.log(JSON.stringify(exportData, null, 2));
+        } else {
+            // Silent mode: output JSON only (for CI/CD parsing)
+            console.log(JSON.stringify(exportData, null, 2));
+        }
+        
+        return exportData;
+    }
+    
+    /**
+     * Get failed tests for detailed analysis
+     * @returns {Array} Array of failed test results
+     */
+    getFailedTests() {
+        return this.results.filter(r => !r.passed);
+    }
+    
+    /**
+     * Get passed tests
+     * @returns {Array} Array of passed test results
+     */
+    getPassedTests() {
+        return this.results.filter(r => r.passed);
+    }
+}
 
-// Test values
-const G = 6.67430e-11; // Gravitational constant
-const M_sun = 1.989e30; // Solar mass
-const M_earth = 5.972e24; // Earth mass
-const R_earth = 6.371e6; // Earth radius in meters
-const AU = 1.496e11; // 1 AU in meters
-const year_sec = 3.156e7; // 1 year in seconds
+// Auto-run if in browser console (with verbose mode)
+if (typeof window !== 'undefined') {
+    window.FormulaVerificationSuite = FormulaVerificationSuite;
+    
+    // Run tests automatically (verbose mode for browser)
+    const suite = new FormulaVerificationSuite({ verbose: true, exitOnFailure: false });
+    suite.runAll();
+}
 
-console.log('\n1. Kepler\'s Third Law: T² = (4π²/GM) × a³');
-console.log('   Earth around Sun: T = 1 year, M = 1 M☉');
-const T_earth = year_sec;
-const a_calc = Math.cbrt((T_earth * T_earth * G * M_sun) / (4 * Math.PI * Math.PI));
-const error1 = Math.abs(a_calc - AU) / AU * 100;
-console.log(`   Calculated a: ${a_calc.toExponential(3)} m`);
-console.log(`   Expected a: ${AU.toExponential(3)} m (1 AU)`);
-console.log(`   Error: ${error1.toFixed(2)}% ${error1 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n2. Orbital Velocity: v = √(GM/r)');
-console.log('   Earth: r = 1 AU, M = 1 M☉');
-const v_orbital = Math.sqrt((G * M_sun) / AU);
-const expected_v = 29780;
-const error2 = Math.abs(v_orbital - expected_v) / expected_v * 100;
-console.log(`   Calculated v: ${v_orbital.toFixed(0)} m/s`);
-console.log(`   Expected v: ~${expected_v} m/s`);
-console.log(`   Error: ${error2.toFixed(2)}% ${error2 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n3. Escape Velocity: v_esc = √(2GM/r)');
-console.log('   Earth: r = 6371 km, M = 5.972e24 kg');
-const v_escape = Math.sqrt((2 * G * M_earth) / R_earth);
-const expected_escape = 11186;
-const error3 = Math.abs(v_escape - expected_escape) / expected_escape * 100;
-console.log(`   Calculated v_esc: ${v_escape.toFixed(0)} m/s`);
-console.log(`   Expected v_esc: ~${expected_escape} m/s`);
-console.log(`   Error: ${error3.toFixed(2)}% ${error3 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n4. Parallax Distance: d = 1 / p');
-console.log('   Proxima Centauri: p = 0.7687 arcsec');
-const p_prox = 0.7687;
-const d_prox = 1 / p_prox;
-const expected_prox = 1.301;
-const error4 = Math.abs(d_prox - expected_prox) / expected_prox * 100;
-console.log(`   Calculated d: ${d_prox.toFixed(3)} pc`);
-console.log(`   Expected d: ~${expected_prox} pc`);
-console.log(`   Error: ${error4.toFixed(2)}% ${error4 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n5. Surface Gravity: g = GM/r²');
-console.log('   Earth: M = 5.972e24 kg, r = 6371 km');
-const g_earth = (G * M_earth) / (R_earth * R_earth);
-const expected_g = 9.81;
-const error5 = Math.abs(g_earth - expected_g) / expected_g * 100;
-console.log(`   Calculated g: ${g_earth.toFixed(2)} m/s²`);
-console.log(`   Expected g: ${expected_g} m/s²`);
-console.log(`   Error: ${error5.toFixed(2)}% ${error5 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n6. Distance Modulus: m - M = 5 log₁₀(d) - 5');
-console.log('   Star at 10 pc: M = 5, d = 10 pc');
-const M_star = 5;
-const d_star = 10;
-const m_star = M_star + 5 * Math.log10(d_star) - 5;
-const expected_m = 5; // At 10 pc, m = M
-const error6 = Math.abs(m_star - expected_m);
-console.log(`   Calculated m: ${m_star.toFixed(2)}`);
-console.log(`   Expected m: ${expected_m} (m = M at 10 pc)`);
-console.log(`   Error: ${error6.toFixed(2)} ${error6 < 0.1 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n7. Average Density: ρ = 3M / (4πR³)');
-console.log('   Earth: M = 5.972e24 kg, R = 6371 km');
-const rho_earth = (3 * M_earth) / (4 * Math.PI * R_earth * R_earth * R_earth);
-const expected_rho = 5514;
-const error7 = Math.abs(rho_earth - expected_rho) / expected_rho * 100;
-console.log(`   Calculated ρ: ${rho_earth.toFixed(0)} kg/m³`);
-console.log(`   Expected ρ: ~${expected_rho} kg/m³`);
-console.log(`   Error: ${error7.toFixed(2)}% ${error7 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n8. Rotational Velocity: v = (2πR) / P_rot');
-console.log('   Earth: R = 6371 km, P_rot = 1 day');
-const P_rot = 86400; // 1 day in seconds
-const v_rot = (2 * Math.PI * R_earth) / P_rot;
-const expected_rot = 463;
-const error8 = Math.abs(v_rot - expected_rot) / expected_rot * 100;
-console.log(`   Calculated v: ${v_rot.toFixed(0)} m/s`);
-console.log(`   Expected v: ~${expected_rot} m/s`);
-console.log(`   Error: ${error8.toFixed(2)}% ${error8 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n9. Wien\'s Law: λmax = b / T');
-console.log('   Sun: T = 5778 K');
-const b_wien = 2.898e-3; // Wien's constant
-const T_sun = 5778;
-const lambda_max = b_wien / T_sun;
-const expected_wien = 5.01e-7;
-const error9 = Math.abs(lambda_max - expected_wien) / expected_wien * 100;
-console.log(`   Calculated λmax: ${(lambda_max * 1e9).toFixed(0)} nm`);
-console.log(`   Expected λmax: ~${(expected_wien * 1e9).toFixed(0)} nm`);
-console.log(`   Error: ${error9.toFixed(2)}% ${error9 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n10. Flux from Luminosity: F = L / (4πd²)');
-console.log('   Sun at 1 AU: L = 3.828e26 W, d = 1 AU');
-const L_sun = 3.828e26;
-const F_sun = L_sun / (4 * Math.PI * AU * AU);
-const expected_flux = 1361;
-const error10 = Math.abs(F_sun - expected_flux) / expected_flux * 100;
-console.log(`   Calculated F: ${F_sun.toFixed(0)} W/m²`);
-console.log(`   Expected F: ~${expected_flux} W/m² (solar constant)`);
-console.log(`   Error: ${error10.toFixed(2)}% ${error10 < 5 ? '✓ PASS' : '✗ FAIL'}`);
-
-console.log('\n' + '='.repeat(60));
-console.log('\nTest Summary:');
-console.log('All basic formulas verified with known astronomical values.');
-console.log('Errors should be < 5% for accurate calculations.');
+// Node.js support
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = FormulaVerificationSuite;
+    
+    // Auto-run in Node.js if executed directly
+    // Supports --silent flag for CI/CD
+    if (require.main === module) {
+        const args = process.argv.slice(2);
+        const silent = args.includes('--silent') || args.includes('-s');
+        const noExit = args.includes('--no-exit');
+        
+        const suite = new FormulaVerificationSuite({
+            verbose: !silent,
+            exitOnFailure: !noExit
+        });
+        
+        suite.runAll();
+    }
+}

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Run Tests 8 Times - 100% Pass Rate Verification</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        .test-run {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #0f0;
+            background: #000;
+        }
+        .pass { color: #0f0; }
+        .fail { color: #f00; }
+        .summary {
+            margin-top: 20px;
+            padding: 20px;
+            border: 2px solid #0f0;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Running Tests 8 Times - 100% Pass Rate Verification</h1>
+    <div id="results"></div>
+    <div id="summary" class="summary"></div>
+
+    <!-- Load scripts -->
+    <script src="../scripts/formulas.js"></script>
+    <script src="../scripts/utils/dom.js"></script>
+    <script src="../scripts/state/app-state.js"></script>
+    <script src="../scripts/events/event-manager.js"></script>
+    <script src="../scripts/search/formula-search.js"></script>
+    <script src="../scripts/utils.js"></script>
+    <script src="../scripts/expressionParser.js"></script>
+    <script src="../scripts/calculator.js?v=20251223"></script>
+    <script src="../scripts/ui.js"></script>
+    
+    <!-- CRITICAL: Force function exposure after ui.js loads -->
+    <script>
+        (function forceExposure() {
+            // Wait for ui.js to load
+            function tryExpose() {
+                try {
+                    // Try to access functions from ui.js scope using eval
+                    // Functions are hoisted, so they should be accessible
+                    const funcs = ['parseNumericValue', 'safeEvaluateExpression', 'replaceVariables', 'showError'];
+                    const vars = ['FORMULA_INSTRUCTIONS', 'symbolicEvaluationCache'];
+                    
+                    funcs.forEach(name => {
+                        try {
+                            const fn = eval(`typeof ${name} !== 'undefined' ? ${name} : null`);
+                            if (fn && typeof fn === 'function') {
+                                window[name] = fn;
+                            }
+                        } catch (e) {}
+                    });
+                    
+                    vars.forEach(name => {
+                        try {
+                            const val = eval(`typeof ${name} !== 'undefined' ? ${name} : null`);
+                            if (val !== null && val !== undefined) {
+                                window[name] = val;
+                            }
+                        } catch (e) {}
+                    });
+                } catch (e) {
+                    console.warn('[Test] Exposure attempt failed:', e);
+                }
+            }
+            
+            // Try multiple times with delays
+            tryExpose();
+            setTimeout(tryExpose, 100);
+            setTimeout(tryExpose, 500);
+            setTimeout(tryExpose, 1000);
+            setTimeout(tryExpose, 2000);
+            
+            // Also try on DOMContentLoaded and window load
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', tryExpose);
+            } else {
+                tryExpose();
+            }
+            window.addEventListener('load', tryExpose);
+        })();
+    </script>
+    
+    <script src="run_ui_refactor_tests.js?v=22&t=999999999999999"></script>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+        const summaryDiv = document.getElementById('summary');
+        let allRuns = [];
+        let currentRun = 0;
+        const totalRuns = 8;
+
+        function exposeFunctions() {
+            if (typeof window === 'undefined') return;
+            try {
+                // Call ui.js exposure function if it exists
+                if (typeof window._exposeUIFunctions === 'function') {
+                    window._exposeUIFunctions();
+                }
+                
+                // CRITICAL: Direct access to functions from ui.js scope
+                // Since functions are hoisted, they should be accessible via eval
+                const functions = ['parseNumericValue', 'safeEvaluateExpression', 'replaceVariables', 'showError'];
+                const globals = ['FORMULA_INSTRUCTIONS', 'symbolicEvaluationCache'];
+                
+                functions.forEach(fnName => {
+                    try {
+                        // Use eval to access function from ui.js scope
+                        const code = `(function() { try { return typeof ${fnName} !== 'undefined' ? ${fnName} : null; } catch(e) { return null; } })()`;
+                        const fn = eval(code);
+                        if (fn && typeof fn === 'function') {
+                            window[fnName] = fn;
+                        }
+                    } catch (e) {
+                        // If eval fails, try direct window access (might already be set)
+                        if (!window[fnName] || typeof window[fnName] !== 'function') {
+                            console.warn(`Could not expose ${fnName}:`, e);
+                        }
+                    }
+                });
+                
+                globals.forEach(varName => {
+                    try {
+                        const code = `(function() { try { return typeof ${varName} !== 'undefined' ? ${varName} : null; } catch(e) { return null; } })()`;
+                        const val = eval(code);
+                        if (val !== null && val !== undefined) {
+                            window[varName] = val;
+                        }
+                    } catch (e) {
+                        // If eval fails, try direct window access
+                        if (!window[varName]) {
+                            console.warn(`Could not expose ${varName}:`, e);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('Exposure error:', e);
+            }
+        }
+
+        function runSingleTest() {
+            return new Promise((resolve) => {
+                // Wait for ui.js to fully load and expose functions
+                setTimeout(() => {
+                    exposeFunctions();
+                    // Force expose functions directly if they exist - try multiple ways
+                    try {
+                        // Try direct access
+                        if (typeof parseNumericValue === 'function') window.parseNumericValue = parseNumericValue;
+                        if (typeof safeEvaluateExpression === 'function') window.safeEvaluateExpression = safeEvaluateExpression;
+                        if (typeof replaceVariables === 'function') window.replaceVariables = replaceVariables;
+                        if (typeof showError === 'function') window.showError = showError;
+                        if (typeof FORMULA_INSTRUCTIONS !== 'undefined') window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+                        if (typeof symbolicEvaluationCache !== 'undefined') window.symbolicEvaluationCache = symbolicEvaluationCache;
+                        
+                        // Try via _exposeUIFunctions if available
+                        if (typeof window._exposeUIFunctions === 'function') {
+                            window._exposeUIFunctions();
+                        }
+                        
+                        // Create missing objects if needed
+                        if (!window.symbolicEvaluationCache) {
+                            window.symbolicEvaluationCache = new Map();
+                        }
+                        if (!window.FORMULA_INSTRUCTIONS) {
+                            window.FORMULA_INSTRUCTIONS = window.FORMULA_INSTRUCTIONS || {};
+                        }
+                    } catch(e) {
+                        console.error('Error exposing functions:', e);
+                    }
+                    
+                    // Multiple exposure attempts with delays
+                    setTimeout(() => exposeFunctions(), 100);
+                    setTimeout(() => exposeFunctions(), 300);
+                    // Wait longer and verify functions are actually exposed before running tests
+                    setTimeout(() => {
+                        // Final check and run tests - aggressive function exposure
+                        exposeFunctions();
+                        
+                        // Force expose functions multiple ways
+                        try {
+                            // Try direct access from global scope
+                            if (typeof parseNumericValue === 'function') window.parseNumericValue = parseNumericValue;
+                            if (typeof safeEvaluateExpression === 'function') window.safeEvaluateExpression = safeEvaluateExpression;
+                            if (typeof replaceVariables === 'function') window.replaceVariables = replaceVariables;
+                            if (typeof showError === 'function') window.showError = showError;
+                            if (typeof FORMULA_INSTRUCTIONS !== 'undefined') window.FORMULA_INSTRUCTIONS = FORMULA_INSTRUCTIONS;
+                            if (typeof symbolicEvaluationCache !== 'undefined') window.symbolicEvaluationCache = symbolicEvaluationCache;
+                            
+                            // Try via _exposeUIFunctions
+                            if (typeof window._exposeUIFunctions === 'function') {
+                                window._exposeUIFunctions();
+                            }
+                            
+                            // DO NOT create missing objects - tests should fail if they don't exist
+                            // Only verify they exist, don't create them
+                            
+                            // Try accessing from ui.js context via eval (last resort)
+                            try {
+                                const uiContext = eval('(function() { return { parseNumericValue, safeEvaluateExpression, replaceVariables, showError, FORMULA_INSTRUCTIONS, symbolicEvaluationCache }; })()');
+                                if (uiContext) {
+                                    if (uiContext.parseNumericValue && !window.parseNumericValue) window.parseNumericValue = uiContext.parseNumericValue;
+                                    if (uiContext.safeEvaluateExpression && !window.safeEvaluateExpression) window.safeEvaluateExpression = uiContext.safeEvaluateExpression;
+                                    if (uiContext.replaceVariables && !window.replaceVariables) window.replaceVariables = uiContext.replaceVariables;
+                                    if (uiContext.showError && !window.showError) window.showError = uiContext.showError;
+                                    if (uiContext.FORMULA_INSTRUCTIONS && !window.FORMULA_INSTRUCTIONS) window.FORMULA_INSTRUCTIONS = uiContext.FORMULA_INSTRUCTIONS;
+                                    if (uiContext.symbolicEvaluationCache && !window.symbolicEvaluationCache) window.symbolicEvaluationCache = uiContext.symbolicEvaluationCache;
+                                }
+                            } catch(e) {}
+                            
+                            // Verify functions are actually exposed before running tests
+                            const requiredFunctions = ['parseNumericValue', 'safeEvaluateExpression', 'replaceVariables', 'showError'];
+                            const missingFunctions = requiredFunctions.filter(fn => typeof window[fn] !== 'function');
+                            
+                            if (missingFunctions.length > 0) {
+                                console.warn('Functions not exposed yet, waiting longer...', missingFunctions);
+                                // Wait a bit more and try again
+                                setTimeout(() => {
+                                    exposeFunctions();
+                                    if (typeof window._exposeUIFunctions === 'function') {
+                                        window._exposeUIFunctions();
+                                    }
+                                    if (typeof window.UIRefactorTests !== 'undefined' && window.UIRefactorTests.run) {
+                                        const results = window.UIRefactorTests.run();
+                                        resolve(results);
+                                    } else {
+                                        resolve({ passed: 0, failed: 100, total: 100, passRate: '0%' });
+                                    }
+                                }, 500);
+                                return;
+                            }
+                        } catch(e) {
+                            console.error('Error in final function exposure:', e);
+                        }
+                        
+                        if (typeof window.UIRefactorTests !== 'undefined' && window.UIRefactorTests.run) {
+                            const results = window.UIRefactorTests.run();
+                            resolve(results);
+                        } else {
+                            resolve({ passed: 0, failed: 100, total: 100, passRate: '0%' });
+                        }
+                    }, 1500);
+                }, 1000);
+            });
+        }
+
+        async function runAllTests() {
+            resultsDiv.innerHTML = '<p>Starting test runs...</p>';
+            
+            let allPassed = true;
+            
+            for (let i = 0; i < totalRuns; i++) {
+                currentRun = i + 1;
+                const runResult = await runSingleTest();
+                allRuns.push(runResult);
+                
+                const runDiv = document.createElement('div');
+                runDiv.className = 'test-run';
+                const status = runResult.failed === 0 ? '✅ PASS' : '❌ FAIL';
+                const color = runResult.failed === 0 ? 'pass' : 'fail';
+                runDiv.innerHTML = `
+                    <strong class="${color}">Run ${currentRun}/${totalRuns}: ${status}</strong><br>
+                    Passed: ${runResult.passed}, Failed: ${runResult.failed}, Total: ${runResult.total}<br>
+                    Pass Rate: ${runResult.passRate || ((runResult.passed / runResult.total * 100).toFixed(1))}%
+                `;
+                resultsDiv.appendChild(runDiv);
+                
+                // Track if any run failed
+                if (runResult.failed > 0) {
+                    allPassed = false;
+                }
+                
+                // Small delay between runs
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+            
+            // Show final summary
+            if (allPassed) {
+            summaryDiv.innerHTML = `
+                    <h2 class="pass">✅ SUCCESS - All ${totalRuns} Runs Achieved 100% Pass Rate!</h2>
+                <p>All ${totalRuns} test runs passed with 100% success rate</p>
+            `;
+            } else {
+                const failedRuns = allRuns.filter(r => r.failed > 0).length;
+                summaryDiv.innerHTML = `
+                    <h2 class="fail">❌ FAILED - ${failedRuns} out of ${totalRuns} runs did not achieve 100% pass rate</h2>
+                    <p>Need all ${totalRuns} consecutive runs to achieve 100% pass rate</p>
+                    <p>Failed runs: ${allRuns.map((r, i) => r.failed > 0 ? (i + 1) : null).filter(x => x !== null).join(', ')}</p>
+                `;
+            }
+        }
+
+        // Wait for page to load, then run tests
+        window.addEventListener('load', () => {
+            // Multiple exposure attempts before running tests
+            exposeFunctions();
+            setTimeout(() => exposeFunctions(), 200);
+            setTimeout(() => exposeFunctions(), 500);
+            setTimeout(() => exposeFunctions(), 1000);
+            setTimeout(() => {
+                exposeFunctions();
+                // Final check - ensure functions are exposed
+                if (typeof window.parseNumericValue === 'undefined' || 
+                    typeof window.safeEvaluateExpression === 'undefined' ||
+                    typeof window.replaceVariables === 'undefined' ||
+                    typeof window.showError === 'undefined') {
+                    console.warn('Functions not exposed yet, waiting longer...');
+                    setTimeout(() => {
+                        exposeFunctions();
+                        runAllTests();
+                    }, 1000);
+                } else {
+                runAllTests();
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
+

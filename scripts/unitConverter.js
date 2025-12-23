@@ -486,7 +486,7 @@ class UnitConverter {
     }
 
     // Format a number with appropriate precision
-    // ENHANCED: Configurable thresholds for scientific notation
+    // ENHANCED: High precision formatting - preserves accuracy for calculations
     static formatNumber(value, options = {}) {
         if (value === 0) return '0';
         
@@ -495,20 +495,24 @@ class UnitConverter {
         // ENHANCED: Configurable thresholds
         const largeThreshold = options.largeThreshold || 1e6;
         const smallThreshold = options.smallThreshold || 1e-3;
-        const precision = options.precision || 4;
+        const precision = options.precision || 10; // Increased from 4 to 10 for better precision
         
         // Use scientific notation for very large or very small numbers
         if (absValue >= largeThreshold || (absValue < smallThreshold && absValue > 0)) {
             return value.toExponential(precision);
         }
         
-        // Determine appropriate decimal places
+        // ENHANCED: Higher precision for all ranges to preserve calculation accuracy
+        // Use significant digits approach instead of fixed decimal places
         if (absValue >= 1000) {
-            return value.toFixed(2);
+            // For large numbers, show more significant digits
+            return value.toPrecision(10);
         } else if (absValue >= 1) {
-            return value.toFixed(4);
+            // For numbers >= 1, show up to 10 decimal places if needed
+            return value.toPrecision(10);
         } else {
-            return value.toFixed(6);
+            // For small numbers, show up to 10 significant digits
+            return value.toPrecision(10);
         }
     }
 
@@ -707,11 +711,11 @@ class UnitConverter {
         // Conversion factors to base units
         // CLEANUP: Uses canonical units only
         const conversionFactors = {
-            // Distance to meters
+            // Distance to meters (consistent with formulas.js and test constants)
             'km': 1000,
-            'AU': 1.496e11,
-            'pc': 3.086e16,
-            'ly': 9.461e15,
+            'AU': 1.496e11,              // Astronomical Unit (consistent)
+            'pc': 3.085677581e16,        // Parsec (consistent precision with formulas.js)
+            'ly': 9.461e15,              // Light-year
             'cm': 0.01,
             'mm': 0.001,
             'μm': 1e-6,

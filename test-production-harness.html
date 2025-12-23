@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Verification Harness</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #00ff00; text-shadow: 0 0 10px #00ff00; }
+        .test-output {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            font-size: 13px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 5px;
+        }
+        button:hover { background: #00cc66; }
+    </style>
+</head>
+<body>
+    <h1>🚀 Production-Grade Verification Harness</h1>
+    <p>Multi-Signal, Domain-Weighted Classifier Test</p>
+    
+    <button onclick="runTests()">Run Verification Tests</button>
+    <button onclick="testSingleQuery()">Test Single Query</button>
+    <button onclick="exportResults()">Export Results (JSON)</button>
+    
+    <div id="output" class="test-output">Ready to run tests...</div>
+    
+    <!-- Load dependencies -->
+    <script src="/scripts/formulas.js"></script>
+    <script src="/scripts/utils.js"></script>
+    <script src="/scripts/frqSupport.js"></script>
+    <script src="/scripts/ui.js"></script>
+    
+    <!-- Load harness -->
+    <script src="/tests/production-verification-harness.js"></script>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        async function runTests() {
+            output.textContent = 'Running production verification tests...\n\n';
+            
+            if (typeof ProductionVerificationHarness === 'undefined') {
+                log('❌ ProductionVerificationHarness not loaded!');
+                return;
+            }
+            
+            if (typeof filterAndRenderFormulas === 'undefined') {
+                log('❌ filterAndRenderFormulas not available!');
+                return;
+            }
+            
+            // Comprehensive test cases
+            const testCases = [
+                { base: "What is Kepler's third law?", expected: ["kepler_third_law", "kepler_third_law_solar"], category: "Orbital Mechanics" },
+                { base: "How do I calculate luminosity?", expected: ["luminosity", "stefan_boltzmann"], category: "Stellar Properties" },
+                { base: "Calculate redshift from wavelength shift", expected: ["redshift"], category: "Spectroscopy" },
+                { base: "temperature and wavelength", expected: ["wiens_law"], category: "Stellar Properties" },
+                { base: "escape velocity", expected: ["escape_velocity"], category: "Orbital Mechanics" },
+                { base: "black hole event horizon", expected: ["schwarzschild_radius"], category: "Black Holes" },
+                { base: "Hubble's law", expected: ["hubble_law"], category: "Cosmology" },
+                { base: "parallax distance", expected: ["parallax_distance"], category: "Distance" },
+                { base: "stellar lifetime", expected: ["stellar_lifetime"], category: "Stellar Properties" },
+                { base: "transit depth", expected: ["transit_depth"], category: "Exoplanets" },
+                { base: "angular resolution", expected: ["angular_resolution", "rayleigh_criterion"], category: "Telescopes" },
+                { base: "Doppler shift", expected: ["doppler_shift", "radial_velocity"], category: "Spectroscopy" },
+                { base: "mass luminosity relation", expected: ["mass_luminosity_relation"], category: "Stellar Properties" },
+                { base: "distance modulus", expected: ["distance_modulus"], category: "Distance" },
+                { base: "orbital period", expected: ["orbital_period", "kepler_third_law"], category: "Orbital Mechanics" }
+            ];
+            
+            const results = await ProductionVerificationHarness.runAll(testCases);
+            
+            log('\n✅ Tests complete!');
+            log(`Total: ${results.total}, Passed: ${results.passed}, Failed: ${results.failed}`);
+        }
+        
+        function testSingleQuery() {
+            const query = prompt('Enter an astrophysics question:');
+            if (!query) return;
+            
+            if (typeof compositeAstroScore === 'undefined') {
+                log('❌ compositeAstroScore not available!');
+                return;
+            }
+            
+            const score = compositeAstroScore(query);
+            log(`\nQuery: "${query}"`);
+            log(`Astro Score: ${score.normalized.toFixed(3)}`);
+            log(`Classification: ${score.classification}`);
+            log('\nComponent Scores:');
+            Object.entries(score.components).forEach(([name, value]) => {
+                log(`  ${name.padEnd(20)}: ${value.toFixed(3)}`);
+            });
+        }
+        
+        function exportResults() {
+            if (typeof ProductionVerificationHarness === 'undefined') {
+                log('❌ No results to export!');
+                return;
+            }
+            
+            const json = ProductionVerificationHarness.exportResults();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `verification-results-${new Date().toISOString()}.json`;
+            a.click();
+            log('✅ Results exported!');
+        }
+    </script>
+</body>
+</html>

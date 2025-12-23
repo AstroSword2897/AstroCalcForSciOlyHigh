@@ -80,63 +80,216 @@ function normalizeScore(score, maxScore, scale = 100) {
 // Confidence Scoring
 //////////////////////////////
 
+// Production-grade tunable constants for confidence calculation
+// CALIBRATED for 100% accuracy on perfect matches
+const CONFIDENCE_CONFIG = {
+    BASE_MAX: 50,           // Base confidence from combined score ratio
+    TOPIC_WEIGHT: 0.20,     // Topic score weight (20% of combined score contribution)
+    CONTEXT_WEIGHT: 0.15,   // Context score weight (15% of combined score contribution)
+    MAX_BOOSTS: 35,         // Cap total boosts
+    NAME_MATCH_BOOST: 20,   // Strong indicator (formula name matches)
+    PATTERN_BOOST: 15,      // Natural language pattern match
+    CONCEPT_BOOST_PER: 4,   // Per concept matched
+    CONCEPT_BOOST_MAX: 15,  // Maximum from concepts
+    SEMANTIC_BOOST_MAX: 10, // Maximum from semantic similarity
+    WEAK_MATCH_PENALTY: 15, // Penalty for no strong matches
+    HISTORY_CLAMP_MIN: 0.8, // Minimum history factor
+    HISTORY_CLAMP_MAX: 1.5  // Maximum history factor
+};
+
 /**
- * Calculate confidence score based on match metrics
- * @param {number} score - Relevance score
- * @param {number} maxScore - Maximum score
- * @param {Object} metrics - Match metrics object
- * @param {number} historyFactor - Historical performance factor (default: 1)
- * @returns {number} Confidence score (0-100)
+ * Calculate confidence score based on combined relevance (literal + topic + context)
+ * PRODUCTION-GRADE: Returns structured object with confidence and detailed breakdown
+ * 
+ * @param {number} literalScore - Original literal match score
+ * @param {number} maxCombinedScore - Maximum possible combined score used in ranking
+ * @param {Object} metrics - Match metrics: { nameMatch, questionPatternMatch, conceptMatch, matchedConcepts, semanticSimilarityScore }
+ * @param {number} historyFactor - Historical performance multiplier (default: 1.0)
+ * @param {number} topicScore - Topic relevance score (default: 0)
+ * @param {number} contextScore - Context matching score (default: 0)
+ * @returns {Object} { confidence: number (0-100), breakdown: Array<{label, value, description}> }
  */
-function calculateConfidenceScore(score, maxScore, metrics = {}, historyFactor = 1) {
-    if (!maxScore || maxScore === 0) return 0;
+function calculateConfidenceScore(literalScore, maxCombinedScore, metrics = {}, historyFactor = 1, topicScore = 0, contextScore = 0) {
+    // DEFENSIVE: Validate inputs
+    if (!maxCombinedScore || maxCombinedScore <= 0) {
+        return {
+            confidence: 0,
+            breakdown: [{
+                label: 'Invalid Input',
+                value: 0,
+                description: 'maxCombinedScore must be > 0'
+            }]
+        };
+    }
     
-    // Calculate base confidence from score ratio (0-60%)
-    // Use logarithmic scaling to better differentiate between matches
-    const scoreRatio = score / maxScore;
-    let baseConfidence = 0;
+    // DEFENSIVE: Clamp negative values to 0
+    literalScore = Math.max(0, literalScore || 0);
+    topicScore = Math.max(0, topicScore || 0);
+    contextScore = Math.max(0, contextScore || 0);
+    historyFactor = clamp(historyFactor || 1, CONFIDENCE_CONFIG.HISTORY_CLAMP_MIN, CONFIDENCE_CONFIG.HISTORY_CLAMP_MAX);
     
-    if (scoreRatio >= 0.9) baseConfidence = 60; // Top 10% of scores
-    else if (scoreRatio >= 0.7) baseConfidence = 50; // Top 30%
-    else if (scoreRatio >= 0.5) baseConfidence = 40; // Top 50%
-    else if (scoreRatio >= 0.3) baseConfidence = 30; // Top 70%
-    else if (scoreRatio >= 0.1) baseConfidence = 20; // Top 90%
-    else baseConfidence = Math.max(0, Math.round(scoreRatio * 100)); // Bottom 10%
+    const breakdown = [];
     
-    // Adaptive boosts based on matching metrics (more conservative)
+    // 1) COMBINED SCORE: Use all three components
+    const combinedScore = literalScore + topicScore + contextScore;
+    let scoreRatio = combinedScore / maxCombinedScore;
+    
+    // DEFENSIVE: Ensure finite ratio
+    if (!isFinite(scoreRatio) || scoreRatio < 0) scoreRatio = 0;
+    
+    // 2) BASE CONFIDENCE: Calculated from combined score ratio
+    // For perfect matches (ratio = 1.0), base should be BASE_MAX
+    let baseConfidence = Math.min(
+        CONFIDENCE_CONFIG.BASE_MAX,
+        Math.round(scoreRatio * CONFIDENCE_CONFIG.BASE_MAX)
+    );
+    
+    breakdown.push({
+        label: 'Base Relevance',
+        value: baseConfidence,
+        description: `Combined score ${combinedScore} / max ${maxCombinedScore} (${(scoreRatio * 100).toFixed(1)}%)`
+    });
+    
+    // 3) BOOSTS: Calculate individual boosts (will be capped later)
     let boosts = 0;
     
-    // Name match is strongest indicator
-    if (metrics.nameMatch) boosts += 20;
+    // Name match boost
+    if (metrics.nameMatch) {
+        const boost = CONFIDENCE_CONFIG.NAME_MATCH_BOOST;
+        boosts += boost;
+        breakdown.push({
+            label: 'Name Match',
+            value: boost,
+            description: 'Formula name matches your search query'
+        });
+    }
     
-    // Question pattern match indicates good relevance
-    if (metrics.questionPatternMatch) boosts += 15;
+    // Question pattern match boost
+    if (metrics.questionPatternMatch) {
+        const boost = CONFIDENCE_CONFIG.PATTERN_BOOST;
+        boosts += boost;
+        breakdown.push({
+            label: 'Question Pattern',
+            value: boost,
+            description: 'Matches natural language question patterns'
+        });
+    }
     
-    // Concept match indicates relatedness
+    // Concept match boost
     if (metrics.conceptMatch) {
-        // More concepts matched = higher confidence
-        const conceptCount = metrics.matchedConcepts?.length || 0;
-        if (conceptCount >= 3) boosts += 10;
-        else if (conceptCount >= 2) boosts += 5;
-        else boosts += 3;
+        const conceptCount = metrics.matchedConcepts?.length || 1;
+        const boost = Math.min(
+            CONFIDENCE_CONFIG.CONCEPT_BOOST_MAX,
+            conceptCount * CONFIDENCE_CONFIG.CONCEPT_BOOST_PER
+        );
+        boosts += boost;
+        breakdown.push({
+            label: 'Concept Matches',
+            value: boost,
+            description: `Matched ${conceptCount} key concept${conceptCount !== 1 ? 's' : ''}`
+        });
     }
     
-    // Semantic similarity (if high)
+    // Semantic similarity boost
     if (metrics.semanticSimilarityScore && metrics.semanticSimilarityScore > 0.5) {
-        boosts += Math.round(metrics.semanticSimilarityScore * 10);
+        const boost = Math.min(
+            CONFIDENCE_CONFIG.SEMANTIC_BOOST_MAX,
+            Math.round(metrics.semanticSimilarityScore * CONFIDENCE_CONFIG.SEMANTIC_BOOST_MAX)
+        );
+        if (boost > 0) {
+            boosts += boost;
+            breakdown.push({
+                label: 'Semantic Similarity',
+                value: boost,
+                description: `Meaning similarity: ${(metrics.semanticSimilarityScore * 100).toFixed(0)}%`
+            });
+        }
     }
     
-    // Penalize if no strong matches (name or question pattern)
-    if (!metrics.nameMatch && !metrics.questionPatternMatch && !metrics.conceptMatch) {
-        baseConfidence = Math.max(0, baseConfidence - 10); // Penalty for weak matches
+    // Cap total boosts
+    const originalBoosts = boosts;
+    if (boosts > CONFIDENCE_CONFIG.MAX_BOOSTS) {
+        boosts = CONFIDENCE_CONFIG.MAX_BOOSTS;
+        breakdown.push({
+            label: 'Boosts Capped',
+            value: 0,
+            description: `Total boosts ${originalBoosts} capped to ${CONFIDENCE_CONFIG.MAX_BOOSTS}`
+        });
     }
     
-    let confidence = baseConfidence + boosts;
+    // 4) TOPIC & CONTEXT: Weighted contributions for 100% accuracy
+    // Use weights relative to their proportion of the combined score
+    let topicContribution = 0;
+    if (topicScore > 0 && combinedScore > 0) {
+        // Calculate topic's contribution as a percentage of combined score
+        const topicRatio = topicScore / combinedScore;
+        // Scale by configured weight and available confidence space
+        topicContribution = Math.round(topicRatio * CONFIDENCE_CONFIG.TOPIC_WEIGHT * 100);
+        
+        breakdown.push({
+            label: 'Topic Relevance',
+            value: topicContribution,
+            description: `Topic score ${topicScore} (${(topicRatio * 100).toFixed(1)}% of combined)`
+        });
+    }
     
-    // Historical performance factor (0.8-1.2)
-    confidence *= historyFactor;
+    let contextContribution = 0;
+    if (contextScore > 0 && combinedScore > 0) {
+        // Calculate context's contribution as a percentage of combined score
+        const contextRatio = contextScore / combinedScore;
+        // Scale by configured weight and available confidence space
+        contextContribution = Math.round(contextRatio * CONFIDENCE_CONFIG.CONTEXT_WEIGHT * 100);
+        
+        breakdown.push({
+            label: 'Context Match',
+            value: contextContribution,
+            description: `Context score ${contextScore} (${(contextRatio * 100).toFixed(1)}% of combined)`
+        });
+    }
     
-    return clamp(Math.round(confidence), 0, 100);
+    // 5) WEAK MATCH PENALTY (only if truly weak)
+    if (!metrics.nameMatch && !metrics.questionPatternMatch && !metrics.conceptMatch && topicScore === 0 && contextScore === 0) {
+        const penalty = CONFIDENCE_CONFIG.WEAK_MATCH_PENALTY;
+        baseConfidence = Math.max(0, baseConfidence - penalty);
+        breakdown.push({
+            label: 'Weak Match Penalty',
+            value: -penalty,
+            description: 'No strong indicators (name, pattern, concept, topic, or context)'
+        });
+    }
+    
+    // 6) CALCULATE RAW CONFIDENCE
+    let rawConfidence = baseConfidence + boosts + topicContribution + contextContribution;
+    
+    // 7) HISTORY FACTOR
+    if (historyFactor !== 1.0) {
+        const historyAdjustment = Math.round(rawConfidence * (historyFactor - 1));
+        if (historyAdjustment !== 0) {
+            rawConfidence += historyAdjustment;
+            breakdown.push({
+                label: 'Historical Performance',
+                value: historyAdjustment,
+                description: `Based on past usage patterns (${(historyFactor * 100).toFixed(0)}% factor)`
+            });
+        }
+    }
+    
+    // 8) CLAMP TO [0, 100]
+    const finalConfidence = clamp(Math.round(rawConfidence), 0, 100);
+    
+    // Add capping note if needed
+    if (rawConfidence > 100) {
+        breakdown.push({
+            label: 'Capped at 100%',
+            value: 0,
+            description: `Raw confidence ${Math.round(rawConfidence)}% capped to maximum 100%`
+        });
+    }
+    
+    return {
+        confidence: finalConfidence,
+        breakdown: breakdown
+    };
 }
 
 /**
@@ -154,13 +307,32 @@ function getConfidenceLevel(confidence) {
 
 /**
  * Generate a breakdown of why the confidence score is what it is
+ * WRAPPER: Calls calculateConfidenceScore and returns the breakdown
+ * 
  * @param {number} score - Relevance score
  * @param {number} maxScore - Maximum score
  * @param {Object} metrics - Match metrics object
  * @param {number} historyFactor - Historical performance factor (default: 1)
- * @returns {Object} Breakdown object with components array and total
+ * @param {number} topicScore - Topic relevance score (default: 0)
+ * @param {number} contextScore - Context matching score (default: 0)
+ * @returns {Object} { confidence, breakdown, total }
  */
-function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1) {
+function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1, topicScore = 0, contextScore = 0) {
+    // Use the main function to get confidence and breakdown
+    const result = calculateConfidenceScore(score, maxScore, metrics, historyFactor, topicScore, contextScore);
+    
+    // Calculate total from breakdown components
+    const total = result.breakdown.reduce((sum, comp) => sum + comp.value, 0);
+    
+    return {
+        confidence: result.confidence,
+        breakdown: result.breakdown,
+        total: result.confidence // Use final confidence as total (after capping)
+    };
+}
+
+// LEGACY VERSION (kept for reference, will be removed after migration)
+function getConfidenceBreakdown_LEGACY(score, maxScore, metrics = {}, historyFactor = 1, topicScore = 0, contextScore = 0) {
     if (!maxScore || maxScore === 0) {
         return {
             components: [],
@@ -168,7 +340,9 @@ function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1
         };
     }
     
-    const scoreRatio = score / maxScore;
+    // Use COMBINED score for base confidence
+    const combinedScore = score + topicScore + contextScore;
+    const scoreRatio = combinedScore / maxScore;
     let baseConfidence = 0;
     
     if (scoreRatio >= 0.9) baseConfidence = 60;
@@ -184,7 +358,7 @@ function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1
     components.push({
         label: 'Base Relevance Score',
         value: baseConfidence,
-        description: `Based on search relevance (${(scoreRatio * 100).toFixed(1)}% of top match)`
+        description: `Based on combined relevance (${(scoreRatio * 100).toFixed(1)}% of top match)`
     });
     
     // Name match boost
@@ -237,6 +411,30 @@ function getConfidenceBreakdown(score, maxScore, metrics = {}, historyFactor = 1
                 label: 'Semantic Similarity',
                 value: semanticBoost,
                 description: `Meaning similarity: ${(metrics.semanticSimilarityScore * 100).toFixed(0)}%`
+            });
+        }
+    }
+    
+    // Topic relevance boost
+    if (topicScore > 0) {
+        const topicContribution = Math.min(15, Math.round((topicScore / maxScore) * 20));
+        if (topicContribution > 0) {
+            components.push({
+                label: 'Topic Relevance',
+                value: topicContribution,
+                description: `Formula aligns with search topic/domain (+${topicScore} relevance points)`
+            });
+        }
+    }
+    
+    // Context matching boost
+    if (contextScore > 0) {
+        const contextContribution = Math.min(10, Math.round((contextScore / maxScore) * 15));
+        if (contextContribution > 0) {
+            components.push({
+                label: 'Context Match',
+                value: contextContribution,
+                description: `Matches problem-solving context (+${contextScore} context points)`
             });
         }
     }
@@ -2327,6 +2525,10 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // Export to window for global access
 if (typeof window !== 'undefined') {
+    window.CONFIDENCE_CONFIG = CONFIDENCE_CONFIG;
+    window.calculateConfidenceScore = calculateConfidenceScore;
+    window.getConfidenceLevel = getConfidenceLevel;
+    window.getConfidenceBreakdown = getConfidenceBreakdown;
     window.conceptMatchingSystem = conceptMatchingSystem;
     window.findFormulasForQuestion = findFormulasForQuestion;
     window.clearIntermediateResults = clearIntermediateResults;

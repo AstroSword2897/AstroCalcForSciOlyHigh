@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complex Problems Test - AstroCalc</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        .test-section {
+            background: #1e293b;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-section h2 {
+            color: #a8c7ff;
+            margin-top: 0;
+        }
+        .problem-graph {
+            background: #0f172a;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            border: 1px solid #334155;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .problem-graph code {
+            color: #4ade80;
+        }
+        .solve-steps {
+            background: #1e293b;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            border: 1px solid #475569;
+        }
+        .step {
+            background: #0f172a;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 4px;
+            border-left: 3px solid #4ade80;
+        }
+        .step.failed {
+            border-left-color: #f87171;
+        }
+        .step-header {
+            font-weight: bold;
+            color: #4ade80;
+            margin-bottom: 8px;
+        }
+        .step.failed .step-header {
+            color: #f87171;
+        }
+        .step-details {
+            color: #cbd5e1;
+            font-size: 0.9em;
+            margin-left: 15px;
+        }
+        .input-group {
+            display: inline-block;
+            margin: 10px 15px 10px 0;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #cbd5e1;
+            font-size: 0.9em;
+        }
+        .input-group input {
+            width: 150px;
+            padding: 8px;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            color: #e2e8f0;
+        }
+        .test-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 0.95em;
+        }
+        .test-btn:hover {
+            background: #5568d3;
+        }
+        .result {
+            background: #0f172a;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            border-left: 3px solid #4ade80;
+        }
+        .result.error {
+            border-left-color: #f87171;
+        }
+        .verification {
+            background: #1e293b;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #334155;
+        }
+        .verification.passed {
+            border-color: #4ade80;
+        }
+        .verification.warning {
+            border-color: #fbbf24;
+        }
+        .loading {
+            color: #94a3b8;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Complex Problems Test Suite</h1>
+    <p>Testing multi-step problem solving with solve graphs</p>
+    
+    <div id="loading-status" class="loading">Loading formulas, calculator, and multi-step solver...</div>
+
+    <!-- Test 1: Luminosity from Apparent Magnitude -->
+    <div class="test-section">
+        <h2>Problem 1: Luminosity from Apparent Magnitude</h2>
+        
+        <div class="problem-graph">
+            <strong>Solve Graph:</strong><br>
+            <code>m, d, A → M → L</code><br><br>
+            <strong>Steps:</strong><br>
+            1. <code>distance_modulus</code>: m, d, A → M<br>
+            2. <code>luminosity_absolute_magnitude</code>: M → L
+        </div>
+
+        <div class="input-group">
+            <label>Apparent Magnitude (m):</label>
+            <input type="number" id="p1-m" value="2.5" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Distance (parsecs):</label>
+            <input type="number" id="p1-d" value="2.5" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Extinction (A):</label>
+            <input type="number" id="p1-A" value="0" step="0.1">
+        </div>
+        
+        <button class="test-btn" onclick="testProblem1()">Solve</button>
+        
+        <div id="p1-result" class="result" style="display: none;"></div>
+        <div id="p1-steps" class="solve-steps" style="display: none;"></div>
+        <div id="p1-verification" class="verification" style="display: none;"></div>
+    </div>
+
+    <!-- Test 2: Temperature from Luminosity -->
+    <div class="test-section">
+        <h2>Problem 2: Temperature from Luminosity and Radius</h2>
+        
+        <div class="problem-graph">
+            <strong>Solve Graph:</strong><br>
+            <code>L, R → T</code><br><br>
+            <strong>Steps:</strong><br>
+            1. <code>luminosity</code>: L, R → T (Stefan-Boltzmann)
+        </div>
+
+        <div class="input-group">
+            <label>Luminosity (L☉):</label>
+            <input type="number" id="p2-L" value="0.492" step="0.001">
+        </div>
+        <div class="input-group">
+            <label>Radius (R☉):</label>
+            <input type="number" id="p2-R" value="0.76" step="0.01">
+        </div>
+        
+        <button class="test-btn" onclick="testProblem2()">Solve</button>
+        
+        <div id="p2-result" class="result" style="display: none;"></div>
+        <div id="p2-steps" class="solve-steps" style="display: none;"></div>
+    </div>
+
+    <!-- Test 3: Exoplanet Temperature -->
+    <div class="test-section">
+        <h2>Problem 3: Exoplanet Equilibrium Temperature</h2>
+        
+        <div class="problem-graph">
+            <strong>Solve Graph:</strong><br>
+            <code>T_star, R_star, a, A → T_eq</code><br><br>
+            <strong>Steps:</strong><br>
+            1. <code>planetary_equilibrium_temperature</code>: T_star, R_star, a, A → T_eq
+        </div>
+
+        <div class="input-group">
+            <label>Star Temperature (K):</label>
+            <input type="number" id="p3-Tstar" value="5550" step="10">
+        </div>
+        <div class="input-group">
+            <label>Star Radius (R☉):</label>
+            <input type="number" id="p3-Rstar" value="0.76" step="0.01">
+        </div>
+        <div class="input-group">
+            <label>Orbital Distance (AU):</label>
+            <input type="number" id="p3-a" value="1.4" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Albedo:</label>
+            <input type="number" id="p3-A" value="0.4" step="0.1">
+        </div>
+        
+        <button class="test-btn" onclick="testProblem3()">Solve</button>
+        
+        <div id="p3-result" class="result" style="display: none;"></div>
+        <div id="p3-steps" class="solve-steps" style="display: none;"></div>
+    </div>
+
+    <!-- Load scripts FIRST -->
+    <script src="scripts/formulas.js"></script>
+    <script src="scripts/calculator.js"></script>
+    <script src="scripts/multiStepSolver.js"></script>
+
+    <script>
+        let formulasLoaded = false;
+        let calculatorLoaded = false;
+        let solverLoaded = false;
+
+        function checkLoaded() {
+            const loadingStatus = document.getElementById('loading-status');
+            
+            if (typeof formulas !== 'undefined' && Array.isArray(formulas) && formulas.length > 0) {
+                formulasLoaded = true;
+            }
+            
+            if (typeof FormulaCalculator !== 'undefined') {
+                calculatorLoaded = true;
+            }
+            
+            if (typeof MultiStepSolver !== 'undefined') {
+                solverLoaded = true;
+            }
+            
+            if (formulasLoaded && calculatorLoaded && solverLoaded) {
+                loadingStatus.innerHTML = '<strong style="color: #4ade80;">✅ All systems loaded successfully!</strong>';
+                loadingStatus.style.color = '#4ade80';
+            } else {
+                setTimeout(checkLoaded, 100);
+            }
+        }
+
+        checkLoaded();
+
+        function formatNumber(num, decimals = 3) {
+            if (num === null || num === undefined || !isFinite(num)) return 'N/A';
+            if (Math.abs(num) < 0.001) return num.toExponential(decimals);
+            return num.toFixed(decimals);
+        }
+
+        function testProblem1() {
+            if (!formulasLoaded || !calculatorLoaded || !solverLoaded) {
+                alert('Please wait for all systems to load!');
+                return;
+            }
+
+            const m = parseFloat(document.getElementById('p1-m').value);
+            const d = parseFloat(document.getElementById('p1-d').value);
+            const A = parseFloat(document.getElementById('p1-A').value);
+
+            try {
+                // Create context with initial variables
+                const context = new SolveContext({ m, d, A });
+                
+                // Create solver and execute steps
+                const solver = new MultiStepSolver(formulas);
+                solver.solve(CommonSolvePlans.luminosityFromApparentMagnitude, context);
+                
+                // Extract results from context
+                const result = {
+                    state: context.getAll(),
+                    log: context.trace,
+                    warnings: context.warnings
+                };
+
+                // Display result
+                const resultDiv = document.getElementById('p1-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>Final Result</h3>
+                    <div><strong>Luminosity:</strong> ${formatNumber(result.state.L)} L☉</div>
+                    <div><strong>Absolute Magnitude:</strong> ${formatNumber(result.state.M)}</div>
+                `;
+
+                // Display steps from context trace
+                const stepsDiv = document.getElementById('p1-steps');
+                stepsDiv.style.display = 'block';
+                stepsDiv.innerHTML = '<h3>Solve Steps:</h3>';
+                
+                for (let i = 0; i < result.log.length; i++) {
+                    const step = result.log[i];
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'step';
+                    stepDiv.innerHTML = `
+                        <div class="step-header">Step ${i + 1}: ${step.formula || 'Calculate ' + step.varName}</div>
+                        <div class="step-details">
+                            Formula: <code>${step.formula}</code><br>
+                            Inputs: ${Object.entries(step.inputs || {}).map(([k, v]) => `<code>${k} = ${formatNumber(v)}</code>`).join(', ')}<br>
+                            Output: <code>${step.varName} = ${formatNumber(step.value)}</code>
+                        </div>
+                    `;
+                    stepsDiv.appendChild(stepDiv);
+                }
+
+                // Display warnings
+                const verifDiv = document.getElementById('p1-verification');
+                if (result.warnings.length > 0) {
+                    verifDiv.style.display = 'block';
+                    verifDiv.className = 'verification warning';
+                    verifDiv.innerHTML = `
+                        <h3>Warnings:</h3>
+                        ${result.warnings.map(w => `<div style="color: #fbbf24;">⚠ ${w}</div>`).join('')}
+                    `;
+                } else {
+                    verifDiv.style.display = 'block';
+                    verifDiv.className = 'verification passed';
+                    verifDiv.innerHTML = '<h3>✓ All checks passed</h3>';
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('p1-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+
+        function testProblem2() {
+            if (!formulasLoaded || !calculatorLoaded || !solverLoaded) {
+                alert('Please wait for all systems to load!');
+                return;
+            }
+
+            const L_solar = parseFloat(document.getElementById('p2-L').value);
+            const R_solar = parseFloat(document.getElementById('p2-R').value);
+
+            // Convert to SI units
+            const L_sun = 3.828e26; // watts
+            const R_sun = 6.96e8; // meters
+            const L = L_solar * L_sun;
+            const R = R_solar * R_sun;
+
+            try {
+                const context = new SolveContext({ L, R });
+                const solver = new MultiStepSolver(formulas);
+                solver.solve(CommonSolvePlans.temperatureFromLuminosity, context);
+                
+                const result = {
+                    state: context.getAll(),
+                    log: context.trace,
+                    warnings: context.warnings
+                };
+
+                const resultDiv = document.getElementById('p2-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>Final Result</h3>
+                    <div><strong>Temperature:</strong> ${formatNumber(result.state.T)} K</div>
+                `;
+
+                const stepsDiv = document.getElementById('p2-steps');
+                stepsDiv.style.display = 'block';
+                stepsDiv.innerHTML = '<h3>Solve Steps:</h3>';
+                for (let i = 0; i < result.log.length; i++) {
+                    const step = result.log[i];
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'step';
+                    stepDiv.innerHTML = `
+                        <div class="step-header">Step ${i + 1}: ${step.formula || 'Calculate ' + step.varName}</div>
+                        <div class="step-details">
+                            Formula: <code>${step.formula}</code><br>
+                            Inputs: ${Object.entries(step.inputs || {}).map(([k, v]) => `<code>${k} = ${formatNumber(v)}</code>`).join(', ')}<br>
+                            Output: <code>${step.varName} = ${formatNumber(step.value)}</code>
+                        </div>
+                    `;
+                    stepsDiv.appendChild(stepDiv);
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('p2-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+
+        function testProblem3() {
+            if (!formulasLoaded || !calculatorLoaded || !solverLoaded) {
+                alert('Please wait for all systems to load!');
+                return;
+            }
+
+            const T_star = parseFloat(document.getElementById('p3-Tstar').value);
+            const R_star_solar = parseFloat(document.getElementById('p3-Rstar').value);
+            const a_AU = parseFloat(document.getElementById('p3-a').value);
+            const A = parseFloat(document.getElementById('p3-A').value);
+
+            // Convert to SI units
+            const R_sun = 6.96e8; // meters
+            const AU = 1.496e11; // meters
+            const R_star = R_star_solar * R_sun;
+            const a = a_AU * AU;
+
+            try {
+                const context = new SolveContext({ T_star, R_star, a, A });
+                const solver = new MultiStepSolver(formulas);
+                solver.solve(CommonSolvePlans.exoplanetEquilibriumTemperature, context);
+                
+                const result = {
+                    state: context.getAll(),
+                    log: context.trace,
+                    warnings: context.warnings
+                };
+
+                const resultDiv = document.getElementById('p3-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result';
+                resultDiv.innerHTML = `
+                    <h3>Final Result</h3>
+                    <div><strong>Equilibrium Temperature:</strong> ${formatNumber(result.state.T_eq)} K</div>
+                `;
+
+                const stepsDiv = document.getElementById('p3-steps');
+                stepsDiv.style.display = 'block';
+                stepsDiv.innerHTML = '<h3>Solve Steps:</h3>';
+                for (let i = 0; i < result.log.length; i++) {
+                    const step = result.log[i];
+                    const stepDiv = document.createElement('div');
+                    stepDiv.className = 'step';
+                    stepDiv.innerHTML = `
+                        <div class="step-header">Step ${i + 1}: ${step.formula || 'Calculate ' + step.varName}</div>
+                        <div class="step-details">
+                            Formula: <code>${step.formula}</code><br>
+                            Inputs: ${Object.entries(step.inputs || {}).map(([k, v]) => `<code>${k} = ${formatNumber(v)}</code>`).join(', ')}<br>
+                            Output: <code>${step.varName} = ${formatNumber(step.value)}</code>
+                        </div>
+                    `;
+                    stepsDiv.appendChild(stepDiv);
+                }
+
+            } catch (error) {
+                const resultDiv = document.getElementById('p3-result');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
+

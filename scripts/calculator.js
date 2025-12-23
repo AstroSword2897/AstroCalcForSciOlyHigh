@@ -86,7 +86,7 @@ class VariableNormalizer {
         'γmax': 'gamma_max',
         
         'Δ': 'Delta',
-        'Δt\'': 'delta_t_prime',
+        "Δt'": 'delta_t_prime',
         'delta_t_prime': 'delta_t_prime',
         'ΔT_GH': 'delta_T_GH',
         'delta_T_GH': 'delta_T_GH',
@@ -121,7 +121,7 @@ class VariableNormalizer {
         'B-V': 'B_V',
         'M_V': 'M_V',
         'M-V': 'M_V',
-        'L\'': 'L_prime',
+        "L'": 'L_prime',
         'L_prime': 'L_prime',
         'dP_dr': 'dP_dr',
         'da_dt': 'da_dt',
@@ -176,17 +176,26 @@ class VariableNormalizer {
             return vars;
         }
         
+        // OPTIMIZED: Only store normalized keys to avoid memory duplication
         const normalized = {};
         for (const [key, value] of Object.entries(vars)) {
             const normalizedKey = this.normalize(key);
-            // If normalization changed the key, preserve both for compatibility
             normalized[normalizedKey] = value;
-            if (normalizedKey !== key) {
-                normalized[key] = value; // Keep original for backward compatibility
-            }
+            // Don't store duplicates - consumers should use normalized keys via getWithFallback()
         }
         
         return normalized;
+    }
+    
+    /**
+     * Get value with fallback to original key (for backward compatibility)
+     * @param {Object} vars - Variables object
+     * @param {string} key - Key to look up
+     * @returns {*} Value if found, undefined otherwise
+     */
+    static getWithFallback(vars, key) {
+        const normalized = this.normalize(key);
+        return vars[normalized] ?? vars[key]; // Try normalized first, then original
     }
     
     /**
@@ -271,60 +280,149 @@ class CalculationError extends Error {
 class SafeMathEvaluator {
     /**
      * Evaluate a mathematical expression safely
-     * ENHANCED: Better validation, token-based variable replacement, and improved security
+     * ENHANCED: HIGH PRIORITY - Improved security sandboxing, comprehensive input validation
+     * 
+     * Security Features:
+     * - AST-based evaluation (no eval/Function)
+     * - Dangerous pattern detection
+     * - Character whitelist validation
+     * - Variable injection protection
+     * - Recursion depth limits
+     * - Result validation
+     * 
      * @param {string} expression - Mathematical expression (e.g., "2 * 3 + 4")
      * @param {Object} vars - Optional variables to substitute (for safer variable replacement)
      * @returns {number} Evaluated result
      * @throws {CalculationError} If expression is invalid or unsafe
      */
     static evaluate(expression, vars = {}) {
+        // ENHANCED: Comprehensive input validation before any processing
         if (!expression || typeof expression !== 'string') {
-            throw new CalculationError('Expression must be a non-empty string', {
-                step: 'Input validation'
-            });
+            throw new CalculationError(
+                'Expression must be a non-empty string',
+                {
+                    step: 'Input validation',
+                    inputType: typeof expression,
+                    inputValue: String(expression).substring(0, 50)
+                }
+            );
+        }
+        
+        // ENHANCED: Validate vars parameter
+        if (vars !== null && typeof vars !== 'object') {
+            throw new CalculationError(
+                `Variables must be an object or null, got: ${typeof vars}`,
+                {
+                    step: 'Input validation',
+                    varsType: typeof vars
+                }
+            );
+        }
+        
+        // ENHANCED: Validate expression length (prevent DoS via extremely long strings)
+        const MAX_EXPRESSION_LENGTH = 10000;
+        if (expression.length > MAX_EXPRESSION_LENGTH) {
+            throw new CalculationError(
+                `Expression too long (${expression.length} chars). Maximum allowed: ${MAX_EXPRESSION_LENGTH}`,
+                {
+                    step: 'Input validation',
+                    length: expression.length,
+                    maxLength: MAX_EXPRESSION_LENGTH
+                }
+            );
         }
         
         // Remove whitespace
         let expr = expression.trim();
         
         if (expr.length === 0) {
-            throw new CalculationError('Expression cannot be empty', {
-                step: 'Input validation'
+            throw new CalculationError('Expression cannot be empty after trimming', {
+                step: 'Input validation',
+                originalLength: expression.length
             });
         }
         
-        // ENHANCED: More comprehensive dangerous pattern detection
+        // ENHANCED: Validate variable names in vars object (prevent prototype pollution)
+        if (vars && typeof vars === 'object') {
+            const dangerousVarNames = ['__proto__', 'constructor', 'prototype', '__defineGetter__', '__defineSetter__'];
+            for (const varName of Object.keys(vars)) {
+                if (dangerousVarNames.includes(varName)) {
+                    throw new CalculationError(
+                        `Dangerous variable name detected: ${varName}. This may indicate a security issue.`,
+                        {
+                            step: 'Input validation',
+                            variable: varName
+                        }
+                    );
+                }
+                // Validate variable values are safe
+                const varValue = vars[varName];
+                if (varValue !== null && varValue !== undefined) {
+                    if (typeof varValue !== 'number' || !isFinite(varValue)) {
+                        throw new CalculationError(
+                            `Variable '${varName}' has invalid value: ${varValue}. Must be a finite number.`,
+                            {
+                                step: 'Input validation',
+                                variable: varName,
+                                value: varValue,
+                                valueType: typeof varValue
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        
+        // ENHANCED: More comprehensive dangerous pattern detection (security sandboxing)
+        // These patterns indicate potential code injection attempts
         const dangerousPatterns = [
-            /eval\s*\(/i,
-            /function\s*\(/i,
-            /new\s+Function/i,
-            /constructor/i,
-            /prototype/i,
-            /__proto__/i,
-            /import\s*\(/i,
-            /require\s*\(/i,
-            /document\./i,
-            /window\./i,
-            /global\./i,
-            /process\./i,
-            /\.call\(/i,
-            /\.apply\(/i,
-            /\.bind\(/i,
-            /setTimeout/i,
-            /setInterval/i,
-            /exec\(/i,
-            /compile\(/i
+            { pattern: /eval\s*\(/i, reason: 'eval() can execute arbitrary code' },
+            { pattern: /function\s*\(/i, reason: 'Function declaration can execute code' },
+            { pattern: /new\s+Function/i, reason: 'Function constructor can execute code' },
+            { pattern: /constructor/i, reason: 'Constructor access can modify prototypes' },
+            { pattern: /prototype/i, reason: 'Prototype access can modify object behavior' },
+            { pattern: /__proto__/i, reason: 'Prototype pollution vulnerability' },
+            { pattern: /import\s*\(/i, reason: 'Dynamic import can load external code' },
+            { pattern: /require\s*\(/i, reason: 'require() can load modules' },
+            { pattern: /document\./i, reason: 'DOM access not allowed in math expressions' },
+            { pattern: /window\./i, reason: 'Window object access not allowed' },
+            { pattern: /global\./i, reason: 'Global object access not allowed' },
+            { pattern: /process\./i, reason: 'Process object access not allowed' },
+            { pattern: /\.call\(/i, reason: 'call() can execute functions dynamically' },
+            { pattern: /\.apply\(/i, reason: 'apply() can execute functions dynamically' },
+            { pattern: /\.bind\(/i, reason: 'bind() can create function wrappers' },
+            { pattern: /setTimeout/i, reason: 'setTimeout can execute delayed code' },
+            { pattern: /setInterval/i, reason: 'setInterval can execute repeated code' },
+            { pattern: /exec\(/i, reason: 'exec() can execute system commands' },
+            { pattern: /compile\(/i, reason: 'compile() can compile code' },
+            { pattern: /with\s*\(/i, reason: 'with statement can modify scope' },
+            { pattern: /debugger/i, reason: 'debugger statement can halt execution' },
+            { pattern: /<script/i, reason: 'Script tags not allowed' },
+            { pattern: /javascript:/i, reason: 'javascript: protocol not allowed' }
         ];
         
-        for (const pattern of dangerousPatterns) {
+        for (const { pattern, reason } of dangerousPatterns) {
             if (pattern.test(expr)) {
                 throw new CalculationError(
-                    `Expression contains potentially unsafe code: ${pattern.source}`,
-                    { step: 'Security validation', inputs: { expression: expr.substring(0, 50) } }
+                    `Expression contains potentially unsafe code: ${reason}. Pattern: ${pattern.source}`,
+                    {
+                        step: 'Security validation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        reason: reason,
+                        pattern: pattern.source
+                    }
                 );
             }
         }
         
+        // Normalize common unicode operators to ASCII (keeps evaluator robust)
+        // NOTE: this happens before validation so the validator doesn't need to allow these glyphs.
+        expr = expr
+            .replace(/×/g, '*')
+            .replace(/÷/g, '/')
+            .replace(/−/g, '-')  // unicode minus
+            .replace(/π/g, 'PI'); // normalize pi symbol to PI constant token
+
         // ENHANCED: Validate allowed characters more strictly
         // Allow: numbers, operators, parentheses, Math functions, whitespace, and variable names
         const allowedMathFunctions = ['sqrt', 'cbrt', 'log', 'log10', 'ln', 'sin', 'cos', 'tan', 
@@ -340,7 +438,8 @@ class SafeMathEvaluator {
         validationExpr = validationExpr.replace(/[\d.eE+\-]+/g, 'NUM');
         
         // Check remaining characters are only allowed operators and parentheses
-        const safeCharPattern = /^[+\-*/().\s,NUMVARMath\.]*$/;
+        // Include '^' (power) and ',' (function arguments)
+        const safeCharPattern = /^[+\-*/^().\s,NUMVARMath\.]*$/;
         if (!safeCharPattern.test(validationExpr)) {
             throw new CalculationError(
                 'Expression contains unsafe characters',
@@ -353,101 +452,202 @@ class SafeMathEvaluator {
             expr = this.replaceVariablesSafely(expr, vars);
         }
         
-        // ENHANCED: Use safer evaluation with limited scope
-        // Instead of bare Function(), we pass only allowed Math functions as parameters
+        // CRITICAL SECURITY FIX: Use AST-based evaluation instead of Function()
+        // This eliminates code injection vulnerabilities entirely
+        // ENHANCED: Comprehensive error handling and validation at each step
         try {
-            // Define allowed Math functions in a safe scope
-            const allowedFunctions = {
-                sqrt: Math.sqrt,
-                cbrt: Math.cbrt,
-                log: Math.log,
-                log10: Math.log10,
-                sin: Math.sin,
-                cos: Math.cos,
-                tan: Math.tan,
-                asin: Math.asin,
-                acos: Math.acos,
-                atan: Math.atan,
-                exp: Math.exp,
-                pow: Math.pow,
-                abs: Math.abs,
-                floor: Math.floor,
-                ceil: Math.ceil,
-                round: Math.round,
-                min: Math.min,
-                max: Math.max,
-                PI: Math.PI,
-                E: Math.E
-            };
-            
-            // Replace Math.function with just function name for cleaner evaluation
-            // This is safe because we've already validated the expression
-            let evalExpr = expr;
-            for (const [funcName, func] of Object.entries(allowedFunctions)) {
-                const regex = new RegExp(`Math\\.${funcName}\\b`, 'g');
-                evalExpr = evalExpr.replace(regex, `_${funcName}`);
+            // Support expressions generated as Math.<fn>(...) by downstream code:
+            // normalize to <fn>(...) for our tokenizer/parser.
+            expr = expr.replace(/\bMath\./g, '');
+
+            // ENHANCED: Validate expression after normalization
+            if (expr.length === 0) {
+                throw new CalculationError(
+                    'Expression became empty after normalization',
+                    {
+                        step: 'Normalization',
+                        originalExpression: expression.substring(0, 50)
+                    }
+                );
+            }
+
+            // Tokenize and parse expression into AST
+            // ENHANCED: Wrap in try-catch for better error context
+            let tokens;
+            try {
+                tokens = this.tokenize(expr);
+            } catch (error) {
+                throw new CalculationError(
+                    `Tokenization failed: ${error.message}`,
+                    {
+                        step: 'Tokenization',
+                        inputs: { expression: expr.substring(0, 50) },
+                        originalError: error.message
+                    }
+                );
             }
             
-            // Create function with only allowed operations in scope
-            // This is safer than bare Function() because we control what's available
-            const safeFunc = new Function(
-                ...Object.keys(allowedFunctions).map(k => `_${k}`),
-                `"use strict"; return (${evalExpr});`
-            );
+            // ENHANCED: Validate tokens array
+            if (!Array.isArray(tokens) || tokens.length === 0) {
+                throw new CalculationError(
+                    'Tokenization produced invalid or empty token array',
+                    {
+                        step: 'Tokenization validation',
+                        tokensType: typeof tokens,
+                        tokensLength: Array.isArray(tokens) ? tokens.length : 'N/A'
+                    }
+                );
+            }
             
-            const result = safeFunc(...Object.values(allowedFunctions));
+            let ast;
+            try {
+                ast = this.parse(tokens);
+            } catch (error) {
+                throw new CalculationError(
+                    `Parsing failed: ${error.message}`,
+                    {
+                        step: 'Parsing',
+                        inputs: { expression: expr.substring(0, 50), tokenCount: tokens.length },
+                        originalError: error.message
+                    }
+                );
+            }
+            
+            // ENHANCED: Validate AST structure
+            if (!ast || typeof ast !== 'object' || !ast.type) {
+                throw new CalculationError(
+                    'Parsing produced invalid AST',
+                    {
+                        step: 'AST validation',
+                        astType: typeof ast,
+                        astValue: String(ast).substring(0, 50)
+                    }
+                );
+            }
+            
+            // Evaluate AST safely with recursion depth tracking
+            let result;
+            try {
+                result = this.evaluateAST(ast, vars);
+            } catch (error) {
+                // Error handling is done in evaluateAST, but we add context here
+                if (error instanceof CalculationError) {
+                    error.context.expression = expr.substring(0, 50);
+                    throw error;
+                }
+                throw new CalculationError(
+                    `AST evaluation failed: ${error.message}`,
+                    {
+                        step: 'AST evaluation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        originalError: error.message,
+                        errorType: error.constructor.name
+                    }
+                );
+            }
+            
+            // ENHANCED: Comprehensive result validation
+            if (result === null || result === undefined) {
+                throw new CalculationError(
+                    'Expression evaluation returned null or undefined',
+                    {
+                        step: 'Result validation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        result: result
+                    }
+                );
+            }
             
             if (typeof result !== 'number') {
                 throw new CalculationError(
-                    `Expression did not evaluate to a number, got: ${typeof result}`,
-                    { step: 'Result validation', inputs: { expression: expr.substring(0, 50) } }
+                    `Expression did not evaluate to a number, got: ${typeof result} (${String(result).substring(0, 50)})`,
+                    {
+                        step: 'Result validation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        resultType: typeof result,
+                        resultValue: String(result).substring(0, 50)
+                    }
+                );
+            }
+            
+            if (isNaN(result)) {
+                throw new CalculationError(
+                    'Expression evaluated to NaN (Not a Number). This may indicate invalid mathematical operations.',
+                    {
+                        step: 'Result validation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        result: result
+                    }
                 );
             }
             
             if (!isFinite(result)) {
+                let errorMsg = `Expression did not evaluate to a finite number, got: ${result}.`;
+                if (result === Infinity || result === -Infinity) {
+                    errorMsg += ' This may indicate division by zero, overflow, or extremely large input values.';
+                }
                 throw new CalculationError(
-                    `Expression did not evaluate to a finite number, got: ${result}`,
-                    { step: 'Result validation', inputs: { expression: expr.substring(0, 50) } }
+                    errorMsg,
+                    {
+                        step: 'Result validation',
+                        inputs: { expression: expr.substring(0, 50) },
+                        result: result
+                    }
                 );
             }
             
             return result;
         } catch (error) {
+            // ENHANCED: Preserve CalculationError context, wrap others
             if (error instanceof CalculationError) {
+                // Add expression context if not already present
+                if (!error.context.expression) {
+                    error.context.expression = expression.substring(0, 50);
+                }
                 throw error;
             }
+            
+            // Wrap unexpected errors with full context
             throw new CalculationError(
                 `Expression evaluation failed: ${error.message}`,
-                { step: 'Evaluation', inputs: { expression: expr.substring(0, 50), error: error.message } }
+                {
+                    step: 'Evaluation',
+                    inputs: { expression: expression.substring(0, 50) },
+                    error: error.message,
+                    errorType: error.constructor.name,
+                    stack: error.stack ? error.stack.substring(0, 200) : undefined
+                }
             );
         }
     }
     
     /**
-     * Safely replace variables in expression using token-based approach
+     * Safely replace variables in expression using optimized single-pass approach
+     * OPTIMIZED: Single regex pass instead of O(n²) nested loops
      * Prevents partial matches (e.g., "a" won't match "a_max")
      * @param {string} expr - Expression string
      * @param {Object} vars - Variables to replace
      * @returns {string} Expression with variables replaced
      */
     static replaceVariablesSafely(expr, vars) {
-        // Sort variable names by length (longest first) to prevent partial matches
-        const sortedVarNames = Object.keys(vars).sort((a, b) => b.length - a.length);
+        // Filter and sort variable names by length (longest first) to prevent partial matches
+        const sortedVarNames = Object.keys(vars)
+            .filter(k => vars[k] !== null && vars[k] !== undefined && isFinite(vars[k]))
+            .sort((a, b) => b.length - a.length);
         
-        let result = expr;
-        for (const varName of sortedVarNames) {
-            const value = vars[varName];
-            if (value === null || value === undefined || !isFinite(value)) {
-                continue; // Skip invalid values
-            }
-            
-            // Use word boundary regex to match whole variable names only
-            // Match: start of string, non-word char, or end of string
-            const varRegex = new RegExp(`\\b${this.escapeRegex(varName)}\\b`, 'g');
-            result = result.replace(varRegex, value.toString());
-        }
+        if (sortedVarNames.length === 0) return expr;
         
-        return result;
+        // OPTIMIZED: Build single regex pattern for all variables (single-pass replacement)
+        const escaped = sortedVarNames.map(name => this.escapeRegex(name));
+        const pattern = new RegExp(`\\b(${escaped.join('|')})\\b`, 'g');
+        
+        // Single-pass replacement - O(n) instead of O(n²)
+        return expr.replace(pattern, (match) => {
+            const value = vars[match];
+            return (value !== null && value !== undefined && isFinite(value)) 
+                ? value.toString() 
+                : match;
+        });
     }
     
     /**
@@ -457,6 +657,984 @@ class SafeMathEvaluator {
      */
     static escapeRegex(str) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    /**
+     * SECURITY FIX: Tokenize expression into safe tokens
+     * Replaces unsafe Function() with AST-based evaluation
+     * @param {string} expr - Expression string
+     * @returns {Array} Array of tokens
+     */
+    static tokenize(expr) {
+        const tokens = [];
+        let i = 0;
+        
+        while (i < expr.length) {
+            // Skip whitespace
+            if (/\s/.test(expr[i])) {
+                i++;
+                continue;
+            }
+            
+            // Numbers (robust: digits, decimals, optional scientific notation)
+            // IMPORTANT: do NOT consume '-' as part of a number unless it's in the exponent.
+            if (/\d/.test(expr[i]) || (expr[i] === '.' && /\d/.test(expr[i + 1]))) {
+                const start = i;
+                // integer part
+                while (i < expr.length && /\d/.test(expr[i])) i++;
+                // fractional part
+                if (i < expr.length && expr[i] === '.') {
+                    i++;
+                    while (i < expr.length && /\d/.test(expr[i])) i++;
+                }
+                // exponent part
+                if (i < expr.length && (expr[i] === 'e' || expr[i] === 'E')) {
+                    i++;
+                    if (i < expr.length && (expr[i] === '+' || expr[i] === '-')) i++;
+                    const expStart = i;
+                    while (i < expr.length && /\d/.test(expr[i])) i++;
+                    if (expStart === i) {
+                        throw new CalculationError('Invalid scientific notation exponent', { step: 'Tokenization' });
+                    }
+                }
+
+                const numStr = expr.slice(start, i);
+                const parsed = Number(numStr);
+                if (!isFinite(parsed)) {
+                    throw new CalculationError(`Invalid number: ${numStr}`, { step: 'Tokenization' });
+                }
+                tokens.push({ type: 'number', value: parsed });
+                continue;
+            }
+            
+            // Operators
+            if ('+-*/^()'.includes(expr[i])) {
+                tokens.push({ type: 'operator', value: expr[i] });
+                i++;
+                continue;
+            }
+
+            // Comma (function arguments)
+            if (expr[i] === ',') {
+                tokens.push({ type: 'comma', value: ',' });
+                i++;
+                continue;
+            }
+            
+            // Variables and functions (alphanumeric + underscore)
+            if (/[a-zA-Z_]/.test(expr[i])) {
+                let name = '';
+                while (i < expr.length && /[a-zA-Z0-9_]/.test(expr[i])) {
+                    name += expr[i++];
+                }
+                
+                // Check if it's a function call (next char is '(')
+                if (i < expr.length && expr[i] === '(') {
+                    tokens.push({ type: 'function', name: name.toLowerCase() });
+                } else {
+                    // Check for constants
+                    if (name === 'PI' || name === 'pi') {
+                        tokens.push({ type: 'number', value: Math.PI });
+                    } else if (name === 'E' || name === 'e') {
+                        tokens.push({ type: 'number', value: Math.E });
+                    } else {
+                        tokens.push({ type: 'variable', name });
+                    }
+                }
+                continue;
+            }
+            
+            throw new CalculationError(`Unexpected character: ${expr[i]}`, { step: 'Tokenization' });
+        }
+        
+        return tokens;
+    }
+    
+    /**
+     * Parse tokens into Abstract Syntax Tree (AST)
+     * ENHANCED: HIGH PRIORITY - AST parsing is core for evaluation; failing here breaks everything
+     * @param {Array} tokens - Array of tokens
+     * @returns {Object} AST node
+     * @throws {CalculationError} If token sequence is invalid or operator precedence is unexpected
+     */
+    static parse(tokens) {
+        // ENHANCED: Validate tokens array
+        if (!Array.isArray(tokens) || tokens.length === 0) {
+            throw new CalculationError('Invalid tokens: must be a non-empty array', { step: 'Parsing' });
+        }
+        
+        let pos = 0;
+        
+        const peek = () => tokens[pos];
+        const consume = () => {
+            if (pos >= tokens.length) {
+                throw new CalculationError('Unexpected end of tokens', { step: 'Parsing', position: pos });
+            }
+            return tokens[pos++];
+        };
+        const eof = () => pos >= tokens.length;
+        
+        const parseExpression = () => {
+            let left = parseTerm();
+            
+            while (!eof() && (peek().type === 'operator' && (peek().value === '+' || peek().value === '-'))) {
+                const op = consume().value;
+                const right = parseTerm();
+                left = { type: 'binary', operator: op, left, right };
+            }
+            
+            return left;
+        };
+        
+        const parseTerm = () => {
+            let left = parsePower();
+            
+            while (!eof() && (peek().type === 'operator' && (peek().value === '*' || peek().value === '/'))) {
+                const op = consume().value;
+                const right = parsePower();
+                left = { type: 'binary', operator: op, left, right };
+            }
+            
+            return left;
+        };
+
+        // Power has higher precedence than * and / and is right-associative: a^b^c = a^(b^c)
+        const parsePower = () => {
+            let left = parseFactor();
+            if (!eof() && peek().type === 'operator' && peek().value === '^') {
+                consume(); // ^
+                const right = parsePower(); // right-associative
+                left = { type: 'binary', operator: '^', left, right };
+            }
+            return left;
+        };
+        
+        const parseFactor = () => {
+            if (eof()) {
+                throw new CalculationError(
+                    'Unexpected end of expression. Expected number, variable, function, or opening parenthesis.',
+                    { step: 'Parsing', position: pos, tokensRemaining: tokens.length - pos }
+                );
+            }
+            
+            const token = peek();
+            
+            // ENHANCED: Validate token structure
+            if (!token || typeof token !== 'object' || !token.type) {
+                throw new CalculationError(
+                    `Invalid token at position ${pos}: ${JSON.stringify(token)}`,
+                    { step: 'Parsing', position: pos, token: token }
+                );
+            }
+            
+            // Numbers
+            if (token.type === 'number') {
+                consume();
+                return { type: 'number', value: token.value };
+            }
+            
+            // Variables
+            if (token.type === 'variable') {
+                consume();
+                return { type: 'variable', name: token.name };
+            }
+            
+            // Functions
+            if (token.type === 'function') {
+                const funcName = consume().name;
+                if (eof() || peek().value !== '(') {
+                    throw new CalculationError('Expected ( after function name', { step: 'Parsing' });
+                }
+                consume(); // (
+                // Parse argument list: expr (',' expr)*
+                const args = [];
+                if (!eof() && !(peek().type === 'operator' && peek().value === ')')) {
+                    args.push(parseExpression());
+                    while (!eof() && peek().type === 'comma') {
+                        consume(); // ,
+                        args.push(parseExpression());
+                    }
+                }
+                if (eof() || peek().value !== ')') {
+                    throw new CalculationError('Expected ) after function argument', { step: 'Parsing' });
+                }
+                consume(); // )
+                return { type: 'function', name: funcName, args };
+            }
+            
+            // Parentheses
+            if (token.type === 'operator' && token.value === '(') {
+                consume();
+                const expr = parseExpression();
+                if (eof() || peek().value !== ')') {
+                    throw new CalculationError('Expected )', { step: 'Parsing' });
+                }
+                consume();
+                return expr;
+            }
+            
+            // Unary minus
+            if (token.type === 'operator' && token.value === '-') {
+                consume();
+                const arg = parseFactor();
+                return { type: 'unary', operator: '-', arg };
+            }
+            
+            // Unary plus (no-op)
+            if (token.type === 'operator' && token.value === '+') {
+                consume();
+                return parseFactor();
+            }
+            
+            throw new CalculationError(`Unexpected token: ${JSON.stringify(token)}`, { step: 'Parsing' });
+        };
+        
+        return parseExpression();
+    }
+    
+    /**
+     * Evaluate AST node safely
+     * ENHANCED: HIGH PRIORITY - Explicit exception handling for AST evaluation errors
+     * 
+     * Security Features:
+     * - Recursion depth limits (prevent stack overflow)
+     * - Division by zero detection
+     * - Overflow/underflow detection
+     * - Invalid operation detection
+     * - Comprehensive error context
+     * 
+     * @param {Object} node - AST node
+     * @param {Object} vars - Variables object
+     * @param {number} depth - Current recursion depth (internal use)
+     * @param {number} maxDepth - Maximum recursion depth (default: 100)
+     * @returns {number} Evaluated result
+     * @throws {CalculationError} If evaluation fails or security limits are exceeded
+     */
+    static evaluateAST(node, vars, depth = 0, maxDepth = 100) {
+        // ENHANCED: Recursion depth limit to prevent stack overflow attacks
+        if (depth > maxDepth) {
+            throw new CalculationError(
+                `Maximum recursion depth (${maxDepth}) exceeded. Expression may be too complex or contain circular references.`,
+                {
+                    step: 'AST evaluation',
+                    depth: depth,
+                    maxDepth: maxDepth,
+                    nodeType: node?.type
+                }
+            );
+        }
+        
+        // ENHANCED: Validate node structure
+        if (!node || typeof node !== 'object') {
+            throw new CalculationError(
+                `Invalid AST node: expected object, got ${typeof node}`,
+                {
+                    step: 'AST evaluation',
+                    nodeType: typeof node,
+                    depth: depth
+                }
+            );
+        }
+        
+        if (!node.type) {
+            throw new CalculationError(
+                'AST node missing type property',
+                {
+                    step: 'AST evaluation',
+                    node: JSON.stringify(node).substring(0, 100),
+                    depth: depth
+                }
+            );
+        }
+        // ENHANCED: Explicit exception handling for each node type
+        try {
+            switch (node.type) {
+                case 'number':
+                    // ENHANCED: Validate number node
+                    if (typeof node.value !== 'number') {
+                        throw new CalculationError(
+                            `Number node has invalid value type: ${typeof node.value}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'number',
+                                valueType: typeof node.value,
+                                value: node.value,
+                                depth: depth
+                            }
+                        );
+                    }
+                    if (!isFinite(node.value)) {
+                        throw new CalculationError(
+                            `Number node has non-finite value: ${node.value}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'number',
+                                value: node.value,
+                                depth: depth
+                            }
+                        );
+                    }
+                    return node.value;
+                    
+                case 'variable':
+                    // ENHANCED: Comprehensive variable validation
+                    if (!node.name || typeof node.name !== 'string') {
+                        throw new CalculationError(
+                            `Variable node has invalid name: ${typeof node.name}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'variable',
+                                nameType: typeof node.name,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (vars === null || vars === undefined || typeof vars !== 'object') {
+                        throw new CalculationError(
+                            `Variables object is invalid: ${typeof vars}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'variable',
+                                variable: node.name,
+                                varsType: typeof vars,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (vars[node.name] === undefined) {
+                        throw new CalculationError(
+                            `Undefined variable: ${node.name}. Available variables: ${Object.keys(vars).join(', ') || 'none'}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'variable',
+                                variable: node.name,
+                                availableVariables: Object.keys(vars),
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    const value = vars[node.name];
+                    if (typeof value !== 'number') {
+                        throw new CalculationError(
+                            `Variable '${node.name}' has invalid type: expected number, got ${typeof value}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'variable',
+                                variable: node.name,
+                                valueType: typeof value,
+                                value: value,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (!isFinite(value)) {
+                        throw new CalculationError(
+                            `Variable '${node.name}' has non-finite value: ${value}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'variable',
+                                variable: node.name,
+                                value: value,
+                                depth: depth
+                            }
+                        );
+                    }
+                    return value;
+                    
+                case 'binary':
+                    // ENHANCED: Validate binary node structure
+                    if (!node.left || !node.right) {
+                        throw new CalculationError(
+                            `Binary node missing left or right operand`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                hasLeft: !!node.left,
+                                hasRight: !!node.right,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (!node.operator || typeof node.operator !== 'string') {
+                        throw new CalculationError(
+                            `Binary node has invalid operator: ${typeof node.operator}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operatorType: typeof node.operator,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Evaluate operands with depth tracking
+                    let left, right;
+                    try {
+                        left = this.evaluateAST(node.left, vars, depth + 1, maxDepth);
+                    } catch (error) {
+                        if (error instanceof CalculationError) {
+                            error.context.operation = `Left operand of ${node.operator}`;
+                            throw error;
+                        }
+                        throw new CalculationError(
+                            `Failed to evaluate left operand: ${error.message}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                operand: 'left',
+                                originalError: error.message,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    try {
+                        right = this.evaluateAST(node.right, vars, depth + 1, maxDepth);
+                    } catch (error) {
+                        if (error instanceof CalculationError) {
+                            error.context.operation = `Right operand of ${node.operator}`;
+                            throw error;
+                        }
+                        throw new CalculationError(
+                            `Failed to evaluate right operand: ${error.message}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                operand: 'right',
+                                originalError: error.message,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Validate operands are numbers
+                    if (typeof left !== 'number' || !isFinite(left)) {
+                        throw new CalculationError(
+                            `Left operand is not a finite number: ${left}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                leftType: typeof left,
+                                leftValue: left,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (typeof right !== 'number' || !isFinite(right)) {
+                        throw new CalculationError(
+                            `Right operand is not a finite number: ${right}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                rightType: typeof right,
+                                rightValue: right,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Explicit exception handling for each operator
+                    try {
+                        switch (node.operator) {
+                            case '+':
+                                const sum = left + right;
+                                if (!isFinite(sum)) {
+                                    throw new CalculationError(
+                                        `Addition overflow: ${left} + ${right} = ${sum}`,
+                                        { step: 'AST evaluation', operator: '+', left, right, depth }
+                                    );
+                                }
+                                return sum;
+                                
+                            case '-':
+                                const diff = left - right;
+                                if (!isFinite(diff)) {
+                                    throw new CalculationError(
+                                        `Subtraction overflow: ${left} - ${right} = ${diff}`,
+                                        { step: 'AST evaluation', operator: '-', left, right, depth }
+                                    );
+                                }
+                                return diff;
+                                
+                            case '*':
+                                const product = left * right;
+                                if (!isFinite(product)) {
+                                    throw new CalculationError(
+                                        `Multiplication overflow: ${left} * ${right} = ${product}`,
+                                        { step: 'AST evaluation', operator: '*', left, right, depth }
+                                    );
+                                }
+                                return product;
+                                
+                            case '/':
+                                // ENHANCED: Division by zero with better context
+                                if (right === 0) {
+                                    throw new CalculationError(
+                                        `Division by zero: ${left} / ${right}`,
+                                        {
+                                            step: 'AST evaluation',
+                                            operator: '/',
+                                            left: left,
+                                            right: right,
+                                            depth: depth
+                                        }
+                                    );
+                                }
+                                const quotient = left / right;
+                                if (!isFinite(quotient)) {
+                                    throw new CalculationError(
+                                        `Division result is not finite: ${left} / ${right} = ${quotient}`,
+                                        {
+                                            step: 'AST evaluation',
+                                            operator: '/',
+                                            left: left,
+                                            right: right,
+                                            result: quotient,
+                                            depth: depth
+                                        }
+                                    );
+                                }
+                                return quotient;
+                                
+                            case '^':
+                                // ENHANCED: Power operation with overflow detection
+                                // Check for extreme exponents that would cause overflow
+                                if (Math.abs(right) > 1000) {
+                                    throw new CalculationError(
+                                        `Exponent too large: ${left}^${right}. This may cause overflow.`,
+                                        {
+                                            step: 'AST evaluation',
+                                            operator: '^',
+                                            base: left,
+                                            exponent: right,
+                                            depth: depth
+                                        }
+                                    );
+                                }
+                                
+                                // Check for negative base with fractional exponent (invalid)
+                                if (left < 0 && right !== Math.floor(right)) {
+                                    throw new CalculationError(
+                                        `Invalid operation: negative base (${left}) with fractional exponent (${right})`,
+                                        {
+                                            step: 'AST evaluation',
+                                            operator: '^',
+                                            base: left,
+                                            exponent: right,
+                                            depth: depth
+                                        }
+                                    );
+                                }
+                                
+                                const powerResult = Math.pow(left, right);
+                                if (!isFinite(powerResult)) {
+                                    throw new CalculationError(
+                                        `Power operation result is not finite: ${left}^${right} = ${powerResult}`,
+                                        {
+                                            step: 'AST evaluation',
+                                            operator: '^',
+                                            base: left,
+                                            exponent: right,
+                                            result: powerResult,
+                                            depth: depth
+                                        }
+                                    );
+                                }
+                                return powerResult;
+                                
+                            default:
+                                throw new CalculationError(
+                                    `Unknown binary operator: ${node.operator}. Supported operators: +, -, *, /, ^`,
+                                    {
+                                        step: 'AST evaluation',
+                                        nodeType: 'binary',
+                                        operator: node.operator,
+                                        depth: depth
+                                    }
+                                );
+                        }
+                    } catch (error) {
+                        // Re-throw CalculationError as-is, wrap others
+                        if (error instanceof CalculationError) {
+                            throw error;
+                        }
+                        throw new CalculationError(
+                            `Binary operation failed: ${error.message}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'binary',
+                                operator: node.operator,
+                                left: left,
+                                right: right,
+                                originalError: error.message,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                case 'unary':
+                    // ENHANCED: Validate unary node structure
+                    if (!node.arg) {
+                        throw new CalculationError(
+                            `Unary node missing argument`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'unary',
+                                operator: node.operator,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (!node.operator || typeof node.operator !== 'string') {
+                        throw new CalculationError(
+                            `Unary node has invalid operator: ${typeof node.operator}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'unary',
+                                operatorType: typeof node.operator,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    let arg;
+                    try {
+                        arg = this.evaluateAST(node.arg, vars, depth + 1, maxDepth);
+                    } catch (error) {
+                        if (error instanceof CalculationError) {
+                            error.context.operation = `Argument of unary ${node.operator}`;
+                            throw error;
+                        }
+                        throw new CalculationError(
+                            `Failed to evaluate unary argument: ${error.message}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'unary',
+                                operator: node.operator,
+                                originalError: error.message,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (typeof arg !== 'number' || !isFinite(arg)) {
+                        throw new CalculationError(
+                            `Unary argument is not a finite number: ${arg}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'unary',
+                                operator: node.operator,
+                                argType: typeof arg,
+                                argValue: arg,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (node.operator === '-') {
+                        return -arg;
+                    } else if (node.operator === '+') {
+                        return arg; // Unary plus is a no-op
+                    } else {
+                        throw new CalculationError(
+                            `Unknown unary operator: ${node.operator}. Supported operators: +, -`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'unary',
+                                operator: node.operator,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                case 'function':
+                    // ENHANCED: Validate function node structure
+                    if (!node.name || typeof node.name !== 'string') {
+                        throw new CalculationError(
+                            `Function node has invalid name: ${typeof node.name}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                nameType: typeof node.name,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (!Array.isArray(node.args)) {
+                        throw new CalculationError(
+                            `Function node has invalid args: expected array, got ${typeof node.args}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                argsType: typeof node.args,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Evaluate arguments with error handling
+                    const argValues = [];
+                    for (let i = 0; i < node.args.length; i++) {
+                        try {
+                            const argValue = this.evaluateAST(node.args[i], vars, depth + 1, maxDepth);
+                            if (typeof argValue !== 'number' || !isFinite(argValue)) {
+                                throw new CalculationError(
+                                    `Function argument ${i + 1} is not a finite number: ${argValue}`,
+                                    {
+                                        step: 'AST evaluation',
+                                        nodeType: 'function',
+                                        functionName: node.name,
+                                        argumentIndex: i,
+                                        argumentValue: argValue,
+                                        depth: depth
+                                    }
+                                );
+                            }
+                            argValues.push(argValue);
+                        } catch (error) {
+                            if (error instanceof CalculationError) {
+                                error.context.operation = `Argument ${i + 1} of function ${node.name}()`;
+                                throw error;
+                            }
+                            throw new CalculationError(
+                                `Failed to evaluate function argument ${i + 1}: ${error.message}`,
+                                {
+                                    step: 'AST evaluation',
+                                    nodeType: 'function',
+                                    functionName: node.name,
+                                    argumentIndex: i,
+                                    originalError: error.message,
+                                    depth: depth
+                                }
+                            );
+                        }
+                    }
+                    
+                    // ENHANCED: Function whitelist with comprehensive validation
+                    const allowedFunctions = {
+                        sqrt: Math.sqrt,
+                        cbrt: Math.cbrt,
+                        log: Math.log,
+                        log10: Math.log10,
+                        ln: Math.log,
+                        sin: Math.sin,
+                        cos: Math.cos,
+                        tan: Math.tan,
+                        asin: Math.asin,
+                        acos: Math.acos,
+                        atan: Math.atan,
+                        exp: Math.exp,
+                        pow: Math.pow,
+                        abs: Math.abs,
+                        floor: Math.floor,
+                        ceil: Math.ceil,
+                        round: Math.round,
+                        min: Math.min,
+                        max: Math.max
+                    };
+                    
+                    const func = allowedFunctions[node.name.toLowerCase()];
+                    if (!func) {
+                        throw new CalculationError(
+                            `Unknown function: ${node.name}. Allowed functions: ${Object.keys(allowedFunctions).join(', ')}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                allowedFunctions: Object.keys(allowedFunctions),
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Validate arity with detailed error messages
+                    if (node.name.toLowerCase() === 'pow' && argValues.length !== 2) {
+                        throw new CalculationError(
+                            `pow(x, y) requires exactly 2 arguments, got ${argValues.length}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                expectedArity: 2,
+                                actualArity: argValues.length,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if ((node.name.toLowerCase() === 'min' || node.name.toLowerCase() === 'max') && argValues.length < 1) {
+                        throw new CalculationError(
+                            `${node.name}(...) requires at least 1 argument, got ${argValues.length}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                minimumArity: 1,
+                                actualArity: argValues.length,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (node.name.toLowerCase() !== 'pow' && node.name.toLowerCase() !== 'min' && node.name.toLowerCase() !== 'max' && argValues.length !== 1) {
+                        throw new CalculationError(
+                            `${node.name}(x) requires exactly 1 argument, got ${argValues.length}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                expectedArity: 1,
+                                actualArity: argValues.length,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Function-specific validation
+                    // Check for invalid operations (e.g., sqrt of negative, log of non-positive)
+                    if (node.name.toLowerCase() === 'sqrt' && argValues[0] < 0) {
+                        throw new CalculationError(
+                            `sqrt() of negative number: sqrt(${argValues[0]})`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                argument: argValues[0],
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if ((node.name.toLowerCase() === 'log' || node.name.toLowerCase() === 'ln' || node.name.toLowerCase() === 'log10') && argValues[0] <= 0) {
+                        throw new CalculationError(
+                            `${node.name}() of non-positive number: ${node.name}(${argValues[0]})`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                argument: argValues[0],
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if ((node.name.toLowerCase() === 'asin' || node.name.toLowerCase() === 'acos') && (argValues[0] < -1 || argValues[0] > 1)) {
+                        throw new CalculationError(
+                            `${node.name}() argument out of range [-1, 1]: ${node.name}(${argValues[0]})`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                argument: argValues[0],
+                                depth: depth
+                            }
+                        );
+                    }
+
+                    // ENHANCED: Execute function with error handling
+                    let funcResult;
+                    try {
+                        funcResult = func(...argValues);
+                    } catch (error) {
+                        throw new CalculationError(
+                            `Function ${node.name}() execution failed: ${error.message}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                arguments: argValues,
+                                originalError: error.message,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    // ENHANCED: Validate function result
+                    if (typeof funcResult !== 'number') {
+                        throw new CalculationError(
+                            `Function ${node.name}() returned non-numeric result: ${typeof funcResult}`,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                arguments: argValues,
+                                resultType: typeof funcResult,
+                                resultValue: String(funcResult).substring(0, 50),
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    if (!isFinite(funcResult)) {
+                        let errorMsg = `Function ${node.name}() returned non-finite result: ${funcResult}`;
+                        if (isNaN(funcResult)) {
+                            errorMsg += ' (NaN)';
+                        } else if (funcResult === Infinity || funcResult === -Infinity) {
+                            errorMsg += ' (Infinity)';
+                        }
+                        throw new CalculationError(
+                            errorMsg,
+                            {
+                                step: 'AST evaluation',
+                                nodeType: 'function',
+                                functionName: node.name,
+                                arguments: argValues,
+                                result: funcResult,
+                                depth: depth
+                            }
+                        );
+                    }
+                    
+                    return funcResult;
+                
+                default:
+                    throw new CalculationError(
+                        `Unknown node type: ${node.type}. Supported types: number, variable, binary, unary, function`,
+                        {
+                            step: 'AST evaluation',
+                            nodeType: node.type,
+                            node: JSON.stringify(node).substring(0, 100),
+                            depth: depth
+                        }
+                    );
+            }
+        } catch (error) {
+            // ENHANCED: Preserve CalculationError context, wrap unexpected errors
+            if (error instanceof CalculationError) {
+                // Ensure depth is included in context
+                if (error.context.depth === undefined) {
+                    error.context.depth = depth;
+                }
+                throw error;
+            }
+            
+            // Wrap unexpected errors with full context
+            throw new CalculationError(
+                `AST evaluation error: ${error.message}`,
+                {
+                    step: 'AST evaluation',
+                    nodeType: node?.type,
+                    depth: depth,
+                    originalError: error.message,
+                    errorType: error.constructor.name,
+                    stack: error.stack ? error.stack.substring(0, 200) : undefined
+                }
+            );
+        }
     }
 }
 
@@ -471,13 +1649,26 @@ class InputValidator {
      * @param {Object} variableValues - Variable values to validate
      * @throws {Error} If validation fails
      */
+    /**
+     * Validate all inputs before calculation
+     * ENHANCED: HIGH PRIORITY - Critical for calculator safety; throw clear, testable errors
+     * @param {Object} formula - Formula object
+     * @param {Object} variableValues - Variable values to validate
+     * @throws {CalculationError} If validation fails with clear, testable error messages
+     */
     static validateInputs(formula, variableValues) {
         if (!formula || !formula.variables) {
-            throw new Error('Invalid formula: formula and variables are required');
+            throw new CalculationError(
+                'Invalid formula: formula and variables are required',
+                { step: 'Input validation', formulaId: formula?.id }
+            );
         }
         
         if (!variableValues || typeof variableValues !== 'object') {
-            throw new Error('Invalid variableValues: must be an object');
+            throw new CalculationError(
+                `Invalid variableValues: must be an object, got ${typeof variableValues}`,
+                { step: 'Input validation', formulaId: formula.id, variableValuesType: typeof variableValues }
+            );
         }
         
         // Validate that all provided values are valid types
@@ -489,18 +1680,45 @@ class InputValidator {
                 continue;
             }
             
+            // ENHANCED: Clear, testable error messages
             // Validate type
             if (typeof value !== 'number' && typeof value !== 'string') {
-                throw new Error(`Invalid type for ${symbol}: ${typeof value}. Expected number or string.`);
+                throw new CalculationError(
+                    `Invalid type for variable '${symbol}': expected number or string, got ${typeof value}. Value: ${JSON.stringify(value)}`,
+                    {
+                        step: 'Input validation',
+                        formulaId: formula.id,
+                        variable: symbol,
+                        expectedType: 'number or string',
+                        actualType: typeof value,
+                        value: value
+                    }
+                );
             }
             
             // If it's a number, validate it's finite
             if (typeof value === 'number') {
                 if (isNaN(value)) {
-                    throw new Error(`Invalid number for ${symbol}: NaN`);
+                    throw new CalculationError(
+                        `Invalid number for variable '${symbol}': NaN (Not a Number)`,
+                        {
+                            step: 'Input validation',
+                            formulaId: formula.id,
+                            variable: symbol,
+                            value: value
+                        }
+                    );
                 }
                 if (!isFinite(value)) {
-                    throw new Error(`Invalid number for ${symbol}: ${value} (not finite)`);
+                    throw new CalculationError(
+                        `Invalid number for variable '${symbol}': ${value} (not finite - may be Infinity or -Infinity)`,
+                        {
+                            step: 'Input validation',
+                            formulaId: formula.id,
+                            variable: symbol,
+                            value: value
+                        }
+                    );
                 }
             }
             
@@ -516,7 +1734,36 @@ class InputValidator {
                     // Allow expressions like "2*pi", "pi/4", etc. - these will be parsed later
                     // Only reject if it's clearly not a number and not a known special value
                     if (!/^[0-9+\-*/().\sπpie]+$/i.test(trimmed)) {
-                        throw new Error(`Invalid number format for ${symbol}: "${value}". Expected a number or mathematical expression.`);
+                        throw new CalculationError(
+                            `Invalid number format for variable '${symbol}': "${value}". Expected a number or mathematical expression.`,
+                            {
+                                step: 'Input validation',
+                                formulaId: formula.id,
+                                variable: symbol,
+                                value: value,
+                                expectedFormat: 'number or mathematical expression'
+                            }
+                        );
+                    }
+                }
+            }
+        }
+        
+        // ENHANCED: Units mismatch detection (basic check)
+        // Full dimensional analysis would require a dimension system
+        for (const varDef of formula.variables) {
+            const symbol = varDef.symbol;
+            const value = variableValues[symbol];
+            if (value !== null && value !== undefined && value !== '' && value !== 'N/A' && value !== 'n/a') {
+                if (varDef.unit && typeof value === 'string' && value.includes(' ')) {
+                    const parts = value.split(' ');
+                    const providedUnit = parts.slice(1).join(' ');
+                    if (providedUnit && providedUnit !== varDef.unit) {
+                        // Log warning - unit conversion may handle it, but flag potential issue
+                        console.warn(
+                            `[InputValidator] Potential unit mismatch for '${symbol}': formula expects '${varDef.unit}', provided '${providedUnit}'. ` +
+                            `Unit conversion will be attempted, but verify the result.`
+                        );
                     }
                 }
             }
@@ -575,23 +1822,71 @@ class SolverValidator {
     
     /**
      * Validate result is finite and valid
+     * ENHANCED: HIGH PRIORITY - Must validate before output; integrate with checkFiniteNumber for consistency
      * @param {number} result - Result to validate
      * @param {string} operation - Operation name for error message
-     * @throws {Error} If result is invalid
+     * @param {Object} context - Optional context for error messages
+     * @throws {CalculationError} If result is invalid with comprehensive error details
      */
-    static validateResult(result, operation = 'calculation') {
+    static validateResult(result, operation = 'calculation', context = {}) {
         if (result === null || result === undefined) {
-            throw new Error(`${operation} returned null or undefined`);
+            throw new CalculationError(
+                `${operation} returned null or undefined. This may indicate a solver error or missing input.`,
+                {
+                    step: 'Result validation',
+                    operation: operation,
+                    result: result,
+                    ...context
+                }
+            );
         }
         if (typeof result !== 'number') {
-            throw new Error(`${operation} returned non-numeric value: ${typeof result}`);
+            throw new CalculationError(
+                `${operation} returned non-numeric value: ${typeof result}. Expected a number.`,
+                {
+                    step: 'Result validation',
+                    operation: operation,
+                    resultType: typeof result,
+                    result: result,
+                    ...context
+                }
+            );
         }
         if (isNaN(result)) {
-            throw new Error(`${operation} returned NaN`);
+            throw new CalculationError(
+                `${operation} returned NaN (Not a Number). This may indicate invalid mathematical operations (e.g., sqrt of negative number, 0/0).`,
+                {
+                    step: 'Result validation',
+                    operation: operation,
+                    result: result,
+                    ...context
+                }
+            );
         }
         if (!isFinite(result)) {
-            throw new Error(`${operation} returned non-finite value: ${result}`);
+            let errorMsg = `${operation} returned non-finite value: ${result}.`;
+            if (result === Infinity || result === -Infinity) {
+                errorMsg += ' This may indicate division by zero, overflow, or extremely large input values.';
+            }
+            throw new CalculationError(
+                errorMsg,
+                {
+                    step: 'Result validation',
+                    operation: operation,
+                    result: result,
+                    ...context
+                }
+            );
         }
+        
+        // ENHANCED: Additional validation for extreme values (potential overflow/underflow)
+        if (Math.abs(result) > 1e100) {
+            console.warn(`[SolverValidator] Very large result from ${operation}: ${result} (possible overflow)`);
+        }
+        if (result !== 0 && Math.abs(result) < 1e-100) {
+            console.warn(`[SolverValidator] Very small result from ${operation}: ${result} (possible underflow)`);
+        }
+        
         return result;
     }
 }
@@ -672,12 +1967,27 @@ class FormulaCalculator {
         
         // Mass must be positive
         // Check for mass variables: M, m, M1, M2, M_☉, M☉, etc.
-        const isMass = varName.includes('mass') || 
-                      varSymbol === 'm' || 
-                      varSymbol.includes('m_') ||
-                      varSymbol.includes('M_') ||
-                      (varSymbol.startsWith('M') && /^M\d*$/.test(varSymbol)) || // M, M1, M2, etc.
-                      (varSymbol.startsWith('m') && /^m\d*$/.test(varSymbol));   // m, m1, m2, etc.
+        // BUT exclude magnitudes (m1, m2 in magnitude_flux_relation formula)
+        // Magnitude variables are NOT masses.
+        // - m1/m2 in magnitude_flux_relation
+        // - any variable whose NAME or UNIT indicates magnitude (e.g., M_V)
+        const unit = (varDef?.unit || '').toLowerCase();
+        const isMagnitude =
+            (this.formula && this.formula.id === 'magnitude_flux_relation' && (varSymbol === 'm1' || varSymbol === 'm2')) ||
+            varName.includes('magnitude') ||
+            unit.includes('magnitude');
+        
+        // Mass must be positive (but don't over-match: "M_V" is magnitude, not mass).
+        // Use stricter symbol heuristics.
+        const isMass = !isMagnitude && (
+            varName.includes('mass') ||
+            varSymbol === 'm' ||
+            /^m\d+$/.test(varSymbol) ||           // m1, m2, ...
+            varSymbol === 'm_sun' || varSymbol === 'msun' || varSymbol.includes('m☉') ||
+            /^m_/.test(varSymbol) ||              // m_* (explicit)
+            varSymbol === 'm1' || varSymbol === 'm2' ||
+            symbol === 'M' || symbol === 'M1' || symbol === 'M2' || symbol === 'M3'
+        );
         
         if (isMass) {
             if (value <= 0) {
@@ -685,16 +1995,64 @@ class FormulaCalculator {
             }
         }
         
+        // Albedo is dimensionless in [0, 1] but often uses symbol "A" (lowercased to 'a').
+        // Avoid misclassifying albedo as semi-major axis.
+        if (varName.includes('albedo')) {
+            if (value < 0 || value > 1) {
+                throw new Error(`${symbol} (albedo) must be between 0 and 1, got: ${value}`);
+            }
+            return;
+        }
+
+        // Scale factor must be positive (dimensionless)
+        if (varName.includes('scale factor')) {
+            if (value <= 0) {
+                throw new Error(`${symbol} (scale factor) must be positive, got: ${value}`);
+            }
+            return;
+        }
+
+        // Rates / derivatives can be negative (e.g., da_dt orbital decay)
+        // Avoid misclassifying these as distances due to "a_" substring.
+        const isRateOrDerivative =
+            varSymbol.endsWith('_dt') ||
+            varSymbol.includes('da_dt') ||
+            varSymbol.includes('dadt') ||
+            varName.includes('rate') ||
+            varName.includes('rate of change') ||
+            varName.includes('decay rate');
+        if (isRateOrDerivative) {
+            return;
+        }
+
         // Distance/radius must be positive
+        const isAxisA = (varSymbol === 'a') && (
+            varName.includes('semi-major') ||
+            varName.includes('axis') ||
+            varName.includes('separation') ||
+            varName.includes('distance')
+        );
         if (varName.includes('distance') || varName.includes('radius') || 
             varName.includes('separation') || varName.includes('semi-major') ||
-            varSymbol === 'r' || varSymbol === 'd' || varSymbol === 'a' ||
+            varSymbol === 'r' || varSymbol === 'd' || isAxisA ||
             varSymbol.includes('r_') || varSymbol.includes('d_') || varSymbol.includes('a_')) {
             if (value <= 0) {
                 throw new Error(`${symbol} (distance/radius) must be positive, got: ${value}`);
             }
         }
         
+        // Temperature *differences* (ΔT, delta_T) can be zero/negative; don't enforce Kelvin positivity.
+        const isTemperatureDelta =
+            symbol.startsWith('ΔT') ||
+            symbol.toLowerCase().startsWith('delta_t') ||
+            varSymbol.includes('delta_t') ||
+            varName.includes('temperature difference') ||
+            varName.includes('temperature change') ||
+            varName.includes('temperature increase');
+        if (isTemperatureDelta) {
+            return;
+        }
+
         // Temperature must be positive (in Kelvin)
         if (varName.includes('temperature') || varSymbol === 't' || varSymbol.includes('t_')) {
             if (value <= 0) {
@@ -702,8 +2060,22 @@ class FormulaCalculator {
             }
         }
         
+        // Special-case: pressure gradients (e.g., dP_dr) are typically negative in hydrostatic equilibrium.
+        // Our generic "p_" heuristic would incorrectly classify dP_dr as a period-like variable (because it contains "p_").
+        const isPressureGradient =
+            varSymbol === 'dp_dr' ||
+            varSymbol === 'dpdr' ||
+            varName.includes('pressure gradient') ||
+            (varName.includes('pressure') && varSymbol.startsWith('dp_'));
+        if (isPressureGradient) {
+            return; // allow negative/positive; solver-level physics checks handle sign where needed
+        }
+
         // Period must be positive
-        if (varName.includes('period') || varSymbol === 'p' || 
+        // IMPORTANT: do NOT treat bare symbol "p" as a period:
+        // - In astro, "p" is often parallax, power-law index, spectral index, etc.
+        // - We only treat it as a period if the NAME indicates period, or if it's clearly a period-like symbol (p_*)
+        if (varName.includes('period') || 
             varSymbol.includes('p_') || (varSymbol === 't' && !varName.includes('temperature'))) {
             if (value <= 0) {
                 throw new Error(`${symbol} (period/time) must be positive, got: ${value}`);
@@ -787,7 +2159,30 @@ class FormulaCalculator {
      * // Returns: { result: "P = 2π√(a³/(GM))", solvedFor: null, isSymbolic: true }
      */
     solve(variableValues) {
-        // ENHANCED: Validate inputs first using InputValidator
+        // PERFORMANCE: Check multiple cache layers
+        // 1. Check performance optimizer cache
+        if (typeof performanceOptimizer !== 'undefined') {
+            const cached = performanceOptimizer.getCachedCalculation(this.formula.id, variableValues);
+            if (cached !== null) {
+                return cached;
+            }
+        }
+        
+        // 2. Check calculation cache
+        if (typeof calculationCache !== 'undefined') {
+            const cached = calculationCache.get(this.formula.id, variableValues);
+            if (cached !== null) {
+                // Also store in performance optimizer cache
+                if (typeof performanceOptimizer !== 'undefined') {
+                    performanceOptimizer.cacheCalculation(this.formula.id, variableValues, cached);
+                }
+                return cached;
+            }
+        }
+        
+        const startTime = performance.now();
+        
+        // ENHANCED: Validate inputs first using InputValidator (HIGH PRIORITY)
         try {
             if (typeof InputValidator !== 'undefined' && InputValidator && typeof InputValidator.validateInputs === 'function') {
                 InputValidator.validateInputs(this.formula, variableValues);
@@ -805,19 +2200,60 @@ class FormulaCalculator {
             if (error instanceof ReferenceError && error.message.includes('InputValidator')) {
                 throw new Error('InputValidator is not defined. The calculator script may not have loaded properly. Please refresh the page.');
             }
-            // Re-throw other errors
-            throw error;
+            // Re-throw other errors with enhanced context
+            throw new CalculationError(
+                `Input validation failed: ${error.message}`,
+                {
+                    formula: this.formula.id,
+                    step: 'Input validation',
+                    originalError: error.message
+                }
+            );
+        }
+        
+        // ENHANCED: Unit/dimensional validation (catch SI mismatch before calculation)
+        // This is a first-pass check - full dimensional analysis would require a dimension system
+        // For now, we validate that provided units match expected units where specified
+        if (this.formula.variables && Array.isArray(this.formula.variables)) {
+            for (const varDef of this.formula.variables) {
+                const symbol = varDef.symbol;
+                const value = variableValues[symbol];
+                if (value !== null && value !== undefined && value !== '' && value !== 'N/A' && value !== 'n/a') {
+                    // If unit is specified in formula and value is a string with unit, validate
+                    if (varDef.unit && typeof value === 'string' && value.includes(' ')) {
+                        // Basic unit validation - could be enhanced with full dimensional analysis
+                        const providedUnit = value.split(' ').slice(1).join(' ');
+                        if (providedUnit && providedUnit !== varDef.unit) {
+                            // Log warning but don't fail - unit conversion may handle it
+                            console.warn(`[FormulaCalculator] Unit mismatch for ${symbol}: expected ${varDef.unit}, got ${providedUnit}`);
+                        }
+                    }
+                }
+            }
         }
         
         const nullVars = [];
         const naVars = [];
         const providedVars = {};
 
+        // Treat formula/global constants as always-known (even if listed in variables[]).
+        // This prevents trying to "solve for" constants like L_sun in hr_absolute_magnitude.
+        const constantPool = { ...(typeof globalConstants !== 'undefined' ? globalConstants : {}), ...(this.formula.constants || {}) };
+
         // ENHANCED: Comprehensive input validation and error handling
         // Separate null, N/A, and provided variables
         for (const varDef of this.formula.variables) {
             const symbol = varDef.symbol;
             const value = variableValues[symbol];
+
+            // If this symbol is a known constant and user didn't explicitly override it, treat as provided.
+            if ((value === null || value === '' || value === 'null' || value === undefined) &&
+                constantPool[symbol] !== undefined &&
+                constantPool[symbol] !== null &&
+                isFinite(constantPool[symbol])) {
+                providedVars[symbol] = constantPool[symbol];
+                continue;
+            }
             
             if (value === 'N/A' || value === 'n/a' || value === 'na' || value === 'IDK' || value === 'idk') {
                 naVars.push(symbol);
@@ -874,100 +2310,257 @@ class FormulaCalculator {
         // ENHANCED: Normalize unknown variable name
         const normalizedUnknownVar = VariableNormalizer.normalize(unknownVar);
         
-        // ENHANCED: Validate that we can solve for this variable
-        if (!this.canSolveFor(normalizedUnknownVar) && !this.canSolveFor(unknownVar)) {
-            throw new CalculationError(
-                `Cannot solve for ${unknownVar} in formula ${this.formula.id}. This variable may require symbolic mode.`,
-                {
-                    formula: this.formula.id,
-                    variable: unknownVar,
-                    inputs: providedVars,
-                    step: 'Variable validation'
-                }
-            );
-        }
+        // NOTE: Do not pre-block numeric solving based on canSolveFor().
+        // canSolveFor() uses dummy values and can produce false negatives for valid solvers
+        // (e.g., requiring negative energies, E != 1, etc.). We attempt solve first and
+        // only fall back/error if it truly can't be solved with the provided inputs.
+        
+        // ENHANCED: Explicit symbolic vs numeric error handling
+        // Determine if this should be a numeric or symbolic solve
+        const isSymbolicMode = naVars.length > 0 || nullVars.length > 1;
         
         // ENHANCED: Wrap calculation in error handling with structured context
         let result;
         try {
             // Try normalized variable name first, fall back to original
             const varToSolve = this.canSolveFor(normalizedUnknownVar) ? normalizedUnknownVar : unknownVar;
+            
+            // ENHANCED: Explicit check for unknown variable in formula
+            const varExists = this.formula.variables.some(v => 
+                v.symbol === varToSolve || v.symbol === unknownVar
+            );
+            if (!varExists) {
+                throw new CalculationError(
+                    `Variable '${unknownVar}' is not defined in formula '${this.formula.id}'. Available variables: ${this.formula.variables.map(v => v.symbol).join(', ')}`,
+                    {
+                        formula: this.formula.id,
+                        variable: unknownVar,
+                        availableVariables: this.formula.variables.map(v => v.symbol),
+                        step: 'Variable validation'
+                    }
+                );
+            }
+            
             result = this.solveForVariable(varToSolve, providedVars);
         } catch (error) {
-            // Wrap in CalculationError if not already
+            // ENHANCED: Differentiate between symbolic and numeric errors
             if (error instanceof CalculationError) {
                 error.context.formula = this.formula.id;
                 error.context.variable = unknownVar;
                 error.context.inputs = providedVars;
+                error.context.mode = isSymbolicMode ? 'symbolic' : 'numeric';
                 throw error;
             }
+            
+            // ENHANCED: Better error messaging for common issues
+            let errorMessage = `Error solving for ${unknownVar}: ${error.message}`;
+            if (error.message.includes('zero') || error.message.includes('division')) {
+                errorMessage += ' This may indicate a division by zero or invalid input values.';
+            } else if (error.message.includes('undefined') || error.message.includes('not found')) {
+                errorMessage += ' Ensure all required variables are provided and the formula supports solving for this variable.';
+            }
+            
             throw new CalculationError(
-                `Error solving for ${unknownVar}: ${error.message}`,
+                errorMessage,
                 {
                     formula: this.formula.id,
                     variable: unknownVar,
                     inputs: providedVars,
                     step: 'Variable solving',
+                    mode: isSymbolicMode ? 'symbolic' : 'numeric',
                     originalError: error.message
                 }
             );
         }
         
-        // ENHANCED: Validate result with structured error
+        // ENHANCED: Validate result with structured error (explicit finite result validation)
         if (result === null || result === undefined) {
             throw new CalculationError(
-                `Solver returned null/undefined for ${unknownVar}. Check input values.`,
-                {
-                    formula: this.formula.id,
-                    variable: unknownVar,
-                    inputs: providedVars,
-                    step: 'Result validation'
-                }
-            );
-        }
-        if (!isFinite(result)) {
-            throw new CalculationError(
-                `Result for ${unknownVar} is ${result}. Check for division by zero or invalid input values.`,
+                `Solver returned null/undefined for ${unknownVar}. Check input values and ensure the formula can solve for this variable.`,
                 {
                     formula: this.formula.id,
                     variable: unknownVar,
                     inputs: providedVars,
                     step: 'Result validation',
-                    result: result
+                    mode: isSymbolicMode ? 'symbolic' : 'numeric'
                 }
             );
+        }
+        if (!isSymbolicMode && !isFinite(result)) {
+            // ENHANCED: More specific error messages for non-finite results
+            let errorMsg = `Result for ${unknownVar} is ${result}.`;
+            if (result === Infinity || result === -Infinity) {
+                errorMsg += ' This may indicate division by zero, overflow, or invalid input values.';
+            } else if (isNaN(result)) {
+                errorMsg += ' This may indicate invalid mathematical operations (e.g., sqrt of negative number).';
+            }
+            throw new CalculationError(
+                errorMsg,
+                {
+                    formula: this.formula.id,
+                    variable: unknownVar,
+                    inputs: providedVars,
+                    step: 'Result validation',
+                    result: result,
+                    mode: isSymbolicMode ? 'symbolic' : 'numeric'
+                }
+            );
+        }
+        
+        const endTime = performance.now();
+        const calculationTime = endTime - startTime;
+        
+        // ENHANCED: Calculate error propagation and confidence intervals
+        let errorInfo = null;
+        let significantFigures = 6; // Default
+        let arithmeticContext = {
+            precision: 'standard',
+            method: 'direct',
+            stability: 'stable'
+        };
+        
+        if (!isSymbolicMode && typeof ErrorPropagator !== 'undefined') {
+            try {
+                // Estimate input errors from significant figures
+                const inputErrors = ErrorPropagator.estimateInputErrors(providedVars);
+                
+                if (Object.keys(inputErrors).length > 0) {
+                    errorInfo = ErrorPropagator.propagateError(
+                        this.formula,
+                        providedVars,
+                        inputErrors,
+                        result
+                    );
+                    
+                    if (errorInfo) {
+                        significantFigures = ErrorPropagator.calculateSignificantFigures(
+                            result,
+                            errorInfo.absoluteError
+                        );
+                    }
+                }
+                
+                // Assess arithmetic stability
+                const resultMagnitude = Math.abs(result);
+                if (resultMagnitude > 1e50) {
+                    arithmeticContext.stability = 'unstable';
+                    arithmeticContext.precision = 'low';
+                } else if (resultMagnitude < 1e-50 && result !== 0) {
+                    arithmeticContext.stability = 'unstable';
+                    arithmeticContext.precision = 'low';
+                } else if (resultMagnitude > 1e15 || (resultMagnitude < 1e-15 && result !== 0)) {
+                    arithmeticContext.precision = 'reduced';
+                }
+                
+            } catch (e) {
+                console.warn('[Calculator] Error propagation failed:', e);
+            }
+        }
+        
+        // Build result object
+        const resultObj = {
+            result: result,
+            solvedFor: unknownVar,
+            isSymbolic: isSymbolicMode,
+            unit: unknownVarDef ? unknownVarDef.unit : null,
+            calculationTime: calculationTime,
+            errorInfo: errorInfo,
+            significantFigures: significantFigures,
+            arithmeticContext: arithmeticContext
+        };
+        
+        // PERFORMANCE: Cache the result
+        if (typeof performanceOptimizer !== 'undefined') {
+            performanceOptimizer.cacheCalculation(this.formula.id, variableValues, resultObj);
+        }
+        if (typeof calculationCache !== 'undefined') {
+            calculationCache.set(this.formula.id, variableValues, resultObj);
         }
         
         // ENHANCED: Validate physical constraints on result
         this.validateVariableValue(unknownVar, result, this.formula.variables.find(v => v.symbol === unknownVar));
         
-        // FIXED: Normalized return format - consistent structure
-        return {
-            solvedFor: unknownVar,
-            result: result,
-            unit: this.formula.variables.find(v => v.symbol === unknownVar)?.unit || '',
-            isSymbolic: false
-        };
+        return resultObj;
     }
     
     // Solve symbolically when multiple variables are unknown
+    // ENHANCED: HIGH PRIORITY - Mission-critical for multi-step FRQs
+    // Added depth/complexity limits and better NA variable handling
     solveSymbolically(unknownVars, knownVars, naVars) {
         const formulaId = this.formula.id;
         const constants = { ...globalConstants, ...this.formula.constants || {} };
         
+        // ENHANCED: Depth/complexity limits to prevent runaway memory usage
+        const MAX_SYMBOLIC_DEPTH = 10; // Maximum nesting depth for symbolic expressions
+        const MAX_UNKNOWN_VARS = 5; // Maximum number of unknown variables for symbolic solving
+        
+        if (unknownVars.length > MAX_UNKNOWN_VARS) {
+            throw new CalculationError(
+                `Too many unknown variables (${unknownVars.length}) for symbolic solving. Maximum allowed: ${MAX_UNKNOWN_VARS}.`,
+                {
+                    formula: formulaId,
+                    unknownVars: unknownVars,
+                    step: 'Symbolic solving',
+                    maxAllowed: MAX_UNKNOWN_VARS
+                }
+            );
+        }
+        
+        // ENHANCED: Validate NA variables are properly handled
+        // NA variables should be excluded from calculation, not treated as unknowns
+        const validUnknownVars = unknownVars.filter(v => !naVars.includes(v));
+        if (validUnknownVars.length === 0 && naVars.length > 0) {
+            throw new CalculationError(
+                `All variables are marked as N/A. At least one variable must be solvable.`,
+                {
+                    formula: formulaId,
+                    naVars: naVars,
+                    step: 'Symbolic solving'
+                }
+            );
+        }
+        
         // Create symbolic expressions for all unknown variables
         // Build a system of equations
         const equations = [];
+        let depth = 0;
         
-        for (const unknownVar of unknownVars) {
-            const otherUnknowns = unknownVars.filter(v => v !== unknownVar);
+        for (const unknownVar of validUnknownVars) {
+            // ENHANCED: Check depth limit
+            if (depth >= MAX_SYMBOLIC_DEPTH) {
+                throw new CalculationError(
+                    `Symbolic expression depth limit (${MAX_SYMBOLIC_DEPTH}) exceeded. Expression may be too complex.`,
+                    {
+                        formula: formulaId,
+                        variable: unknownVar,
+                        step: 'Symbolic solving',
+                        depth: depth
+                    }
+                );
+            }
+            
+            const otherUnknowns = validUnknownVars.filter(v => v !== unknownVar);
             const expression = this.createSymbolicExpression(formulaId, unknownVar, knownVars, otherUnknowns, constants);
+            
+            // ENHANCED: Validate expression was created successfully
+            if (!expression || expression.trim() === '') {
+                throw new CalculationError(
+                    `Failed to create symbolic expression for ${unknownVar}. The formula may not support symbolic solving for this variable.`,
+                    {
+                        formula: formulaId,
+                        variable: unknownVar,
+                        step: 'Symbolic expression creation'
+                    }
+                );
+            }
             
             equations.push({
                 variable: unknownVar,
                 expression: expression,
                 unit: this.formula.variables.find(v => v.symbol === unknownVar)?.unit || ''
             });
+            
+            depth++;
         }
         
         // FIXED: Return all solutions, not just the first
@@ -1257,9 +2850,11 @@ class FormulaCalculator {
         vis_viva: function(unknownVar, vars) { return this.solveVisViva(unknownVar, vars); },
         center_of_mass: function(unknownVar, vars) { return this.solveCenterOfMass(unknownVar, vars); },
         stellar_lifetime: function(unknownVar, vars) { return this.solveStellarLifetime(unknownVar, vars); },
+        solar_lifetime_efficiency: function(unknownVar, vars) { return this.solveSolarLifetimeEfficiency(unknownVar, vars); },
         mass_luminosity_relation: function(unknownVar, vars) { return this.solveMassLuminosityRelation(unknownVar, vars); },
         hr_color_index: function(unknownVar, vars) { return this.solveHRColorIndex(unknownVar, vars); },
         hr_absolute_magnitude: function(unknownVar, vars) { return this.solveHRAbsoluteMagnitude(unknownVar, vars); },
+        luminosity_absolute_magnitude: function(unknownVar, vars) { return this.solveLuminosityAbsoluteMagnitude(unknownVar, vars); },
         friedmann_equation: function(unknownVar, vars) { return this.solveFriedmannEquation(unknownVar, vars); },
         critical_density: function(unknownVar, vars) { return this.solveCriticalDensity(unknownVar, vars); },
         schwarzschild_radius: function(unknownVar, vars) { return this.solveSchwarzschildRadius(unknownVar, vars); },
@@ -1284,20 +2879,71 @@ class FormulaCalculator {
         angular_diameter_distance: function(unknownVar, vars) { return this.solveAngularDiameterDistance(unknownVar, vars); },
         luminosity_distance: function(unknownVar, vars) { return this.solveLuminosityDistance(unknownVar, vars); },
         gravitational_potential_general: function(unknownVar, vars) { return this.solveGravitationalPotential(unknownVar, vars); },
-        total_energy_virial: function(unknownVar, vars) { return this.solveTotalEnergyVirial(unknownVar, vars); }
+        total_energy_virial: function(unknownVar, vars) { return this.solveTotalEnergyVirial(unknownVar, vars); },
+        period_luminosity_relation_cepheid: function(unknownVar, vars) { return this.solvePeriodLuminosityCepheid(unknownVar, vars); },
+        bolometric_correction: function(unknownVar, vars) { return this.solveBolometricCorrection(unknownVar, vars); },
+        extinction_correction_rv: function(unknownVar, vars) { return this.solveExtinctionCorrectionRV(unknownVar, vars); },
+        binary_mass_ratio_velocity: function(unknownVar, vars) { return this.solveBinaryMassRatioVelocity(unknownVar, vars); },
+        flux_change_magnitude_difference: function(unknownVar, vars) { return this.solveFluxChangeMagnitude(unknownVar, vars); },
+        pulsating_star_radius_change: function(unknownVar, vars) { return this.solvePulsatingStarRadius(unknownVar, vars); },
+        nuclear_fusion_mass_defect: function(unknownVar, vars) { return this.solveNuclearFusionMassDefect(unknownVar, vars); },
+        nebula_age_expansion: function(unknownVar, vars) { return this.solveNebulaAgeExpansion(unknownVar, vars); },
+        orbital_decay_gravitational_radiation: function(unknownVar, vars) { return this.solveOrbitalDecayGravitational(unknownVar, vars); }
     };
 
     // Solve for a specific variable based on the formula
     solveForVariable(unknownVar, knownVars) {
         const formulaId = this.formula.id;
         
+        // ENHANCED: Validate unknown variable exists in formula
+        const varDef = this.formula.variables.find(v => v.symbol === unknownVar);
+        if (!varDef) {
+            const normalizedVar = VariableNormalizer.normalize(unknownVar);
+            const varDefNormalized = this.formula.variables.find(v => v.symbol === normalizedVar);
+            if (!varDefNormalized) {
+                throw new CalculationError(
+                    `Variable '${unknownVar}' is not defined in formula '${formulaId}'. Available variables: ${this.formula.variables.map(v => v.symbol).join(', ')}`,
+                    {
+                        formula: formulaId,
+                        variable: unknownVar,
+                        availableVariables: this.formula.variables.map(v => v.symbol),
+                        step: 'Variable validation'
+                    }
+                );
+            }
+        }
+        
         // Merge global constants, formula constants, and known variables
         const vars = { ...globalConstants, ...this.formula.constants || {}, ...knownVars };
+        
+        // ENHANCED: Check for division by zero edge cases before solving
+        // This is a pre-check - actual division checks happen in solvers
+        for (const [varName, varValue] of Object.entries(vars)) {
+            if (varValue === 0 || varValue === null || varValue === undefined) {
+                // Check if this variable is used as a divisor in the formula
+                // This is a heuristic - actual validation happens in solvers
+                if (this.formula.equation && this.formula.equation.includes(`/${varName}`)) {
+                    console.warn(`[FormulaCalculator] Potential division by zero: ${varName} = ${varValue} may be used as divisor`);
+                }
+            }
+        }
         
         // FIXED: Use solver registry instead of giant switch
         const solver = FormulaCalculator.solvers[formulaId];
         
         if (!solver) {
+            // NEW: Try generic equation-based solver as fallback
+            if (this.formula.equation) {
+                try {
+                    const genericResult = this.solveFromEquation(this.formula.equation, unknownVar, vars);
+                    if (genericResult !== null && isFinite(genericResult)) {
+                        return genericResult;
+                    }
+                } catch (e) {
+                    // Fall through to error message
+                }
+            }
+            
             // ENHANCED: Use Levenshtein distance for better suggestions
             const availableSolvers = Object.keys(FormulaCalculator.solvers).sort();
             const suggestion = this.findClosestMatch(formulaId, availableSolvers);
@@ -1334,8 +2980,40 @@ class FormulaCalculator {
             }
             return result;
         } catch (error) {
-            // Wrap solver errors with context
-            throw new Error(`Error solving ${unknownVar} for ${formulaId}: ${error.message}`);
+            // If the specific solver can't handle this variable, try equation-based fallback.
+            if (this.formula.equation) {
+                try {
+                    const genericResult = this.solveFromEquation(this.formula.equation, unknownVar, vars);
+                    if (genericResult !== null && isFinite(genericResult)) {
+                        return genericResult;
+                    }
+                } catch (e) {
+                    // ignore and fall through
+                }
+            }
+
+            // ENHANCED: Wrap solver errors with better context and messaging
+            let errorMessage = `Error solving ${unknownVar} for ${formulaId}: ${error.message}`;
+            
+            // ENHANCED: Provide specific guidance for common errors
+            if (error.message.includes('zero') || error.message.includes('division')) {
+                errorMessage += ' Check that all divisor variables are non-zero.';
+            } else if (error.message.includes('undefined') || error.message.includes('not found')) {
+                errorMessage += ' Ensure all required variables are provided.';
+            } else if (error.message.includes('non-finite') || error.message.includes('Infinity') || error.message.includes('NaN')) {
+                errorMessage += ' This may indicate invalid input values or mathematical impossibility (e.g., sqrt of negative number).';
+            }
+            
+            throw new CalculationError(
+                errorMessage,
+                {
+                    formula: formulaId,
+                    variable: unknownVar,
+                    inputs: knownVars,
+                    step: 'Variable solving',
+                    originalError: error.message
+                }
+            );
         }
         
         // OLD SWITCH STATEMENT REMOVED - replaced with registry above
@@ -1466,6 +3144,9 @@ class FormulaCalculator {
             
             case 'stellar_lifetime':
                 return this.solveStellarLifetime(unknownVar, vars);
+            
+            case 'solar_lifetime_efficiency':
+                return this.solveSolarLifetimeEfficiency(unknownVar, vars);
             
             case 'mass_luminosity_relation':
                 return this.solveMassLuminosityRelation(unknownVar, vars);
@@ -2100,16 +3781,38 @@ class FormulaCalculator {
         
         if (unknownVar === 'N') {
             // N = K E^(-p)
+            if (K === undefined || K === null || E === undefined || E === null || p === undefined || p === null) {
+                throw new Error('Missing required variables: K, E, p');
+            }
+            if (E <= 0) throw new Error('E must be positive');
             return K * Math.pow(E, -p);
         } else if (unknownVar === 'K') {
             // K = N / E^(-p) = N E^p
+            if (N === undefined || N === null || E === undefined || E === null || p === undefined || p === null) {
+                throw new Error('Missing required variables: N, E, p');
+            }
+            if (E <= 0) throw new Error('E must be positive');
             return N * Math.pow(E, p);
         } else if (unknownVar === 'E') {
             // E = (N/K)^(-1/p)
+            if (N === undefined || N === null || K === undefined || K === null || p === undefined || p === null) {
+                throw new Error('Missing required variables: N, K, p');
+            }
+            if (K === 0) throw new Error('K cannot be zero');
+            if (p === 0) throw new Error('p cannot be zero');
+            if (N / K <= 0) throw new Error('N/K must be positive');
             return Math.pow(N / K, -1/p);
         } else if (unknownVar === 'p') {
             // p = -ln(N/K) / ln(E)
-            return -Math.log(N / K) / Math.log(E);
+            if (N === undefined || N === null || K === undefined || K === null || E === undefined || E === null) {
+                throw new Error('Missing required variables: N, K, E');
+            }
+            if (K === 0) throw new Error('K cannot be zero');
+            if (E <= 0 || E === 1) throw new Error('E must be positive and not equal to 1');
+            if (N / K <= 0) throw new Error('N/K must be positive');
+            const ratio = N / K;
+            if (ratio <= 0) throw new Error('N/K must be positive');
+            return -Math.log(ratio) / Math.log(E);
         }
     }
 
@@ -2139,36 +3842,54 @@ class FormulaCalculator {
     solveWhiteDwarfMassRadius(unknownVar, vars) {
         const { R, M } = vars;
         
-        // FIXED: Return symbolic relation instead of throwing error
-        // R ∝ 1 / M^(1/3), so R = k / M^(1/3)
-        // For calculation, we use R = k / M^(1/3) where k is a constant
-        // Since it's proportional, we can only solve if we have a reference point
-        // But we can return the symbolic relationship
+        // White dwarf mass-radius relation: R ∝ M^(-1/3)
+        // Using Chandrasekhar's relation: R = R_0 * (M/M_0)^(-1/3)
+        // Where R_0 and M_0 are reference values
         
         if (unknownVar === 'R') {
-            // R = k / M^(1/3), but k is unknown
-            // Return symbolic expression instead of error
-            if (M !== undefined && M !== null) {
-                // If we have M, we need a reference - use typical white dwarf values
-                // Typical: M = 0.6 M☉, R = 0.01 R☉
-                const M_ref = 0.6 * (vars["M_☉"] || vars.M_sun || 1.989e30);
-                const R_ref = 0.01 * (vars["R_☉"] || vars.R_sun || 6.96e8);
-                const k = R_ref * Math.pow(M_ref, 1/3);
-                return k / Math.pow(M, 1/3);
+            if (M === undefined || M === null) {
+                throw new Error('Missing required variable: M');
             }
-            // Symbolic: R = k / M^(1/3)
-            throw new Error('White dwarf mass-radius relation: R = k / M^(1/3). Provide M to calculate R, or use symbolic mode.');
+            if (M <= 0) throw new Error('M must be positive');
+            
+            // Use typical white dwarf reference: M = 0.6 M☉, R = 0.01 R☉
+            const M_sun = vars["M_☉"] || vars.M_sun || 1.989e30;
+            const R_sun = vars["R_☉"] || vars.R_sun || 6.96e8;
+            const M_ref = 0.6 * M_sun;
+            const R_ref = 0.01 * R_sun;
+            
+            // R = R_ref * (M/M_ref)^(-1/3)
+            const ratio = M / M_ref;
+            if (ratio <= 0) throw new Error('Mass ratio must be positive');
+            const result = R_ref * Math.pow(ratio, -1/3);
+            
+            // Validate result is reasonable (white dwarf radius should be ~0.01 R☉)
+            if (!isFinite(result) || result <= 0 || result > 10 * R_sun) {
+                throw new Error(`Unreasonable white dwarf radius: ${result}`);
+            }
+            return result;
         } else if (unknownVar === 'M') {
-            // M = (k/R)^3, but k is unknown
-            if (R !== undefined && R !== null) {
-                // Use reference values
-                const M_ref = 0.6 * (vars["M_☉"] || vars.M_sun || 1.989e30);
-                const R_ref = 0.01 * (vars["R_☉"] || vars.R_sun || 6.96e8);
-                const k = R_ref * Math.pow(M_ref, 1/3);
-                return Math.pow(k / R, 3);
+            if (R === undefined || R === null) {
+                throw new Error('Missing required variable: R');
             }
-            // Symbolic: M = (k/R)^3
-            throw new Error('White dwarf mass-radius relation: M = (k/R)^3. Provide R to calculate M, or use symbolic mode.');
+            if (R <= 0) throw new Error('R must be positive');
+            
+            // Use reference values
+            const M_sun = vars["M_☉"] || vars.M_sun || 1.989e30;
+            const R_sun = vars["R_☉"] || vars.R_sun || 6.96e8;
+            const M_ref = 0.6 * M_sun;
+            const R_ref = 0.01 * R_sun;
+            
+            // M = M_ref * (R/R_ref)^(-3)
+            const ratio = R / R_ref;
+            if (ratio <= 0) throw new Error('Radius ratio must be positive');
+            const result = M_ref * Math.pow(ratio, -3);
+            
+            // Validate result is reasonable (white dwarf mass should be < 1.4 M☉)
+            if (!isFinite(result) || result <= 0 || result > 2 * M_sun) {
+                throw new Error(`Unreasonable white dwarf mass: ${result}`);
+            }
+            return result;
         }
     }
 
@@ -2197,37 +3918,105 @@ class FormulaCalculator {
 
     solveHydrostaticBalance(unknownVar, vars) {
         const { dP_dr, M, ρ, r, G } = vars;
+        const grav = G || 6.67430e-11;
         
         if (unknownVar === 'dP_dr') {
             // dP/dr = -GM(r)ρ(r) / r²
-            return -(G * M * ρ) / (r * r);
+            if (M === undefined || M === null || ρ === undefined || ρ === null || r === undefined || r === null) {
+                throw new Error('Missing required variables: M, ρ, r');
+            }
+            if (M <= 0) throw new Error('M must be positive');
+            if (ρ <= 0) throw new Error('ρ must be positive');
+            if (r <= 0) throw new Error('r must be positive');
+            return -(grav * M * ρ) / (r * r);
         } else if (unknownVar === 'M') {
             // M = -(dP/dr) r² / (G ρ)
-            return -(dP_dr * r * r) / (G * ρ);
+            if (dP_dr === undefined || dP_dr === null || r === undefined || r === null || ρ === undefined || ρ === null) {
+                throw new Error('Missing required variables: dP_dr, r, ρ');
+            }
+            if (r <= 0) throw new Error('r must be positive');
+            if (ρ <= 0) throw new Error('ρ must be positive');
+            if (grav * ρ === 0) throw new Error('G * ρ cannot be zero');
+            return -(dP_dr * r * r) / (grav * ρ);
         } else if (unknownVar === 'ρ') {
             // ρ = -(dP/dr) r² / (G M)
-            return -(dP_dr * r * r) / (G * M);
+            if (dP_dr === undefined || dP_dr === null || r === undefined || r === null || M === undefined || M === null) {
+                throw new Error('Missing required variables: dP_dr, r, M');
+            }
+            if (r <= 0) throw new Error('r must be positive');
+            if (M <= 0) throw new Error('M must be positive');
+            if (grav * M === 0) throw new Error('G * M cannot be zero');
+            return -(dP_dr * r * r) / (grav * M);
         } else if (unknownVar === 'r') {
             // r = √(-(dP/dr) / (G M ρ))
-            return Math.sqrt(-(dP_dr) / (G * M * ρ));
+            // Note: dP/dr is negative for hydrostatic equilibrium, so -dP/dr is positive
+            if (dP_dr === undefined || dP_dr === null || M === undefined || M === null || ρ === undefined || ρ === null) {
+                throw new Error('Missing required variables: dP_dr, M, ρ');
+            }
+            if (M <= 0) throw new Error('M must be positive');
+            if (ρ <= 0) throw new Error('ρ must be positive');
+            const numerator = -(dP_dr);
+            if (numerator <= 0) throw new Error('dP_dr must be negative for hydrostatic balance');
+            const denominator = grav * M * ρ;
+            if (denominator <= 0) throw new Error('G * M * ρ must be positive');
+            const arg = numerator / denominator;
+            if (arg <= 0) throw new Error('Square root argument must be positive');
+            return Math.sqrt(arg);
         }
     }
 
     solveKeplerThirdLawBinary(unknownVar, vars) {
         const { P, a, M1, M2, G } = vars;
+        const grav = G || 6.67430e-11;
         
         if (unknownVar === 'P') {
             // P = √((4π²a³) / (G(M1 + M2)))
-            return Math.sqrt((4 * Math.PI * Math.PI * a * a * a) / (G * (M1 + M2)));
+            if (a === undefined || a === null || M1 === undefined || M1 === null || M2 === undefined || M2 === null) {
+                throw new Error('Missing required variables: a, M1, M2');
+            }
+            if (a <= 0) throw new Error('a must be positive');
+            if (M1 <= 0) throw new Error('M1 must be positive');
+            if (M2 <= 0) throw new Error('M2 must be positive');
+            const totalMass = M1 + M2;
+            if (totalMass <= 0) throw new Error('M1 + M2 must be positive');
+            return Math.sqrt((4 * Math.PI * Math.PI * a * a * a) / (grav * totalMass));
         } else if (unknownVar === 'a') {
             // a = ∛((G(M1 + M2) P²) / (4π²))
-            return Math.cbrt((G * (M1 + M2) * P * P) / (4 * Math.PI * Math.PI));
+            if (P === undefined || P === null || M1 === undefined || M1 === null || M2 === undefined || M2 === null) {
+                throw new Error('Missing required variables: P, M1, M2');
+            }
+            if (P <= 0) throw new Error('P must be positive');
+            if (M1 <= 0) throw new Error('M1 must be positive');
+            if (M2 <= 0) throw new Error('M2 must be positive');
+            const totalMass = M1 + M2;
+            if (totalMass <= 0) throw new Error('M1 + M2 must be positive');
+            return Math.cbrt((grav * totalMass * P * P) / (4 * Math.PI * Math.PI));
         } else if (unknownVar === 'M1') {
             // M1 = (4π²a³) / (G P²) - M2
-            return (4 * Math.PI * Math.PI * a * a * a) / (G * P * P) - M2;
+            if (P === undefined || P === null || a === undefined || a === null || M2 === undefined || M2 === null) {
+                throw new Error('Missing required variables: P, a, M2');
+            }
+            if (P <= 0) throw new Error('P must be positive');
+            if (a <= 0) throw new Error('a must be positive');
+            if (M2 < 0) throw new Error('M2 must be non-negative');
+            const totalMass = (4 * Math.PI * Math.PI * a * a * a) / (grav * P * P);
+            if (totalMass <= M2) throw new Error('Total mass must be greater than M2');
+            const result = totalMass - M2;
+            if (result <= 0) throw new Error('M1 must be positive');
+            return result;
         } else if (unknownVar === 'M2') {
             // M2 = (4π²a³) / (G P²) - M1
-            return (4 * Math.PI * Math.PI * a * a * a) / (G * P * P) - M1;
+            if (P === undefined || P === null || a === undefined || a === null || M1 === undefined || M1 === null) {
+                throw new Error('Missing required variables: P, a, M1');
+            }
+            if (P <= 0) throw new Error('P must be positive');
+            if (a <= 0) throw new Error('a must be positive');
+            if (M1 < 0) throw new Error('M1 must be non-negative');
+            const totalMass = (4 * Math.PI * Math.PI * a * a * a) / (grav * P * P);
+            if (totalMass <= M1) throw new Error('Total mass must be greater than M1');
+            const result = totalMass - M1;
+            if (result <= 0) throw new Error('M2 must be positive');
+            return result;
         }
     }
 
@@ -2281,16 +4070,38 @@ class FormulaCalculator {
         
         if (unknownVar === 'm1') {
             // m1 = m2 - 2.5 log₁₀(F1/F2)
+            if (m2 === undefined || m2 === null || F1 === undefined || F1 === null || F2 === undefined || F2 === null) {
+                throw new Error('Missing required variables: m2, F1, F2');
+            }
+            if (F1 <= 0 || F2 <= 0) throw new Error('F1 and F2 must be positive');
+            if (F1 / F2 <= 0) throw new Error('F1/F2 must be positive');
             return m2 - 2.5 * Math.log10(F1 / F2);
         } else if (unknownVar === 'm2') {
             // m2 = m1 + 2.5 log₁₀(F1/F2)
+            if (m1 === undefined || m1 === null || F1 === undefined || F1 === null || F2 === undefined || F2 === null) {
+                throw new Error('Missing required variables: m1, F1, F2');
+            }
+            if (F1 <= 0 || F2 <= 0) throw new Error('F1 and F2 must be positive');
+            if (F1 / F2 <= 0) throw new Error('F1/F2 must be positive');
             return m1 + 2.5 * Math.log10(F1 / F2);
         } else if (unknownVar === 'F1') {
             // F1 = F2 × 10^((m2 - m1) / 2.5)
-            return F2 * Math.pow(10, (m2 - m1) / 2.5);
+            if (m1 === undefined || m1 === null || m2 === undefined || m2 === null || F2 === undefined || F2 === null) {
+                throw new Error('Missing required variables: m1, m2, F2');
+            }
+            if (F2 <= 0) throw new Error('F2 must be positive');
+            const result = F2 * Math.pow(10, (m2 - m1) / 2.5);
+            if (!isFinite(result) || result <= 0) throw new Error('Invalid flux result');
+            return result;
         } else if (unknownVar === 'F2') {
             // F2 = F1 × 10^((m1 - m2) / 2.5)
-            return F1 * Math.pow(10, (m1 - m2) / 2.5);
+            if (m1 === undefined || m1 === null || m2 === undefined || m2 === null || F1 === undefined || F1 === null) {
+                throw new Error('Missing required variables: m1, m2, F1');
+            }
+            if (F1 <= 0) throw new Error('F1 must be positive');
+            const result = F1 * Math.pow(10, (m1 - m2) / 2.5);
+            if (!isFinite(result) || result <= 0) throw new Error('Invalid flux result');
+            return result;
         }
     }
 
@@ -2447,13 +4258,50 @@ class FormulaCalculator {
         const grav = G || 6.67430e-11;
         
         if (unknownVar === 'E') {
+            // E = -GMm / (2a) for bound orbits (E < 0)
+            if (M === undefined || M === null || m === undefined || m === null || a === undefined || a === null) {
+                throw new Error('Missing required variables: M, m, a');
+            }
+            if (M <= 0) throw new Error('M must be positive');
+            if (m <= 0) throw new Error('m must be positive');
+            if (a <= 0) throw new Error('a must be positive');
             return -(grav * M * m) / (2 * a);
         } else if (unknownVar === 'a') {
-            return -(grav * M * m) / (2 * E);
+            // a = -GMm / (2E) for bound orbits (E < 0, so a > 0)
+            if (E === undefined || E === null || M === undefined || M === null || m === undefined || m === null) {
+                throw new Error('Missing required variables: E, M, m');
+            }
+            if (M <= 0) throw new Error('M must be positive');
+            if (m <= 0) throw new Error('m must be positive');
+            if (E >= 0) throw new Error('E must be negative for bound orbits');
+            if (E === 0) throw new Error('E cannot be zero');
+            const result = -(grav * M * m) / (2 * E);
+            if (result <= 0) throw new Error('Semi-major axis must be positive');
+            return result;
         } else if (unknownVar === 'M') {
-            return -(2 * E * a) / (grav * m);
+            // M = -2Ea / (Gm) for bound orbits (E < 0, so M > 0)
+            if (E === undefined || E === null || a === undefined || a === null || m === undefined || m === null) {
+                throw new Error('Missing required variables: E, a, m');
+            }
+            if (a <= 0) throw new Error('a must be positive');
+            if (m <= 0) throw new Error('m must be positive');
+            if (E >= 0) throw new Error('E must be negative for bound orbits');
+            if (E === 0) throw new Error('E cannot be zero');
+            const result = -(2 * E * a) / (grav * m);
+            if (result <= 0) throw new Error('Mass must be positive');
+            return result;
         } else if (unknownVar === 'm') {
-            return -(2 * E * a) / (grav * M);
+            // m = -2Ea / (GM) for bound orbits (E < 0, so m > 0)
+            if (E === undefined || E === null || a === undefined || a === null || M === undefined || M === null) {
+                throw new Error('Missing required variables: E, a, M');
+            }
+            if (a <= 0) throw new Error('a must be positive');
+            if (M <= 0) throw new Error('M must be positive');
+            if (E >= 0) throw new Error('E must be negative for bound orbits');
+            if (E === 0) throw new Error('E cannot be zero');
+            const result = -(2 * E * a) / (grav * M);
+            if (result <= 0) throw new Error('Mass must be positive');
+            return result;
         }
     }
 
@@ -2502,6 +4350,61 @@ class FormulaCalculator {
         }
     }
 
+    solveSolarLifetimeEfficiency(unknownVar, vars) {
+        const t = vars.t;
+        const epsilon = vars['ε'] || vars.epsilon || vars.e || 0.007;
+        const f_H = vars['f_H'] || vars.f_H || 0.7346;
+        const f_available = vars['f_available'] || vars.f_available || 0.1;
+        const M = vars.M || 1.989e30;
+        const c = vars.c || 2.99792458e8;
+        const L = vars.L || 3.828e26;
+        
+        if (unknownVar === 't') {
+            // t = (ε × f_H × f_available × M × c²) / L
+            const numerator = epsilon * f_H * f_available * M * c * c;
+            SolverValidator.checkNonZero(L, 'Luminosity');
+            return SolverValidator.validateResult(numerator / L, 'Solar Lifetime');
+        } else if (unknownVar === 'ε' || unknownVar === 'epsilon' || unknownVar === 'e') {
+            // ε = (t × L) / (f_H × f_available × M × c²)
+            SolverValidator.checkNonZero(f_H, 'Hydrogen mass fraction');
+            SolverValidator.checkNonZero(f_available, 'Available hydrogen fraction');
+            SolverValidator.checkNonZero(M, 'Stellar mass');
+            const denominator = f_H * f_available * M * c * c;
+            SolverValidator.checkNonZero(denominator, 'Denominator (f_H × f_available × M × c²)');
+            return SolverValidator.validateResult((t * L) / denominator, 'Mass-to-Energy Efficiency');
+        } else if (unknownVar === 'f_H') {
+            // f_H = (t × L) / (ε × f_available × M × c²)
+            SolverValidator.checkNonZero(epsilon, 'Efficiency');
+            SolverValidator.checkNonZero(f_available, 'Available hydrogen fraction');
+            SolverValidator.checkNonZero(M, 'Stellar mass');
+            const denominator = epsilon * f_available * M * c * c;
+            SolverValidator.checkNonZero(denominator, 'Denominator (ε × f_available × M × c²)');
+            return SolverValidator.validateResult((t * L) / denominator, 'Hydrogen Mass Fraction');
+        } else if (unknownVar === 'f_available') {
+            // f_available = (t × L) / (ε × f_H × M × c²)
+            SolverValidator.checkNonZero(epsilon, 'Efficiency');
+            SolverValidator.checkNonZero(f_H, 'Hydrogen mass fraction');
+            SolverValidator.checkNonZero(M, 'Stellar mass');
+            const denominator = epsilon * f_H * M * c * c;
+            SolverValidator.checkNonZero(denominator, 'Denominator (ε × f_H × M × c²)');
+            return SolverValidator.validateResult((t * L) / denominator, 'Available Hydrogen Fraction');
+        } else if (unknownVar === 'M') {
+            // M = (t × L) / (ε × f_H × f_available × c²)
+            SolverValidator.checkNonZero(epsilon, 'Efficiency');
+            SolverValidator.checkNonZero(f_H, 'Hydrogen mass fraction');
+            SolverValidator.checkNonZero(f_available, 'Available hydrogen fraction');
+            const denominator = epsilon * f_H * f_available * c * c;
+            SolverValidator.checkNonZero(denominator, 'Denominator (ε × f_H × f_available × c²)');
+            return SolverValidator.validateResult((t * L) / denominator, 'Stellar Mass');
+        } else if (unknownVar === 'L') {
+            // L = (ε × f_H × f_available × M × c²) / t
+            SolverValidator.checkNonZero(t, 'Lifetime');
+            const numerator = epsilon * f_H * f_available * M * c * c;
+            return SolverValidator.validateResult(numerator / t, 'Luminosity');
+        }
+        throw new Error(`Cannot solve for ${unknownVar} in Solar Lifetime with Efficiency`);
+    }
+
     solveMassLuminosityRelation(unknownVar, vars) {
         const { L, M, exponent } = vars;
         const exp = exponent || 3.5;
@@ -2542,21 +4445,148 @@ class FormulaCalculator {
             return factor * Math.log10(L / L_sun) + offset;
         } else if (unknownVar === 'L') {
             return L_sun * Math.pow(10, (M_V - offset) / factor);
+        } else if (unknownVar === 'L_sun') {
+            // L_sun = L / 10^((offset - M_V)/2.5)
+            // derived from: M_V = -2.5 log10(L/L_sun) + offset
+            if (L === undefined || L === null) throw new Error('L is required');
+            if (M_V === undefined || M_V === null) throw new Error('M_V is required');
+            const denom = Math.pow(10, (offset - M_V) / 2.5);
+            if (denom === 0) throw new Error('Invalid magnitude conversion');
+            return L / denom;
         }
+    }
+
+    solveLuminosityAbsoluteMagnitude(unknownVar, vars) {
+        // Formula: L ∝ 10^(-0.4M)
+        // Standard form: M_bol = -2.5 log10(L/L_sun) + 4.83
+        // Solving for L: L = L_sun * 10^(-0.4*(M - 4.83))
+        const normalizedVar = VariableNormalizer.normalize(unknownVar);
+        const M = vars.M || vars['M_V'] || vars.M_V;
+        const L = vars.L || vars['L_solar'] || vars.L_solar;
+        const L_sun = vars['L_sun'] || vars.L_sun || 3.828e26;
+        // Solar absolute bolometric magnitude (NOT solar mass!)
+        // Use a different variable name to avoid collision with M_sun mass constant
+        const M_sun_magnitude = (vars['M_sun'] && vars['M_sun'] < 10 && vars['M_sun'] > -10) ? vars['M_sun'] : 4.83;
+        
+        if (normalizedVar === 'L' || unknownVar === 'L' || unknownVar === 'L_solar') {
+            // L = L_sun * 10^(-0.4*(M - M_sun))
+            if (M === undefined || M === null) {
+                throw new Error('M (absolute magnitude) is required to solve for L');
+            }
+            // Safety clamp: ensure magnitude is in reasonable range to prevent Infinity
+            // Clamp to [-20, 20] which gives exponent range: -0.4*(-20-4.83)=9.932 to -0.4*(20-4.83)=-6.068
+            // All clamped values produce reasonable exponents (< 10), so no need for additional checks
+            const clampedM = Math.max(-20, Math.min(20, M));
+            const exponent = -0.4 * (clampedM - M_sun_magnitude);
+            
+            // Verify exponent is finite (should always be with clamped values)
+            if (!isFinite(exponent)) {
+                throw new Error(`Invalid exponent calculation: M=${M}, clampedM=${clampedM}, M_sun_magnitude=${M_sun_magnitude}`);
+            }
+            const L_solar = Math.pow(10, exponent);
+            if (!isFinite(L_solar) || L_solar <= 0) {
+                throw new Error(`Invalid L_solar calculation: exponent=${exponent}, L_solar=${L_solar}, M=${M}, clampedM=${clampedM}, M_sun_magnitude=${M_sun_magnitude}`);
+            }
+            // Return in watts (solar units * L_sun)
+            const result = L_solar * L_sun;
+            if (!isFinite(result)) {
+                throw new Error(`Result is infinite: L_solar=${L_solar}, L_sun=${L_sun}, result=${result}`);
+            }
+            if (result <= 0) {
+                throw new Error(`Result is non-positive: result=${result}`);
+            }
+            return result;
+        } else if (normalizedVar === 'M' || unknownVar === 'M' || unknownVar === 'M_V') {
+            // M = M_sun - 2.5 * log10(L/L_sun)
+            if (L === undefined || L === null) {
+                throw new Error('L (luminosity) is required to solve for M');
+            }
+            if (L <= 0) {
+                throw new Error('Luminosity must be positive');
+            }
+            const L_ratio = L / L_sun;
+            if (L_ratio <= 0) {
+                throw new Error('Luminosity ratio must be positive');
+            }
+            return M_sun_magnitude - 2.5 * Math.log10(L_ratio);
+        }
+        throw new Error(`Cannot solve for ${unknownVar} in Luminosity from Absolute Magnitude`);
     }
 
     solveFriedmannEquation(unknownVar, vars) {
         const H = vars.H;
         const H0 = vars.H0;
-        const Omega_m = vars['Ω_m'] || vars.Omega_m;
-        const Omega_r = vars['Ω_r'] || vars.Omega_r;
-        const Omega_Lambda = vars['Ω_Λ'] || vars.Omega_Lambda;
+        // IMPORTANT: use nullish coalescing so valid 0 values don't get replaced by undefined
+        const Omega_m = (vars['Ω_m'] ?? vars.Omega_m);
+        const Omega_r = (vars['Ω_r'] ?? vars.Omega_r ?? 0);
+        const Omega_Lambda = (vars['Ω_Λ'] ?? vars.Omega_Lambda);
         const a = vars.a;
         
         if (unknownVar === 'H') {
+            if (H0 === undefined || H0 === null) throw new Error('H0 is required');
+            if (Omega_m === undefined || Omega_m === null) throw new Error('Ω_m is required');
+            if (Omega_Lambda === undefined || Omega_Lambda === null) throw new Error('Ω_Λ is required');
+            if (a === undefined || a === null || a <= 0) throw new Error('a must be positive');
             return H0 * Math.sqrt(Omega_m * Math.pow(a, -3) + Omega_r * Math.pow(a, -4) + Omega_Lambda);
         } else if (unknownVar === 'H0' || unknownVar === 'H0') {
+            if (H === undefined || H === null) throw new Error('H is required');
+            if (Omega_m === undefined || Omega_m === null) throw new Error('Ω_m is required');
+            if (Omega_Lambda === undefined || Omega_Lambda === null) throw new Error('Ω_Λ is required');
+            if (a === undefined || a === null || a <= 0) throw new Error('a must be positive');
             return H / Math.sqrt(Omega_m * Math.pow(a, -3) + Omega_r * Math.pow(a, -4) + Omega_Lambda);
+        } else if (unknownVar === 'a') {
+            // Numerically solve for scale factor a > 0 using bisection on:
+            // f(a) = (H^2/H0^2) - (Ω_m a^-3 + Ω_r a^-4 + Ω_Λ) = 0
+            if (H === undefined || H === null) throw new Error('H is required');
+            if (H0 === undefined || H0 === null || H0 === 0) throw new Error('H0 must be non-zero');
+            if (Omega_m === undefined || Omega_m === null) throw new Error('Ω_m is required');
+            if (Omega_Lambda === undefined || Omega_Lambda === null) throw new Error('Ω_Λ is required');
+
+            const target = (H * H) / (H0 * H0);
+            if (!isFinite(target) || target <= 0) throw new Error('H^2/H0^2 must be positive');
+
+            const f = (x) => {
+                // guard x>0
+                if (x <= 0) return Infinity;
+                return target - (Omega_m * Math.pow(x, -3) + Omega_r * Math.pow(x, -4) + Omega_Lambda);
+            };
+
+            // Bracket root in log-space: a in [1e-8, 1e8]
+            let lo = 1e-8, hi = 1e8;
+            let flo = f(lo), fhi = f(hi);
+
+            // If not bracketed, try expanding a bit (rare if inputs are sane)
+            let expand = 0;
+            while (flo * fhi > 0 && expand < 10) {
+                lo /= 10;
+                hi *= 10;
+                flo = f(lo);
+                fhi = f(hi);
+                expand++;
+            }
+            if (flo * fhi > 0) {
+                throw new Error('Could not bracket solution for a with given inputs');
+            }
+
+            // Bisection
+            for (let i = 0; i < 120; i++) {
+                const mid = (lo + hi) / 2;
+                const fmid = f(mid);
+                if (!isFinite(fmid)) {
+                    // push away from invalid region
+                    lo = mid;
+                    continue;
+                }
+                if (Math.abs(fmid) < 1e-10) return mid;
+                if (flo * fmid <= 0) {
+                    hi = mid;
+                    fhi = fmid;
+                } else {
+                    lo = mid;
+                    flo = fmid;
+                }
+            }
+            return (lo + hi) / 2;
         }
         // Note: Solving for other variables requires more complex algebra
     }
@@ -2593,33 +4623,117 @@ class FormulaCalculator {
     }
 
     solveTimeDilation(unknownVar, vars) {
-        const delta_t_prime = vars['Δt\''] || vars['delta_t_prime'] || vars.delta_t_prime;
-        const delta_t = vars['Δt'] || vars.delta_t || vars.delta_t;
+        // Handle both normalized and original variable names
+        const normalizedVar = VariableNormalizer.normalize(unknownVar);
+        const delta_t_prime = VariableNormalizer.getWithFallback(vars, "Δt'") || VariableNormalizer.getWithFallback(vars, 'delta_t_prime');
+        const delta_t = VariableNormalizer.getWithFallback(vars, 'Δt') || VariableNormalizer.getWithFallback(vars, 'delta_t');
         const v = vars.v;
         const c = vars.c || 2.998e8;
         
-        if (unknownVar === 'Δt\'' || unknownVar === 'delta_t_prime' || unknownVar === 'delta_t_prime') {
-            return delta_t / Math.sqrt(1 - (v * v / (c * c)));
-        } else if (unknownVar === 'Δt' || unknownVar === 'delta_t' || unknownVar === 'delta_t') {
-            return delta_t_prime * Math.sqrt(1 - (v * v / (c * c)));
-        } else if (unknownVar === 'v') {
-            return c * Math.sqrt(1 - Math.pow(delta_t / delta_t_prime, 2));
+        if (normalizedVar === 'delta_t_prime' || unknownVar === "Δt'" || unknownVar === 'delta_t_prime') {
+            if (delta_t === undefined || delta_t === null || v === undefined || v === null) {
+                throw new Error('delta_t and v are required to solve for delta_t_prime');
+            }
+            if (Math.abs(v) >= c) {
+                throw new Error('Velocity must be less than speed of light');
+            }
+            const result = delta_t / Math.sqrt(1 - (v * v / (c * c)));
+            if (!isFinite(result)) {
+                throw new Error('Invalid calculation: result is not finite');
+            }
+            return result;
+        } else if (normalizedVar === 'delta_t' || unknownVar === 'Δt' || unknownVar === 'delta_t') {
+            if (delta_t_prime === undefined || delta_t_prime === null || v === undefined || v === null) {
+                throw new Error('delta_t_prime and v are required to solve for delta_t');
+            }
+            if (Math.abs(v) >= c) {
+                throw new Error('Velocity must be less than speed of light');
+            }
+            const result = delta_t_prime * Math.sqrt(1 - (v * v / (c * c)));
+            if (!isFinite(result)) {
+                throw new Error('Invalid calculation: result is not finite');
+            }
+            return result;
+        } else if (normalizedVar === 'v' || unknownVar === 'v') {
+            if (delta_t === undefined || delta_t === null || delta_t_prime === undefined || delta_t_prime === null) {
+                throw new Error('delta_t and delta_t_prime are required to solve for v');
+            }
+            if (delta_t_prime <= 0 || delta_t <= 0) {
+                throw new Error('Time values must be positive');
+            }
+            const ratio = delta_t / delta_t_prime;
+            if (ratio >= 1) {
+                throw new Error('Invalid physics: delta_t must be less than delta_t_prime for time dilation');
+            }
+            const result = c * Math.sqrt(1 - Math.pow(ratio, 2));
+            if (!isFinite(result) || result < 0) {
+                throw new Error('Invalid calculation: result is not finite or negative');
+            }
+            return result;
         }
+        throw new Error(`Cannot solve for ${unknownVar} in time dilation`);
     }
 
     solveLengthContraction(unknownVar, vars) {
-        const L_prime = vars['L\''] || vars['L_prime'] || vars.L_prime;
+        // Handle both normalized and original variable names
+        const normalizedVar = VariableNormalizer.normalize(unknownVar);
+        const L_prime = VariableNormalizer.getWithFallback(vars, "L'") || VariableNormalizer.getWithFallback(vars, 'L_prime');
         const L = vars.L;
         const v = vars.v;
         const c = vars.c || 2.998e8;
         
-        if (unknownVar === 'L\'' || unknownVar === 'L_prime' || unknownVar === 'L_prime') {
-            return L * Math.sqrt(1 - (v * v / (c * c)));
-        } else if (unknownVar === 'L') {
-            return L_prime / Math.sqrt(1 - (v * v / (c * c)));
-        } else if (unknownVar === 'v') {
-            return c * Math.sqrt(1 - Math.pow(L_prime / L, 2));
+        if (normalizedVar === 'L_prime' || unknownVar === "L'" || unknownVar === 'L_prime') {
+            if (L === undefined || L === null || v === undefined || v === null) {
+                throw new Error('L and v are required to solve for L_prime');
+            }
+            if (L <= 0) {
+                throw new Error('Length must be positive');
+            }
+            if (Math.abs(v) >= c) {
+                throw new Error('Velocity must be less than speed of light');
+            }
+            const result = L * Math.sqrt(1 - (v * v / (c * c)));
+            if (!isFinite(result)) {
+                throw new Error('Invalid calculation: result is not finite');
+            }
+            return result;
+        } else if (normalizedVar === 'L' || unknownVar === 'L') {
+            if (L_prime === undefined || L_prime === null || v === undefined || v === null) {
+                throw new Error('L_prime and v are required to solve for L');
+            }
+            if (L_prime <= 0) {
+                throw new Error('Length must be positive');
+            }
+            if (Math.abs(v) >= c) {
+                throw new Error('Velocity must be less than speed of light');
+            }
+            const sqrtTerm = Math.sqrt(1 - (v * v / (c * c)));
+            if (sqrtTerm <= 0) {
+                throw new Error('Invalid physics: velocity too close to speed of light');
+            }
+            const result = L_prime / sqrtTerm;
+            if (!isFinite(result)) {
+                throw new Error('Invalid calculation: result is not finite');
+            }
+            return result;
+        } else if (normalizedVar === 'v' || unknownVar === 'v') {
+            if (L === undefined || L === null || L_prime === undefined || L_prime === null) {
+                throw new Error('L and L_prime are required to solve for v');
+            }
+            if (L <= 0 || L_prime <= 0) {
+                throw new Error('Lengths must be positive');
+            }
+            const ratio = L_prime / L;
+            if (ratio >= 1) {
+                throw new Error('Invalid physics: L_prime must be less than L for length contraction');
+            }
+            const result = c * Math.sqrt(1 - Math.pow(ratio, 2));
+            if (!isFinite(result) || result < 0) {
+                throw new Error('Invalid calculation: result is not finite or negative');
         }
+            return result;
+        }
+        throw new Error(`Cannot solve for ${unknownVar} in length contraction`);
     }
 
     solvePlanetaryEquilibriumTemperature(unknownVar, vars) {
@@ -3069,6 +5183,365 @@ class FormulaCalculator {
     }
 
     /**
+     * Solve Period-Luminosity Relation for Cepheids
+     * Equation: M_V = -2.76 × log₁₀(P) - 1.4
+     */
+    solvePeriodLuminosityCepheid(unknownVar, vars) {
+        const M_V = vars.M_V || vars['M_V'];
+        const P = vars.P;
+        const slope = -2.76;
+        const intercept = -1.4;
+        
+        if (unknownVar === 'M_V' || unknownVar === 'M_V') {
+            if (P === null || P === undefined || P <= 0) {
+                throw new Error('P (period in days) must be positive');
+            }
+            return slope * Math.log10(P) + intercept;
+        } else if (unknownVar === 'P') {
+            if (M_V === null || M_V === undefined) {
+                throw new Error('M_V (absolute magnitude) is required');
+            }
+            return Math.pow(10, (M_V - intercept) / slope);
+        }
+    }
+
+    /**
+     * Solve Bolometric Correction
+     * Equation: M_bol = M_V + BC
+     */
+    solveBolometricCorrection(unknownVar, vars) {
+        const M_bol = vars.M_bol || vars['M_bol'];
+        const M_V = vars.M_V || vars['M_V'];
+        const BC = vars.BC;
+        
+        if (unknownVar === 'M_bol' || unknownVar === 'M_bol') {
+            if (M_V === null || M_V === undefined) {
+                throw new Error('M_V (visual magnitude) is required');
+            }
+            if (BC === null || BC === undefined) {
+                throw new Error('BC (bolometric correction) is required');
+            }
+            return M_V + BC;
+        } else if (unknownVar === 'M_V' || unknownVar === 'M_V') {
+            if (M_bol === null || M_bol === undefined) {
+                throw new Error('M_bol (bolometric magnitude) is required');
+            }
+            if (BC === null || BC === undefined) {
+                throw new Error('BC (bolometric correction) is required');
+            }
+            return M_bol - BC;
+        } else if (unknownVar === 'BC') {
+            if (M_bol === null || M_bol === undefined) {
+                throw new Error('M_bol (bolometric magnitude) is required');
+            }
+            if (M_V === null || M_V === undefined) {
+                throw new Error('M_V (visual magnitude) is required');
+            }
+            return M_bol - M_V;
+        }
+    }
+
+    /**
+     * Solve Extinction Correction with RV
+     * Equation: A_V = R_V × E(B - V)
+     */
+    solveExtinctionCorrectionRV(unknownVar, vars) {
+        const A_V = vars.A_V || vars['A_V'];
+        const R_V = vars.R_V || vars.R_V || 3.1;  // Default Milky Way value
+        const E_BV = vars['E(B - V)'] || vars.E_BV || vars['E(B-V)'];
+        
+        if (unknownVar === 'A_V' || unknownVar === 'A_V') {
+            if (E_BV === null || E_BV === undefined) {
+                throw new Error('E(B-V) (color excess) is required');
+            }
+            if (R_V <= 0) {
+                throw new Error('R_V must be positive');
+            }
+            return R_V * E_BV;
+        } else if (unknownVar === 'R_V' || unknownVar === 'R_V') {
+            if (A_V === null || A_V === undefined) {
+                throw new Error('A_V (visual extinction) is required');
+            }
+            if (E_BV === null || E_BV === undefined || E_BV === 0) {
+                throw new Error('E(B-V) (color excess) must be non-zero');
+            }
+            return A_V / E_BV;
+        } else if (unknownVar === 'E(B - V)' || unknownVar === 'E_BV' || unknownVar === 'E(B-V)') {
+            if (A_V === null || A_V === undefined) {
+                throw new Error('A_V (visual extinction) is required');
+            }
+            if (R_V <= 0) {
+                throw new Error('R_V must be positive');
+            }
+            return A_V / R_V;
+        }
+    }
+
+    /**
+     * Solve Binary Mass Ratio from Velocity Amplitudes
+     * Equation: M₁ / M₂ = K₂ / K₁
+     */
+    solveBinaryMassRatioVelocity(unknownVar, vars) {
+        // NOTE: Unicode subscripts like '₁' are not valid in JS identifiers for dot access in all runtimes.
+        // Always use bracket notation for unicode-symbol keys.
+        const M1 = vars['M₁'] || vars.M1 || vars['M_1'];
+        const M2 = vars['M₂'] || vars.M2 || vars['M_2'];
+        const K1 = vars['K₁'] || vars.K1 || vars['K_1'];
+        const K2 = vars['K₂'] || vars.K2 || vars['K_2'];
+        
+        if (unknownVar === 'M₁' || unknownVar === 'M1' || unknownVar === 'M_1') {
+            if (M2 === null || M2 === undefined) {
+                throw new Error('M₂ (secondary mass) is required');
+            }
+            if (K1 === null || K1 === undefined || K1 === 0) {
+                throw new Error('K₁ (primary velocity amplitude) must be non-zero');
+            }
+            if (K2 === null || K2 === undefined) {
+                throw new Error('K₂ (secondary velocity amplitude) is required');
+            }
+            return (K2 / K1) * M2;
+        } else if (unknownVar === 'M₂' || unknownVar === 'M2' || unknownVar === 'M_2') {
+            if (M1 === null || M1 === undefined) {
+                throw new Error('M₁ (primary mass) is required');
+            }
+            if (K2 === null || K2 === undefined || K2 === 0) {
+                throw new Error('K₂ (secondary velocity amplitude) must be non-zero');
+            }
+            if (K1 === null || K1 === undefined) {
+                throw new Error('K₁ (primary velocity amplitude) is required');
+            }
+            return (K1 / K2) * M1;
+        } else if (unknownVar === 'K₁' || unknownVar === 'K1' || unknownVar === 'K_1') {
+            if (M1 === null || M1 === undefined || M1 <= 0) {
+                throw new Error('M₁ (primary mass) must be positive');
+            }
+            if (M2 === null || M2 === undefined || M2 <= 0) {
+                throw new Error('M₂ (secondary mass) must be positive');
+            }
+            if (K2 === null || K2 === undefined || K2 === 0) {
+                throw new Error('K₂ (secondary velocity amplitude) must be non-zero');
+            }
+            return (M2 / M1) * K2;
+        } else if (unknownVar === 'K₂' || unknownVar === 'K2' || unknownVar === 'K_2') {
+            if (M1 === null || M1 === undefined || M1 <= 0) {
+                throw new Error('M₁ (primary mass) must be positive');
+            }
+            if (M2 === null || M2 === undefined || M2 <= 0) {
+                throw new Error('M₂ (secondary mass) must be positive');
+            }
+            if (K1 === null || K1 === undefined || K1 === 0) {
+                throw new Error('K₁ (primary velocity amplitude) must be non-zero');
+            }
+            return (M1 / M2) * K1;
+        }
+    }
+
+    /**
+     * Solve Flux Change from Magnitude Difference
+     * Equation: F₂ / F₁ = 10^(-0.4 × Δm)
+     */
+    solveFluxChangeMagnitude(unknownVar, vars) {
+        const F2 = vars['F₂'] || vars.F2 || vars['F_2'];
+        const F1 = vars['F₁'] || vars.F1 || vars['F_1'];
+        const deltaM = vars['Δm'] || vars.deltaM || vars.delta_m || vars['Δm'];
+        
+        if (unknownVar === 'F₂' || unknownVar === 'F2' || unknownVar === 'F_2') {
+            if (F1 === null || F1 === undefined || F1 <= 0) {
+                throw new Error('F₁ (flux 1) must be positive');
+            }
+            if (deltaM === null || deltaM === undefined) {
+                throw new Error('Δm (magnitude difference) is required');
+            }
+            return F1 * Math.pow(10, -0.4 * deltaM);
+        } else if (unknownVar === 'F₁' || unknownVar === 'F1' || unknownVar === 'F_1') {
+            if (F2 === null || F2 === undefined || F2 <= 0) {
+                throw new Error('F₂ (flux 2) must be positive');
+            }
+            if (deltaM === null || deltaM === undefined) {
+                throw new Error('Δm (magnitude difference) is required');
+            }
+            return F2 / Math.pow(10, -0.4 * deltaM);
+        } else if (unknownVar === 'Δm' || unknownVar === 'deltaM' || unknownVar === 'delta_m') {
+            if (F1 === null || F1 === undefined || F1 <= 0) {
+                throw new Error('F₁ (flux 1) must be positive');
+            }
+            if (F2 === null || F2 === undefined || F2 <= 0) {
+                throw new Error('F₂ (flux 2) must be positive');
+            }
+            return -2.5 * Math.log10(F2 / F1);
+        }
+    }
+
+    /**
+     * Solve Pulsating Star Radius Change
+     * Equation: R₂ / R₁ = √(F₂ / F₁)
+     */
+    solvePulsatingStarRadius(unknownVar, vars) {
+        const R2 = vars['R₂'] || vars.R2 || vars['R_2'];
+        const R1 = vars['R₁'] || vars.R1 || vars['R_1'];
+        const F2 = vars['F₂'] || vars.F2 || vars['F_2'];
+        const F1 = vars['F₁'] || vars.F1 || vars['F_1'];
+        
+        if (unknownVar === 'R₂' || unknownVar === 'R2' || unknownVar === 'R_2') {
+            if (R1 === null || R1 === undefined || R1 <= 0) {
+                throw new Error('R₁ (radius 1) must be positive');
+            }
+            if (F1 === null || F1 === undefined || F1 <= 0) {
+                throw new Error('F₁ (flux 1) must be positive');
+            }
+            if (F2 === null || F2 === undefined || F2 <= 0) {
+                throw new Error('F₂ (flux 2) must be positive');
+            }
+            return R1 * Math.sqrt(F2 / F1);
+        } else if (unknownVar === 'R₁' || unknownVar === 'R1' || unknownVar === 'R_1') {
+            if (R2 === null || R2 === undefined || R2 <= 0) {
+                throw new Error('R₂ (radius 2) must be positive');
+            }
+            if (F1 === null || F1 === undefined || F1 <= 0) {
+                throw new Error('F₁ (flux 1) must be positive');
+            }
+            if (F2 === null || F2 === undefined || F2 <= 0) {
+                throw new Error('F₂ (flux 2) must be positive');
+            }
+            return R2 / Math.sqrt(F2 / F1);
+        } else if (unknownVar === 'F₂' || unknownVar === 'F2' || unknownVar === 'F_2') {
+            if (R1 === null || R1 === undefined || R1 <= 0) {
+                throw new Error('R₁ (radius 1) must be positive');
+            }
+            if (R2 === null || R2 === undefined || R2 <= 0) {
+                throw new Error('R₂ (radius 2) must be positive');
+            }
+            if (F1 === null || F1 === undefined || F1 <= 0) {
+                throw new Error('F₁ (flux 1) must be positive');
+            }
+            return F1 * Math.pow(R2 / R1, 2);
+        } else if (unknownVar === 'F₁' || unknownVar === 'F1' || unknownVar === 'F_1') {
+            if (R1 === null || R1 === undefined || R1 <= 0) {
+                throw new Error('R₁ (radius 1) must be positive');
+            }
+            if (R2 === null || R2 === undefined || R2 <= 0) {
+                throw new Error('R₂ (radius 2) must be positive');
+            }
+            if (F2 === null || F2 === undefined || F2 <= 0) {
+                throw new Error('F₂ (flux 2) must be positive');
+            }
+            return F2 / Math.pow(R2 / R1, 2);
+        }
+    }
+
+    /**
+     * Solve Nuclear Fusion Mass Defect
+     * Equation: E = Δm × c²
+     */
+    solveNuclearFusionMassDefect(unknownVar, vars) {
+        const E = vars.E;
+        const deltaM = vars['Δm'] || vars.deltaM || vars.delta_m;
+        const c = vars.c || 2.99792458e8;
+        
+        if (unknownVar === 'E') {
+            if (deltaM === null || deltaM === undefined) {
+                throw new Error('Δm (mass defect) is required');
+            }
+            if (c <= 0) {
+                throw new Error('c (speed of light) must be positive');
+            }
+            return deltaM * c * c;
+        } else if (unknownVar === 'Δm' || unknownVar === 'deltaM' || unknownVar === 'delta_m') {
+            if (E === null || E === undefined) {
+                throw new Error('E (energy) is required');
+            }
+            if (c <= 0) {
+                throw new Error('c (speed of light) must be positive');
+            }
+            return E / (c * c);
+        }
+    }
+
+    /**
+     * Solve Nebula Age from Expansion
+     * Equation: t = r / v
+     */
+    solveNebulaAgeExpansion(unknownVar, vars) {
+        const t = vars.t;
+        const r = vars.r;
+        const v = vars.v;
+        
+        if (unknownVar === 't') {
+            if (r === null || r === undefined || r <= 0) {
+                throw new Error('r (radius) must be positive');
+            }
+            if (v === null || v === undefined || v <= 0) {
+                throw new Error('v (expansion velocity) must be positive');
+            }
+            return r / v;
+        } else if (unknownVar === 'r') {
+            if (t === null || t === undefined || t <= 0) {
+                throw new Error('t (age) must be positive');
+            }
+            if (v === null || v === undefined || v <= 0) {
+                throw new Error('v (expansion velocity) must be positive');
+            }
+            return t * v;
+        } else if (unknownVar === 'v') {
+            if (r === null || r === undefined || r <= 0) {
+                throw new Error('r (radius) must be positive');
+            }
+            if (t === null || t === undefined || t <= 0) {
+                throw new Error('t (age) must be positive');
+            }
+            return r / t;
+        }
+    }
+
+    /**
+     * Solve Orbital Decay Rate from Gravitational Radiation
+     * Equation: da/dt = -(64/5) × (G³ / c⁵) × (M₁ M₂ (M₁ + M₂) / a³)
+     */
+    solveOrbitalDecayGravitational(unknownVar, vars) {
+        const da_dt = vars['da/dt'] || vars.da_dt || vars.da_dt;
+        const G = vars.G || 6.67430e-11;
+        const c = vars.c || 2.99792458e8;
+        const M1 = vars['M₁'] || vars.M1 || vars['M_1'];
+        const M2 = vars['M₂'] || vars.M2 || vars['M_2'];
+        const a = vars.a;
+        const factor = 64 / 5;
+        
+        if (unknownVar === 'da/dt' || unknownVar === 'da_dt' || unknownVar === 'da_dt') {
+            if (M1 === null || M1 === undefined || M1 <= 0) {
+                throw new Error('M₁ (primary mass) must be positive');
+            }
+            if (M2 === null || M2 === undefined || M2 <= 0) {
+                throw new Error('M₂ (secondary mass) must be positive');
+            }
+            if (a === null || a === undefined || a <= 0) {
+                throw new Error('a (semi-major axis) must be positive');
+            }
+            if (G <= 0 || c <= 0) {
+                throw new Error('G and c must be positive');
+            }
+            const G3_c5 = Math.pow(G, 3) / Math.pow(c, 5);
+            const massTerm = M1 * M2 * (M1 + M2);
+            return -factor * G3_c5 * massTerm / Math.pow(a, 3);
+        } else if (unknownVar === 'a') {
+            if (da_dt === null || da_dt === undefined || da_dt >= 0) {
+                throw new Error('da/dt (decay rate) must be negative');
+            }
+            if (M1 === null || M1 === undefined || M1 <= 0) {
+                throw new Error('M₁ (primary mass) must be positive');
+            }
+            if (M2 === null || M2 === undefined || M2 <= 0) {
+                throw new Error('M₂ (secondary mass) must be positive');
+            }
+            if (G <= 0 || c <= 0) {
+                throw new Error('G and c must be positive');
+            }
+            const G3_c5 = Math.pow(G, 3) / Math.pow(c, 5);
+            const massTerm = M1 * M2 * (M1 + M2);
+            return Math.pow(-factor * G3_c5 * massTerm / da_dt, 1/3);
+        }
+    }
+
+    /**
      * UNIVERSAL Generic Equation Solver - Solves ANY simple algebraic equation
      * 
      * Handles ALL patterns:
@@ -3296,34 +5769,38 @@ class FormulaCalculator {
             }
             
             // Handle power notation (^ and superscripts)
-            expr = expr.replace(/\^/g, '**');
-            expr = expr.replace(/([a-zA-Z0-9_]+)²/g, '($1)**2');
-            expr = expr.replace(/([a-zA-Z0-9_]+)³/g, '($1)**3');
-            expr = expr.replace(/([a-zA-Z0-9_]+)⁴/g, '($1)**4');
-            expr = expr.replace(/([a-zA-Z0-9_]+)⁵/g, '($1)**5');
+            // IMPORTANT: SafeMathEvaluator supports '^' (not '**')
+            expr = expr.replace(/([a-zA-Z0-9_]+)²/g, '($1)^2');
+            expr = expr.replace(/([a-zA-Z0-9_]+)³/g, '($1)^3');
+            expr = expr.replace(/([a-zA-Z0-9_]+)⁴/g, '($1)^4');
+            expr = expr.replace(/([a-zA-Z0-9_]+)⁵/g, '($1)^5');
             
             // Handle sqrt, cbrt (with parentheses and without)
-            expr = expr.replace(/√\(([^)]+)\)/g, 'Math.sqrt($1)');
-            expr = expr.replace(/√([a-zA-Z0-9_]+)/g, 'Math.sqrt($1)');
-            expr = expr.replace(/∛\(([^)]+)\)/g, 'Math.cbrt($1)');
-            expr = expr.replace(/∛([a-zA-Z0-9_]+)/g, 'Math.cbrt($1)');
+            // IMPORTANT: SafeMathEvaluator supports function calls without 'Math.' prefix
+            expr = expr.replace(/√\(([^)]+)\)/g, 'sqrt($1)');
+            expr = expr.replace(/√([a-zA-Z0-9_]+)/g, 'sqrt($1)');
+            expr = expr.replace(/∛\(([^)]+)\)/g, 'cbrt($1)');
+            expr = expr.replace(/∛([a-zA-Z0-9_]+)/g, 'cbrt($1)');
             
             // Handle log functions
-            expr = expr.replace(/log₁₀\(([^)]+)\)/g, 'Math.log10($1)');
-            expr = expr.replace(/log10\(([^)]+)\)/g, 'Math.log10($1)');
-            expr = expr.replace(/ln\(([^)]+)\)/g, 'Math.log($1)');
-            expr = expr.replace(/log\(([^)]+)\)/g, 'Math.log10($1)'); // Default to log10
+            expr = expr.replace(/log₁₀\(([^)]+)\)/g, 'log10($1)');
+            expr = expr.replace(/log10\(([^)]+)\)/g, 'log10($1)');
+            expr = expr.replace(/ln\(([^)]+)\)/g, 'ln($1)');
+            expr = expr.replace(/log\(([^)]+)\)/g, 'log10($1)'); // Default to log10
             
             // Handle trigonometric functions
-            expr = expr.replace(/sin\(([^)]+)\)/g, 'Math.sin($1)');
-            expr = expr.replace(/cos\(([^)]+)\)/g, 'Math.cos($1)');
-            expr = expr.replace(/tan\(([^)]+)\)/g, 'Math.tan($1)');
-            expr = expr.replace(/asin\(([^)]+)\)/g, 'Math.asin($1)');
-            expr = expr.replace(/acos\(([^)]+)\)/g, 'Math.acos($1)');
-            expr = expr.replace(/atan\(([^)]+)\)/g, 'Math.atan($1)');
+            expr = expr.replace(/sin\(([^)]+)\)/g, 'sin($1)');
+            expr = expr.replace(/cos\(([^)]+)\)/g, 'cos($1)');
+            expr = expr.replace(/tan\(([^)]+)\)/g, 'tan($1)');
+            expr = expr.replace(/asin\(([^)]+)\)/g, 'asin($1)');
+            expr = expr.replace(/acos\(([^)]+)\)/g, 'acos($1)');
+            expr = expr.replace(/atan\(([^)]+)\)/g, 'atan($1)');
             
             // Handle exp
-            expr = expr.replace(/exp\(([^)]+)\)/g, 'Math.exp($1)');
+            expr = expr.replace(/exp\(([^)]+)\)/g, 'exp($1)');
+
+            // Normalize any remaining Math.<fn> just in case upstream changes add them
+            expr = expr.replace(/\bMath\./g, '');
             
             // ENHANCED: Use SafeMathEvaluator with token-based variable replacement
             // This prevents partial matches (e.g., "a" won't match "a_max")
@@ -3350,6 +5827,86 @@ class FormulaCalculator {
         return null;
     }
 
+    /**
+     * NEW: Solve from equation string (generic solver for formulas without specific solvers)
+     * 
+     * @param {string} equation - Equation string (e.g., "v = √(GM/r)")
+     * @param {string} unknownVar - Variable to solve for
+     * @param {Object} vars - Known variables
+     * @returns {number|null} Solved value
+     */
+    solveFromEquation(equation, unknownVar, vars) {
+        if (!equation) return null;
+        
+        try {
+            // Normalize equation: remove spaces, handle Unicode
+            let eq = equation.trim();
+            
+            // Map Unicode subscripts to ASCII variable names
+            // Create mapping from equation variables to actual variable symbols
+            const varMap = {};
+            if (this.formula && this.formula.variables) {
+                this.formula.variables.forEach(v => {
+                    const symbol = v.symbol;
+                    // Map Unicode subscripts to ASCII
+                    const unicodeVar = symbol.replace(/1/g, '₁').replace(/2/g, '₂').replace(/3/g, '₃').replace(/0/g, '₀');
+                    varMap[unicodeVar] = symbol;
+                    varMap[symbol] = symbol; // Also map ASCII to itself
+                });
+            }
+            
+            // Replace Unicode variables in equation with ASCII equivalents
+            Object.keys(varMap).forEach(unicode => {
+                if (unicode !== varMap[unicode]) {
+                    const regex = new RegExp(unicode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                    eq = eq.replace(regex, varMap[unicode]);
+                }
+            });
+            
+            // Handle common equation formats
+            // Format 1: "left = right"
+            const equalsMatch = eq.match(/^(.+?)\s*=\s*(.+)$/);
+            if (!equalsMatch) return null;
+            
+            let leftSide = equalsMatch[1].trim();
+            let rightSide = equalsMatch[2].trim();
+            
+            // Check if unknownVar is on left side (isolated)
+            if (leftSide === unknownVar || leftSide.trim() === unknownVar) {
+                // unknownVar = rightSide → evaluate right side
+                return this.evaluateExpression(rightSide, vars, unknownVar);
+            }
+            
+            // Check if unknownVar appears in the equation
+            const varInLeft = leftSide.includes(unknownVar);
+            const varInRight = rightSide.includes(unknownVar);
+            
+            if (varInLeft) {
+                // Try to isolate from left side
+                return this.solveAlgebraic(leftSide, rightSide, unknownVar, vars);
+            } else if (varInRight) {
+                // Swap sides: leftSide = rightSide → rightSide = leftSide
+                return this.solveAlgebraic(rightSide, leftSide, unknownVar, vars);
+            }
+            
+            return null;
+        } catch (e) {
+            return null;
+        }
+    }
+    
+    /**
+     * Normalize variable name (handle Unicode, subscripts)
+     */
+    normalizeVariableName(name) {
+        if (!name) return '';
+        // Remove spaces, convert to lowercase
+        return name.replace(/\s+/g, '').toLowerCase()
+            // Handle common Unicode subscripts
+            .replace(/₁/g, '1').replace(/₂/g, '2').replace(/₃/g, '3')
+            .replace(/₀/g, '0');
+    }
+    
     /**
      * Solve algebraic equation: leftSide = rightSide for unknownVar
      * 
@@ -3500,6 +6057,62 @@ class FormulaCalculator {
                 isFinite(otherValue) &&
                 rightValue !== null && rightValue !== 0) {
                 return otherValue / rightValue;
+            }
+        }
+        
+        // Case 11: unknownVar + var = rightSide → unknownVar = rightSide - var
+        const addPattern = new RegExp(`^${unknownVar}\\s*[+]\\s*([A-Za-z_]+)$`, 'i');
+        const addMatch = leftSide.match(addPattern);
+        if (addMatch) {
+            const otherVar = addMatch[1];
+            const otherValue = vars[otherVar];
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (otherValue !== null && otherValue !== undefined && 
+                isFinite(otherValue) &&
+                rightValue !== null) {
+                return rightValue - otherValue;
+            }
+        }
+        
+        // Case 12: var + unknownVar = rightSide → unknownVar = rightSide - var
+        const addPattern2 = new RegExp(`^([A-Za-z_]+)\\s*[+]\\s*${unknownVar}$`, 'i');
+        const addMatch2 = leftSide.match(addPattern2);
+        if (addMatch2) {
+            const otherVar = addMatch2[1];
+            const otherValue = vars[otherVar];
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (otherValue !== null && otherValue !== undefined && 
+                isFinite(otherValue) &&
+                rightValue !== null) {
+                return rightValue - otherValue;
+            }
+        }
+        
+        // Case 13: unknownVar - var = rightSide → unknownVar = rightSide + var
+        const subPattern = new RegExp(`^${unknownVar}\\s*[-]\\s*([A-Za-z_]+)$`, 'i');
+        const subMatch = leftSide.match(subPattern);
+        if (subMatch) {
+            const otherVar = subMatch[1];
+            const otherValue = vars[otherVar];
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (otherValue !== null && otherValue !== undefined && 
+                isFinite(otherValue) &&
+                rightValue !== null) {
+                return rightValue + otherValue;
+            }
+        }
+        
+        // Case 14: var - unknownVar = rightSide → unknownVar = var - rightSide
+        const subPattern2 = new RegExp(`^([A-Za-z_]+)\\s*[-]\\s*${unknownVar}$`, 'i');
+        const subMatch2 = leftSide.match(subPattern2);
+        if (subMatch2) {
+            const otherVar = subMatch2[1];
+            const otherValue = vars[otherVar];
+            const rightValue = this.evaluateExpression(rightSide, vars, unknownVar);
+            if (otherValue !== null && otherValue !== undefined && 
+                isFinite(otherValue) &&
+                rightValue !== null) {
+                return otherValue - rightValue;
             }
         }
         
@@ -3657,6 +6270,59 @@ if (typeof window !== 'undefined') {
 // Also expose it in global scope (for Node.js environments or strict mode)
 if (typeof global !== 'undefined') {
     global.InputValidator = InputValidator;
+}
+
+// ---------------------------------------------------------------------------
+// Test/Node compatibility exports (no runtime impact in browser)
+// ---------------------------------------------------------------------------
+// In the browser build, the app expects these classes to be globally reachable.
+// In Node-based test runners (like `test_calculator_direct.js`), `eval()` runs in a
+// different scope, so we explicitly attach to `global`/`window` and export via CommonJS.
+try {
+if (typeof window !== 'undefined') {
+    window.FormulaCalculator = FormulaCalculator;
+    window.VariableNormalizer = VariableNormalizer;
+    window.CalculationError = CalculationError;
+    window.SafeMathEvaluator = SafeMathEvaluator;
+    window.SolverValidator = SolverValidator;
+        // Signal that calculator loaded successfully
+        if (typeof console !== 'undefined' && console.log) {
+            console.log('[Calculator] ✅ FormulaCalculator loaded and exposed to window');
+        }
+}
+
+if (typeof global !== 'undefined') {
+    global.FormulaCalculator = FormulaCalculator;
+    global.VariableNormalizer = VariableNormalizer;
+    global.CalculationError = CalculationError;
+    global.SafeMathEvaluator = SafeMathEvaluator;
+    global.SolverValidator = SolverValidator;
+    }
+} catch (e) {
+    console.error('[Calculator] ❌ Error exposing FormulaCalculator:', e);
+    // Still try to expose even if there was an error
+    if (typeof window !== 'undefined' && typeof FormulaCalculator !== 'undefined') {
+        try {
+            window.FormulaCalculator = FormulaCalculator;
+        } catch (e2) {
+            console.error('[Calculator] ❌ Failed to expose FormulaCalculator:', e2);
+        }
+    }
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        FormulaCalculator,
+        VariableNormalizer,
+        CalculationError,
+        SafeMathEvaluator,
+        InputValidator,
+        SolverValidator,
+        __test__: {
+            SafeMathEvaluator,
+            VariableNormalizer
+        }
+    };
 }
 
 // Ensure it's accessible immediately

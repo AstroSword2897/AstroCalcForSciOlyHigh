@@ -33,7 +33,7 @@ var formulaCategories = {
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
-        'stefan_boltzmann_law', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime',
+        'stefan_boltzmann_law', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime', 'solar_lifetime_efficiency',
         'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude', 'chandrasekhar_limit',
         'white_dwarf_mass_radius', 'blackbody_radiation',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
@@ -84,7 +84,11 @@ var formulaCategories = {
         'hydrostatic_balance', 'central_pressure_approximate', 'stellar_mass_central_temperature',
         'ideal_gas_pressure', 'radiation_pressure_stellar', 'average_stellar_temperature',
         'nuclear_energy_generation', 'thermal_time', 'convection_criterion', 'opacity_general',
-        'optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial'
+        'optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial',
+        'radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira',
+        'period_luminosity_relation_cepheid', 'bolometric_correction', 'extinction_correction_rv',
+        'binary_mass_ratio_velocity', 'flux_change_magnitude_difference', 'pulsating_star_radius_change',
+        'nuclear_fusion_mass_defect', 'nebula_age_expansion', 'orbital_decay_gravitational_radiation'
     ],
     'Line Radiation & Excitation': [
         'boltzmann_equation', 'saha_equation', 'einstein_coefficient', 'extinction_relation',
@@ -560,7 +564,17 @@ var formulas = [
             "find distance parallax",
             "parallax 0.005",
             "distance from 0.005 parallax",
-            "is parallax reasonable"
+            "is parallax reasonable",
+            "star moved 8 milliarcseconds",
+            "parallax 8 mas",
+            "distance from 8 milliarcseconds",
+            "parallax over 6 months",
+            "stellar parallax distance",
+            "parallax measurement",
+            "how far is star from parallax",
+            "parallax angle to parsecs",
+            "milliarcsecond parallax",
+            "parallax distance calculation"
         ]
     },
     {
@@ -841,7 +855,23 @@ var formulas = [
             "what temperature from color",
             "spectrum to temperature",
             "temperature based on spectrum",
-            "temperature from light spectrum"
+            "temperature from light spectrum",
+            "peak wavelength",
+            "wavelength at peak emission",
+            "calculate peak wavelength",
+            "find peak wavelength",
+            "wien displacement law",
+            "wien law",
+            "peak wavelength temperature",
+            "wavelength of maximum emission",
+            "peak wavelength nanometers",
+            "wavelength peak blackbody",
+            "peak emission wavelength",
+            "calculate wavelength from temperature",
+            "wien constant",
+            "frequency from wavelength",
+            "peak frequency",
+            "em spectrum region"
         ],
         variables: [
             {
@@ -1195,7 +1225,19 @@ var formulas = [
             "determine flux from temperature",
             "energy output temperature",
             "stellar flux temperature",
-            "planetary flux temperature"
+            "planetary flux temperature",
+            "power radiated",
+            "calculate power radiated",
+            "emissivity power",
+            "power from radius temperature",
+            "luminosity from radius temperature",
+            "total power output",
+            "radiated power watts",
+            "energy radiated per second",
+            "power radiated by object",
+            "calculate radiated power",
+            "stefan boltzmann power",
+            "luminosity stefan boltzmann"
         ],
         variables: [
             {
@@ -1640,6 +1682,88 @@ var formulas = [
             "star age",
             "lifetime of star",
             "calculate stellar lifetime"
+        ]
+    },
+    {
+        id: "solar_lifetime_efficiency",
+        name: "Solar Lifetime with Fusion Efficiency",
+        description: "Calculate stellar lifetime based on mass-to-energy conversion efficiency, hydrogen mass fraction, and available hydrogen. Essential for understanding solar evolution, proton-proton chain efficiency, and stellar energy generation. Accounts for the fact that only a fraction of hydrogen is available for fusion in the stellar core.",
+        equation: "t = (ε × f_H × f_available × M × c²) / L",
+        concepts: ["solar lifetime", "stellar lifetime", "proton-proton chain", "fusion efficiency", "mass-energy conversion", "hydrogen burning", "stellar evolution", "nuclear fusion", "energy generation", "solar age"],
+        keywords: ["solar lifetime", "proton-proton chain", "fusion efficiency", "mass-energy conversion", "hydrogen fraction", "stellar lifetime efficiency", "solar age", "fusion lifetime", "hydrogen burning lifetime"],
+        variables: [
+            {
+                symbol: "t",
+                name: "Lifetime",
+                unit: "seconds",
+                description: "Stellar lifetime based on available fusion fuel. Time until hydrogen fuel is exhausted."
+            },
+            {
+                symbol: "ε",
+                name: "Mass-to-Energy Efficiency",
+                unit: "dimensionless",
+                description: "Efficiency of mass-to-energy conversion in fusion reactions. For proton-proton chain, typically 0.007 (0.7%)."
+            },
+            {
+                symbol: "f_H",
+                name: "Hydrogen Mass Fraction",
+                unit: "dimensionless",
+                description: "Fraction of stellar mass composed of hydrogen. For the Sun, approximately 0.7346 (73.46%)."
+            },
+            {
+                symbol: "f_available",
+                name: "Available Hydrogen Fraction",
+                unit: "dimensionless",
+                description: "Fraction of hydrogen available for fusion. Only hydrogen in the hot core can fuse, typically ~0.1 (10%) for main sequence stars."
+            },
+            {
+                symbol: "M",
+                name: "Stellar Mass",
+                unit: "kg",
+                description: "Total mass of the star. For the Sun, 1.989×10³⁰ kg."
+            },
+            {
+                symbol: "c",
+                name: "Speed of Light",
+                unit: "m/s",
+                description: "Speed of light in vacuum, 2.998×10⁸ m/s."
+            },
+            {
+                symbol: "L",
+                name: "Luminosity",
+                unit: "W",
+                description: "Stellar luminosity, energy output rate. For the Sun, 3.828×10²⁶ W."
+            }
+        ],
+        constants: {
+            c: 2.99792458e8,
+            M_sun: 1.989e30,
+            L_sun: 3.828e26,
+            epsilon_pp_chain: 0.007,
+            f_H_sun: 0.7346,
+            f_available_sun: 0.1
+        },
+        relationships: {
+            prerequisites: ["nuclear_fusion_mass_defect", "luminosity"],
+            derivedFrom: ["nuclear_fusion_mass_defect"],
+            relatedTo: ["stellar_lifetime", "nuclear_fusion_mass_defect", "luminosity", "nuclear_energy_generation"],
+            uses: [],
+            generalizes: [],
+            specializes: ["stellar_lifetime"]
+        },
+        questionPatterns: [
+            "solar lifetime",
+            "proton-proton chain lifetime",
+            "fusion efficiency lifetime",
+            "solar age from fusion",
+            "hydrogen burning lifetime",
+            "stellar lifetime with efficiency",
+            "mass-energy conversion lifetime",
+            "calculate solar lifetime",
+            "sun lifetime",
+            "proton proton chain efficiency",
+            "estimate lifetime of sun",
+            "solar lifetime seconds"
         ]
     },
     {
@@ -3798,6 +3922,606 @@ var formulas = [
             "virial theorem",
             "stellar total energy",
             "gravitational energy relation"
+        ]
+    },
+    {
+        id: "radiative_transport_temperature_gradient",
+        name: "Radiative Transport Temperature Gradient",
+        description: "Temperature gradient in stellar interiors due to radiative energy transport. Fundamental equation describing how temperature changes with radius in radiative zones. Essential for stellar structure, especially in Mira-type stars and other evolved stars. Describes energy transport via radiation in stellar interiors. Important for understanding stellar structure and energy flow.",
+        equation: "dT(r) / dr = - (3κ(r)ρ(r)L(r)) / (16πacr²T³(r))",
+        concepts: ["radiative transport", "temperature gradient", "stellar interior", "energy transport", "radiation", "stellar structure", "mira stars", "evolved stars", "opacity", "luminosity"],
+        keywords: ["radiative transport", "temperature gradient", "stellar interior", "energy transport", "radiation", "mira", "opacity", "luminosity"],
+        variables: [
+            {
+                symbol: "dT/dr",
+                name: "Temperature Gradient",
+                unit: "K/m",
+                description: "Rate of temperature change with radius, temperature gradient"
+            },
+            {
+                symbol: "κ",
+                name: "Opacity",
+                unit: "m²/kg",
+                description: "Mass absorption coefficient, opacity at radius r"
+            },
+            {
+                symbol: "ρ",
+                name: "Density",
+                unit: "kg/m³",
+                description: "Mass density at radius r"
+            },
+            {
+                symbol: "L",
+                name: "Luminosity",
+                unit: "W",
+                description: "Luminosity at radius r, energy flux"
+            },
+            {
+                symbol: "a",
+                name: "Radiation Constant",
+                unit: "J/(m³·K⁴)",
+                description: "Radiation density constant, a = 4σ/c"
+            },
+            {
+                symbol: "c",
+                name: "Speed of Light",
+                unit: "m/s",
+                description: "Speed of light in vacuum"
+            },
+            {
+                symbol: "r",
+                name: "Radius",
+                unit: "meters",
+                description: "Radial distance from stellar center"
+            },
+            {
+                symbol: "T",
+                name: "Temperature",
+                unit: "Kelvin",
+                description: "Temperature at radius r"
+            }
+        ],
+        constants: {
+            a: 7.565723e-16,  // Radiation constant = 4σ/c
+            c: 2.99792458e8,
+            π: Math.PI
+        },
+        relationships: {
+            prerequisites: ["opacity_general", "luminosity"],
+            derivedFrom: ["radiation_transport"],
+            relatedTo: ["radiation_transport", "opacity_general", "luminosity", "convection_criterion"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "radiative transport temperature gradient",
+            "temperature gradient stellar interior",
+            "radiative energy transport",
+            "mira star temperature gradient",
+            "stellar temperature gradient"
+        ]
+    },
+    {
+        id: "stellar_pulsation_mechanics",
+        name: "Stellar Pulsation Mechanics (Radial Oscillations)",
+        description: "Linear adiabatic wave equation for radial stellar pulsations. Fundamental equation describing stellar oscillations and variability, especially in Mira-type variable stars. Essential for understanding pulsating stars, variable stars, and stellar oscillations. Describes how stellar shells oscillate radially, driving the variability mechanism. The κ-mechanism operates in Mira-type stars where partial ionization of helium increases opacity during compression, driving pulsations.",
+        equation: "d²ξ(r,t) / dt² = - (1 / ρ(r)) ∇P' - ∇Φ'",
+        concepts: ["stellar pulsation", "radial oscillations", "variable stars", "mira stars", "pulsating stars", "stellar oscillations", "kappa mechanism", "opacity mechanism", "pressure perturbation", "gravitational potential", "radial displacement"],
+        keywords: ["stellar pulsation", "radial oscillations", "variable stars", "mira", "pulsating", "oscillations", "kappa mechanism", "opacity mechanism"],
+        variables: [
+            {
+                symbol: "ξ",
+                name: "Radial Displacement",
+                unit: "meters",
+                description: "Radial displacement of a shell at radius r and time t"
+            },
+            {
+                symbol: "r",
+                name: "Radius",
+                unit: "meters",
+                description: "Radial distance from stellar center"
+            },
+            {
+                symbol: "t",
+                name: "Time",
+                unit: "seconds",
+                description: "Time"
+            },
+            {
+                symbol: "ρ",
+                name: "Density",
+                unit: "kg/m³",
+                description: "Mass density at radius r"
+            },
+            {
+                symbol: "P'",
+                name: "Pressure Perturbation",
+                unit: "Pa",
+                description: "Pressure perturbation from equilibrium, pressure variation"
+            },
+            {
+                symbol: "Φ'",
+                name: "Gravitational Potential Perturbation",
+                unit: "m²/s²",
+                description: "Gravitational potential perturbation, potential variation"
+            }
+        ],
+        relationships: {
+            prerequisites: ["hydrostatic_balance"],
+            derivedFrom: [],
+            relatedTo: ["hydrostatic_balance", "opacity_general", "radiative_transport_temperature_gradient"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "stellar pulsation",
+            "radial oscillations",
+            "mira star pulsation",
+            "variable star pulsation",
+            "stellar oscillations",
+            "kappa mechanism",
+            "opacity mechanism"
+        ]
+    },
+    {
+        id: "kappa_mechanism_mira",
+        name: "κ-Mechanism (Mira-Type Stars)",
+        description: "Opacity mechanism driving pulsations in Mira-type variable stars. Fundamental mechanism where partial ionization of helium increases opacity during compression, creating a driving force for stellar pulsations. Essential for understanding Mira variability, long-period variable stars, and stellar pulsation mechanics. In Mira-type stars, the κ-mechanism operates in layers where partial ionization occurs, with opacity increasing during compression (δκ/κ > 0), which traps radiation and drives the pulsation. The outer envelope is fully convective, and convection couples strongly to the pulsation mechanism.",
+        equation: "δκ / κ > 0 during compression",
+        concepts: ["kappa mechanism", "opacity mechanism", "mira stars", "variable stars", "pulsating stars", "stellar pulsation", "helium ionization", "opacity variation", "pulsation driving", "convection", "mixing length theory"],
+        keywords: ["kappa mechanism", "opacity mechanism", "mira", "variable stars", "pulsation", "helium ionization", "opacity", "convection"],
+        variables: [
+            {
+                symbol: "κ",
+                name: "Opacity",
+                unit: "m²/kg",
+                description: "Mass absorption coefficient, opacity"
+            },
+            {
+                symbol: "δκ",
+                name: "Opacity Perturbation",
+                unit: "m²/kg",
+                description: "Change in opacity due to compression/expansion"
+            }
+        ],
+        relationships: {
+            prerequisites: ["opacity_general", "stellar_pulsation_mechanics"],
+            derivedFrom: [],
+            relatedTo: ["opacity_general", "stellar_pulsation_mechanics", "radiative_transport_temperature_gradient", "convection_criterion"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "kappa mechanism",
+            "opacity mechanism",
+            "mira kappa mechanism",
+            "pulsation driving mechanism",
+            "helium ionization opacity",
+            "mira star mechanism"
+        ]
+    },
+    {
+        id: "period_luminosity_relation_cepheid",
+        name: "Period-Luminosity Relation (Cepheids)",
+        description: "Luminosity as a function of pulsation period for classical Cepheid variable stars. Fundamental relation used as a standard candle for distance measurement. Essential for extragalactic distance measurements and cosmic distance ladder. Classical Cepheids follow a well-defined period-luminosity relation, making them excellent distance indicators. The relation is logarithmic: longer period Cepheids are more luminous.",
+        equation: "M_V = -2.76 × log₁₀(P) - 1.4",
+        concepts: ["period luminosity relation", "cepheid", "variable stars", "standard candle", "distance measurement", "cosmic distance ladder", "pulsating stars"],
+        keywords: ["period luminosity", "cepheid", "variable star", "standard candle", "distance", "pulsation period"],
+        variables: [
+            {
+                symbol: "M_V",
+                name: "Absolute Visual Magnitude",
+                unit: "magnitude",
+                description: "Absolute visual magnitude of the Cepheid"
+            },
+            {
+                symbol: "P",
+                name: "Pulsation Period",
+                unit: "days",
+                description: "Period of pulsation in days"
+            }
+        ],
+        relationships: {
+            prerequisites: ["distance_modulus"],
+            derivedFrom: [],
+            relatedTo: ["distance_modulus", "luminosity", "stellar_pulsation_mechanics"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "period luminosity relation",
+            "cepheid period luminosity",
+            "cepheid distance",
+            "standard candle cepheid",
+            "calculate cepheid luminosity from period"
+        ]
+    },
+    {
+        id: "bolometric_correction",
+        name: "Bolometric Correction",
+        description: "Correction from visual magnitude to bolometric magnitude. Accounts for energy radiated outside the visible band. Essential for accurate luminosity determination from magnitude measurements. Bolometric correction depends on stellar temperature and spectral type. Negative for hot stars (most energy in UV), positive for cool stars (most energy in IR).",
+        equation: "M_bol = M_V + BC",
+        concepts: ["bolometric correction", "bolometric magnitude", "visual magnitude", "luminosity", "stellar classification", "magnitude system"],
+        keywords: ["bolometric correction", "bolometric magnitude", "visual magnitude", "magnitude correction"],
+        variables: [
+            {
+                symbol: "M_bol",
+                name: "Bolometric Magnitude",
+                unit: "magnitude",
+                description: "Absolute bolometric magnitude, total energy output"
+            },
+            {
+                symbol: "M_V",
+                name: "Visual Magnitude",
+                unit: "magnitude",
+                description: "Absolute visual magnitude"
+            },
+            {
+                symbol: "BC",
+                name: "Bolometric Correction",
+                unit: "magnitude",
+                description: "Correction factor, typically negative for hot stars"
+            }
+        ],
+        relationships: {
+            prerequisites: ["distance_modulus"],
+            derivedFrom: [],
+            relatedTo: ["distance_modulus", "luminosity", "hr_absolute_magnitude"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "bolometric correction",
+            "bolometric magnitude",
+            "visual to bolometric",
+            "calculate bolometric magnitude"
+        ]
+    },
+    {
+        id: "extinction_correction_rv",
+        name: "Extinction Correction with RV",
+        description: "Extinction correction using total-to-selective extinction ratio RV. Accounts for wavelength-dependent extinction in interstellar medium. Essential for accurate distance and magnitude measurements. RV = AV / E(B-V) describes how extinction varies with wavelength. Typical value RV = 3.1 for Milky Way, but can vary with dust properties.",
+        equation: "A_V = R_V × E(B - V)",
+        concepts: ["extinction", "interstellar dust", "reddening", "color excess", "RV ratio", "wavelength dependent extinction"],
+        keywords: ["extinction", "RV", "reddening", "color excess", "interstellar dust", "AV"],
+        variables: [
+            {
+                symbol: "A_V",
+                name: "Visual Extinction",
+                unit: "magnitude",
+                description: "Extinction in visual band"
+            },
+            {
+                symbol: "R_V",
+                name: "Total-to-Selective Extinction Ratio",
+                unit: "dimensionless",
+                description: "Ratio AV/E(B-V), typically 3.1 for Milky Way"
+            },
+            {
+                symbol: "E(B - V)",
+                name: "Color Excess",
+                unit: "magnitude",
+                description: "Reddening, B-V color excess"
+            }
+        ],
+        constants: {
+            R_V: 3.1  // Typical value for Milky Way
+        },
+        relationships: {
+            prerequisites: ["interstellar_reddening"],
+            derivedFrom: [],
+            relatedTo: ["interstellar_reddening", "extinction_relation", "distance_modulus"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "extinction correction",
+            "RV extinction",
+            "calculate AV from color excess",
+            "interstellar extinction RV"
+        ]
+    },
+    {
+        id: "binary_mass_ratio_velocity",
+        name: "Binary Mass Ratio from Velocity Amplitudes",
+        description: "Mass ratio of binary system components from radial velocity semi-amplitudes. Fundamental relation for spectroscopic binaries. Essential for determining individual stellar masses in binary systems. For circular orbits, the mass ratio equals the inverse ratio of velocity amplitudes. This allows determination of individual masses when combined with total mass.",
+        equation: "M₁ / M₂ = K₂ / K₁",
+        concepts: ["binary stars", "mass ratio", "radial velocity", "spectroscopic binary", "stellar masses", "velocity amplitude"],
+        keywords: ["binary mass ratio", "velocity amplitude", "spectroscopic binary", "radial velocity", "mass ratio"],
+        variables: [
+            {
+                symbol: "M₁",
+                name: "Primary Mass",
+                unit: "kg",
+                description: "Mass of primary star"
+            },
+            {
+                symbol: "M₂",
+                name: "Secondary Mass",
+                unit: "kg",
+                description: "Mass of secondary star"
+            },
+            {
+                symbol: "K₁",
+                name: "Primary Velocity Amplitude",
+                unit: "m/s",
+                description: "Semi-amplitude of radial velocity for primary star"
+            },
+            {
+                symbol: "K₂",
+                name: "Secondary Velocity Amplitude",
+                unit: "m/s",
+                description: "Semi-amplitude of radial velocity for secondary star"
+            }
+        ],
+        relationships: {
+            prerequisites: ["kepler_third_law_binary"],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law_binary", "center_of_mass", "doppler_shift"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "binary mass ratio",
+            "velocity amplitude mass ratio",
+            "spectroscopic binary mass",
+            "calculate mass from velocity"
+        ]
+    },
+    {
+        id: "flux_change_magnitude_difference",
+        name: "Flux Change from Magnitude Difference",
+        description: "Flux ratio from magnitude difference. Fundamental relation connecting observed brightness changes to actual energy flux changes. Essential for analyzing variable stars, transits, and brightness variations. The logarithmic nature of magnitudes means equal magnitude differences correspond to equal flux ratios, regardless of absolute brightness.",
+        equation: "F₂ / F₁ = 10^(-0.4 × Δm)",
+        concepts: ["magnitude", "flux", "brightness", "variable stars", "magnitude difference", "flux ratio"],
+        keywords: ["magnitude difference", "flux change", "brightness change", "magnitude flux", "variable star brightness"],
+        variables: [
+            {
+                symbol: "F₂",
+                name: "Flux 2",
+                unit: "W/m²",
+                description: "Flux at time 2 or for object 2"
+            },
+            {
+                symbol: "F₁",
+                name: "Flux 1",
+                unit: "W/m²",
+                description: "Flux at time 1 or for object 1"
+            },
+            {
+                symbol: "Δm",
+                name: "Magnitude Difference",
+                unit: "magnitude",
+                description: "Difference in magnitudes, m₂ - m₁"
+            }
+        ],
+        relationships: {
+            prerequisites: ["magnitude_flux_relation"],
+            derivedFrom: ["magnitude_flux_relation"],
+            relatedTo: ["magnitude_flux_relation", "distance_modulus"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "flux change magnitude",
+            "magnitude difference flux",
+            "how much fainter",
+            "brightness change magnitude",
+            "calculate flux ratio from magnitude"
+        ]
+    },
+    {
+        id: "pulsating_star_radius_change",
+        name: "Radius Change from Flux Change (Pulsating Star)",
+        description: "Radius change for pulsating star with constant temperature. For pulsating stars behaving as blackbodies with constant temperature, flux changes are due solely to radius variations. Essential for analyzing Cepheids, RR Lyrae, and other pulsating variables. If temperature is constant, flux scales as radius squared.",
+        equation: "R₂ / R₁ = √(F₂ / F₁)",
+        concepts: ["pulsating stars", "radius change", "flux change", "variable stars", "cepheid", "blackbody", "constant temperature"],
+        keywords: ["pulsating star", "radius change", "flux change", "cepheid radius", "variable star radius"],
+        variables: [
+            {
+                symbol: "R₂",
+                name: "Radius 2",
+                unit: "meters",
+                description: "Radius at maximum or time 2"
+            },
+            {
+                symbol: "R₁",
+                name: "Radius 1",
+                unit: "meters",
+                description: "Radius at minimum or time 1"
+            },
+            {
+                symbol: "F₂",
+                name: "Flux 2",
+                unit: "W/m²",
+                description: "Flux at maximum or time 2"
+            },
+            {
+                symbol: "F₁",
+                name: "Flux 1",
+                unit: "W/m²",
+                description: "Flux at minimum or time 1"
+            }
+        ],
+        relationships: {
+            prerequisites: ["luminosity", "stefan_boltzmann_law"],
+            derivedFrom: ["luminosity"],
+            relatedTo: ["luminosity", "stefan_boltzmann_law", "stellar_pulsation_mechanics"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "pulsating star radius",
+            "radius change flux",
+            "cepheid radius change",
+            "variable star radius variation"
+        ]
+    },
+    {
+        id: "nuclear_fusion_mass_defect",
+        name: "Nuclear Fusion Mass Defect",
+        description: "Energy released from nuclear fusion via mass defect. Fundamental relation for stellar energy generation. Essential for understanding stellar fusion, hydrogen burning, and stellar lifetimes. When four hydrogen atoms fuse to form one helium atom, mass is converted to energy according to E=mc². The mass defect is the difference between initial and final masses.",
+        equation: "E = Δm × c²",
+        concepts: ["nuclear fusion", "mass defect", "stellar energy", "hydrogen burning", "einstein mass energy", "nuclear reactions"],
+        keywords: ["nuclear fusion", "mass defect", "energy release", "hydrogen fusion", "stellar energy", "einstein"],
+        variables: [
+            {
+                symbol: "E",
+                name: "Energy Released",
+                unit: "J",
+                description: "Energy released from fusion reaction"
+            },
+            {
+                symbol: "Δm",
+                name: "Mass Defect",
+                unit: "kg",
+                description: "Mass difference, mass lost in reaction"
+            },
+            {
+                symbol: "c",
+                name: "Speed of Light",
+                unit: "m/s",
+                description: "Speed of light in vacuum"
+            }
+        ],
+        constants: {
+            c: 2.99792458e8,
+            mass_defect_4H_to_He: 0.028,  // Atomic mass units
+            mass_defect_4H_to_He_kg: 4.65e-29,  // In kg (for 4H → He)
+            energy_4H_to_He_MeV: 26.7,  // In MeV
+            energy_4H_to_He_J: 4.3e-12  // In Joules
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["nuclear_energy_generation", "stellar_lifetime", "luminosity"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "nuclear fusion energy",
+            "mass defect",
+            "hydrogen fusion energy",
+            "energy from fusion",
+            "einstein mass energy"
+        ]
+    },
+    {
+        id: "nebula_age_expansion",
+        name: "Nebula Age from Expansion",
+        description: "Age of expanding nebula from radius and expansion velocity. Estimates time since nebula formation or ejection. Essential for understanding planetary nebulae, supernova remnants, and stellar evolution timescales. Assumes constant expansion velocity, which is reasonable for many cases.",
+        equation: "t = r / v",
+        concepts: ["nebula age", "expansion", "planetary nebula", "supernova remnant", "stellar evolution", "expansion velocity"],
+        keywords: ["nebula age", "expansion age", "planetary nebula age", "supernova remnant age"],
+        variables: [
+            {
+                symbol: "t",
+                name: "Age",
+                unit: "seconds",
+                description: "Age of the nebula"
+            },
+            {
+                symbol: "r",
+                name: "Radius",
+                unit: "meters",
+                description: "Current radius of the nebula"
+            },
+            {
+                symbol: "v",
+                name: "Expansion Velocity",
+                unit: "m/s",
+                description: "Expansion velocity of nebula"
+            }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["stellar_lifetime", "mass_loss_rate"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "nebula age",
+            "expansion age",
+            "planetary nebula age",
+            "how old is nebula",
+            "supernova remnant age"
+        ]
+    },
+    {
+        id: "orbital_decay_gravitational_radiation",
+        name: "Orbital Decay Rate (Gravitational Radiation)",
+        description: "Rate of orbital decay due to gravitational wave emission. Describes how binary systems lose orbital energy to gravitational radiation. Essential for understanding binary white dwarf mergers, neutron star binaries, and gravitational wave sources. The decay rate depends on masses, separation, and orbital period. General relativity predicts energy loss to gravitational waves causes orbital decay.",
+        equation: "da/dt = - (64/5) × (G³ / c⁵) × (M₁ M₂ (M₁ + M₂) / a³)",
+        concepts: ["orbital decay", "gravitational radiation", "gravitational waves", "binary systems", "general relativity", "energy loss"],
+        keywords: ["orbital decay", "gravitational radiation", "gravitational waves", "binary decay", "orbital energy loss"],
+        variables: [
+            {
+                symbol: "da/dt",
+                name: "Orbital Decay Rate",
+                unit: "m/s",
+                description: "Rate of change of semi-major axis, negative for decay"
+            },
+            {
+                symbol: "G",
+                name: "Gravitational Constant",
+                unit: "m³/(kg·s²)",
+                description: "Newton's gravitational constant"
+            },
+            {
+                symbol: "c",
+                name: "Speed of Light",
+                unit: "m/s",
+                description: "Speed of light in vacuum"
+            },
+            {
+                symbol: "M₁",
+                name: "Primary Mass",
+                unit: "kg",
+                description: "Mass of first object"
+            },
+            {
+                symbol: "M₂",
+                name: "Secondary Mass",
+                unit: "kg",
+                description: "Mass of second object"
+            },
+            {
+                symbol: "a",
+                name: "Semi-Major Axis",
+                unit: "meters",
+                description: "Orbital separation, semi-major axis"
+            }
+        ],
+        constants: {
+            G: 6.67430e-11,
+            c: 2.99792458e8
+        },
+        relationships: {
+            prerequisites: ["kepler_third_law_binary", "orbital_energy"],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law_binary", "orbital_energy", "white_dwarf_orbital_decay"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "orbital decay",
+            "gravitational radiation",
+            "gravitational wave decay",
+            "binary merger timescale",
+            "orbital energy loss"
         ]
     },
     // ============================================================
@@ -7612,6 +8336,20 @@ var formulas = [
             "flux drop transit",
             "transit depth inclination",
             "inclination from transit depth",
+            "exoplanet radius from transit",
+            "planet radius from light curve",
+            "transit light curve",
+            "calculate planet radius",
+            "transit depth calculation",
+            "flux decrease transit",
+            "relative brightness transit",
+            "transit depth from flux",
+            "planet size from transit",
+            "exoplanet detection transit",
+            "secondary transit",
+            "primary transit",
+            "transit duration",
+            "eccentricity from transit",
             "planet inclination",
             "inclination planet",
             "transit depth planet",
@@ -7621,10 +8359,10 @@ var formulas = [
     {
         id: "radial_velocity_amplitude",
         name: "Radial Velocity Amplitude (Simplified)",
-        description: "Radial velocity amplitude for exoplanet detection. Measures stellar wobble from planet. Essential for exoplanet detection and mass determination. Amplitude depends on planet mass, star mass, and orbital parameters.",
-        equation: "K ∝ (M_p sin i) / (a M_s^(1/2))",
-        concepts: ["radial velocity", "exoplanet", "stellar wobble", "exoplanet detection", "planet mass", "orbital parameters"],
-        keywords: ["radial velocity", "exoplanet", "stellar wobble", "detection", "planet mass"],
+        description: "Radial velocity amplitude for exoplanet detection. Measures stellar wobble from planet. Essential for exoplanet detection and mass determination. Amplitude depends on planet mass, star mass, and orbital parameters. The full equation is K = (2πG/P)^(1/3) × (M_p sin i) / (M_s^(2/3) × (M_s + M_p)^(1/3)) for circular orbits.",
+        equation: "K = (2πG/P)^(1/3) × (M_p sin i) / (M_s^(2/3) × (M_s + M_p)^(1/3))",
+        concepts: ["radial velocity", "exoplanet", "stellar wobble", "exoplanet detection", "planet mass", "orbital parameters", "doppler wobble", "radial velocity curve", "planet mass determination", "inclination", "orbital period"],
+        keywords: ["radial velocity", "exoplanet", "stellar wobble", "detection", "planet mass", "radial velocity amplitude", "doppler wobble", "v_max", "radial velocity curve", "planet mass from radial velocity", "orbital speed from radial velocity"],
         variables: [
             {
                 symbol: "K",
@@ -7669,7 +8407,22 @@ var formulas = [
             "radial velocity amplitude",
             "exoplanet radial velocity",
             "stellar wobble",
-            "radial velocity exoplanet"
+            "radial velocity exoplanet",
+            "planet mass from radial velocity",
+            "orbital speed from radial velocity",
+            "v_max radial velocity",
+            "radial velocity curve",
+            "doppler wobble",
+            "calculate planet mass",
+            "find planet mass",
+            "planet mass from v_max",
+            "orbital speed planet",
+            "planet velocity from radial velocity",
+            "exoplanet detection radial velocity",
+            "radial velocity method",
+            "planet mass determination",
+            "inclination radial velocity",
+            "sin i radial velocity"
         ]
     },
     {

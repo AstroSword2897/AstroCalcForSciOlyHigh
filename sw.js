@@ -4,8 +4,8 @@
  * Caches all application resources for offline use
  */
 
-const CACHE_NAME = 'astrocalc-v2.0.4'; // Updated cache version - fixed LRUCache and duplicates
-const RUNTIME_CACHE = 'astrocalc-runtime-v2.0.4';
+const CACHE_NAME = 'astrocalc-v2.1.0'; // Updated cache version - offline-ready with all scripts
+const RUNTIME_CACHE = 'astrocalc-runtime-v2.1.0';
 
 // Resources to cache on install (OFFLINE-FIRST: All resources are local)
 const PRECACHE_RESOURCES = [
@@ -13,6 +13,13 @@ const PRECACHE_RESOURCES = [
     './index.html',
     './diagnostics.html',
     './styles/main.css',
+    './manifest.json',
+    
+    // Core Application Scripts
+    './scripts/moduleInitializer.js',
+    './scripts/precisionCalculator.js',
+    './scripts/calculationCache.js',
+    './scripts/deepAnalysisRunner.js',
     './scripts/formulas.js',
     './scripts/calculator.js',
     './scripts/ui.js',
@@ -31,8 +38,33 @@ const PRECACHE_RESOURCES = [
     './scripts/quickNav.js',
     './scripts/integrationTest.js',
     './scripts/diagnostics.js',
-    './libs/mathjax/es5/tex-mml-chtml.js',
-    './manifest.json'
+    
+    // MISSING CORE SCRIPTS (Added for offline support)
+    './scripts/enhancedOfflineGraph.js',
+    './scripts/formulaGraphConfig.js',
+    './scripts/multiStepSolver.js',
+    './scripts/formulaVerification.js',
+    './scripts/codeQualityAudit.js',
+    './scripts/standaloneGraphCalculator.js',
+    './scripts/search/formula-search.js',
+    './scripts/events/event-manager.js',
+    './scripts/utils/dom.js',
+    './scripts/state/app-state.js',
+    
+    // Data Files (Required for concept network and search)
+    './tests/weighted_concept_mapping.json',
+    './tests/search_test_cases.json',
+    
+    // Test Files (Optional - for offline testing capability)
+    './tests/run_production_tests.html',
+    './tests/comprehensive_calculator_tests.js',
+    './tests/real_astrophysics_scenarios.js',
+    './tests/run_ui_refactor_tests.js',
+    './tests/test_config.js',
+    './test_calculations.js', // Formula verification test suite
+    
+    // Libraries
+    './libs/mathjax/es5/tex-mml-chtml.js'
 ];
 
 // Install event - cache resources

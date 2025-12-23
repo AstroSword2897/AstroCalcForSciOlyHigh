@@ -35,7 +35,9 @@ module.exports = defineConfig({
     webServer: {
         command: 'python3 -m http.server 8000',
         port: 8000,
-        reuseExistingServer: !process.env.CI
+        // Cursor/CI environments may already have the server running on 8000.
+        // Always reuse to avoid port conflicts.
+        reuseExistingServer: true
     }
 });
 

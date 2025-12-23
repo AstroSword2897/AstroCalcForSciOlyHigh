@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Start Tests - 100% x10</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 40px;
+            text-align: center;
+        }
+        .big-button {
+            padding: 20px 40px;
+            font-size: 24px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 20px;
+        }
+        .big-button:hover {
+            background: #00cc66;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Execute Tests Until 100% x10</h1>
+    <p>Click button to start calculator tests</p>
+    <button class="big-button" onclick="startTests()">🚀 START TESTS</button>
+    <div id="status" style="margin-top: 40px; font-size: 14px;"></div>
+
+    <script>
+        function startTests() {
+            const status = document.getElementById('status');
+            status.textContent = 'Opening test page...';
+            
+            // Open test page in new window and execute
+            const testWindow = window.open('/tests/run_production_tests.html', '_blank');
+            
+            // Wait for window to load, then execute
+            setTimeout(() => {
+                try {
+                    if (testWindow && !testWindow.closed) {
+                        // Try to execute via postMessage or direct access
+                        status.textContent = 'Test page opened. Please click "🧮 Calculator Tests Only" button in the new window.';
+                        
+                        // Also try to inject script
+                        testWindow.addEventListener('load', () => {
+                            try {
+                                testWindow.runCalculatorOnly();
+                                status.textContent = '✅ Tests started!';
+                            } catch (e) {
+                                status.textContent = '⚠️  Please click "🧮 Calculator Tests Only" button in the test window.';
+                            }
+                        });
+                    }
+                } catch (e) {
+                    status.textContent = '⚠️  Please click "🧮 Calculator Tests Only" button in the test window.';
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

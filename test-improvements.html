@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Improvements Test Suite</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #16213e;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 15px;
+            background: #0f3460;
+            border-radius: 4px;
+        }
+        .test-name {
+            font-weight: 600;
+            color: #a8c7ff;
+            margin-bottom: 10px;
+        }
+        .test-result {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .pass {
+            background: #10b98144;
+            border: 1px solid #10b981;
+            color: #6ee7b7;
+        }
+        .fail {
+            background: #ef444444;
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+        }
+        .info {
+            background: #3b82f644;
+            border: 1px solid #3b82f6;
+            color: #93c5fd;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat {
+            flex: 1;
+            background: #0f3460;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #a8c7ff;
+            margin-top: 5px;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Code Improvements Test Suite</h1>
+    <p>This page tests the critical fixes implemented in the UI controller.</p>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-value" id="total-tests">0</div>
+            <div class="stat-label">Total Tests</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="passed-tests">0</div>
+            <div class="stat-label">Passed</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="failed-tests">0</div>
+            <div class="stat-label">Failed</div>
+        </div>
+    </div>
+
+    <button onclick="runAllTests()">▶️ Run All Tests</button>
+    <button onclick="clearResults()">🗑️ Clear Results</button>
+    <button onclick="testMemoryUsage()">📊 Check Memory Usage</button>
+
+    <div id="test-results"></div>
+
+    <script>
+        let testsRun = 0;
+        let testsPassed = 0;
+        let testsFailed = 0;
+
+        function updateStats() {
+            document.getElementById('total-tests').textContent = testsRun;
+            document.getElementById('passed-tests').textContent = testsPassed;
+            document.getElementById('failed-tests').textContent = testsFailed;
+        }
+
+        function addTestResult(section, name, passed, message, details = '') {
+            testsRun++;
+            if (passed) testsPassed++;
+            else testsFailed++;
+            updateStats();
+
+            let sectionDiv = document.getElementById(section);
+            if (!sectionDiv) {
+                sectionDiv = document.createElement('div');
+                sectionDiv.id = section;
+                sectionDiv.className = 'test-section';
+                sectionDiv.innerHTML = `<h2>${section}</h2>`;
+                document.getElementById('test-results').appendChild(sectionDiv);
+            }
+
+            const testCase = document.createElement('div');
+            testCase.className = 'test-case';
+            testCase.innerHTML = `
+                <div class="test-name">${name}</div>
+                <div class="test-result ${passed ? 'pass' : 'fail'}">
+                    ${passed ? '✅ PASS' : '❌ FAIL'}: ${message}
+                </div>
+                ${details ? `<pre>${details}</pre>` : ''}
+            `;
+            sectionDiv.appendChild(testCase);
+        }
+
+        function addInfo(section, message) {
+            let sectionDiv = document.getElementById(section);
+            if (!sectionDiv) {
+                sectionDiv = document.createElement('div');
+                sectionDiv.id = section;
+                sectionDiv.className = 'test-section';
+                sectionDiv.innerHTML = `<h2>${section}</h2>`;
+                document.getElementById('test-results').appendChild(sectionDiv);
+            }
+
+            const info = document.createElement('div');
+            info.className = 'test-result info';
+            info.innerHTML = `ℹ️ ${message}`;
+            sectionDiv.appendChild(info);
+        }
+
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+            testsRun = 0;
+            testsPassed = 0;
+            testsFailed = 0;
+            updateStats();
+        }
+
+        // Test 1: Check if escapeHtml exists and works
+        function testEscapeHtml() {
+            const section = 'Security Tests';
+            
+            try {
+                const testInput = '<script>alert("xss")</script>';
+                const expected = '&lt;script&gt;alert("xss")&lt;/script&gt;';
+                
+                // Check if function exists
+                if (typeof escapeHtml !== 'function') {
+                    addTestResult(section, 'escapeHtml() exists', false, 'Function not found in global scope');
+                    return;
+                }
+                
+                const result = escapeHtml(testInput);
+                const passed = result === expected;
+                addTestResult(section, 'escapeHtml() escapes XSS', passed, 
+                    passed ? 'HTML properly escaped' : 'Escaping failed',
+                    `Input: ${testInput}\nExpected: ${expected}\nGot: ${result}`);
+            } catch (e) {
+                addTestResult(section, 'escapeHtml() escapes XSS', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 2: Check if safeHTML exists and works
+        function testSafeHTML() {
+            const section = 'Security Tests';
+            
+            try {
+                if (typeof safeHTML !== 'function') {
+                    addTestResult(section, 'safeHTML() exists', false, 'Function not found');
+                    return;
+                }
+                
+                const userInput = '<script>alert("xss")</script>';
+                const result = safeHTML`<div>${userInput}</div>`;
+                const passed = !result.includes('<script>');
+                
+                addTestResult(section, 'safeHTML() template helper', passed,
+                    passed ? 'Template literals properly escaped' : 'XSS vulnerability',
+                    `Input: ${userInput}\nOutput: ${result}`);
+            } catch (e) {
+                addTestResult(section, 'safeHTML() template helper', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 3: Check if tracked timeout system exists
+        function testTrackedTimeouts() {
+            const section = 'Memory Management Tests';
+            
+            try {
+                if (typeof trackedSetTimeout !== 'function') {
+                    addTestResult(section, 'trackedSetTimeout() exists', false, 'Function not found');
+                    return;
+                }
+                
+                if (typeof clearAllTimeouts !== 'function') {
+                    addTestResult(section, 'clearAllTimeouts() exists', false, 'Function not found');
+                    return;
+                }
+                
+                let executed = false;
+                const timeoutId = trackedSetTimeout(() => {
+                    executed = true;
+                }, 50);
+                
+                setTimeout(() => {
+                    addTestResult(section, 'Timeout tracking system', executed, 
+                        executed ? 'Tracked timeouts work correctly' : 'Timeout did not fire');
+                }, 100);
+                
+            } catch (e) {
+                addTestResult(section, 'Timeout tracking system', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 4: Check if event listener tracking exists
+        function testTrackedEventListeners() {
+            const section = 'Memory Management Tests';
+            
+            try {
+                if (typeof addTrackedEventListener !== 'function') {
+                    addTestResult(section, 'addTrackedEventListener() exists', false, 'Function not found');
+                    return;
+                }
+                
+                if (typeof cleanupAllListeners !== 'function') {
+                    addTestResult(section, 'cleanupAllListeners() exists', false, 'Function not found');
+                    return;
+                }
+                
+                let clicked = false;
+                const testElement = document.createElement('div');
+                const handler = () => { clicked = true; };
+                
+                addTrackedEventListener(testElement, 'click', handler);
+                testElement.click();
+                
+                addTestResult(section, 'Event listener tracking', clicked, 
+                    clicked ? 'Tracked event listeners work' : 'Listener did not fire');
+                
+            } catch (e) {
+                addTestResult(section, 'Event listener tracking', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 5: Check if debouncer exists
+        function testDebouncer() {
+            const section = 'Performance Tests';
+            
+            try {
+                if (typeof Debouncer !== 'function') {
+                    addTestResult(section, 'Debouncer class exists', false, 'Class not found');
+                    return;
+                }
+                
+                if (typeof globalDebouncer === 'undefined') {
+                    addTestResult(section, 'globalDebouncer instance exists', false, 'Instance not found');
+                    return;
+                }
+                
+                let callCount = 0;
+                const fn = () => { callCount++; };
+                
+                // Call multiple times rapidly
+                for (let i = 0; i < 5; i++) {
+                    globalDebouncer.debounce('test', fn, 50);
+                }
+                
+                // Check after delay
+                setTimeout(() => {
+                    const passed = callCount === 1;
+                    addTestResult(section, 'Debouncer works correctly', passed,
+                        passed ? 'Function debounced correctly (called once)' : `Called ${callCount} times instead of 1`,
+                        `Expected 1 call, got ${callCount} calls`);
+                }, 100);
+                
+            } catch (e) {
+                addTestResult(section, 'Debouncer works correctly', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 6: Check if cleanup function exists
+        function testCleanupFunction() {
+            const section = 'Memory Management Tests';
+            
+            try {
+                if (typeof cleanupAllResources !== 'function') {
+                    addTestResult(section, 'cleanupAllResources() exists', false, 'Function not found');
+                    return;
+                }
+                
+                if (typeof window.cleanupAllResources !== 'function') {
+                    addTestResult(section, 'cleanupAllResources() globally accessible', false, 
+                        'Not accessible via window object');
+                    return;
+                }
+                
+                // Try to call it
+                cleanupAllResources();
+                
+                addTestResult(section, 'Master cleanup function', true, 
+                    'Cleanup function exists and can be called');
+                
+            } catch (e) {
+                addTestResult(section, 'Master cleanup function', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Test 7: Check cache management
+        function testCacheManagement() {
+            const section = 'Performance Tests';
+            
+            try {
+                if (typeof cleanupCaches !== 'function') {
+                    addTestResult(section, 'cleanupCaches() exists', false, 'Function not found');
+                    return;
+                }
+                
+                if (typeof clearAllCaches !== 'function') {
+                    addTestResult(section, 'clearAllCaches() exists', false, 'Function not found');
+                    return;
+                }
+                
+                // Try to call them
+                cleanupCaches();
+                clearAllCaches();
+                
+                addTestResult(section, 'Cache management system', true, 
+                    'Cache functions exist and can be called');
+                
+            } catch (e) {
+                addTestResult(section, 'Cache management system', false, 
+                    'Exception thrown: ' + e.message);
+            }
+        }
+
+        // Memory usage test
+        function testMemoryUsage() {
+            const section = 'Memory Analysis';
+            
+            if (window.performance && window.performance.memory) {
+                const mem = window.performance.memory;
+                const usedMB = (mem.usedJSHeapSize / 1048576).toFixed(2);
+                const totalMB = (mem.jsHeapSizeLimit / 1048576).toFixed(2);
+                const percent = ((mem.usedJSHeapSize / mem.jsHeapSizeLimit) * 100).toFixed(1);
+                
+                addInfo(section, `Memory Usage: ${usedMB} MB / ${totalMB} MB (${percent}%)`);
+                addInfo(section, 'Run this test multiple times and watch for memory growth');
+            } else {
+                addInfo(section, 'Memory API not available (use Chrome for memory testing)');
+            }
+        }
+
+        // Run all tests
+        function runAllTests() {
+            clearResults();
+            addInfo('Test Suite', 'Running all tests...');
+            
+            testEscapeHtml();
+            testSafeHTML();
+            testTrackedTimeouts();
+            testTrackedEventListeners();
+            testDebouncer();
+            testCleanupFunction();
+            testCacheManagement();
+            
+            setTimeout(() => {
+                addInfo('Test Suite', 'All tests completed!');
+                addInfo('Test Suite', `Results: ${testsPassed}/${testsRun} tests passed`);
+            }, 150);
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            addInfo('Welcome', 'Test suite loaded. Click "Run All Tests" to begin.');
+        });
+    </script>
+</body>
+</html>

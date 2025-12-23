@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional-Grade Test Suite</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        .test-output {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .pass { color: #00ff00; }
+        .fail { color: #ff0000; }
+        .warn { color: #ffaa00; }
+        .section { color: #00aaff; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🏆 PROFESSIONAL-GRADE TEST SUITE</h1>
+    <p>Loading all systems and running comprehensive tests...</p>
+    
+    <div id="output" class="test-output">Initializing...</div>
+    
+    <!-- Load all dependencies -->
+    <script src="/scripts/formulas.js"></script>
+    <script src="/scripts/utils.js"></script>
+    <script src="/scripts/calculator.js"></script>
+    <script src="/scripts/unitConverter.js"></script>
+    <script src="/scripts/frqSupport.js"></script>
+    <script src="/scripts/ui.js"></script>
+    
+    <!-- Run tests after everything loads -->
+    <script>
+        const output = document.getElementById('output');
+        
+        // Capture console output
+        const logs = [];
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            const text = args.join(' ');
+            logs.push(text);
+            originalLog.apply(console, args);
+        };
+        console.warn = function(...args) {
+            const text = '⚠️  ' + args.join(' ');
+            logs.push(text);
+            originalWarn.apply(console, args);
+        };
+        console.error = function(...args) {
+            const text = '❌ ' + args.join(' ');
+            logs.push(text);
+            originalError.apply(console, args);
+        };
+        
+        // Wait for all scripts to load
+        setTimeout(() => {
+            output.textContent = 'Running tests...\n\n';
+            
+            // Run the test suite
+            fetch('/tests/professional-grade-suite.js')
+                .then(r => r.text())
+                .then(code => {
+                    try {
+                        eval(code);
+                        
+                        // Display output
+                        setTimeout(() => {
+                            let html = logs.join('\n');
+                            
+                            // Colorize output
+                            html = html.replace(/✅/g, '<span class="pass">✅</span>');
+                            html = html.replace(/❌|🔴/g, '<span class="fail">❌</span>');
+                            html = html.replace(/⚠️/g, '<span class="warn">⚠️</span>');
+                            html = html.replace(/🟢/g, '<span class="pass">🟢</span>');
+                            html = html.replace(/(SECTION \d+:.*)/g, '<span class="section">$1</span>');
+                            html = html.replace(/(PROFESSIONAL-GRADE TEST SUMMARY)/g, '<span class="section">$1</span>');
+                            
+                            output.innerHTML = html;
+                        }, 100);
+                    } catch (e) {
+                        output.textContent = 'Error running tests:\n' + e.message + '\n\n' + e.stack;
+                    }
+                })
+                .catch(err => {
+                    output.textContent = 'Error loading test suite:\n' + err.message;
+                });
+        }, 2000);
+    </script>
+</body>
+</html>

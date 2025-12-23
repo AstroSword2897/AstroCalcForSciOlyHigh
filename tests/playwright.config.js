@@ -33,7 +33,7 @@ module.exports = {
     webServer: {
         command: 'python3 -m http.server 8000',
         port: 8000,
-        reuseExistingServer: !process.env.CI
+        reuseExistingServer: true  // Reuse existing server if running
     }
 };
 

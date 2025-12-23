@@ -1687,5 +1687,316 @@ class OfflineGraphManager {
             `;
         }
     }
+
+    /**
+     * ENHANCED: Visualize multi-step solve graph
+     * Shows dependency graph and execution trace from SolveContext
+     * 
+     * @param {Array<Object>} steps - Solve step definitions
+     * @param {SolveContext} context - Solve context with execution trace
+     * @param {Object} options - Visualization options
+     */
+    visualizeSolveGraph(steps, context, options = {}) {
+        if (!this.canvas || !this.ctx) {
+            if (!this.init()) {
+                console.warn('[OfflineGraphManager] Cannot visualize solve graph: canvas not initialized');
+                return;
+            }
+        }
+
+        const {
+            showValues = true,
+            showFormulas = true,
+            nodeSpacing = { x: 200, y: 150 },
+            startPosition = { x: 100, y: 100 }
+        } = options;
+
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.drawGrid();
+        this.drawAxes();
+
+        // Draw solve graph as a flow diagram
+        const nodes = new Map(); // varName -> {x, y, value, stepIndex}
+        const edges = []; // {from, to, stepIndex}
+
+        // Position nodes
+        let currentX = startPosition.x;
+        let currentY = startPosition.y;
+
+        // First, place initial inputs (known variables)
+        const knownVars = Object.keys(context.known || {});
+        knownVars.forEach((varName, idx) => {
+            nodes.set(varName, {
+                x: currentX,
+                y: currentY + idx * 80,
+                value: context.known[varName],
+                type: 'input',
+                stepIndex: 0
+            });
+        });
+
+        // Then place derived outputs (one per step)
+        steps.forEach((step, stepIdx) => {
+            currentX += nodeSpacing.x;
+            const stepOutputs = context.trace.filter(t => t.stepIndex === stepIdx + 1);
+            
+            stepOutputs.forEach((trace, idx) => {
+                nodes.set(trace.varName, {
+                    x: currentX,
+                    y: currentY + idx * nodeSpacing.y,
+                    value: trace.value,
+                    type: 'output',
+                    stepIndex: stepIdx + 1,
+                    formula: trace.formula,
+                    inputs: trace.inputs
+                });
+
+                // Draw edges from inputs to this output
+                if (step.inputs) {
+                    step.inputs.forEach(inputVar => {
+                        if (nodes.has(inputVar)) {
+                            edges.push({
+                                from: inputVar,
+                                to: trace.varName,
+                                stepIndex: stepIdx + 1
+                            });
+                        }
+                    });
+                }
+            });
+        });
+
+        // Draw edges (arrows)
+        edges.forEach(edge => {
+            const fromNode = nodes.get(edge.from);
+            const toNode = nodes.get(edge.to);
+            if (fromNode && toNode) {
+                this.drawArrow(
+                    fromNode.x + 60, fromNode.y,
+                    toNode.x - 60, toNode.y,
+                    '#667eea', 2
+                );
+            }
+        });
+
+        // Draw nodes
+        nodes.forEach((node, varName) => {
+            const isInput = node.type === 'input';
+            const color = isInput ? '#4ade80' : '#667eea';
+            const bgColor = isInput ? 'rgba(74, 222, 128, 0.2)' : 'rgba(102, 126, 234, 0.2)';
+
+            // Draw node background
+            this.ctx.fillStyle = bgColor;
+            this.ctx.fillRect(node.x - 60, node.y - 30, 120, 60);
+
+            // Draw node border
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(node.x - 60, node.y - 30, 120, 60);
+
+            // Draw variable name
+            this.ctx.fillStyle = '#e2e8f0';
+            this.ctx.font = 'bold 14px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(varName, node.x, node.y - 5);
+
+            // Draw value if available
+            if (showValues && node.value !== null && node.value !== undefined) {
+                this.ctx.fillStyle = '#94a3b8';
+                this.ctx.font = '12px Arial';
+                const valueStr = this.formatNumber(node.value);
+                this.ctx.fillText(valueStr, node.x, node.y + 15);
+            }
+
+            // Draw step number for outputs
+            if (!isInput && node.stepIndex > 0) {
+                this.ctx.fillStyle = '#fbbf24';
+                this.ctx.font = '10px Arial';
+                this.ctx.fillText(`Step ${node.stepIndex}`, node.x, node.y + 30);
+            }
+        });
+
+        // Draw legend
+        this.drawSolveGraphLegend(showValues, showFormulas);
+    }
+
+    /**
+     * Draw arrow between two points
+     */
+    drawArrow(x1, y1, x2, y2, color, lineWidth = 2) {
+        this.ctx.strokeStyle = color;
+        this.ctx.fillStyle = color;
+        this.ctx.lineWidth = lineWidth;
+
+        // Draw line
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+
+        // Draw arrowhead
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+        const arrowLength = 10;
+        const arrowAngle = Math.PI / 6;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(x2, y2);
+        this.ctx.lineTo(
+            x2 - arrowLength * Math.cos(angle - arrowAngle),
+            y2 - arrowLength * Math.sin(angle - arrowAngle)
+        );
+        this.ctx.lineTo(
+            x2 - arrowLength * Math.cos(angle + arrowAngle),
+            y2 - arrowLength * Math.sin(angle + arrowAngle)
+        );
+        this.ctx.closePath();
+        this.ctx.fill();
+    }
+
+    /**
+     * Draw legend for solve graph
+     */
+    drawSolveGraphLegend(showValues, showFormulas) {
+        const legendX = this.width - 200;
+        const legendY = 20;
+
+        this.ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        this.ctx.fillRect(legendX - 10, legendY - 10, 190, 100);
+
+        this.ctx.strokeStyle = '#334155';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(legendX - 10, legendY - 10, 190, 100);
+
+        this.ctx.fillStyle = '#a8c7ff';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('Solve Graph', legendX, legendY + 10);
+
+        // Input nodes
+        this.ctx.fillStyle = 'rgba(74, 222, 128, 0.2)';
+        this.ctx.fillRect(legendX, legendY + 20, 20, 15);
+        this.ctx.strokeStyle = '#4ade80';
+        this.ctx.strokeRect(legendX, legendY + 20, 20, 15);
+        this.ctx.fillStyle = '#cbd5e1';
+        this.ctx.font = '11px Arial';
+        this.ctx.fillText('Input', legendX + 25, legendY + 31);
+
+        // Output nodes
+        this.ctx.fillStyle = 'rgba(102, 126, 234, 0.2)';
+        this.ctx.fillRect(legendX, legendY + 40, 20, 15);
+        this.ctx.strokeStyle = '#667eea';
+        this.ctx.strokeRect(legendX, legendY + 40, 20, 15);
+        this.ctx.fillText('Output', legendX + 25, legendY + 51);
+
+        // Arrows
+        this.drawArrow(legendX + 5, legendY + 65, legendX + 15, legendY + 65, '#667eea', 1);
+        this.ctx.fillText('Flow', legendX + 25, legendY + 69);
+    }
+
+    /**
+     * ENHANCED: Visualize execution trace as a timeline
+     * Shows step-by-step execution with intermediate values
+     * 
+     * @param {SolveContext} context - Solve context with execution trace
+     * @param {Object} options - Visualization options
+     */
+    visualizeExecutionTrace(context, options = {}) {
+        if (!this.canvas || !this.ctx) {
+            if (!this.init()) {
+                console.warn('[OfflineGraphManager] Cannot visualize trace: canvas not initialized');
+                return;
+            }
+        }
+
+        const {
+            showFormulas = true,
+            showInputs = true,
+            timelineHeight = 80,
+            startY = 100
+        } = options;
+
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        this.drawGrid();
+        this.drawAxes();
+
+        const trace = context.trace || [];
+        const stepWidth = Math.min(200, (this.width - 100) / Math.max(trace.length, 1));
+        const startX = 50;
+
+        // Draw timeline
+        trace.forEach((step, idx) => {
+            const x = startX + idx * stepWidth;
+            const y = startY;
+
+            // Draw step box
+            const boxWidth = stepWidth - 20;
+            const boxHeight = timelineHeight;
+
+            // Background
+            this.ctx.fillStyle = step.failed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(102, 126, 234, 0.2)';
+            this.ctx.fillRect(x, y, boxWidth, boxHeight);
+
+            // Border
+            this.ctx.strokeStyle = step.failed ? '#ef4444' : '#667eea';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(x, y, boxWidth, boxHeight);
+
+            // Step number
+            this.ctx.fillStyle = '#fbbf24';
+            this.ctx.font = 'bold 12px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(`Step ${step.stepIndex || idx + 1}`, x + boxWidth / 2, y + 20);
+
+            // Variable name
+            this.ctx.fillStyle = '#e2e8f0';
+            this.ctx.font = 'bold 14px Arial';
+            this.ctx.fillText(step.varName, x + boxWidth / 2, y + 40);
+
+            // Value
+            if (step.value !== null && step.value !== undefined) {
+                this.ctx.fillStyle = '#4ade80';
+                this.ctx.font = '12px Arial';
+                const valueStr = this.formatNumber(step.value);
+                this.ctx.fillText(valueStr, x + boxWidth / 2, y + 60);
+            }
+
+            // Formula (if shown)
+            if (showFormulas && step.formula) {
+                this.ctx.fillStyle = '#94a3b8';
+                this.ctx.font = '10px Arial';
+                const formulaText = step.formula.length > 15 ? step.formula.substring(0, 12) + '...' : step.formula;
+                this.ctx.fillText(formulaText, x + boxWidth / 2, y + 75);
+            }
+
+            // Draw arrow to next step
+            if (idx < trace.length - 1) {
+                this.drawArrow(
+                    x + boxWidth, y + boxHeight / 2,
+                    x + stepWidth - 20, y + boxHeight / 2,
+                    '#667eea', 2
+                );
+            }
+        });
+
+        // Draw warnings if any
+        if (context.warnings && context.warnings.length > 0) {
+            this.ctx.fillStyle = '#fbbf24';
+            this.ctx.font = '12px Arial';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(`⚠ ${context.warnings.length} warning(s)`, 50, startY + timelineHeight + 30);
+        }
+    }
+
+    /**
+     * Format number for display
+     */
+    formatNumber(num, decimals = 3) {
+        if (num === null || num === undefined || !isFinite(num)) return 'N/A';
+        if (Math.abs(num) < 0.001) return num.toExponential(decimals);
+        if (Math.abs(num) > 1e6) return num.toExponential(decimals);
+        return num.toFixed(decimals);
+    }
 }
 

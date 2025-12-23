@@ -1,0 +1,43 @@
+feat: Enhanced graph system with formula-specific configs and comprehensive testing
+
+Major Updates:
+- Enhanced Offline Graph Manager V2 with improved resize handling
+- Formula-specific graph configurations for each formula
+- Interactive graph features (click-to-set, calculated point highlighting)
+- Comprehensive test suites for calculator, concept network, and graphs
+- Complete README with full documentation
+- All port references updated to 8000
+
+Graph System:
+- Recursive adaptive subdivision for high-quality curves
+- Device pixel ratio support for crisp rendering
+- Offscreen canvas support with graceful fallback
+- Debounced resize handling (150ms) with error protection
+- Offline stability improvements (no crashes)
+
+Formula Integration:
+- Each formula has designated graph configuration
+- Default variables, bounds, and axis labels per formula
+- Automatic integration with FormulaCalculator solvers
+- Graph matches formula cards properly
+
+Testing:
+- Calculator test suite (213 tests: 71 formulas × 3)
+- Concept network tests (16 test categories)
+- Graph system tests (7 test categories)
+- Production test runner with browser interface
+
+Documentation:
+- Complete README.md with features, setup, and usage
+- Test execution guide
+- Graph system documentation
+- Deployment instructions
+
+Files Changed:
+- README.md (complete rewrite)
+- scripts/enhancedOfflineGraph.js (V2 implementation)
+- scripts/formulaGraphConfig.js (new file)
+- scripts/ui.js (graph integration)
+- index.html (script loading order)
+- run_all_tests.sh (test runner)
+- .gitignore (updated)

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comprehensive Test Runner</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>Comprehensive Feature Testing</h1>
+    <button onclick="runTests()">Run All Tests</button>
+    <pre id="output"></pre>
+    <script>
+        async function runTests() {
+            const output = document.getElementById('output');
+            output.textContent = 'Loading test suite...\n';
+            
+            // Load the test script
+            const script = document.createElement('script');
+            script.src = 'run_comprehensive_tests.js';
+            script.onload = async () => {
+                output.textContent += 'Test suite loaded. Starting tests...\n';
+                const tester = new ComprehensiveTester();
+                const results = await tester.runAll();
+                output.textContent += '\n\nFinal Results:\n' + JSON.stringify(results, null, 2);
+            };
+            script.onerror = () => {
+                output.textContent += 'ERROR: Failed to load test script\n';
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+</body>
+</html>

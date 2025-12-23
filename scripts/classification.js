@@ -202,3 +202,14 @@ class StellarClassifier {
 // Global instance
 let stellarClassifier = null;
 
+// Expose StellarClassifier globally (multiple methods for compatibility)
+if (typeof window !== 'undefined') {
+    window.StellarClassifier = StellarClassifier;
+}
+if (typeof globalThis !== 'undefined') {
+    globalThis.StellarClassifier = StellarClassifier;
+}
+if (typeof global !== 'undefined') {
+    global.StellarClassifier = StellarClassifier;
+}
+

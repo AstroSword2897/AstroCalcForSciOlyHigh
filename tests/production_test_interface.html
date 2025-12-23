@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Test Suite - 100% Target</title>
+    <style>
+        body {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 { color: #00ff00; text-shadow: 0 0 10px #00ff00; }
+        .controls {
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+        }
+        button:hover { background: #00cc66; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        .test-output {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            font-size: 12px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid #667eea;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff88;
+        }
+        .stat-label {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9em;
+        }
+        .progress {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            height: 30px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: #00ff88;
+            height: 100%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏭 Production Test Suite - 100% Target</h1>
+    <p>Comprehensive testing until 100% achieved 5 times consecutively</p>
+    
+    <div class="controls">
+        <button onclick="runFullTestSuite()">Run Full Test Suite (Until 100% x5)</button>
+        <button onclick="runCalculatorTests()">Test Calculator Only (All Formulas 3x)</button>
+        <button onclick="runSearchTests()">Test Search Engine (1,000 queries)</button>
+        <button onclick="stopTests()" id="stop-btn" disabled>Stop Tests</button>
+        <button onclick="exportResults()">Export Results (JSON)</button>
+    </div>
+    
+    <div class="stats" id="stats" style="display: none;">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-run">0</div>
+            <div class="stat-label">Current Run</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-consecutive">0</div>
+            <div class="stat-label">Consecutive 100% Passes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-calc-passrate">0%</div>
+            <div class="stat-label">Calculator Pass Rate</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-search-passrate">0%</div>
+            <div class="stat-label">Search Pass Rate</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-overall">0%</div>
+            <div class="stat-label">Overall Pass Rate</div>
+        </div>
+    </div>
+    
+    <div class="progress" id="progress" style="display: none;">
+        <div class="progress-bar" id="progress-bar" style="width: 0%;">0%</div>
+    </div>
+    
+    <div id="output" class="test-output">Ready to run production tests...\n\nClick "Run Full Test Suite" to start comprehensive testing.</div>
+    
+    <!-- Load dependencies -->
+    <script src="/scripts/formulas.js"></script>
+    <script src="/scripts/utils.js"></script>
+    <script src="/scripts/calculator.js"></script>
+    <script src="/scripts/frqSupport.js"></script>
+    <script src="/scripts/ui.js"></script>
+    <script src="/scripts/integrationTest.js"></script>
+    
+    <!-- Load test suites -->
+    <script src="/tests/comprehensive_calculator_tests.js"></script>
+    <script src="/tests/searchTestHarness.js"></script>
+    <script src="/tests/production_test_runner.js"></script>
+    
+    <script>
+        const output = document.getElementById('output');
+        let isRunning = false;
+        let stopRequested = false;
+        
+        // Capture console output
+        const logs = [];
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            const text = args.join(' ');
+            logs.push(text);
+            originalLog.apply(console, args);
+            updateOutput();
+        };
+        
+        console.warn = function(...args) {
+            const text = '⚠️  ' + args.join(' ');
+            logs.push(text);
+            originalWarn.apply(console, args);
+            updateOutput();
+        };
+        
+        console.error = function(...args) {
+            const text = '❌ ' + args.join(' ');
+            logs.push(text);
+            originalError.apply(console, args);
+            updateOutput();
+        };
+        
+        function updateOutput() {
+            output.textContent = logs.join('\n');
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        async function runFullTestSuite() {
+            if (isRunning) {
+                alert('Tests already running!');
+                return;
+            }
+            
+            isRunning = true;
+            stopRequested = false;
+            document.getElementById('stop-btn').disabled = false;
+            document.getElementById('stats').style.display = 'grid';
+            document.getElementById('progress').style.display = 'block';
+            
+            logs.length = 0;
+            console.log('🚀 Starting Production Test Suite');
+            console.log('Target: 100% pass rate on ALL categories, 5 times consecutively\n');
+            
+            if (typeof ProductionTestRunner === 'undefined') {
+                console.error('❌ ProductionTestRunner not loaded!');
+                isRunning = false;
+                return;
+            }
+            
+            try {
+                const results = await ProductionTestRunner.runUntilPerfect();
+                updateStats(results);
+                console.log('\n✅ Test suite completed!');
+            } catch (e) {
+                console.error('❌ Error during test execution:', e.message);
+            } finally {
+                isRunning = false;
+                document.getElementById('stop-btn').disabled = true;
+            }
+        }
+        
+        async function runCalculatorTests() {
+            if (isRunning) return;
+            
+            isRunning = true;
+            logs.length = 0;
+            console.log('🧮 Running Calculator Tests (All formulas, 3x each)...\n');
+            
+            if (typeof CalculatorTestSuite === 'undefined') {
+                console.error('❌ CalculatorTestSuite not loaded!');
+                isRunning = false;
+                return;
+            }
+            
+            try {
+                const results = await CalculatorTestSuite.runUntilPerfect();
+                updateCalculatorStats(results);
+            } catch (e) {
+                console.error('❌ Error:', e.message);
+            } finally {
+                isRunning = false;
+            }
+        }
+        
+        async function runSearchTests() {
+            if (isRunning) return;
+            
+            isRunning = true;
+            logs.length = 0;
+            console.log('🔍 Running Search Engine Tests (1,000 queries)...\n');
+            
+            // Load test cases
+            try {
+                const response = await fetch('/tests/search_test_cases.json');
+                const testCases = await response.json();
+                const sample = testCases.slice(0, 1000);
+                
+                if (typeof SearchTestHarness === 'undefined') {
+                    console.error('❌ SearchTestHarness not loaded!');
+                    isRunning = false;
+                    return;
+                }
+                
+                const results = await SearchTestHarness.runAllTests(sample);
+                updateSearchStats(results);
+            } catch (e) {
+                console.error('❌ Error:', e.message);
+            } finally {
+                isRunning = false;
+            }
+        }
+        
+        function stopTests() {
+            stopRequested = true;
+            console.log('\n⏹️  Stop requested. Tests will finish current run...');
+        }
+        
+        function updateStats(results) {
+            if (!results) return;
+            
+            const calcResults = results.calculatorResults || {};
+            const searchResults = results.searchResults || {};
+            
+            document.getElementById('stat-run').textContent = results.run || 0;
+            document.getElementById('stat-consecutive').textContent = 
+                ProductionTestRunner.results.consecutive100PercentPasses || 0;
+            
+            if (calcResults.totalTests) {
+                const calcRate = (calcResults.passedTests / calcResults.totalTests * 100).toFixed(1);
+                document.getElementById('stat-calc-passrate').textContent = calcRate + '%';
+            }
+            
+            if (searchResults.total) {
+                const searchRate = (searchResults.passed / searchResults.total * 100).toFixed(1);
+                document.getElementById('stat-search-passrate').textContent = searchRate + '%';
+            }
+            
+            if (results.overallPassRate) {
+                const overall = (results.overallPassRate * 100).toFixed(1);
+                document.getElementById('stat-overall').textContent = overall + '%';
+                document.getElementById('progress-bar').style.width = overall + '%';
+                document.getElementById('progress-bar').textContent = overall + '%';
+            }
+        }
+        
+        function updateCalculatorStats(results) {
+            if (!results) return;
+            
+            const rate = (results.passedTests / results.totalTests * 100).toFixed(1);
+            document.getElementById('stat-calc-passrate').textContent = rate + '%';
+            document.getElementById('stat-consecutive').textContent = results.consecutivePasses || 0;
+        }
+        
+        function updateSearchStats(results) {
+            if (!results) return;
+            
+            const rate = (results.passed / results.total * 100).toFixed(1);
+            document.getElementById('stat-search-passrate').textContent = rate + '%';
+        }
+        
+        function exportResults() {
+            const results = ProductionTestRunner?.results || CalculatorTestSuite?.results || {};
+            const json = JSON.stringify(results, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `production-test-results-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            a.click();
+            console.log('✅ Results exported!');
+        }
+    </script>
+</body>
+</html>

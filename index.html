@@ -389,8 +389,34 @@
         // which works completely offline using HTML5 Canvas. No external API calls are made.
     </script>
     <!-- Scripts loaded in dependency order (OFFLINE-FIRST: All local, no external dependencies) -->
+    <!-- 0. Module Initializer (must be first to track initialization) -->
+    <script src="scripts/moduleInitializer.js"></script>
+    
+    <!-- 0.5. Precision & Caching (load early for calculator) -->
+    <script src="scripts/precisionCalculator.js"></script>
+    <script src="scripts/performanceOptimizer.js"></script>
+    <script src="scripts/calculationCache.js"></script>
+    <script src="scripts/errorPropagation.js"></script>
+    
     <!-- 1. Core data (must be first) -->
     <script src="scripts/formulas.js"></script>
+    
+    <!-- REFACTORED: New modular structure - load before ui.js -->
+    <script src="scripts/utils/dom.js"></script>
+    <script src="scripts/state/app-state.js"></script>
+    <script src="scripts/events/event-manager.js"></script>
+    <script src="scripts/search/formula-search.js"></script>
+    
+    <!-- UI Core Modules (NEW - Refactoring) -->
+    <script src="scripts/ui/core/LifecycleManager.js"></script>
+    <script src="scripts/ui/core/StateManager.js"></script>
+    <script src="scripts/ui/utils/DOMRefs.js"></script>
+    <script src="scripts/ui/utils/ErrorHandler.js"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js"></script>
+    <script src="scripts/ui/core/IntegrationHelpers.js"></script>
+    <script src="scripts/ui/rendering/FormulaCards.js"></script>
+    <script src="scripts/ui/rendering/SearchResults.js"></script>
+    <script src="scripts/ui/events/EventHandlers.js"></script>
     
     <!-- 2. Core utilities (no dependencies) -->
     <script src="scripts/utils.js"></script>
@@ -411,11 +437,16 @@
     <script src="scripts/formulaExplorer.js"></script>
     <script src="scripts/frqSupport.js"></script>
     <script src="scripts/quickNav.js"></script>
+    <script src="scripts/formulaGraphConfig.js"></script>
+    <script src="scripts/enhancedOfflineGraph.js"></script>
     <script src="scripts/offlineGraphManager.js"></script>
     <script src="scripts/graphManager.js"></script>
     
     <!-- 6. UI controller (depends on everything, must be last) -->
-    <script src="scripts/ui.js?v=2.0.4"></script>
+    <script src="scripts/ui.js?v=2.0.13"></script>
+    
+    <!-- Comprehensive Feature Testing Suite -->
+    <script src="comprehensive_feature_test.js"></script>
     
     <!-- 7. Integration test (optional, for verification) -->
     <script src="scripts/integrationTest.js"></script>
@@ -710,6 +741,9 @@
             }
         }
     </script>
+    
+    <!-- Comprehensive Test Runner (auto-runs after page load) -->
+    <script src="auto_test_runner.js"></script>
 </body>
 </html>
 
