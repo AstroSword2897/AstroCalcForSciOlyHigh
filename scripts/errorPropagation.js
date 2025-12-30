@@ -64,19 +64,24 @@ class ErrorPropagator {
     
     /**
      * Calculate significant figures based on input precision
+     * ENHANCED: More accurate calculation with better handling of edge cases
      */
     static calculateSignificantFigures(value, absoluteError) {
-        if (!absoluteError || absoluteError === 0) {
-            // Default to 6 significant figures if no error provided
-            return 6;
+        if (!absoluteError || absoluteError === 0 || value === 0) {
+            // Default to 15 significant figures if no error provided (maximum precision)
+            return 15;
         }
         
         // Significant figures = -log10(relative error)
-        const relativeError = Math.abs(absoluteError / value);
-        if (relativeError <= 0) return 15; // Maximum precision
+        const relativeError = Math.abs(absoluteError / Math.abs(value));
+        if (relativeError <= 0 || relativeError >= 1) {
+            return 1; // Minimum 1 significant figure
+        }
         
-        const sigFigs = Math.max(1, Math.floor(-Math.log10(relativeError)));
-        return Math.min(sigFigs, 15); // Cap at 15 significant figures
+        // ENHANCED: More accurate calculation
+        const sigFigs = -Math.log10(relativeError);
+        // Round up for better precision estimate
+        return Math.max(1, Math.min(Math.ceil(sigFigs), 15)); // Cap at 15 significant figures
     }
     
     /**
@@ -139,6 +144,7 @@ class ErrorPropagator {
     
     /**
      * Estimate input errors from significant figures in input values
+     * ENHANCED: Better detection of significant figures from input format
      */
     static estimateInputErrors(inputs) {
         const errors = {};
@@ -146,18 +152,44 @@ class ErrorPropagator {
         for (const [varName, value] of Object.entries(inputs)) {
             if (typeof value !== 'number' || !isFinite(value)) continue;
             
-            // Estimate error as half the last significant digit
+            // ENHANCED: Better significant figure detection
             const str = value.toString();
+            let sigFigs = 0;
+            let error = 0;
+            
             if (str.includes('e') || str.includes('E')) {
-                // Scientific notation
-                const [mantissa, exponent] = str.split(/[eE]/);
-                const decimals = mantissa.includes('.') ? mantissa.split('.')[1].length : 0;
-                errors[varName] = Math.abs(value) * Math.pow(10, -decimals) * 0.5;
+                // Scientific notation: count significant digits in mantissa
+                const [mantissa] = str.split(/[eE]/);
+                // Remove decimal point and leading zeros
+                const digits = mantissa.replace('.', '').replace(/^0+/, '');
+                sigFigs = digits.length;
+                const magnitude = Math.floor(Math.log10(Math.abs(value)));
+                error = Math.abs(value) * Math.pow(10, -(sigFigs - 1)) * 0.5;
             } else {
-                // Regular notation
-                const decimals = str.includes('.') ? str.split('.')[1].length : 0;
-                errors[varName] = Math.pow(10, -decimals) * 0.5;
+                // Regular notation: count significant digits
+                // Remove decimal point
+                const digits = str.replace('.', '');
+                // Count from first non-zero digit
+                let firstNonZero = -1;
+                for (let i = 0; i < digits.length; i++) {
+                    if (digits[i] !== '0' && digits[i] !== '-') {
+                        firstNonZero = i;
+                        break;
+                    }
+                }
+                if (firstNonZero >= 0) {
+                    sigFigs = digits.length - firstNonZero;
+                    // Estimate error based on last significant digit
+                    const magnitude = Math.floor(Math.log10(Math.abs(value)));
+                    error = Math.pow(10, magnitude - sigFigs + 1) * 0.5;
+                } else {
+                    // Zero or very small number
+                    error = Math.abs(value) * 0.01; // 1% default
+                }
             }
+            
+            // Minimum error: 1 part in 10^15 (machine precision)
+            errors[varName] = Math.max(error, Math.abs(value) * 1e-15);
         }
         
         return errors;

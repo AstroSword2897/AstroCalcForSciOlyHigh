@@ -72,10 +72,31 @@ AstroCalcForSciOlyHigh/
 │   ├── calculator.js          # Calculation engine (71 solvers)
 │   ├── ui.js                  # UI controller and search engine
 │   ├── enhancedOfflineGraph.js # Graph manager V2
+│   ├── offlineGraphManager.ts  # TypeScript graph manager (optimized)
 │   ├── formulaGraphConfig.js  # Formula-specific graph configs
 │   ├── unitConverter.js      # Unit conversion system
 │   ├── expressionParser.js    # Expression parsing
-│   └── ...                    # Additional utilities
+│   ├── types/
+│   │   └── formula.ts         # TypeScript type definitions
+│   ├── ui/
+│   │   ├── core/              # Core TypeScript modules
+│   │   │   ├── LifecycleManager.ts  # Memory leak prevention
+│   │   │   ├── StateManager.ts      # State management
+│   │   │   └── IntegrationHelpers.ts # Integration layer
+│   │   ├── modules/           # Feature modules (TypeScript)
+│   │   │   ├── SearchModule.ts      # Production-grade search
+│   │   │   ├── CalculatorModule.ts   # Calculator abstraction
+│   │   │   └── RenderModule.ts       # Rendering with batching
+│   │   ├── utils/             # Utilities (TypeScript)
+│   │   │   ├── DOMRefs.ts           # DOM caching (WeakMap)
+│   │   │   └── ErrorHandler.ts      # Error handling
+│   │   └── rendering/         # Rendering modules
+│   ├── events/                # Event management (TypeScript)
+│   │   ├── EventManager.ts    # Event tracking
+│   │   └── EventBus.ts        # Application events
+│   └── utils/                 # Utilities (TypeScript)
+│       ├── CleanupManager.ts  # Timer tracking
+│       └── DOMCache.ts        # DOM caching
 ├── tests/
 │   ├── comprehensive_calculator_tests.js  # Calculator test suite
 │   ├── conceptNetwork_tests.js           # Concept network tests
@@ -86,6 +107,31 @@ AstroCalcForSciOlyHigh/
 └── libs/
     └── mathjax/              # MathJax for LaTeX rendering
 ```
+
+## 🏗️ Architecture
+
+### TypeScript Migration
+The codebase is being migrated to TypeScript for:
+- **Type Safety**: Catch errors at compile time
+- **Better IDE Support**: Autocomplete, refactoring, navigation
+- **Performance**: Optimized modules with WeakMap, LRU cache, batch rendering
+- **Memory Safety**: Automatic cleanup, no memory leaks
+
+### Core Modules (TypeScript)
+- **LifecycleManager**: Tracks and cleans up all event listeners, timers, observers
+- **StateManager**: Centralized state management
+- **DOMRefs**: DOM element caching with WeakMap (prevents memory leaks)
+- **ErrorHandler**: Standardized error handling
+- **SearchModule**: Production-grade search with LRU cache, pluggable scorers
+- **EventManager**: Type-safe event management with automatic cleanup
+- **CleanupManager**: Centralized timer/interval tracking
+
+### Memory Leak Prevention
+- ✅ **WeakMap** for DOM element references (auto-cleanup)
+- ✅ **LifecycleManager** tracks all event listeners
+- ✅ **CleanupManager** tracks all timers/intervals
+- ✅ **MutationObserver** for automatic cache invalidation
+- ✅ **Proper cleanup** methods on all modules
 
 ## 🧪 Testing
 

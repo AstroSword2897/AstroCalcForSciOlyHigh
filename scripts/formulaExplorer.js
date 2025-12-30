@@ -920,3 +920,6 @@ window.FormulaExplorer = {
     render: renderFormulaExplorer,
     state: formulaExplorerState
 };
+
+// CRITICAL: Also expose initFormulaExplorer directly for compatibility
+window.initFormulaExplorer = initFormulaExplorer;

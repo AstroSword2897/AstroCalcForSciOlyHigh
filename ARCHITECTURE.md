@@ -18,7 +18,7 @@
 - ✅ Safe evaluation (no `Function`, no `eval`)
 - ✅ Variable detection
 - ✅ Exhaustive rearrangement discovery
-
+    
 **What it does NOT do**:
 - ❌ Multi-step orchestration
 - ❌ Context awareness

@@ -142,6 +142,23 @@ var formulas = [
         constants: {
             G: 6.67430e-11  // Gravitational constant in m³/(kg·s²)
         },
+        presets: [
+            {
+                name: "Earth Orbit",
+                description: "Calculate orbital period for Earth's orbit around the Sun",
+                values: { a: 1.496e11, M: 1.989e30 } // 1 AU, Solar mass
+            },
+            {
+                name: "Moon Orbit",
+                description: "Calculate orbital period for Moon's orbit around Earth",
+                values: { a: 3.844e8, M: 5.972e24 } // Moon distance, Earth mass
+            },
+            {
+                name: "Jupiter Orbit",
+                description: "Calculate orbital period for Jupiter's orbit around the Sun",
+                values: { a: 7.785e11, M: 1.989e30 } // Jupiter distance, Solar mass
+            }
+        ],
         relationships: {
             prerequisites: [], // Formulas needed to understand this one
             derivedFrom: [], // Formulas this is derived from
@@ -247,6 +264,23 @@ var formulas = [
         constants: {
             G: 6.67430e-11
         },
+        presets: [
+            {
+                name: "Earth Escape",
+                description: "Calculate escape velocity from Earth's surface",
+                values: { r: 6.371e6, M: 5.972e24 } // Earth radius, Earth mass
+            },
+            {
+                name: "Moon Escape",
+                description: "Calculate escape velocity from Moon's surface",
+                values: { r: 1.737e6, M: 7.342e22 } // Moon radius, Moon mass
+            },
+            {
+                name: "Sun Escape",
+                description: "Calculate escape velocity from Sun's surface",
+                values: { r: 6.957e8, M: 1.989e30 } // Solar radius, Solar mass
+            }
+        ],
         relationships: {
             prerequisites: ["surface_gravity"],
             derivedFrom: ["surface_gravity"],
@@ -354,6 +388,23 @@ var formulas = [
         constants: {
             σ: 5.670374419e-8  // Stefan-Boltzmann constant in W/(m²·K⁴)
         },
+        presets: [
+            {
+                name: "Sun",
+                description: "Calculate luminosity for the Sun",
+                values: { R: 6.957e8, T: 5778 } // Solar radius, Solar temperature
+            },
+            {
+                name: "Sirius A",
+                description: "Calculate luminosity for Sirius A (brightest star)",
+                values: { R: 1.711e9, T: 9940 } // Sirius radius, temperature
+            },
+            {
+                name: "Betelgeuse",
+                description: "Calculate luminosity for Betelgeuse (red supergiant)",
+                values: { R: 8.8e11, T: 3600 } // Betelgeuse radius, temperature
+            }
+        ],
         relationships: {
             prerequisites: [],
             derivedFrom: [],

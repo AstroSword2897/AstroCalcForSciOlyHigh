@@ -2437,6 +2437,16 @@ class FormulaCalculator {
                             result,
                             errorInfo.absoluteError
                         );
+                        
+                        // ENHANCED: Apply precision rounding to result if available
+                        if (typeof roundToSignificantFigures === 'function') {
+                            // Round result to appropriate significant figures for display
+                            const roundedResult = roundToSignificantFigures(result, significantFigures);
+                            if (isFinite(roundedResult) && roundedResult !== 0) {
+                                // Use rounded value for display, but keep original for calculations
+                                resultObj.displayValue = roundedResult;
+                            }
+                        }
                     }
                 }
                 
@@ -2585,7 +2595,11 @@ class FormulaCalculator {
     // Create a symbolic expression string
     createSymbolicExpression(formulaId, primaryVar, knownVars, otherUnknowns, constants) {
         const formula = this.formula;
-        const allVars = { ...globalConstants, ...constants, ...knownVars };
+        
+        // FIXED: When all variables are unknown, keep constants as symbols, not numeric values
+        // Only include constants if we have known variables (for partial substitution)
+        const hasKnownVars = Object.keys(knownVars).length > 0;
+        const allVars = hasKnownVars ? { ...globalConstants, ...constants, ...knownVars } : { ...knownVars };
         
         // For each unknown (except primary), add it as a variable
         otherUnknowns.forEach(symbol => {
@@ -2599,6 +2613,13 @@ class FormulaCalculator {
             }
             if (typeof value === 'string') {
                 return value; // Already a symbol
+            }
+            // FIXED: When all variables are unknown, keep constants as symbols
+            // Check if this is a constant that should remain symbolic
+            const isConstant = (globalConstants && globalConstants[symbol] !== undefined) || 
+                              (constants && constants[symbol] !== undefined);
+            if (isConstant && !hasKnownVars) {
+                return symbol; // Keep constant as symbol when all vars are unknown
             }
             if (typeof value === 'number' && isFinite(value)) {
                 // Format number nicely
@@ -2745,6 +2766,14 @@ class FormulaCalculator {
             return `${primaryVar} = ?`;
         }
         
+        // FIXED: Check if all variables are unknown (no known values provided)
+        const hasKnownVars = Object.keys(allVars).some(key => {
+            const value = allVars[key];
+            return value !== null && value !== undefined && 
+                   typeof value === 'number' && isFinite(value) &&
+                   !otherUnknowns.includes(key) && key !== primaryVar;
+        });
+        
         // Format variable values for display
         const formatVar = (symbol, value) => {
             if (value === null || value === undefined) {
@@ -2752,6 +2781,12 @@ class FormulaCalculator {
             }
             if (typeof value === 'string' && (value === 'N/A' || value.toLowerCase() === 'na')) {
                 return symbol;
+            }
+            // FIXED: When all variables are unknown, keep constants as symbols
+            const isConstant = (globalConstants && globalConstants[symbol] !== undefined) || 
+                              (this.formula.constants && this.formula.constants[symbol] !== undefined);
+            if (isConstant && !hasKnownVars) {
+                return symbol; // Keep constant as symbol when all vars are unknown
             }
             if (typeof value === 'number' && isFinite(value)) {
                 // Format large/small numbers
@@ -2774,8 +2809,14 @@ class FormulaCalculator {
             const value = allVars[symbol];
             const isUnknown = otherUnknowns.includes(symbol) || symbol === primaryVar;
             
-            if (!isUnknown && value !== null && value !== undefined && 
-                typeof value === 'number' && isFinite(value)) {
+            // FIXED: Only substitute if it's a known variable (not a constant when all vars are unknown)
+            const isConstant = (globalConstants && globalConstants[symbol] !== undefined) || 
+                              (this.formula.constants && this.formula.constants[symbol] !== undefined);
+            const shouldSubstitute = !isUnknown && value !== null && value !== undefined && 
+                                   typeof value === 'number' && isFinite(value) &&
+                                   (!isConstant || hasKnownVars); // Don't substitute constants if all vars unknown
+            
+            if (shouldSubstitute) {
                 // Replace with value
                 const formatted = formatVar(symbol, value);
                 // Replace whole word matches only

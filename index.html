@@ -215,13 +215,9 @@
                     <!-- ENHANCED: Graph Controls Panel -->
                     <div id="graph-controls-panel" class="graph-controls-panel" style="display: none;">
                         <div class="graph-controls-section">
-                            <h4>📊 Astro Presets</h4>
+                            <h4>📊 Formula Presets</h4>
                             <div id="graph-presets" class="graph-presets">
-                                <button class="preset-btn" data-preset="blackbody">Blackbody Curve</button>
-                                <button class="preset-btn" data-preset="kepler">Kepler's Third Law</button>
-                                <button class="preset-btn" data-preset="escape_velocity">Escape Velocity</button>
-                                <button class="preset-btn" data-preset="luminosity">Luminosity vs Radius</button>
-                                <button class="preset-btn" data-preset="spectrum">Spectrum Wavelengths</button>
+                                <!-- Presets will be dynamically rendered based on selected formula -->
                             </div>
                         </div>
                         <div class="graph-controls-section">
@@ -401,21 +397,78 @@
     <!-- 1. Core data (must be first) -->
     <script src="scripts/formulas.js"></script>
     
-    <!-- REFACTORED: New modular structure - load before ui.js -->
+    <!-- REFACTORED: New modular structure - TypeScript modules (compiled to JS) -->
+    <!-- Core Type Definitions -->
+    <script src="scripts/types/formula.js"></script>
+    
+    <!-- Core Utilities (TypeScript) -->
+    <script src="scripts/utils/CleanupManager.js"></script>
+    <script src="scripts/ui/utils/DOMRefs.js"></script>
+    <script src="scripts/ui/utils/ErrorHandler.js"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js"></script>
+    
+    <!-- Event Management (TypeScript) -->
+    <script src="scripts/events/EventManager.js"></script>
+    <script src="scripts/events/EventBus.js"></script>
+    
+    <!-- State Management (TypeScript) -->
+    <script src="scripts/ui/core/LifecycleManager.js"></script>
+    <script src="scripts/ui/core/StateManager.js"></script>
+    <script src="scripts/ui/state/UIStateManager.js"></script>
+    
+    <!-- Integration Helpers -->
+    <script src="scripts/ui/core/IntegrationHelpers.js"></script>
+    
+    <!-- Legacy Support (keep for backward compatibility) -->
     <script src="scripts/utils/dom.js"></script>
     <script src="scripts/state/app-state.js"></script>
     <script src="scripts/events/event-manager.js"></script>
     <script src="scripts/search/formula-search.js"></script>
+    <!-- UI Modules (TypeScript) - New Modular Architecture -->
+    <!-- Search Module -->
+    <script src="scripts/ui/modules/search/interfaces.js"></script>
+    <script src="scripts/ui/modules/search/Scorer.js"></script>
+    <script src="scripts/ui/modules/search/SearchEngine.js"></script>
     
-    <!-- UI Core Modules (NEW - Refactoring) -->
-    <script src="scripts/ui/core/LifecycleManager.js"></script>
-    <script src="scripts/ui/core/StateManager.js"></script>
-    <script src="scripts/ui/utils/DOMRefs.js"></script>
-    <script src="scripts/ui/utils/ErrorHandler.js"></script>
-    <script src="scripts/ui/utils/SafeMathEvaluator.js"></script>
-    <script src="scripts/ui/core/IntegrationHelpers.js"></script>
+    <!-- Calculation Module -->
+    <script src="scripts/ui/modules/calculation/CalculationOrchestrator.js"></script>
+    
+    <!-- Tab Management -->
+    <script src="scripts/ui/modules/tabs/TabManager.js"></script>
+    
+    <!-- Graph Module -->
+    <script src="scripts/ui/modules/graph/GraphCoordinator.js"></script>
+    
+    <!-- Formula Selection -->
+    <script src="scripts/ui/modules/formula/FormulaSelector.js"></script>
+    
+    <!-- Event Coordination -->
+    <script src="scripts/ui/modules/events/EventCoordinator.js"></script>
+    
+    <!-- Utilities -->
+    <script src="scripts/ui/modules/utils/CalculationUtils.js"></script>
+    <script src="scripts/ui/modules/utils/FormattingUtils.js"></script>
+    
+    <!-- Legacy UI Modules (for backward compatibility) -->
+    <script src="scripts/ui/modules/SearchModule.js"></script>
+    <script src="scripts/ui/modules/CalculatorModule.js"></script>
+    <script src="scripts/ui/modules/RenderModule.js"></script>
+    
+    <!-- Migration Bridge (enables gradual migration) -->
+    <script src="scripts/ui/migration/UIMigrationBridge.js"></script>
+    
+    <!-- UI Module Orchestrator (wires everything together) -->
+    <script src="scripts/ui/UIModuleOrchestrator.js"></script>
+    <!-- App class (proper orchestrator) -->
+    <script src="scripts/ui/App.js"></script>
+    <script src="scripts/ui/init.js"></script>
+    <!-- Legacy rendering modules (will be migrated) -->
     <script src="scripts/ui/rendering/FormulaCards.js"></script>
     <script src="scripts/ui/rendering/SearchResults.js"></script>
+    <script src="scripts/ui/rendering/VariableInputs.js"></script>
+    <script src="scripts/ui/rendering/ResultDisplay.js"></script>
+    <script src="scripts/ui/rendering/MathJaxRenderer.js"></script>
+    <script src="scripts/ui/rendering/ClassificationDisplay.js"></script>
     <script src="scripts/ui/events/EventHandlers.js"></script>
     
     <!-- 2. Core utilities (no dependencies) -->
@@ -425,6 +478,9 @@
     <script src="scripts/unitParser.js"></script>
     <script src="scripts/dimensionalAnalysis.js"></script>
     <script src="scripts/expressionParser.js"></script>
+    <script src="scripts/precisionCalculator.js"></script>
+    <script src="scripts/errorPropagation.js"></script>
+    <script src="scripts/accuracyEnhancements.js"></script>
     
     <!-- 2.5. Accessibility (load early to apply preferences before UI renders) -->
     <script src="scripts/accessibility.js"></script>

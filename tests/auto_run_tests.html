@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto-Run Calculator Tests</title>
+    <meta http-equiv="refresh" content="3;url=http://localhost:8000/tests/run_production_tests.html">
+    <script>
+        // Auto-execute tests when redirected to test page
+        if (window.location.href.includes('run_production_tests.html')) {
+            // Wait for page to fully load
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    console.log('🚀 Auto-executing calculator tests...');
+                    
+                    // Try CalculatorTestSuite first
+                    if (typeof CalculatorTestSuite !== 'undefined' && typeof CalculatorTestSuite.runAllCalculatorTests === 'function') {
+                        console.log('✅ Found CalculatorTestSuite.runAllCalculatorTests()');
+                        CalculatorTestSuite.runAllCalculatorTests().then(function(results) {
+                            console.log('✅ Test Results:', results);
+                            console.log('📊 Pass Rate: ' + ((results.passedTests / results.totalTests) * 100).toFixed(2) + '%');
+                            console.log('✅ Passed: ' + results.passedTests + ', ❌ Failed: ' + results.failedTests + ', 📈 Total: ' + results.totalTests);
+                        }).catch(function(err) {
+                            console.error('❌ Test execution error:', err);
+                        });
+                    } else if (typeof runCalculatorOnly === 'function') {
+                        console.log('✅ Found runCalculatorOnly()');
+                        runCalculatorOnly();
+                    } else {
+                        console.error('❌ Test functions not available');
+                        console.log('Available:', Object.keys(window).filter(function(k) { 
+                            return k.includes('Test') || k.includes('Calculator'); 
+                        }));
+                    }
+                }, 2000);
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>🚀 Auto-Running Calculator Tests</h1>
+    <p>Redirecting to test page and executing tests automatically...</p>
+    <p>Check browser console for test results.</p>
+</body>
+</html>
+

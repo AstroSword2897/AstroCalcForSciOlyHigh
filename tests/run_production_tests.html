@@ -344,14 +344,10 @@
                         <!-- ENHANCED: Graph Controls Panel -->
                         <div id="graph-controls-panel" class="graph-controls-panel" style="display: none;">
                             <div class="graph-controls-section">
-                                <h4>📊 Astro Presets</h4>
-                                <div id="graph-presets" class="graph-presets">
-                                    <button class="preset-btn" data-preset="blackbody">Blackbody Curve</button>
-                                    <button class="preset-btn" data-preset="kepler">Kepler's Third Law</button>
-                                    <button class="preset-btn" data-preset="escape_velocity">Escape Velocity</button>
-                                    <button class="preset-btn" data-preset="luminosity">Luminosity vs Radius</button>
-                                    <button class="preset-btn" data-preset="spectrum">Spectrum Wavelengths</button>
-                                </div>
+                            <h4>📊 Formula Presets</h4>
+                            <div id="graph-presets" class="graph-presets">
+                                <!-- Presets will be dynamically rendered based on selected formula -->
+                            </div>
                             </div>
                             <div class="graph-controls-section">
                                 <h4>🎛️ Interactive Controls</h4>
@@ -663,6 +659,18 @@
         function updateOutput() {
             output.textContent = logs.join('\n');
             output.scrollTop = output.scrollHeight;
+        }
+        
+        // Wait for FormulaCalculator to be available
+        async function waitForFormulaCalculator(timeout = 10000) {
+            const startTime = Date.now();
+            while (Date.now() - startTime < timeout) {
+                if (typeof FormulaCalculator !== 'undefined' && typeof FormulaCalculator === 'function') {
+                    return true;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            throw new Error('FormulaCalculator not available after timeout');
         }
         
         async function runFullSuite() {

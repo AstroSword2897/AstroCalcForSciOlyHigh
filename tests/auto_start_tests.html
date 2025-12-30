@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auto-Start Tests</title>
+    <meta http-equiv="refresh" content="2;url=http://localhost:8000/tests/run_production_tests.html">
+    <script>
+        // Auto-execute tests when page loads
+        window.onload = function() {
+            setTimeout(() => {
+                // Try to access the test page in the same window
+                if (window.location.href.includes('run_production_tests.html')) {
+                    // We're on the test page, execute
+                    if (typeof switchToTab === 'function') {
+                        switchToTab('tests');
+                        setTimeout(() => {
+                            if (typeof runFullSuite === 'function') {
+                                console.log('🚀 Starting test suite...');
+                                runFullSuite();
+                            } else {
+                                console.error('runFullSuite not available');
+                            }
+                        }, 500);
+                    }
+                } else {
+                    // Redirect to test page
+                    window.location.href = 'http://localhost:8000/tests/run_production_tests.html';
+                }
+            }, 2000);
+        };
+    </script>
+</head>
+<body>
+    <h1>🚀 Starting Test Suite...</h1>
+    <p>Redirecting to test page and executing tests automatically...</p>
+    <p>If tests don't start automatically, open browser console (F12) and run:</p>
+    <pre>switchToTab('tests'); setTimeout(() => runFullSuite(), 500);</pre>
+</body>
+</html>
+

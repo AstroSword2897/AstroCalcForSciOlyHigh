@@ -548,8 +548,22 @@ class EnhancedOfflineGraphManagerV2 {
   /**
    * Compatibility method for existing UI code
    * Maps updateGraph() calls to render()
+   * CRITICAL: Ensures formula.equation is used for graph rendering
    */
   updateGraph(formula, variableValues = {}, options = {}) {
+    // CRITICAL: Validate formula has equation before rendering
+    if (!formula) {
+      console.error('[EnhancedGraphV2] updateGraph() called without formula');
+      return;
+    }
+    
+    if (!formula.equation && !formula.solveFunction) {
+      console.error('[EnhancedGraphV2] Formula missing equation and solveFunction:', formula.id || formula.name);
+      console.error('[EnhancedGraphV2] Formula object keys:', Object.keys(formula));
+      // Don't render if no equation available
+      return;
+    }
+    
     this.render(formula, variableValues);
     
     // Handle options
@@ -1199,8 +1213,8 @@ class EnhancedOfflineGraphManagerV2 {
     // draw title
     this._drawTitle(ctx, formula);
 
-    // ENHANCED: Overlays are drawn separately in _drawUIOverlays()
-    // This prevents duplicate drawing
+    // ENHANCED: Draw UI overlays (calculated points, hover markers, etc.)
+    this._drawUIOverlays(ctx);
 
     ctx.restore();
   }
@@ -1352,7 +1366,28 @@ class EnhancedOfflineGraphManagerV2 {
     ctx.fillStyle = this.axisColor;
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText((formula && formula.name) || '', this.width / 2, 20);
+    
+    // ENHANCED: Display formula name
+    const title = (formula && formula.name) || '';
+    ctx.fillText(title, this.width / 2, 20);
+    
+    // ENHANCED: Display equation below title if available
+    if (formula && formula.equation) {
+      ctx.font = '12px monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      // Truncate long equations to fit on screen
+      let equationText = String(formula.equation);
+      const maxWidth = this.width - 40;
+      if (ctx.measureText(equationText).width > maxWidth) {
+        // Truncate and add ellipsis
+        while (ctx.measureText(equationText + '...').width > maxWidth && equationText.length > 0) {
+          equationText = equationText.slice(0, -1);
+        }
+        equationText += '...';
+      }
+      ctx.fillText(equationText, this.width / 2, 38);
+    }
+    
     ctx.restore();
   }
 
@@ -1373,15 +1408,25 @@ class EnhancedOfflineGraphManagerV2 {
     const sx = this.worldToScreenX(point.x);
     const sy = this.worldToScreenY(point.y);
     
-    // Draw outer circle (highlight)
+    // ENHANCED: Check if point is within visible bounds
+    if (sx < this.padding.left || sx > this.width - this.padding.right ||
+        sy < this.padding.top || sy > this.height - this.padding.bottom) {
+      ctx.restore();
+      return; // Point is outside visible area
+    }
+    
+    // ENHANCED: Draw outer circle (highlight) with better visibility
     ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(0, 255, 0, 0.5)';
+    ctx.shadowBlur = 8;
     ctx.beginPath();
     ctx.arc(sx, sy, 8, 0, Math.PI * 2);
     ctx.stroke();
     
     // Draw inner filled circle
     ctx.fillStyle = '#00ff00';
+    ctx.shadowBlur = 0; // Remove shadow for filled circle
     ctx.beginPath();
     ctx.arc(sx, sy, 5, 0, Math.PI * 2);
     ctx.fill();

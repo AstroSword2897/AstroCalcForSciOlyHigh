@@ -1,0 +1,180 @@
+/**
+ * EventCoordinator - Centralized event handling with proper cleanup
+ * Improved: Lifecycle management, memory leak prevention, better organization
+ */
+export class EventCoordinator {
+    constructor(options = {}) {
+        this.listeners = new Map();
+        this.globalListeners = [];
+        this.setupComplete = false;
+        this.options = options;
+    }
+    /**
+     * Setup all event listeners
+     */
+    setupAll() {
+        if (this.setupComplete) {
+            console.log('[EventCoordinator] Already set up, skipping');
+            return;
+        }
+        console.log('[EventCoordinator] Setting up event handlers...');
+        this.setupBackButton();
+        this.setupMainTabButtons();
+        this.setupSubTabButtons();
+        this.setupCalculateButton();
+        this.setupClassificationButtons();
+        this.setupFormulaCardDelegation();
+        this.setupGraphControls();
+        this.setupClassificationInputs();
+        this.setupComplete = true;
+        console.log('[EventCoordinator] ✅ All event handlers set up');
+    }
+    setupBackButton() {
+        const backButton = document.getElementById('back-button');
+        if (!backButton) {
+            console.warn('[EventCoordinator] Back button not found');
+            return;
+        }
+        const handler = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.options.onBackButton) {
+                this.options.onBackButton();
+            }
+        };
+        this.addListener(backButton, 'click', handler);
+        backButton.onclick = handler;
+    }
+    setupMainTabButtons() {
+        const mainTabButtons = document.querySelectorAll('.main-tab-btn');
+        mainTabButtons.forEach(btn => {
+            const tabName = btn.getAttribute('data-main-tab');
+            if (!tabName)
+                return;
+            const element = btn;
+            element.style.setProperty('pointer-events', 'auto', 'important');
+            element.style.setProperty('cursor', 'pointer', 'important');
+            const handler = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.options.onMainTabSwitch) {
+                    this.options.onMainTabSwitch(tabName);
+                }
+            };
+            this.addListener(element, 'click', handler);
+            element.onclick = handler;
+        });
+    }
+    setupSubTabButtons() {
+        const subTabButtons = document.querySelectorAll('.tab-btn');
+        subTabButtons.forEach(btn => {
+            const tabName = btn.getAttribute('data-tab');
+            if (!tabName)
+                return;
+            const handler = () => {
+                if (this.options.onSubTabSwitch) {
+                    this.options.onSubTabSwitch(tabName);
+                }
+            };
+            this.addListener(btn, 'click', handler);
+        });
+    }
+    setupCalculateButton() {
+        const calcBtn = document.getElementById('calculate-btn');
+        if (!calcBtn) {
+            console.error('[EventCoordinator] Calculate button not found');
+            return;
+        }
+        const handler = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.options.onCalculate) {
+                this.options.onCalculate();
+            }
+        };
+        // Multiple strategies for reliability
+        this.addListener(calcBtn, 'click', handler);
+        calcBtn.onclick = handler;
+    }
+    setupClassificationButtons() {
+        const classifyBtn = document.getElementById('classify-btn');
+        if (classifyBtn && this.options.onClassify) {
+            this.addListener(classifyBtn, 'click', this.options.onClassify);
+        }
+        const mainClassifyBtn = document.getElementById('main-classify-btn');
+        if (mainClassifyBtn && this.options.onMainClassify) {
+            this.addListener(mainClassifyBtn, 'click', this.options.onMainClassify);
+        }
+    }
+    setupFormulaCardDelegation() {
+        const formulaList = document.getElementById('formula-list');
+        if (!formulaList) {
+            console.warn('[EventCoordinator] Formula list not found');
+            return;
+        }
+        if (formulaList.dataset?.delegationSetup === 'true') {
+            return;
+        }
+        const handler = (e) => {
+            const card = e.target.closest('.formula-card');
+            if (!card)
+                return;
+            const formulaId = card.getAttribute('data-formula-id');
+            if (!formulaId)
+                return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            if (this.options.onFormulaCardClick) {
+                this.options.onFormulaCardClick(formulaId);
+            }
+        };
+        formulaList.addEventListener('click', handler, true);
+        formulaList.dataset.delegationSetup = 'true';
+    }
+    setupGraphControls() {
+        if (this.options.setupGraphControls) {
+            this.options.setupGraphControls();
+        }
+    }
+    setupClassificationInputs() {
+        // Setup Enter key handlers for classification inputs
+        const tempInputs = document.querySelectorAll('.classification-inputs input[type="number"]');
+        tempInputs.forEach(input => {
+            const handler = (e) => {
+                if (e.key === 'Enter' && this.options.onClassify) {
+                    this.options.onClassify();
+                }
+            };
+            this.addListener(input, 'keydown', handler);
+        });
+    }
+    addListener(element, event, handler) {
+        if (this.options.addTrackedListener) {
+            this.options.addTrackedListener(element, event, handler);
+        }
+        else {
+            element.addEventListener(event, handler);
+        }
+        if (!this.listeners.has(element)) {
+            this.listeners.set(element, []);
+        }
+        this.listeners.get(element).push({ event, handler });
+    }
+    /**
+     * Cleanup all event listeners
+     */
+    cleanup() {
+        this.listeners.forEach((listeners, element) => {
+            listeners.forEach(({ event, handler }) => {
+                element.removeEventListener(event, handler);
+            });
+        });
+        this.listeners.clear();
+        this.globalListeners.forEach(({ target, event, handler, options }) => {
+            target.removeEventListener(event, handler, options);
+        });
+        this.globalListeners = [];
+        this.setupComplete = false;
+    }
+}
