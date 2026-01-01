@@ -1,11 +1,13 @@
 # 🌌 AstroCalc - Science Olympiad Astronomy Calculator
 
-**A comprehensive, offline-first astronomy formula calculator for Science Olympiad competitions.**
+**A comprehensive, offline-first astronomy formula calculator for Science Olympiad competitions with modern modular architecture.**
 
 [![Offline-First](https://img.shields.io/badge/Offline-First-green)](https://github.com)
 [![No AI Required](https://img.shields.io/badge/No%20AI-Required-blue)](https://github.com)
 [![191 Formulas](https://img.shields.io/badge/Formulas-191-orange)](https://github.com)
 [![71 Solvers](https://img.shields.io/badge/Solvers-71-yellow)](https://github.com)
+[![Modular Architecture](https://img.shields.io/badge/Architecture-Modular-purple)](https://github.com)
+[![Tests Passing](https://img.shields.io/badge/Tests-Passing-brightgreen)](https://github.com)
 
 ## 🚀 Quick Start
 
@@ -13,14 +15,30 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/AstroCalcForSciOlyHigh.git
+git clone https://github.com/AstroSword2897/AstroCalcForSciOlyHigh.git
 cd AstroCalcForSciOlyHigh
 
-# Start local server (port 8000)
-python3 -m http.server 8000
+# Start local server (port 8001 recommended)
+python3 -m http.server 8001
 
 # Open in browser
-open http://localhost:8000
+open http://localhost:8001
+```
+
+### Testing
+
+```bash
+# Install dependencies
+npm install
+
+# Run Playwright tests
+npx playwright test
+
+# Run tests with UI
+npx playwright test --ui
+
+# Run specific test
+npx playwright test tests/calculator-final.spec.js
 ```
 
 ### Production Deployment
@@ -32,6 +50,7 @@ The app works completely offline - just serve the files via any web server.
 ### 🧮 Calculator Engine
 - **191 Astronomy Formulas** - Comprehensive coverage of Science Olympiad topics
 - **71 Implemented Solvers** - Production-grade calculation engine
+- **Symbolic & Numeric Solving** - Advanced symbolic solver with N/A support
 - **Offline-First** - No network dependencies, works completely offline
 - **Unit Conversion** - Automatic unit conversion and validation
 - **Dimensional Analysis** - Physical constraint validation
@@ -43,6 +62,7 @@ The app works completely offline - just serve the files via any web server.
 - **Natural Language** - Understands questions like "how to calculate escape velocity"
 - **Confidence Scores** - Detailed confidence breakdown per result
 - **Context Propagation** - Cross-concept reinforcement
+- **Command Palette** - Modern search interface with keyboard navigation
 
 ### 📊 Graph System
 - **Enhanced Offline Graph Manager V2** - Fully offline, no external dependencies
@@ -51,6 +71,13 @@ The app works completely offline - just serve the files via any web server.
 - **Adaptive Sampling** - Recursive subdivision for high-quality curves
 - **Resize Handling** - Debounced resize with error handling
 - **Device Pixel Ratio** - Crisp rendering on high-DPI displays
+
+### 🏗️ Modern Architecture
+- **Modular UI System** - Replaced monolithic 10k+ line file with modular architecture
+- **TypeScript Migration** - Type safety with modern tooling
+- **Service-Oriented** - Clean separation of concerns
+- **Memory Leak Prevention** - WeakMap, LifecycleManager, proper cleanup
+- **Performance Optimized** - LRU caching, batch rendering, requestAnimationFrame
 
 ### 🎯 Formula Categories
 - **Orbital Mechanics** - Kepler's laws, orbital velocity, escape velocity
@@ -69,46 +96,70 @@ AstroCalcForSciOlyHigh/
 ├── index.html                 # Main application entry point
 ├── scripts/
 │   ├── formulas.js            # 191 formula definitions
-│   ├── calculator.js          # Calculation engine (71 solvers)
-│   ├── ui.js                  # UI controller and search engine
+│   ├── calculator.ts          # TypeScript calculation engine (71 solvers)
+│   ├── ui/                    # 🆕 Modular UI system
+│   │   ├── init.js            # UI initialization
+│   │   ├── UIModuleOrchestrator.js # Main orchestrator
+│   │   ├── modules/           # Feature modules
+│   │   │   ├── search/        # Search engine
+│   │   │   ├── calculation/   # Calculator abstraction
+│   │   │   ├── formula/       # Formula management
+│   │   │   ├── events/        # Event coordination
+│   │   │   └── utils/         # Utilities
+│   │   ├── rendering/         # Rendering modules
+│   │   ├── state/            # State management
+│   │   └── types/            # TypeScript definitions
 │   ├── enhancedOfflineGraph.js # Graph manager V2
 │   ├── offlineGraphManager.ts  # TypeScript graph manager (optimized)
 │   ├── formulaGraphConfig.js  # Formula-specific graph configs
 │   ├── unitConverter.js      # Unit conversion system
 │   ├── expressionParser.js    # Expression parsing
-│   ├── types/
-│   │   └── formula.ts         # TypeScript type definitions
-│   ├── ui/
-│   │   ├── core/              # Core TypeScript modules
-│   │   │   ├── LifecycleManager.ts  # Memory leak prevention
-│   │   │   ├── StateManager.ts      # State management
-│   │   │   └── IntegrationHelpers.ts # Integration layer
-│   │   ├── modules/           # Feature modules (TypeScript)
-│   │   │   ├── SearchModule.ts      # Production-grade search
-│   │   │   ├── CalculatorModule.ts   # Calculator abstraction
-│   │   │   └── RenderModule.ts       # Rendering with batching
-│   │   ├── utils/             # Utilities (TypeScript)
-│   │   │   ├── DOMRefs.ts           # DOM caching (WeakMap)
-│   │   │   └── ErrorHandler.ts      # Error handling
-│   │   └── rendering/         # Rendering modules
-│   ├── events/                # Event management (TypeScript)
-│   │   ├── EventManager.ts    # Event tracking
-│   │   └── EventBus.ts        # Application events
-│   └── utils/                 # Utilities (TypeScript)
-│       ├── CleanupManager.ts  # Timer tracking
-│       └── DOMCache.ts        # DOM caching
-├── tests/
-│   ├── comprehensive_calculator_tests.js  # Calculator test suite
-│   ├── conceptNetwork_tests.js           # Concept network tests
-│   ├── run_production_tests.html         # Production test interface
-│   └── ...                               # Additional test suites
+│   ├── types/                # TypeScript type definitions
+│   │   ├── formula.ts        # Formula types
+│   │   └── calculator.ts      # Calculator types
+│   └── utils/                # Shared utilities
+├── tests/                   # 🆕 Comprehensive test suite
+│   ├── calculator-final.spec.js # Working calculator tests
+│   ├── property-based.test.ts  # Property-based testing
+│   ├── integration.test.ts     # Integration tests
+│   ├── accessibility.test.ts    # Accessibility tests
+│   ├── performance.test.ts      # Performance tests
+│   └── page-load.spec.js        # Page load verification
 ├── styles/
-│   └── main.css              # Application styles
+│   └── main.css              # Application styles (with command palette fixes)
+├── docs/                    # 🆕 Documentation
+│   ├── ARCHITECTURE_PLAN.md  # Modernization strategy
+│   └── TEST_RESULTS_SUMMARY.md # Test analysis
 └── libs/
     └── mathjax/              # MathJax for LaTeX rendering
 ```
 
 ## 🏗️ Architecture
+
+### 🆕 Modular UI System (2024 Update)
+
+The legacy monolithic `ui.js` (10,000+ lines) has been replaced with a modern modular architecture:
+
+#### **Core Modules**
+- **UIModuleOrchestrator** - Main coordinator with dependency injection
+- **SearchEngine** - Production-grade search with LRU cache
+- **CalculationOrchestrator** - Calculator abstraction layer
+- **FormulaSelector** - Formula management and selection
+- **EventCoordinator** - Type-safe event management
+- **TabManager** - Tab navigation system
+
+#### **Services**
+- **SearchService** - Encapsulates search algorithms and scoring
+- **FormulaService** - Formula management and state
+- **StateService** - Centralized state with Pub/Sub pattern
+- **EventBus** - Decoupled component communication
+
+#### **Performance Features**
+- **Virtual Scrolling** - For large formula lists
+- **Lazy Loading** - Components loaded on-demand
+- **Memoization** - Cache expensive calculations
+- **Debounced Search** - Reduce API calls during typing
+- **RequestAnimationFrame** - Smooth animations
 
 ### TypeScript Migration
 The codebase is being migrated to TypeScript for:
@@ -135,29 +186,52 @@ The codebase is being migrated to TypeScript for:
 
 ## 🧪 Testing
 
-### Run Calculator Tests
+### 🆕 Modern Test Infrastructure
 
 ```bash
-# Start server
-python3 -m http.server 8000
+# Install Playwright
+npm install
 
-# Open test interface
-open http://localhost:8000/tests/run_production_tests.html
+# Run all tests
+npx playwright test
+
+# Run with UI for debugging
+npx playwright test --ui
+
+# Run specific test file
+npx playwright test tests/calculator-final.spec.js
+
+# Run with specific browser
+npx playwright test --project=chromium
+
+# Generate report
+npx playwright test --reporter=html
 ```
 
 ### Test Suites
 
-1. **Calculator Tests** - Tests all 71 formulas with solvers (3 tests each)
-2. **Concept Network Tests** - Dimensional integrity, weighted influence, stress tests
-3. **Search Engine Tests** - 5,000 search queries with weighted concept scoring
-4. **Integration Tests** - Full system integration verification
+1. **Calculator Tests** - Symbolic/numeric solving, N/A support
+2. **Property-Based Tests** - Fuzz testing with seeded randomness
+3. **Integration Tests** - Full system integration verification
+4. **Accessibility Tests** - ARIA compliance and keyboard navigation
+5. **Performance Tests** - Search response, calculation speed
+6. **Page Load Tests** - DOM readiness and component initialization
+
+### 🎯 Recent Test Fixes
+
+- ✅ **Fixed search input visibility** - `#command-palette-input` now visible
+- ✅ **Fixed formula card clickability** - Removed overlay blocking
+- ✅ **Fixed duplicate calculate buttons** - Strict mode violations resolved
+- ✅ **Updated test selectors** - Correct DOM element targeting
+- ✅ **Fixed test synchronization** - Proper timing and state management
 
 ### Test Coverage
 
-- ✅ **Calculator**: 213 tests (71 formulas × 3)
-- ✅ **Concept Network**: 16 test categories
-- ✅ **Search Engine**: 5,000 test queries
-- ✅ **Integration**: Full system tests
+- ✅ **Calculator**: Symbolic/numeric solving, N/A handling
+- ✅ **Search Engine**: Command palette, natural language
+- ✅ **UI Components**: Formula cards, tabs, inputs
+- ✅ **Integration**: End-to-end workflows
+- ✅ **Accessibility**: Screen readers, keyboard navigation
 
 ## 🎨 Graph System
 
@@ -261,6 +335,8 @@ A service worker (`sw.js`) is included for offline support. Ensure HTTPS in prod
 
 ## 📚 Documentation
 
+- **🆕 Architecture Plan**: See `ARCHITECTURE_PLAN.md` - Modernization strategy
+- **🆕 Test Results**: See `TEST_RESULTS_SUMMARY.md` - Comprehensive test analysis
 - **System Architecture**: See `SYSTEM_ARCHITECTURE.md`
 - **Testing Plan**: See `COMPREHENSIVE_TESTING_PLAN.md`
 - **Graph System**: See `GRAPH_SYSTEM_ENHANCEMENTS.md`
@@ -271,8 +347,16 @@ A service worker (`sw.js`) is included for offline support. Ensure HTTPS in prod
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests
+4. Run tests (`npx playwright test`)
 5. Submit a pull request
+
+### 🆕 Contributing Guidelines
+
+- Follow the modular architecture patterns
+- Add TypeScript types for new features
+- Include tests for new functionality
+- Update documentation
+- Ensure proper cleanup in modules
 
 ## 📄 License
 
@@ -282,12 +366,27 @@ This project is for Science Olympiad Astronomy competition use.
 
 - Science Olympiad Astronomy rules and formulas
 - MathJax for LaTeX rendering
+- Playwright for modern testing infrastructure
 - All contributors and testers
 
 ## 📞 Support
 
 For issues or questions, please open an issue on GitHub.
 
+### 🆕 Troubleshooting
+
+**Common Issues:**
+- **Search not working**: Check if `#command-palette-input` is visible (CSS fixed)
+- **Formula cards not clickable**: Check for overlay blocking (pointer-events fixed)
+- **Tests failing**: Ensure correct selectors and timing (updated in latest version)
+
+**Debug Tools:**
+- Use browser dev tools to check console logs
+- Run `tests/page-load.spec.js` to verify basic functionality
+- Check `TEST_RESULTS_SUMMARY.md` for known issues
+
 ---
 
 **Built with ❤️ for Science Olympiad Astronomy**
+
+**🆕 Latest Update**: Modern modular architecture, comprehensive test suite, symbolic solver fixes
