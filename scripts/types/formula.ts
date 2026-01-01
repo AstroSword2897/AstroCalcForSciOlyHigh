@@ -7,6 +7,13 @@ export interface Variable {
     name: string;
     description: string;
     unit: string;
+    required?: boolean;
+    min?: number;
+    max?: number;
+    step?: number;
+    defaultValue?: number | null;
+    isOutput?: boolean;
+    precision?: number;
 }
 
 export interface Formula {

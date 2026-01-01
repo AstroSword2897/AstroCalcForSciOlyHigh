@@ -29,12 +29,12 @@ export interface UIModuleOrchestratorOptions {
 }
 
 export class UIModuleOrchestrator {
-    private searchEngine: SearchEngine;
-    private calculationOrchestrator: CalculationOrchestrator;
-    private tabManager: TabManager;
-    private graphCoordinator: GraphCoordinator;
-    private formulaSelector: FormulaSelector;
-    private eventCoordinator: EventCoordinator;
+    private searchEngine!: SearchEngine;
+    private calculationOrchestrator!: CalculationOrchestrator;
+    private tabManager!: TabManager;
+    private graphCoordinator!: GraphCoordinator;
+    private formulaSelector!: FormulaSelector;
+    private eventCoordinator!: EventCoordinator;
     private calculationUtils: CalculationUtils;
     private formattingUtils: FormattingUtils;
     private options: UIModuleOrchestratorOptions;

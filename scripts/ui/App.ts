@@ -30,12 +30,12 @@ export interface AppOptions {
 
 export class App {
     private state: Map<string, any> = new Map();
-    private searchEngine: SearchEngine;
-    private calculationOrchestrator: CalculationOrchestrator;
-    private tabManager: TabManager;
-    private graphCoordinator: GraphCoordinator;
-    private formulaSelector: FormulaSelector;
-    private eventCoordinator: EventCoordinator;
+    private searchEngine!: SearchEngine;
+    private calculationOrchestrator!: CalculationOrchestrator;
+    private tabManager!: TabManager;
+    private graphCoordinator!: GraphCoordinator;
+    private formulaSelector!: FormulaSelector;
+    private eventCoordinator!: EventCoordinator;
     private calculationUtils: CalculationUtils;
     private formattingUtils: FormattingUtils;
     private options: AppOptions;

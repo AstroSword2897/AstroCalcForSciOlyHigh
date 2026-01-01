@@ -30,7 +30,7 @@ declare global {
     interface Window {
         formulas: Formula[];
         formulaCategories: Record<string, string[]>;
-        globalConstants: Record<string, number>;
+        globalConstants?: Record<string, number>;
     }
 }
 

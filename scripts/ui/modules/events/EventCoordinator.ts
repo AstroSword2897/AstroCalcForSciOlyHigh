@@ -180,8 +180,9 @@ export class EventCoordinator {
         // Setup Enter key handlers for classification inputs
         const tempInputs = document.querySelectorAll('.classification-inputs input[type="number"]');
         tempInputs.forEach(input => {
-            const handler = (e: KeyboardEvent) => {
-                if (e.key === 'Enter' && this.options.onClassify) {
+            const handler = (e: Event) => {
+                const ke = e as KeyboardEvent;
+                if (ke.key === 'Enter' && this.options.onClassify) {
                     this.options.onClassify();
                 }
             };

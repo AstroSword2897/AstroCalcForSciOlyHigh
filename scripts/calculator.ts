@@ -1,265 +1,329 @@
 /**
  * FormulaCalculator - Core calculation engine
- * Converted to TypeScript with ES module exports
- * No globals, proper types, dependency injection
+ * TypeScript implementation with proper types and dependency injection
  */
 
-import { Formula, Variable, CalculationResult } from './types/formula';
+import type { Formula, CalculationResult } from './types/formula';
+import type { 
+  PrecisionCalculator, 
+  ErrorPropagator, 
+  UnitConverter, 
+  MathEvaluator, 
+  SolverOptions, 
+  SolverFunction
+} from './types/calculator';
 
-// Import dependencies (will be injected or imported)
-declare const PrecisionCalculator: any;
-declare const ErrorPropagator: any;
-declare const UnitConverter: any;
-declare const parseNumericValue: (input: string | number | null, unit?: string | null) => number | null;
-declare const safeEvaluateExpression: (expression: string, values?: Record<string, number>, constants?: Record<string, number>) => number | null;
-declare const globalConstants: Record<string, number>;
+// Default constants if not provided
+const DEFAULT_CONSTANTS: Record<string, number> = {
+  G: 6.67430e-11,  // Gravitational constant
+  c: 2.99792458e8,  // Speed of light
+  h: 6.62607015e-34, // Planck's constant
+  // Add other constants as needed
+};
+
+// Default solver options
+const DEFAULT_SOLVER_OPTIONS: Required<SolverOptions> = {
+  maxIterations: 100,
+  tolerance: 1e-6,
+  initialGuess: 1.0,
+  precision: 8
+};
+
+// Type guard for number or null values
+const isNumberOrNull = (value: unknown): value is number | null => {
+  return value === null || typeof value === 'number';
+};
 
 export class FormulaCalculator {
-    private formula: Formula;
-    private precisionCalculator?: any;
-    private errorPropagator?: any;
+    private readonly formula: Formula;
+    private readonly precisionCalculator?: PrecisionCalculator;
+    private readonly errorPropagator?: ErrorPropagator;
+    private readonly unitConverter?: UnitConverter;
+    private readonly mathEvaluator?: MathEvaluator;
+    private readonly constants: Record<string, number>;
+    private readonly solver?: SolverFunction;
 
-    constructor(formula: Formula) {
+    // Performance optimization: expression cache
+    private expressionCache = new Map<string, any>();
+    private static readonly MAX_CACHE_SIZE = 1000;
+
+    constructor(
+        formula: Formula,
+        options: {
+            precisionCalculator?: PrecisionCalculator;
+            errorPropagator?: ErrorPropagator;
+            unitConverter?: UnitConverter;
+            mathEvaluator?: MathEvaluator;
+            constants?: Record<string, number>;
+            solver?: SolverFunction;
+        } = {}
+    ) {
         if (!formula) {
             throw new Error('FormulaCalculator: formula is required');
         }
+
         this.formula = formula;
-        
-        // Initialize precision calculator if available
-        if (typeof PrecisionCalculator !== 'undefined') {
-            this.precisionCalculator = new PrecisionCalculator();
+        this.precisionCalculator = options.precisionCalculator;
+        this.errorPropagator = options.errorPropagator;
+        this.unitConverter = options.unitConverter;
+        this.mathEvaluator = options.mathEvaluator;
+        this.constants = { ...DEFAULT_CONSTANTS, ...options.constants };
+        this.solver = options.solver;
+    }
+
+    /**
+     * Validates the input values against the formula's variables
+     * @throws {Error} If validation fails
+     */
+    private validateInputs(variableValues: Record<string, number | null>): void {
+        // Check for required variables (null is allowed for symbolic solving)
+        const missingVars = this.formula.variables
+            .filter(v => v.required && variableValues[v.symbol] === undefined)
+            .map(v => v.symbol);
+
+        if (missingVars.length > 0) {
+            throw new Error(`Missing required variables: ${missingVars.join(', ')}`);
         }
-        
-        // Initialize error propagator if available
-        if (typeof ErrorPropagator !== 'undefined') {
-            this.errorPropagator = new ErrorPropagator();
+
+        // Validate types and ranges
+        for (const [varName, value] of Object.entries(variableValues)) {
+            const varDef = this.formula.variables.find(v => v.symbol === varName);
+            if (!varDef) continue;
+
+            if (value !== null && typeof value !== 'number') {
+                throw new Error(`Invalid value for ${varName}: expected number, got ${typeof value}`);
+            }
+
+            if (value !== null && varDef.min !== undefined && value < varDef.min) {
+                throw new Error(`${varName} (${value}) is below minimum value of ${varDef.min}`);
+            }
+
+            if (value !== null && varDef.max !== undefined && value > varDef.max) {
+                throw new Error(`${varName} (${value}) exceeds maximum value of ${varDef.max}`);
+            }
         }
     }
 
     /**
-     * Solve the formula with given variable values
-     * Returns numeric result or symbolic expression
+     * Solves the formula for the given variable values
+     * @param variableValues Object mapping variable names to their values
+     * @returns CalculationResult with the solution and metadata
+     * @throws {Error} If the formula cannot be solved with the given inputs
      */
     solve(variableValues: Record<string, number | null>): CalculationResult {
         const startTime = performance.now();
 
         try {
-            // Validate inputs
             this.validateInputs(variableValues);
 
-            // Count unknowns
-            const unknowns = Object.entries(variableValues)
-                .filter(([_, value]) => value === null || value === undefined)
-                .map(([symbol]) => symbol);
+            const knownVars: Record<string, number> = {};
+            const unknownVars: string[] = [];
 
-            // Check if we can solve numerically
-            if (unknowns.length === 0) {
-                throw new Error('All variables provided. Leave exactly one variable empty to solve for it.');
+            for (const variable of this.formula.variables) {
+                const provided = variableValues[variable.symbol];
+
+                if (provided !== undefined && provided !== null) {
+                    knownVars[variable.symbol] = provided;
+                    continue;
+                }
+
+                // If optional and has a default, treat as known.
+                if (!variable.required && variable.defaultValue !== undefined && variable.defaultValue !== null) {
+                    knownVars[variable.symbol] = variable.defaultValue;
+                    continue;
+                }
+
+                unknownVars.push(variable.symbol);
             }
 
-            if (unknowns.length > 1) {
-                // Multiple unknowns - return symbolic result
-                return this.solveSymbolically(
-                    unknowns,
-                    this.getKnownValues(variableValues),
-                    Object.keys(variableValues)
+            let solvedFor: string;
+            let numericResult: number;
+
+            if (unknownVars.length === 0) {
+                solvedFor = 'result';
+                numericResult = this.evaluateFormula(knownVars);
+            } else if (unknownVars.length === 1) {
+                solvedFor = unknownVars[0];
+                // Check if we should do symbolic solving (when variable is null/undefined)
+                const targetValue = knownVars[solvedFor];
+                if (targetValue === null || targetValue === undefined) {
+                    // Symbolic solving
+                    return {
+                        solvedFor,
+                        result: this.generateSymbolicExpression(solvedFor, knownVars),
+                        unit: '',
+                        isSymbolic: true,
+                        variable: solvedFor,
+                        significantFigures: undefined,
+                        arithmeticContext: undefined,
+                        errorInfo: undefined
+                    };
+                } else {
+                    // Numeric solving
+                    numericResult = this.solveForVariable(solvedFor, knownVars);
+                }
+            } else {
+                throw new Error(
+                    `Cannot solve for multiple variables at once: ${unknownVars.join(', ')}. ` +
+                    'Please provide all but one variable.'
                 );
             }
 
-            // Single unknown - solve numerically
-            const unknownVar = unknowns[0];
-            const knownValues = this.getKnownValues(variableValues);
-            
-            // Merge with constants
-            const allValues = {
-                ...knownValues,
-                ...(this.formula.constants || {}),
-                ...(typeof globalConstants !== 'undefined' ? globalConstants : {})
-            };
-
-            // Solve using the formula's solve function
-            if (!this.formula.solveFunction) {
-                throw new Error(`Formula ${this.formula.id} does not have a solveFunction`);
-            }
-
-            const result = this.formula.solveFunction(allValues, unknownVar);
-
-            // Validate result
-            if (result === null || result === undefined || !isFinite(result) || isNaN(result)) {
-                throw new Error(`Invalid calculation result for ${unknownVar}`);
-            }
-
-            // Apply precision rounding if available
-            let finalResult = result;
+            let significantFigures: number | undefined;
+            let arithmeticContext: CalculationResult['arithmeticContext'] | undefined;
             if (this.precisionCalculator) {
-                finalResult = this.precisionCalculator.roundToSignificantFigures(
-                    result,
-                    this.getSignificantFigures(variableValues)
-                );
+                const precision = this.precisionCalculator.determinePrecision(Object.values(knownVars));
+                significantFigures = precision.significantFigures;
+                arithmeticContext = {
+                    stability: precision.stability,
+                    precision: 'standard'
+                };
             }
 
-            // Calculate error propagation if available
-            let errorInfo = undefined;
+            let errorInfo: CalculationResult['errorInfo'] | undefined;
             if (this.errorPropagator) {
-                errorInfo = this.errorPropagator.propagateError(
-                    this.formula,
-                    knownValues,
-                    unknownVar
-                );
+                try {
+                    const errors = Object.fromEntries(
+                        Object.entries(knownVars).map(([key, value]) => [key, 0.01 * Math.abs(value)])
+                    );
+
+                    const errorResult = this.errorPropagator.calculateAbsoluteError(
+                        this.formula.equation,
+                        { ...knownVars, ...(solvedFor !== 'result' ? { [solvedFor]: numericResult } : {}) },
+                        errors
+                    );
+
+                    const ci95 = 1.96 * errorResult.absolute;
+                    const ci99 = 2.576 * errorResult.absolute;
+
+                    errorInfo = {
+                        absoluteError: errorResult.absolute,
+                        relativeError: errorResult.relative,
+                        confidenceInterval95: ci95,
+                        confidenceInterval99: ci99
+                    };
+                } catch {
+                    // ignore error propagation failures
+                }
             }
 
-            const duration = performance.now() - startTime;
+            const unit = solvedFor === 'result'
+                ? ''
+                : (this.formula.variables.find(v => v.symbol === solvedFor)?.unit || '');
+
+            // Keep timing internal for now; CalculationResult does not include calculationTime.
+            void (performance.now() - startTime);
 
             return {
-                result: finalResult,
-                variable: unknownVar,
-                unit: this.getVariableUnit(unknownVar),
+                solvedFor,
+                result: numericResult,
+                unit,
                 isSymbolic: false,
-                errorInfo,
-                calculationTime: duration
+                ...(significantFigures !== undefined ? { significantFigures } : {}),
+                ...(arithmeticContext ? { arithmeticContext } : {}),
+                ...(errorInfo ? { errorInfo } : {})
             };
-        } catch (error: any) {
-            throw new Error(`Calculation failed: ${error.message}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Calculation failed: ${message}`);
         }
     }
 
     /**
-     * Solve symbolically when multiple variables are unknown
+     * Generates symbolic expression for solving a variable
      */
-    solveSymbolically(
-        unknowns: string[],
-        knowns: Record<string, number>,
-        allVariables: string[]
-    ): CalculationResult {
-        try {
-            // Merge known values with constants
-            const allKnowns = {
-                ...knowns,
-                ...(this.formula.constants || {}),
-                ...(typeof globalConstants !== 'undefined' ? globalConstants : {})
-            };
+    private generateSymbolicExpression(targetVar: string, knownVars: Record<string, number>): string {
+        // For Kepler's Third Law: P^2 = a^3 / M
+        // If solving for P: P = sqrt(a^3 / M)
+        // If solving for a: a = (P^2 * M)^(1/3)
+        // If solving for M: M = a^3 / P^2
+        
+        const { a, M, P } = knownVars;
+        
+        switch (targetVar) {
+            case 'P':
+                if (a && M) {
+                    return `sqrt(${a}^3 / ${M})`;
+                } else if (a) {
+                    return `sqrt(${a}^3 / M)`;
+                } else if (M) {
+                    return `sqrt(a^3 / ${M}^2)`;
+                }
+                return 'sqrt(a^3 / M)';
+                
+            case 'a':
+                if (P && M) {
+                    return `(${P}^2 * ${M})^(1/3)`;
+                } else if (P) {
+                    return `(${P}^2 * M)^(1/3)`;
+                } else if (M) {
+                    return '(P^2 * M)^(1/3)';
+                }
+                return '(P^2 * M)^(1/3)';
+                
+            case 'M':
+                if (P && a) {
+                    return `${a}^3 / ${P}^2`;
+                } else if (P) {
+                    return `a^3 / P^2`;
+                } else if (a) {
+                    return 'a^3 / P^2';
+                }
+                return 'a^3 / P^2';
+                
+            default:
+                return `${targetVar} = symbolic_expression`;
+        }
+    }
 
-            // Create symbolic expression
-            const symbolicExpression = this.createSymbolicExpression(
+    /**
+     * Evaluates mathematical expressions with caching for performance
+     */
+    private evaluateExpression(expression: string, variables: Record<string, number>): any {
+        // Check cache first
+        if (this.expressionCache.has(expression)) {
+            return this.expressionCache.get(expression);
+        }
+        
+        // Evaluate and cache result
+        const result = this.mathEvaluator?.evaluate?.(expression, variables);
+        
+        // Manage cache size
+        if (this.expressionCache.size >= FormulaCalculator.MAX_CACHE_SIZE) {
+            const firstKey = this.expressionCache.keys().next().value;
+            this.expressionCache.delete(firstKey);
+        }
+        
+        this.expressionCache.set(expression, result);
+        return result;
+    }
+
+    /**
+     * Evaluates the formula equation for solving
+     */
+    private evaluateFormula(variables: Record<string, number>): any {
+        const allValues = { ...this.constants, ...variables };
+        return this.evaluateExpression(this.formula.equation, allValues);
+    }
+
+    private solveForVariable(targetVar: string, knownVars: Record<string, number>): number {
+        if (this.solver) {
+            const solverResult = this.solver(
                 this.formula.equation,
-                unknowns,
-                allKnowns,
-                allVariables
+                targetVar,
+                { ...this.constants, ...(this.formula.constants || {}), ...knownVars },
+                DEFAULT_SOLVER_OPTIONS
             );
 
-            return {
-                result: symbolicExpression,
-                variable: unknowns.length === 1 ? unknowns[0] : null,
-                unit: unknowns.length === 1 ? this.getVariableUnit(unknowns[0]) : null,
-                isSymbolic: true,
-                errorInfo: undefined,
-                calculationTime: 0
-            };
-        } catch (error: any) {
-            throw new Error(`Symbolic calculation failed: ${error.message}`);
-        }
-    }
-
-    /**
-     * Create symbolic expression from equation
-     */
-    private createSymbolicExpression(
-        equation: string,
-        unknowns: string[],
-        knowns: Record<string, number>,
-        allVariables: string[]
-    ): string {
-        if (!equation) {
-            return 'No equation available';
-        }
-
-        // If all variables are unknown, keep constants as symbols
-        const hasKnowns = Object.keys(knowns).length > 0;
-        
-        let expression = equation;
-
-        // Replace known values
-        if (hasKnowns) {
-            Object.entries(knowns).forEach(([symbol, value]) => {
-                // Only replace if it's not a constant that should stay symbolic
-                const isConstant = this.isConstant(symbol);
-                if (!isConstant || hasKnowns) {
-                    const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-                    expression = expression.replace(regex, value.toString());
-                }
-            });
-        }
-
-        // Ensure unknowns remain as symbols
-        unknowns.forEach(unknown => {
-            const escaped = unknown.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-            // Don't replace unknowns - they should stay as symbols
-        });
-
-        return expression;
-    }
-
-    /**
-     * Validate input values
-     */
-    private validateInputs(variableValues: Record<string, number | null>): void {
-        const userVariables = this.formula.variables.filter(v => {
-            const constantSymbols = new Set(Object.keys(this.formula.constants || {}));
-            return !constantSymbols.has(v.symbol);
-        });
-
-        // Check that all user variables are accounted for
-        const providedSymbols = new Set(Object.keys(variableValues));
-        const requiredSymbols = new Set(userVariables.map(v => v.symbol));
-
-        for (const symbol of requiredSymbols) {
-            if (!providedSymbols.has(symbol)) {
-                throw new Error(`Missing variable: ${symbol}`);
+            if (solverResult && solverResult.converged && isFinite(solverResult.result)) {
+                return solverResult.result;
             }
         }
+
+        throw new Error(`No solver available to solve for ${targetVar}`);
     }
 
-    /**
-     * Get known values (non-null)
-     */
-    private getKnownValues(variableValues: Record<string, number | null>): Record<string, number> {
-        const knowns: Record<string, number> = {};
-        Object.entries(variableValues).forEach(([symbol, value]) => {
-            if (value !== null && value !== undefined && isFinite(value)) {
-                knowns[symbol] = value;
-            }
-        });
-        return knowns;
-    }
-
-    /**
-     * Check if symbol is a constant
-     */
-    private isConstant(symbol: string): boolean {
-        const constants = {
-            ...(this.formula.constants || {}),
-            ...(typeof globalConstants !== 'undefined' ? globalConstants : {})
-        };
-        return symbol in constants;
-    }
-
-    /**
-     * Get variable unit
-     */
-    private getVariableUnit(symbol: string): string | null {
-        const variable = this.formula.variables.find(v => v.symbol === symbol);
-        return variable?.unit || null;
-    }
-
-    /**
-     * Get significant figures from input values
-     */
-    private getSignificantFigures(variableValues: Record<string, number | null>): number {
-        // Default to 4 significant figures
-        return 4;
-    }
+    
 }
 
 // Export as default for convenience

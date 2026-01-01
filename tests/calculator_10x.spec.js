@@ -3,12 +3,12 @@
  * Playwright test that executes calculator tests automatically
  */
 
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test.describe('Calculator Tests - 100% x10', () => {
     test('Run calculator tests until 100% achieved 10 times consecutively', async ({ page }) => {
         // Navigate to test page
-        await page.goto('http://localhost:8000/tests/run_production_tests.html', {
+        await page.goto('/tests/run_production_tests.html', {
             waitUntil: 'networkidle',
             timeout: 30000
         });

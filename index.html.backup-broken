@@ -72,7 +72,105 @@
                             <h3>Stellar Classification Tool</h3>
                             <p class="classification-subtitle">Enter stellar parameters to determine spectral classification</p>
                         </div>
-                        <div class="classification-inputs">
+                        
+                        <!-- Stellar Classification Reference Images -->
+                        <div class="classification-images">
+                            <div class="classification-image-section">
+                                <h4>HR Diagram & Spectral Classes</h4>
+                                <div class="image-grid">
+                                    <div class="image-item">
+                                        <img src="assets/images/hr-diagram.png" alt="Hertzsprung-Russell Diagram" class="classification-img">
+                                        <p>HR Diagram showing stellar evolution and classification</p>
+                                    </div>
+                                    <div class="image-item">
+                                        <img src="assets/images/spectral-classes.png" alt="Spectral Classification Chart" class="classification-img">
+                                        <p>OBAFGKM spectral classes with temperature ranges</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="classification-inputs">
+                                <div class="input-group">
+                                    <label for="main-temperature-input">Temperature (Kelvin)</label>
+                                    <input type="number" id="main-temperature-input" min="0" step="1" placeholder="e.g., 5778">
+                                    <div class="input-hint">Enter surface temperature in Kelvin</div>
+                                </div>
+                                
+                                <div class="input-group">
+                                    <label for="main-luminosity-class">Luminosity Class</label>
+                                    <select id="main-luminosity-class">
+                                        <option value="">Select luminosity class</option>
+                                        <optgroup label="Main Sequence Classes">
+                                            <option value="O">O - Blue supergiant</option>
+                                            <option value="B">B - Blue giant</option>
+                                            <option value="A">A - White star</option>
+                                            <option value="F">F - Yellow-white star</option>
+                                            <option value="G">G - Yellow star (like Sun)</option>
+                                            <option value="K">K - Orange star</option>
+                                            <option value="M">M - Red star</option>
+                                        </optgroup>
+                                        <optgroup label="Luminosity Classes">
+                                            <option value="Ia">Ia - Supergiant</option>
+                                            <option value="Ib">Ib - Bright Giant</option>
+                                            <option value="II">II - Bright Giant</option>
+                                            <option value="III">III - Giant</option>
+                                            <option value="IV">IV - Subgiant</option>
+                                            <option value="V">V - Main Sequence (Dwarf)</option>
+                                        </optgroup>
+                                        <optgroup label="White Dwarf Types">
+                                            <option value="DA">DA - Hydrogen-rich</option>
+                                            <option value="DB">DB - Helium-rich</option>
+                                            <option value="DC">DC - Continuous spectrum</option>
+                                            <option value="DO">DO - Magnetic</option>
+                                        </optgroup>
+                                    </select>
+                                    <div class="input-hint">Choose luminosity class or white dwarf spectral type</div>
+                                </div>
+                                
+                                <div class="classification-actions">
+                                    <button id="classify-btn" class="classify-btn">
+                                        <span class="btn-icon">⭐</span>
+                                        Classify Star
+                                    </button>
+                                    <button id="clear-classification-btn" class="clear-btn">
+                                        <span class="btn-icon">🔄</span>
+                                        Clear
+                                    </button>
+                                </div>
+                                
+                                <div id="classification-result" class="classification-result" style="display: none;">
+                                    <div class="result-badge" id="result-badge"></div>
+                                    <div class="result-details">
+                                        <p id="spectral-type"></p>
+                                        <p id="temp-range"></p>
+                                        <p id="class-description"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="classification-image-section">
+                                <h4>Stellar Examples</h4>
+                                <div class="image-grid">
+                                    <div class="image-item">
+                                        <img src="assets/images/stellar-examples.jpg" alt="Examples of different star types" class="classification-img">
+                                        <p>Visual examples of different stellar classifications</p>
+                                    </div>
+                                    <div class="image-item">
+                                        <img src="assets/images/luminosity-classes.png" alt="Luminosity classes diagram" class="classification-img">
+                                        <p>Luminosity classes from main sequence to supergiants</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                                </div>
+                                <div class="description">
+                                    <label>Description:</label>
+                                    <span id="class-description"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                             <div class="input-group">
                                 <label for="main-temperature-input">Temperature (Kelvin)</label>
                                 <input type="number" id="main-temperature-input" placeholder="e.g., 23939" min="0" step="1">
@@ -416,7 +514,91 @@
     <script src="scripts/ui/core/StateManager.js"></script>
     <script src="scripts/ui/state/UIStateManager.js"></script>
     
+    <!-- Integration Helpers -->
+    <script src="scripts/ui/core/IntegrationHelpers.js"></script>
     
+    <!-- Legacy Support (keep for backward compatibility) -->
+    <script src="scripts/utils/dom.js"></script>
+    <script src="scripts/state/app-state.js"><!-- Core UI System -->
+    <script src="scripts/ui/ui/App.js"></script>
+    <script src="scripts/ui/ui/init.js"></script>
+    
+    <!-- UI Modules -->
+    <script src="scripts/ui/ui/modules/tabs/TabManager.js"></script>
+    <script src="scripts/ui/ui/modules/search/SearchEngine.js"></script>
+    <script src="scripts/ui/ui/modules/formula/FormulaSelector.js"></script>
+    <script src="scripts/ui/ui/modules/calculation/CalculationOrchestrator.js"></script>
+    <script src="scripts/ui/ui/modules/graph/GraphCoordinator.js"></script>
+    
+    <!-- Event Coordination -->
+    <script src="scripts/ui/ui/modules/events/EventCoordinator.js"></script>
+    
+    <!-- Utilities -->
+    <script src="scripts/ui/ui/modules/utils/CalculationUtils.js"></script>
+    <script src="scripts/ui/ui/modules/utils/FormattingUtils.js"></script>
+    
+    <!-- Main UI -->
+    <script src="scripts/ui.js"></script>
+    <script src="scripts/calculator.js"></script>
+    <script src="scripts/formulas.js"></script>
+    <script src="scripts/classification-enhanced.js"></script>
+    
+    <!-- Debug -->
+    <script src="scripts/debug-simple.js"></script>
+    
+    <!-- Force image loading script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Forcing image loading...');
+            
+            // Force reload all classification images
+            const images = document.querySelectorAll('.classification-img');
+            images.forEach(function(img, index) {
+                console.log('Processing image', index + 1, ':', img.src);
+                
+                // Force image reload
+                const originalSrc = img.src;
+                img.src = '';
+                img.src = originalSrc + '?force=' + Date.now();
+                
+                // Add error handling
+                img.onerror = function() {
+                    console.error('Image failed to load:', this.src);
+                    this.style.display = 'none';
+                    
+                    // Create visible placeholder
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = 'background: #667eea; color: white; padding: 20px; border-radius: 8px; text-align: center; font-weight: bold;';
+                    placeholder.innerHTML = 'Image ' + (index + 1) + '<br><small>Reference Chart</small>';
+                    this.parentNode.insertBefore(placeholder, this);
+                };
+                
+                img.onload = function() {
+                    console.log('Image loaded successfully:', this.src);
+                    this.style.display = 'block';
+                    this.style.opacity = '1';
+                };
+            });
+            
+            // Check classification tab visibility
+            setTimeout(function() {
+                const classificationTab = document.getElementById('main-classification-tab');
+                if (classificationTab) {
+                    console.log('Classification tab found, style:', classificationTab.style.display);
+                    classificationTab.style.display = 'block';
+                    classificationTab.style.visibility = 'visible';
+                }
+            }, 1000);
+        });
+    </script>
+    
+    <!-- Legacy UI Controller (for backward compatibility) -->
+    <script src="scripts/ui.js"></script>
+    <script src="scripts/safeExpressionEvaluator.js"></script>
+    <script src="scripts/unitConverter.js"></script>
+    <script src="scripts/unitParser.js"></script>
+    <script src="scripts/dimensionalAnalysis.js"></script>
+    <script src="scripts/expressionParser.js"></script>
     <!-- 2. Core utilities (no dependencies) -->
     <script src="scripts/utils.js"></script>
     <script src="scripts/safeExpressionEvaluator.js"></script>
@@ -444,9 +626,8 @@
     <script src="scripts/offlineGraphManager.js"></script>
     <script src="scripts/graphManager.js"></script>
     
-    <!-- 6. UI Controller (Use modular system, not legacy ui.js) -->
-    <script src="scripts/ui/ui/init.js"></script>
-    <script src="scripts/ui/ui/UIModuleOrchestrator.js"></script>
+    <!-- 6. UI controller (depends on everything, must be last) -->
+    <script src="scripts/ui.js?v=2.0.13"></script>
     
     <!-- Comprehensive Feature Testing Suite -->
     <script src="comprehensive_feature_test.js"></script>
@@ -747,21 +928,6 @@
     
     <!-- Comprehensive Test Runner (auto-runs after page load) -->
     <script src="auto_test_runner.js"></script>
-    
-    <!-- Deep Verification -->
-    <script src="scripts/deep-verification.js"></script>
-    
-    <!-- Fix Duplicate Buttons -->
-    <script src="scripts/fix-duplicate-buttons.js"></script>
-    
-    <!-- Selector Verification -->
-    <script src="scripts/selector-test.js"></script>
-    
-    <!-- Comprehensive Component Test -->
-    <script src="scripts/component-test.js"></script>
-    
-    <!-- Debug Script -->
-    <script src="scripts/debug-simple.js"></script>
 </body>
 </html>
 

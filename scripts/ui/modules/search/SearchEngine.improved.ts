@@ -125,8 +125,8 @@ export class SearchEngine {
 
         // Score all candidates
         for (let i = 0; i < candidates.length; i++) {
+            const formula = candidates[i];
             try {
-                const formula = candidates[i];
                 const result = this.scorer.score(formula, queryLower, searchWords);
                 
                 // Add semantic matching if available
@@ -210,7 +210,7 @@ export class SearchEngine {
         return first && 
                first.formula && 
                typeof first.score === 'number' &&
-               first.metrics;
+               !!first.metrics;
     }
 
     private cacheResults(searchTerm: string, results: SearchResult[]): void {

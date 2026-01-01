@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroCalc - Astronomy Calculator</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>AstroCalc</h1>
+            <p>Astronomy Calculator for Science Olympiad</p>
+        </header>
+        
+        <main class="main-content">
+            <nav class="tab-navigation">
+                <button class="tab-button active" data-tab="formulas">Formulas</button>
+                <button class="tab-button" data-tab="classification">Classification</button>
+                <button class="tab-button" data-tab="calculator">Calculator</button>
+            </nav>
+            
+            <div class="tab-content">
+                <!-- Formulas Tab -->
+                <div id="formulas-tab" class="tab-panel active">
+                    <div class="search-container">
+                        <input type="text" id="formula-search" placeholder="Search formulas...">
+                    </div>
+                    <div id="formula-cards" class="formula-cards-grid">
+                        <!-- Formula cards will be inserted here -->
+                    </div>
+                </div>
+                
+                <!-- Classification Tab -->
+                <div id="classification-tab" class="tab-panel">
+                    <div class="classification-container">
+                        <h2>Stellar Classification</h2>
+                        <div class="classification-inputs">
+                            <div class="input-group">
+                                <label for="temperature-input">Temperature (K)</label>
+                                <input type="number" id="temperature-input" placeholder="e.g., 5778">
+                            </div>
+                            <div class="input-group">
+                                <label for="luminosity-select">Luminosity Class</label>
+                                <select id="luminosity-select">
+                                    <option value="">Select class</option>
+                                    <option value="O">O - Blue</option>
+                                    <option value="B">B - Blue-white</option>
+                                    <option value="A">A - White</option>
+                                    <option value="F">F - Yellow-white</option>
+                                    <option value="G">G - Yellow (Sun)</option>
+                                    <option value="K">K - Orange</option>
+                                    <option value="M">M - Red</option>
+                                </select>
+                            </div>
+                            <button id="classify-btn">Classify Star</button>
+                            <div id="classification-result"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Calculator Tab -->
+                <div id="calculator-tab" class="tab-panel">
+                    <div class="calculator-container">
+                        <h2>Calculator</h2>
+                        <div id="calculator-screen">
+                            <div class="formula-display"></div>
+                            <div class="variable-inputs"></div>
+                            <div class="calculate-button">
+                                <button id="calculate-btn">Calculate</button>
+                            </div>
+                            <div class="result-display"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Simple working version
+        console.log('AstroCalc loading...');
+        
+        // Sample formulas
+        const formulas = [
+            {
+                id: 'kepler-third',
+                name: "Kepler's Third Law",
+                equation: "P² = a³/M",
+                description: "Relates orbital period to semi-major axis",
+                variables: ['P', 'a', 'M']
+            },
+            {
+                id: 'escape-velocity',
+                name: "Escape Velocity",
+                equation: "v = √(2GM/r)",
+                description: "Velocity needed to escape gravitational field",
+                variables: ['v', 'G', 'M', 'r']
+            },
+            {
+                id: 'luminosity',
+                name: "Stefan-Boltzmann Law",
+                equation: "L = 4πR²σT⁴",
+                description: "Relates luminosity to temperature and radius",
+                variables: ['L', 'R', 'T']
+            }
+        ];
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing app...');
+            
+            // Create formula cards
+            const cardsContainer = document.getElementById('formula-cards');
+            formulas.forEach(formula => {
+                const card = document.createElement('div');
+                card.className = 'formula-card';
+                card.setAttribute('data-formula-id', formula.id);
+                card.innerHTML = `
+                    <h3>${formula.name}</h3>
+                    <div class="equation">${formula.equation}</div>
+                    <p>${formula.description}</p>
+                `;
+                
+                // Add click handler
+                card.addEventListener('click', function() {
+                    console.log('Card clicked:', formula.name);
+                    alert('Card clicked: ' + formula.name);
+                    selectFormula(formula);
+                });
+                
+                cardsContainer.appendChild(card);
+            });
+            
+            // Tab switching
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabPanels = document.querySelectorAll('.tab-panel');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    // Update active states
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabPanels.forEach(panel => panel.classList.remove('active'));
+                    
+                    this.classList.add('active');
+                    document.getElementById(targetTab + '-tab').classList.add('active');
+                });
+            });
+            
+            // Classification functionality
+            const classifyBtn = document.getElementById('classify-btn');
+            if (classifyBtn) {
+                classifyBtn.addEventListener('click', function() {
+                    const temp = document.getElementById('temperature-input').value;
+                    const lumClass = document.getElementById('luminosity-select').value;
+                    
+                    if (temp && lumClass) {
+                        const result = document.getElementById('classification-result');
+                        result.innerHTML = `
+                            <div class="classification-result">
+                                <h3>Classification Result</h3>
+                                <p><strong>Spectral Type:</strong> ${lumClass}</p>
+                                <p><strong>Temperature:</strong> ${temp} K</p>
+                                <p><strong>Star Type:</strong> ${getStarDescription(lumClass)}</p>
+                            </div>
+                        `;
+                    }
+                });
+            }
+            
+            console.log('App initialized successfully!');
+        });
+        
+        function selectFormula(formula) {
+            console.log('Selecting formula:', formula);
+            // Switch to calculator tab
+            document.querySelector('[data-tab="calculator"]').click();
+            
+            // Show formula in calculator
+            const formulaDisplay = document.querySelector('.formula-display');
+            if (formulaDisplay) {
+                formulaDisplay.innerHTML = `
+                    <h3>${formula.name}</h3>
+                    <div class="equation">${formula.equation}</div>
+                    <p>${formula.description}</p>
+                `;
+            }
+            
+            // Create variable inputs
+            const inputsContainer = document.querySelector('.variable-inputs');
+            if (inputsContainer) {
+                inputsContainer.innerHTML = '';
+                formula.variables.forEach(variable => {
+                    const input = document.createElement('div');
+                    input.className = 'variable-input';
+                    input.innerHTML = `
+                        <label for="${variable}">${variable}:</label>
+                        <input type="number" id="${variable}" placeholder="Enter value">
+                    `;
+                    inputsContainer.appendChild(input);
+                });
+            }
+        }
+        
+        function getStarDescription(spectralClass) {
+            const descriptions = {
+                'O': 'Blue supergiant, very hot (>30,000 K)',
+                'B': 'Blue-white star, hot (10,000-30,000 K)',
+                'A': 'White star, medium-hot (7,500-10,000 K)',
+                'F': 'Yellow-white star (6,000-7,500 K)',
+                'G': 'Yellow star like Sun (5,200-6,000 K)',
+                'K': 'Orange-red star, cool (3,700-5,200 K)',
+                'M': 'Red star, very cool (2,400-3,700 K)'
+            };
+            return descriptions[spectralClass] || 'Unknown star type';
+        }
+    </script>
+</body>
+</html>

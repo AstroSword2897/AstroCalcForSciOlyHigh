@@ -1,0 +1,179 @@
+/**
+ * Property-Based Tests for FormulaCalculator
+ * 
+ * Uses randomized inputs within physical bounds to test:
+ * - Forward/backward solving consistency
+ * - Error handling bounds
+ * - Precision stability
+ */
+
+import { test, expect } from '@playwright/test';
+import { FormulaCalculator } from '../scripts/calculator.js';
+import type { Formula, Variable, CalculationResult } from '../scripts/types/formula.js';
+
+// Mock dependencies
+const mockExpressionParser = {
+    parse: (expr: string) => ({ ast: expr, variables: [], constants: [] }),
+    evaluate: (expr: string, vars: Record<string, number>) => eval(expr)
+};
+
+const mockSafeMathEvaluator = {
+    evaluate: (expr: string, vars: Record<string, number>) => eval(expr),
+    isValidExpression: (expr: string) => true
+};
+
+const mockPrecisionCalculator = {
+    calculateSignificantFigures: (value: number) => 3,
+    determinePrecision: (values: number[]) => ({ 
+        significantFigures: 3, 
+        stability: 'stable' as const 
+    })
+};
+
+const mockErrorPropagator = {
+    calculateAbsoluteError: (
+        formula: string,
+        values: Record<string, number>,
+        errors: Record<string, number>
+    ) => ({ 
+        absolute: Math.max(...Object.values(errors)), 
+        relative: 0.1, 
+        components: errors 
+    })
+};
+
+// Sample formula for testing
+const testFormula: Formula = {
+    id: 'kepler-third-law',
+    name: "Kepler's Third Law",
+    description: "Relates orbital period to semi-major axis",
+    equation: 'P^2 = (4π^2/GM) * a^3',
+    variables: [
+        { symbol: 'P', name: 'Period', description: 'Orbital period', unit: 'years', required: true, defaultValue: 1 },
+        { symbol: 'a', name: 'Semi-major axis', description: 'Distance from star', unit: 'AU', required: true, defaultValue: 1 },
+        { symbol: 'M', name: 'Mass', description: 'Central body mass', unit: 'solar_masses', required: true, defaultValue: 1 }
+    ],
+    constants: {
+        'G': 6.67430e-11,
+        'π': Math.PI
+    }
+};
+
+test.describe('Property-Based Calculator Tests', () => {
+    let calculator: FormulaCalculator;
+
+    test.beforeEach(() => {
+        calculator = new FormulaCalculator(testFormula, {
+            precisionCalculator: mockPrecisionCalculator,
+            errorPropagator: mockErrorPropagator
+        });
+    });
+
+    test('Randomized inputs maintain precision bounds', async () => {
+        const numTests = 100;
+        
+        for (let i = 0; i < numTests; i++) {
+            // Generate random but physically reasonable inputs
+            const inputs = {
+                P: Math.random() * 10 + 0.1, // 0.1 to 10.1 years
+                a: Math.random() * 5 + 0.1,   // 0.1 to 5.1 AU
+                M: Math.random() * 3 + 0.5    // 0.5 to 3.5 solar masses
+            };
+
+            const result = calculator.solve(inputs);
+
+            // Assert no NaN or Infinity
+            expect(Number.isNaN(result.result)).toBe(false);
+            expect(result.result === Number.POSITIVE_INFINITY || result.result === Number.NEGATIVE_INFINITY).toBe(false);
+            expect(Number.isFinite(result.result)).toBe(true);
+
+            // Assert result is numeric (not symbolic)
+            expect(typeof result.result).toBe('number');
+
+            // Assert significant figures exist and are reasonable
+            if (result.significantFigures) {
+                expect(result.significantFigures).toBeGreaterThan(0);
+            }
+
+            // Assert error info exists and is reasonable
+            if (result.errorInfo) {
+                expect(result.errorInfo.absoluteError).toBeGreaterThanOrEqual(0);
+                expect(result.errorInfo.relativeError).toBeGreaterThanOrEqual(0);
+            }
+        }
+    });
+
+    test('Forward-backward solving consistency', async () => {
+        const numTests = 50;
+        
+        for (let i = 0; i < numTests; i++) {
+            const originalInputs = {
+                P: Math.random() * 8 + 0.5,
+                a: Math.random() * 3 + 0.2,
+                M: Math.random() * 2 + 0.8
+            };
+
+            // Solve forward (calculate P from a, M)
+            const forwardInputs = { a: originalInputs.a, M: originalInputs.M };
+            const forwardResult = calculator.solve(forwardInputs);
+
+            // Solve backward (calculate a from P, M)
+            const backwardInputs = { P: forwardResult.result, M: originalInputs.M };
+            const backwardResult = calculator.solve(backwardInputs);
+
+            // Should get back close to original 'a' value
+            expect(backwardResult.result).toBeCloseTo(originalInputs.a, 1);
+        }
+    });
+
+    test('Edge cases are handled gracefully', async () => {
+        const edgeCases = [
+            { P: 0.0001, a: 0.0001, M: 0.0001 }, // Very small values
+            { P: 1000, a: 1000, M: 1000 },     // Very large values
+            { P: 1, a: 1, M: 0 },              // Zero mass (should error)
+            { P: 1, a: 0, M: 1 },              // Zero distance (should error)
+        ];
+
+        for (const inputs of edgeCases) {
+            const result = calculator.solve(inputs);
+            
+            // Should never crash - either succeed gracefully or provide clear error
+            if (result.success) {
+                expect(result.result).toBeFinite();
+                expect(result.error).toBeUndefined();
+            } else {
+                expect(result.error).toBeDefined();
+                expect(typeof result.error).toBe('string');
+                expect(result.error.length).toBeGreaterThan(0);
+            }
+        }
+    });
+
+    test('Symbolic solving returns valid expressions', async () => {
+        const testCases = [
+            { solveFor: 'P', expectSymbolic: false },
+            { solveFor: 'a', expectSymbolic: false },
+            { solveFor: 'M', expectSymbolic: false },
+        ];
+
+        for (const testCase of testCases) {
+            const inputs = {
+                P: 1,
+                a: 2,
+                M: 1
+            };
+
+            // Mark the variable we want to solve for as N/A
+            const naInputs = { ...inputs, [testCase.solveFor]: 'N/A' };
+            
+            const result = calculator.solve(naInputs);
+            
+            if (testCase.expectSymbolic) {
+                expect(typeof result.result).toBe('string');
+            } else {
+                expect(typeof result.result).toBe('number');
+                expect(Number.isFinite(result.result)).toBe(true);
+            }
+        }
+    });
+});

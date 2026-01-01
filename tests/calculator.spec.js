@@ -4,7 +4,7 @@
  * Tests numerical solving, symbolic solving, error handling
  */
 
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test.describe('Formula Calculator', () => {
     test.beforeEach(async ({ page }) => {

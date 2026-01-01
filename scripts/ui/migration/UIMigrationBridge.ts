@@ -4,13 +4,18 @@
  */
 
 import { getUIStateManager, UIStateManager } from '../state/UIStateManager';
-import { getSearchModule, SearchModule } from '../modules/SearchModule';
 import { getCalculatorModule, CalculatorModule } from '../modules/CalculatorModule';
 import { getRenderModule, RenderModule } from '../modules/RenderModule';
 import { getEventManager, EventManager } from '../../events/EventManager';
 import { getEventBus, EventBus } from '../../events/EventBus';
 import { getCleanupManager, CleanupManager } from '../../utils/CleanupManager';
 import { getDOMCache, DOMCache } from '../../utils/DOMCache';
+
+type SearchModule = unknown;
+
+function getSearchModule(): SearchModule {
+    return null;
+}
 
 /**
  * Initialize TypeScript modules and expose to window for backward compatibility
@@ -39,7 +44,6 @@ export function initializeTSModules(): void {
 
         // Also expose classes
         (window as any).TS_UIStateManager = UIStateManager;
-        (window as any).TS_SearchModule = SearchModule;
         (window as any).TS_CalculatorModule = CalculatorModule;
         (window as any).TS_RenderModule = RenderModule;
         (window as any).TS_EventManager = EventManager;

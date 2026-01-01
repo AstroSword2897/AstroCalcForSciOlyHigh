@@ -12,6 +12,6 @@ export { SafeMathEvaluator } from './SafeMathEvaluator';
 export { FormulaCalculator } from './FormulaCalculator';
 
 // Default export
-export default FormulaCalculator;
+export { FormulaCalculator as default } from './FormulaCalculator';
 
 

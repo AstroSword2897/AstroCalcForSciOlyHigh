@@ -3,7 +3,7 @@
  * Tests the production-grade confidence calculation with combined scores
  */
 
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
 
 test.describe('Confidence Score Calculation', () => {
     test.beforeEach(async ({ page }) => {
