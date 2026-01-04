@@ -2,15 +2,16 @@
  * UIModuleOrchestrator - IMPROVED VERSION
  * Better dependency injection, error handling, and initialization
  */
-import { SearchEngine } from './modules/search/SearchEngine';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator';
-import { TabManager } from './modules/tabs/TabManager';
-import { GraphCoordinator } from './modules/graph/GraphCoordinator';
-import { FormulaSelector } from './modules/formula/FormulaSelector';
-import { EventCoordinator } from './modules/events/EventCoordinator';
-import { CalculationUtils } from './modules/utils/CalculationUtils';
-import { FormattingUtils } from './modules/utils/FormattingUtils';
-import { FormulaRenderer } from './modules/rendering/FormulaRenderer';
+import { SearchEngine } from './modules/search/SearchEngine.js';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js';
+import { TabManager } from './modules/tabs/TabManager.js';
+import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
+import { FormulaSelector } from './modules/formula/FormulaSelector.js';
+import { EventCoordinator } from './modules/events/EventCoordinator.js';
+import { CalculationUtils } from './modules/utils/CalculationUtils.js';
+import { FormattingUtils } from './modules/utils/FormattingUtils.js';
+import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js';
+import { debounceSearch } from './utils/debounce.js';
 import { validateCalculator, validateFormula } from './contracts.js';
 export class UIModuleOrchestrator {
     constructor(options) {
@@ -122,7 +123,14 @@ export class UIModuleOrchestrator {
                     return null;
                 },
                 getGraphCoordinator: () => this.graphCoordinator,
-                renderVariableInputs: (formula) => this.renderCalculatorInputs(formula),
+                renderVariableInputs: (formula) => {
+                    // Use VariableInputsRenderer if available, otherwise use fallback
+                    if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
+                        window.variableInputsRenderer.render(formula);
+                    } else {
+                        this.renderCalculatorInputs(formula);
+                    }
+                },
                 renderFormulaPresets: (formula) => {
                     if (typeof window.renderFormulaPresets === 'function') {
                         window.renderFormulaPresets(formula);
@@ -195,6 +203,10 @@ export class UIModuleOrchestrator {
                     this.formulaSelector.selectFormula(formula);
                 }
             });
+            
+            // Setup cache invalidation hooks
+            this.setupCacheInvalidationHooks();
+            
             console.log('[UIModuleOrchestrator] ✅ All modules initialized');
         }
         catch (error) {
@@ -232,6 +244,9 @@ export class UIModuleOrchestrator {
             // Setup command palette event delegation
             this.setupCommandPaletteEvents();
             
+            // Setup main search input (if it exists)
+            this.setupMainSearchInput();
+            
             this.initialized = true;
             console.log('[UIModuleOrchestrator] ✅ Initialized');
         }
@@ -251,33 +266,102 @@ export class UIModuleOrchestrator {
             return;
         }
         
-        // Input event for search
-        commandInput.addEventListener('input', (e) => {
-            const query = e.target.value.trim();
+        // Centralized debounced search handler
+        const debouncedSearch = debounceSearch((query) => {
             if (query.length > 0) {
-                this.handleCommandPaletteSearch(query);
+                this.handleSearch(query);
             } else {
+                this.renderInitialFormulas();
                 this.hideCommandPaletteResults();
             }
+        }, 75); // 75ms for better performance on slower devices
+        
+        // Input event for search (debounced)
+        commandInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            debouncedSearch(query);
         });
         
         // Keyboard navigation
         commandInput.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
+                // Cancel pending search
+                debouncedSearch.cancel();
+                this.renderInitialFormulas();
                 this.hideCommandPaletteResults();
                 e.target.value = '';
             }
         });
         
+        // Expose debounced function for test flushing
+        this._debouncedSearch = debouncedSearch;
+        
         console.log('[UIModuleOrchestrator] ✅ Command palette events wired');
     }
     
     /**
-     * Handle command palette search
+     * Setup main search input (formula-search) to filter main formula list
+     */
+    setupMainSearchInput() {
+        const mainSearchInput = document.getElementById('formula-search');
+        if (!mainSearchInput) {
+            // Main search input doesn't exist, that's ok
+            return;
+        }
+        
+        // Use same debounced search handler
+        const debouncedSearch = debounceSearch((query) => {
+            if (query.length > 0) {
+                this.handleSearch(query);
+            } else {
+                this.renderInitialFormulas();
+            }
+        }, 75);
+        
+        mainSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            debouncedSearch(query);
+        });
+        
+        // Store for test access
+        this._mainSearchDebounced = debouncedSearch;
+        
+        console.log('[UIModuleOrchestrator] ✅ Main search input wired');
+    }
+    
+    /**
+     * Handle search - updates both command palette and main formula list
+     */
+    handleSearch(query) {
+        const results = this.searchEngine.search(query);
+        
+        // Update command palette
+        this.renderCommandPaletteResults(results);
+        
+        // Update main formula list (limited to 50 for performance)
+        const formulaList = document.getElementById('formula-list');
+        if (formulaList && this.formulaRenderer) {
+            const maxScore = results.length > 0 ? results[0].score : 1;
+            
+            // Pass full search results (with confidence/topic data) to renderer
+            this.formulaRenderer.renderFormulaCards(
+                results.slice(0, 50), // Limit to 50 for performance
+                formulaList,
+                {
+                    showConfidence: true,
+                    showTopicScope: true,
+                    maxScore: maxScore,
+                    searchQuery: query
+                }
+            );
+        }
+    }
+    
+    /**
+     * Handle command palette search (legacy method, redirects to handleSearch)
      */
     handleCommandPaletteSearch(query) {
-        const results = this.searchEngine.search(query);
-        this.renderCommandPaletteResults(results);
+        this.handleSearch(query);
     }
     
     /**
@@ -363,13 +447,55 @@ export class UIModuleOrchestrator {
     }
     
     /**
+     * Setup cache invalidation hooks for theme/locale/formula changes
+     */
+    setupCacheInvalidationHooks() {
+        if (!this.formulaRenderer) return;
+        
+        // Hook for theme changes
+        this.formulaRenderer.onCacheInvalidation((reason, previousSize) => {
+            console.log(`[UIModuleOrchestrator] Cache invalidated: ${reason} (${previousSize} items cleared)`);
+        });
+        
+        // Listen for theme changes (if theme system exists)
+        if (typeof window.addEventListener === 'function') {
+            // Custom event for theme changes
+            window.addEventListener('themechange', () => {
+                this.formulaRenderer?.invalidateCache('theme-change');
+            });
+            
+            // Custom event for locale changes
+            window.addEventListener('localechange', () => {
+                this.formulaRenderer?.invalidateCache('locale-change');
+            });
+            
+            // Custom event for formula data reload
+            window.addEventListener('formulasreload', () => {
+                this.formulaRenderer?.invalidateCache('formulas-reload');
+                // Re-render with new formulas
+                if (this.options.formulas) {
+                    this.renderInitialFormulas();
+                }
+            });
+        }
+    }
+    
+    /**
      * Render initial formula cards
      */
     renderInitialFormulas() {
         const formulaList = document.getElementById('formula-list');
         if (formulaList && this.formulaRenderer) {
             formulaList.innerHTML = '';
-            this.formulaRenderer.renderFormulaCards(this.options.formulas, formulaList);
+            // Render without confidence/topic data (initial view)
+            this.formulaRenderer.renderFormulaCards(
+                this.options.formulas,
+                formulaList,
+                {
+                    showConfidence: false,
+                    showTopicScope: false
+                }
+            );
             console.log('[UIModuleOrchestrator] ✅ Initial formulas rendered');
         }
     }
@@ -435,10 +561,26 @@ export class UIModuleOrchestrator {
     }
     /**
      * Render calculator inputs for a formula
+     * Uses VariableInputsRenderer if available, otherwise falls back to simple rendering
      */
     renderCalculatorInputs(formula) {
-        const container = document.getElementById('calculator-screen');
-        if (!container) return;
+        // Try to use the proper VariableInputsRenderer first
+        if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
+            try {
+                window.variableInputsRenderer.render(formula);
+                console.log('[UIModuleOrchestrator] ✅ Used VariableInputsRenderer for inputs');
+                return;
+            } catch (error) {
+                console.warn('[UIModuleOrchestrator] VariableInputsRenderer failed, using fallback:', error);
+            }
+        }
+        
+        // Fallback: Use variables-container (correct container)
+        const container = document.getElementById('variables-container');
+        if (!container) {
+            console.error('[UIModuleOrchestrator] ❌ variables-container not found!');
+            return;
+        }
 
         // Clear existing content
         container.innerHTML = '';
@@ -447,58 +589,97 @@ export class UIModuleOrchestrator {
         const grid = document.createElement('div');
         grid.className = 'variable-input-grid';
 
-        // Render each variable
-        formula.variables.forEach(variable => {
-            const row = document.createElement('div');
-            row.className = 'variable-row';
+        // Filter out constants
+        const constantSymbols = new Set();
+        if (formula.constants) {
+            Object.keys(formula.constants).forEach(key => constantSymbols.add(key));
+        }
+        if (window.globalConstants) {
+            Object.keys(window.globalConstants).forEach(key => constantSymbols.add(key));
+        }
+        
+        const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
 
-            // Variable label with symbol
+        // Render each variable
+        userVariables.forEach(variable => {
+            const inputDiv = document.createElement('div');
+            inputDiv.className = 'variable-input-group';
+
+            // Variable label with symbol and name
             const label = document.createElement('label');
-            label.textContent = variable.symbol;
-            label.className = 'variable-label';
-            label.setAttribute('for', `var-${variable.symbol}`);
+            label.className = 'variable-main-label';
+            label.innerHTML = `
+                <span class="symbol">${this.escapeHtml(variable.symbol)}</span>
+                <span class="variable-name">${this.escapeHtml(variable.name || variable.symbol)}</span>
+                <span class="solve-hint" data-symbol="${this.escapeHtml(variable.symbol)}">Leave empty to calculate this</span>
+            `;
 
             // Input field
             const input = document.createElement('input');
-            input.type = 'text';
+            input.type = 'number';
             input.id = `var-${variable.symbol}`;
             input.className = 'variable-input';
-            input.placeholder = 'Enter value';
+            input.placeholder = `Enter ${variable.name || variable.symbol} (${variable.unit || ''})`;
             input.setAttribute('data-symbol', variable.symbol);
+            input.step = 'any';
+
+            // Unit display
+            const unitSpan = document.createElement('span');
+            unitSpan.className = 'variable-unit';
+            unitSpan.textContent = variable.unit || '';
+
+            // Description
+            const description = document.createElement('div');
+            description.className = 'var-description';
+            description.textContent = variable.description || '';
 
             // N/A checkbox for solving
             const naContainer = document.createElement('div');
-            naContainer.className = 'na-container';
+            naContainer.className = 'na-option';
+
+            const naLabel = document.createElement('label');
+            naLabel.className = 'na-checkbox-label';
+            naLabel.setAttribute('for', `na-${variable.symbol}`);
 
             const naCheckbox = document.createElement('input');
             naCheckbox.type = 'checkbox';
             naCheckbox.className = 'na-checkbox';
             naCheckbox.id = `na-${variable.symbol}`;
             naCheckbox.setAttribute('data-symbol', variable.symbol);
+            naCheckbox.setAttribute('aria-label', `Mark ${variable.symbol} as unknown`);
 
-            const naLabel = document.createElement('label');
-            naLabel.textContent = 'Solve for N/A';
-            naLabel.setAttribute('for', `na-${variable.symbol}`);
+            const naText = document.createElement('span');
+            naText.textContent = 'N/A (solve for this)';
 
-            naContainer.appendChild(naCheckbox);
+            naLabel.appendChild(naCheckbox);
+            naLabel.appendChild(naText);
             naContainer.appendChild(naLabel);
 
-            // Assemble row
-            row.appendChild(label);
-            row.appendChild(input);
-            row.appendChild(naContainer);
-            grid.appendChild(row);
+            // Assemble input group
+            inputDiv.appendChild(label);
+            inputDiv.appendChild(input);
+            if (unitSpan.textContent) {
+                inputDiv.appendChild(unitSpan);
+            }
+            if (description.textContent) {
+                inputDiv.appendChild(description);
+            }
+            inputDiv.appendChild(naContainer);
+            
+            container.appendChild(inputDiv);
         });
 
-        // Add calculate button (only once)
-        const calcButton = document.createElement('button');
-        calcButton.id = 'calculate-btn';
-        calcButton.className = 'calculate-btn';
-        calcButton.textContent = 'Calculate';
-
-        // Assemble final container
-        container.appendChild(grid);
-        container.appendChild(calcButton);
+        console.log('[UIModuleOrchestrator] ✅ Rendered calculator inputs using fallback method');
+    }
+    
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
     }
     /**
      * Display result

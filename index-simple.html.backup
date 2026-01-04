@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <!-- Main UI Structure -->
+    <div id="app">
+        <div id="formula-selection">
+            <div id="command-palette-input-container" style="position: relative; z-index: 1000; margin-bottom: 20px;">
+                <input type="text" id="command-palette-input" class="command-palette-input" placeholder="Search formulas..." aria-label="Search formulas">
+            </div>
+            <div id="command-palette" class="command-palette" style="display: none;">
+                <div class="command-palette-overlay"></div>
+            </div>
+            <div id="formula-list"></div>
+        </div>
+        
+        <div id="input-screen" style="display: none;">
+            <div id="calculator-tab" class="tab-content">
+                <div id="calculator-screen"></div>
+                <div id="result-display"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Essential Scripts Only -->
+    <script src="scripts/precisionCalculator.js"></script>
+    <script src="scripts/performanceOptimizer.js"></script>
+    <script src="scripts/formulas.js"></script>
+    <script src="scripts/safeExpressionEvaluator.js"></script>
+    <script src="scripts/unitConverter.js"></script>
+    <script src="scripts/expressionParser.js"></script>
+    <script src="scripts/calculator.js"></script>
+    <script src="scripts/classification.js"></script>
+    <script src="scripts/formulaGraphConfig.js"></script>
+    <script src="scripts/enhancedOfflineGraph.js"></script>
+    
+    <!-- Modular UI System -->
+    <script type="module" src="scripts/ui/ui/init.js"></script>
+    <script type="module" src="scripts/ui/ui/UIModuleOrchestrator.js"></script>
+</body>
+</html>

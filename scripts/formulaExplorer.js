@@ -776,7 +776,7 @@ function renderExplorerFormulaDetails(formula) {
                         ` : formulaExplorerState.calculationResult.isSymbolic ? `
                             <div class="explorer-result-symbolic">
                                 <div class="explorer-result-label">Symbolic Expression:</div>
-                                <div class="explorer-result-value">${escapeHtml(formulaExplorerState.calculationResult.result || formulaExplorerState.calculationResult.value || 'N/A')}</div>
+                                <div class="explorer-result-value">${formulaExplorerState.calculationResult.result || formulaExplorerState.calculationResult.value ? escapeHtml(String(formulaExplorerState.calculationResult.result || formulaExplorerState.calculationResult.value)) : '<span style="color: #f87171;">⚠️ No symbolic expression available</span>'}</div>
                                 <div class="explorer-result-unit">${escapeHtml(formulaExplorerState.calculationResult.unit || '')}</div>
                             </div>
                         ` : `
@@ -790,8 +790,8 @@ function renderExplorerFormulaDetails(formula) {
                                             (typeof formulaExplorerState.calculationResult.value === 'number' ? 
                                                 formulaExplorerState.calculationResult.value.toExponential(4) : 
                                                 escapeHtml(String(formulaExplorerState.calculationResult.value))) : 
-                                            'N/A')} 
-                                    ${escapeHtml(formulaExplorerState.calculationResult.unit || '')}
+                                            '<span style="color: #f87171;">⚠️ Calculation failed. Please check your inputs.</span>')} 
+                                    ${formulaExplorerState.calculationResult.unit ? escapeHtml(formulaExplorerState.calculationResult.unit) : ''}
                                 </div>
                                 <button class="explorer-copy-btn">
                                     ${formulaExplorerState.copied ? '✓ Copied!' : '📋 Copy Result'}

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" role="img" aria-label="Hertzsprung-Russell diagram (offline reference)">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1">
+      <stop offset="0" stop-color="#0b1022"/>
+      <stop offset="1" stop-color="#050810"/>
+    </linearGradient>
+    <linearGradient id="ms" x1="0" x2="1">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="0.5" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="900" height="520" rx="18" fill="url(#bg)" />
+  <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" fill="#e5e7eb">
+    <text x="30" y="44" font-size="22" font-weight="700" fill="#a8c7ff">HR Diagram (Reference)</text>
+    <text x="30" y="72" font-size="13" fill="#9ca3af">Luminosity vs Temperature (hot → cold)</text>
+  </g>
+
+  <!-- Plot area -->
+  <g transform="translate(80,95)">
+    <rect x="0" y="0" width="760" height="380" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.12)"/>
+
+    <!-- Grid -->
+    <g stroke="rgba(255,255,255,0.08)" stroke-width="1">
+      <path d="M0 76H760M0 152H760M0 228H760M0 304H760"/>
+      <path d="M152 0V380M304 0V380M456 0V380M608 0V380"/>
+    </g>
+
+    <!-- Axes -->
+    <g stroke="#a8c7ff" stroke-width="2">
+      <path d="M0 380H760"/>
+      <path d="M0 0V380"/>
+    </g>
+
+    <!-- Axis labels -->
+    <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" fill="#cbd5e1" font-size="12">
+      <text x="8" y="18" fill="#93c5fd">High Luminosity</text>
+      <text x="8" y="372" fill="#93c5fd">Low Luminosity</text>
+      <text x="10" y="410" fill="#93c5fd">Temperature (K): 30,000 → 3,000</text>
+    </g>
+
+    <!-- Main sequence band -->
+    <path d="M40 70 C180 110, 300 150, 420 210 C540 270, 620 310, 720 340"
+          fill="none" stroke="url(#ms)" stroke-width="16" stroke-linecap="round" opacity="0.9"/>
+    <path d="M40 70 C180 110, 300 150, 420 210 C540 270, 620 310, 720 340"
+          fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2" opacity="0.7"/>
+
+    <!-- Regions -->
+    <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="13">
+      <text x="520" y="80" fill="#fca5a5" font-weight="700">Supergiants</text>
+      <circle cx="640" cy="105" r="26" fill="rgba(248,113,113,0.15)" stroke="rgba(248,113,113,0.6)"/>
+
+      <text x="520" y="150" fill="#fdba74" font-weight="700">Giants</text>
+      <ellipse cx="610" cy="175" rx="44" ry="28" fill="rgba(251,146,60,0.14)" stroke="rgba(251,146,60,0.55)"/>
+
+      <text x="80" y="330" fill="#86efac" font-weight="700">White Dwarfs</text>
+      <ellipse cx="165" cy="350" rx="60" ry="24" fill="rgba(74,222,128,0.12)" stroke="rgba(74,222,128,0.55)"/>
+
+      <text x="330" y="260" fill="#a8c7ff" font-weight="700">Main Sequence</text>
+    </g>
+
+    <!-- Spectral class hints -->
+    <g font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="12" fill="#9ca3af">
+      <text x="10" y="360">O</text>
+      <text x="150" y="360">B</text>
+      <text x="290" y="360">A</text>
+      <text x="430" y="360">F</text>
+      <text x="560" y="360">G</text>
+      <text x="660" y="360">K</text>
+      <text x="730" y="360">M</text>
+    </g>
+  </g>
+</svg>
+
+

@@ -97,13 +97,51 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Result limiting: max 50 formulas shown', async ({ page }) => {
-        await page.locator('#command-palette-input').fill('distance');
-        await page.waitForTimeout(1000);
+        await page.goto('http://localhost:8000');
+        await page.waitForSelector('.formula-card', { timeout: 10000 });
         
+        // Use main search input (formula-search) which filters the main list
+        const mainSearchInput = page.locator('#formula-search');
+        const commandPaletteInput = page.locator('#command-palette-input');
+        
+        // Try main search input first, fallback to command palette
+        const searchInput = (await mainSearchInput.count() > 0) ? mainSearchInput : commandPaletteInput;
+        
+        // Clear any existing search
+        await searchInput.fill('');
+        await page.waitForTimeout(100);
+        
+        // Type search query
+        await searchInput.fill('distance');
+        
+        // Wait for debounced search to complete
+        await page.waitForTimeout(200);
+        
+        // Flush debounce to ensure search completed
+        await page.evaluate(() => {
+            if (window.uiOrchestrator) {
+                if (window.uiOrchestrator._debouncedSearch) {
+                    window.uiOrchestrator._debouncedSearch.flush();
+                }
+                if (window.uiOrchestrator._mainSearchDebounced) {
+                    window.uiOrchestrator._mainSearchDebounced.flush();
+                }
+            }
+        });
+        
+        // Wait for DOM to update after render
+        await page.waitForTimeout(300);
+        
+        // Verify search was actually performed by checking if results changed
         const results = page.locator('.formula-card');
         const count = await results.count();
         
+        // If search worked, we should have <= 50 results
+        // If it didn't work (showing all 204), that's a failure
         expect(count).toBeLessThanOrEqual(50);
+        
+        // Also verify that we actually have some results (search worked)
+        expect(count).toBeGreaterThan(0);
     });
 
     test('Semantic similarity: "how bright is the star" → flux/luminosity formulas', async ({ page }) => {

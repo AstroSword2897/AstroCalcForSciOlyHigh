@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" style="background: #0f172a;">
+  <!-- Title -->
+  <text x="400" y="30" text-anchor="middle" fill="#a8c7ff" font-size="20" font-weight="bold">Henyey-Hayashi ZAMS Track</text>
+  <text x="400" y="55" text-anchor="middle" fill="#888" font-size="14">Zero Age Main Sequence - Stellar Evolution Path</text>
+  
+  <!-- Axes -->
+  <line x1="80" y1="520" x2="720" y2="520" stroke="#667eea" stroke-width="2"/>
+  <line x1="80" y1="520" x2="80" y2="80" stroke="#667eea" stroke-width="2"/>
+  
+  <!-- Axis Labels -->
+  <text x="400" y="570" text-anchor="middle" fill="#a8c7ff" font-size="16">Effective Temperature (K) →</text>
+  <text x="20" y="300" text-anchor="middle" fill="#a8c7ff" font-size="16" transform="rotate(-90 20 300)">Luminosity (L☉) ↑</text>
+  
+  <!-- Temperature scale (log scale approximation) -->
+  <text x="100" y="540" fill="#888" font-size="12">40000</text>
+  <text x="250" y="540" fill="#888" font-size="12">20000</text>
+  <text x="400" y="540" fill="#888" font-size="12">10000</text>
+  <text x="550" y="540" fill="#888" font-size="12">5000</text>
+  <text x="680" y="540" fill="#888" font-size="12">3000</text>
+  
+  <!-- Luminosity scale (log scale) -->
+  <text x="60" y="500" fill="#888" font-size="12">0.01</text>
+  <text x="60" y="400" fill="#888" font-size="12">1</text>
+  <text x="60" y="300" fill="#888" font-size="12">100</text>
+  <text x="60" y="200" fill="#888" font-size="12">10000</text>
+  <text x="60" y="100" fill="#888" font-size="12">100000</text>
+  
+  <!-- ZAMS Track (curved path from high T/low L to low T/high L) -->
+  <path d="M 120 480 Q 200 450 280 420 Q 360 380 440 340 Q 520 300 600 260" 
+        fill="none" stroke="#4ade80" stroke-width="3" opacity="0.8"/>
+  
+  <!-- Hayashi Track (vertical line on left) -->
+  <line x1="100" y1="480" x2="100" y2="200" stroke="#f87171" stroke-width="2" stroke-dasharray="5,5" opacity="0.7"/>
+  
+  <!-- Henyey Track (horizontal-ish line at top) -->
+  <path d="M 100 200 Q 200 180 300 160 Q 400 150 500 160" 
+        fill="none" stroke="#60a5fa" stroke-width="2" stroke-dasharray="5,5" opacity="0.7"/>
+  
+  <!-- Labels -->
+  <text x="120" y="470" fill="#4ade80" font-size="12" font-weight="bold">ZAMS</text>
+  <text x="80" y="350" fill="#f87171" font-size="12" font-weight="bold">Hayashi</text>
+  <text x="300" y="150" fill="#60a5fa" font-size="12" font-weight="bold">Henyey</text>
+  
+  <!-- Stellar mass indicators -->
+  <circle cx="120" cy="480" r="4" fill="#fff"/>
+  <text x="130" y="485" fill="#fff" font-size="10">0.5 M☉</text>
+  
+  <circle cx="300" cy="400" r="4" fill="#fff"/>
+  <text x="310" y="405" fill="#fff" font-size="10">1 M☉</text>
+  
+  <circle cx="500" cy="280" r="4" fill="#fff"/>
+  <text x="510" y="285" fill="#fff" font-size="10">5 M☉</text>
+  
+  <!-- Legend -->
+  <rect x="600" y="100" width="180" height="120" fill="rgba(15, 23, 42, 0.8)" stroke="#667eea" stroke-width="1" rx="4"/>
+  <text x="690" y="125" text-anchor="middle" fill="#a8c7ff" font-size="14" font-weight="bold">Legend</text>
+  
+  <line x1="610" y1="140" x2="630" y2="140" stroke="#4ade80" stroke-width="3"/>
+  <text x="640" y="145" fill="#a8c7ff" font-size="12">ZAMS Track</text>
+  
+  <line x1="610" y1="160" x2="630" y2="160" stroke="#f87171" stroke-width="2" stroke-dasharray="5,5"/>
+  <text x="640" y="165" fill="#a8c7ff" font-size="12">Hayashi Track</text>
+  
+  <line x1="610" y1="180" x2="630" y2="180" stroke="#60a5fa" stroke-width="2" stroke-dasharray="5,5"/>
+  <text x="640" y="185" fill="#a8c7ff" font-size="12">Henyey Track</text>
+  
+  <!-- Description -->
+  <text x="400" y="580" text-anchor="middle" fill="#888" font-size="11">
+    Stars evolve along these tracks from pre-main sequence (Hayashi/Henyey) to main sequence (ZAMS)
+  </text>
+</svg>
+

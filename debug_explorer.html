@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>Debug</title></head>
+<body>
+<script>
+fetch('http://localhost:8000/index.html')
+  .then(r => r.text())
+  .then(html => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const explorer = doc.getElementById('main-explorer-tab');
+    console.log('Explorer tab found:', explorer !== null);
+    if (explorer) {
+      console.log('Parent:', explorer.parentElement?.id);
+      console.log('HTML:', explorer.outerHTML.substring(0, 200));
+    }
+  });
+</script>
+</body>
+</html>

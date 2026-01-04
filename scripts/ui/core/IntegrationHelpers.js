@@ -218,7 +218,7 @@ class IntegrationHelpers {
         if (this.dom) {
             this.dom.preload([
                 'formula-list',
-                'formula-search',
+                'command-palette-input',
                 'result-display',
                 'input-screen',
                 'calculator-tab',

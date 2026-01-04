@@ -9,7 +9,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://localhost:8000',
     trace: 'on-first-retry',
   },
   
@@ -25,10 +25,11 @@ export default defineConfig({
     },
   ],
 
+  // Use static file server (Python http.server)
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 5173',
-    url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
+    command: 'python3 -m http.server 8000',
+    port: 8000,
+    reuseExistingServer: true,
     timeout: 120_000
   },
   

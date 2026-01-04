@@ -138,7 +138,7 @@ function setupKeyboardShortcuts() {
         // Cmd/Ctrl + K: Focus search
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
             e.preventDefault();
-            const searchInput = document.getElementById('formula-search');
+            const searchInput = document.getElementById('command-palette-input');
             if (searchInput) {
                 searchInput.focus();
                 searchInput.select();
@@ -161,7 +161,7 @@ function setupKeyboardShortcuts() {
                 return;
             }
             if (quickNavState.searchFocused) {
-                const searchInput = document.getElementById('formula-search');
+                const searchInput = document.getElementById('command-palette-input');
                 if (searchInput && searchInput.value) {
                     searchInput.value = '';
                     filterAndRenderFormulas('');
@@ -229,7 +229,7 @@ function setupKeyboardShortcuts() {
         // Quick formula access: Type formula name to jump
         if (!isInput && e.key.length === 1 && /[a-zA-Z]/.test(e.key) && !e.metaKey && !e.ctrlKey) {
             // If user starts typing, focus search and add the character
-            const searchInput = document.getElementById('formula-search');
+            const searchInput = document.getElementById('command-palette-input');
             if (searchInput && !quickNavState.searchFocused) {
                 searchInput.focus();
                 searchInput.value = e.key;
@@ -240,7 +240,7 @@ function setupKeyboardShortcuts() {
     });
     
     // Track search focus
-    const searchInput = document.getElementById('formula-search');
+    const searchInput = document.getElementById('command-palette-input');
     if (searchInput) {
         searchInput.addEventListener('focus', () => {
             quickNavState.searchFocused = true;

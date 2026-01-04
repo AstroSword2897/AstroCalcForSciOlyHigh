@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+setTimeout(() => {
+    console.log('Checking UI state...');
+    console.log('Formula list:', document.getElementById('formula-list'));
+    console.log('Formula cards:', document.querySelectorAll('.formula-card').length);
+    console.log('Formulas data:', window.formulas ? window.formulas.length : 'not loaded');
+    console.log('renderFormulaList:', typeof window.renderFormulaList);
+    console.log('UIOrchestrator:', typeof window.uiOrchestrator);
+    
+    const formulaList = document.getElementById('formula-list');
+    if (formulaList) {
+        console.log('Formula list HTML length:', formulaList.innerHTML.length);
+        console.log('Formula list display:', window.getComputedStyle(formulaList).display);
+        console.log('Formula list visibility:', window.getComputedStyle(formulaList).visibility);
+    }
+}, 3000);
+</script>
+</head>
+<body></body>
+</html>

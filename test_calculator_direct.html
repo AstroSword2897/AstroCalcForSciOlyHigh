@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><title>Calculator Test</title></head>
+<body>
+<script>
+// Open calculator and check structure
+setTimeout(() => {
+    if (typeof window.selectFormula === 'function' && window.formulas && window.formulas.length > 0) {
+        window.selectFormula(window.formulas[0]);
+        setTimeout(() => {
+            const inputScreen = document.getElementById('input-screen');
+            const varsContainer = document.getElementById('variables-container');
+            const calcTab = document.querySelector('.tab-btn[data-tab="calculator"]');
+            
+            console.log('Input screen:', inputScreen ? 'found' : 'not found');
+            console.log('Vars container:', varsContainer ? 'found' : 'not found');
+            console.log('Calc tab:', calcTab ? 'found' : 'not found');
+            
+            if (varsContainer) {
+                console.log('Vars container children:', varsContainer.children.length);
+                console.log('Vars container HTML:', varsContainer.innerHTML.substring(0, 500));
+            }
+            
+            if (calcTab) {
+                console.log('Calc tab classes:', calcTab.className);
+            }
+        }, 2000);
+    }
+}, 3000);
+</script>
+</body>
+</html>

@@ -79,10 +79,9 @@
 
     // Setup search with orchestrator
     function setupSearchWithOrchestrator(orchestrator) {
-        const searchInput = document.getElementById('formula-search');
-        const clearBtn = document.getElementById('clear-search');
+        const searchInput = document.getElementById('command-palette-input');
         
-        if (!searchInput || !clearBtn) {
+        if (!searchInput) {
             setTimeout(() => setupSearchWithOrchestrator(orchestrator), 200);
             return;
         }
@@ -93,10 +92,7 @@
         searchInput.addEventListener('input', (e) => {
             const searchTerm = e.target.value.trim();
             
-            if (searchTerm.length > 0) {
-                clearBtn.style.display = 'flex';
-            } else {
-                clearBtn.style.display = 'none';
+            if (searchTerm.length === 0) {
                 if (typeof renderFormulaList === 'function') {
                     renderFormulaList();
                 }
@@ -122,19 +118,9 @@
             }, DEBOUNCE_MS);
         });
 
-        clearBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            clearBtn.style.display = 'none';
-            if (typeof renderFormulaList === 'function') {
-                renderFormulaList();
-            }
-            searchInput.focus();
-        });
-
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 searchInput.value = '';
-                clearBtn.style.display = 'none';
                 if (typeof renderFormulaList === 'function') {
                     renderFormulaList();
                 }

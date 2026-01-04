@@ -264,11 +264,10 @@ export class App {
      * Setup search functionality
      */
     private setupSearch(): void {
-        const searchInput = document.getElementById('formula-search');
-        const clearBtn = document.getElementById('clear-search');
+        const searchInput = document.getElementById('command-palette-input');
         
-        if (!searchInput || !clearBtn) {
-            console.warn('[App] Search elements not found');
+        if (!searchInput) {
+            console.warn('[App] Command palette input not found');
             return;
         }
 
@@ -279,10 +278,7 @@ export class App {
             const target = e.target as HTMLInputElement;
             const searchTerm = target.value.trim();
             
-            if (searchTerm.length > 0) {
-                clearBtn.style.display = 'flex';
-            } else {
-                clearBtn.style.display = 'none';
+            if (searchTerm.length === 0) {
                 this.renderFormulaList();
                 return;
             }
@@ -303,11 +299,12 @@ export class App {
             }, DEBOUNCE_MS);
         });
 
-        clearBtn.addEventListener('click', () => {
+        // Handle Escape key to clear search
+        searchInput.addEventListener('keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
             (searchInput as HTMLInputElement).value = '';
-            clearBtn.style.display = 'none';
             this.renderFormulaList();
-            searchInput.focus();
+            }
         });
     }
 

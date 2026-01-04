@@ -32,7 +32,8 @@ export class EventCoordinator {
     setupBackButton() {
         const backButton = document.getElementById('back-button');
         if (!backButton) {
-            console.warn('[EventCoordinator] Back button not found');
+            // Back button only exists on calculator screen, not on formula selection screen
+            // This is expected behavior, so don't log a warning
             return;
         }
         const handler = (e) => {
@@ -66,18 +67,47 @@ export class EventCoordinator {
         });
     }
     setupSubTabButtons() {
-        const subTabButtons = document.querySelectorAll('.tab-btn');
-        subTabButtons.forEach(btn => {
+        // Use event delegation on document to handle dynamically created buttons
+        // This ensures buttons work even if they're added later or inside hidden containers
+        const handler = (e) => {
+            const btn = e.target.closest('.tab-btn');
+            if (!btn) return;
+            
             const tabName = btn.getAttribute('data-tab');
-            if (!tabName)
+            if (!tabName) {
+                console.warn('[EventCoordinator] Tab button missing data-tab attribute:', btn);
                 return;
-            const handler = () => {
-                if (this.options.onSubTabSwitch) {
-                    this.options.onSubTabSwitch(tabName);
-                }
-            };
-            this.addListener(btn, 'click', handler);
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+            console.log(`[EventCoordinator] Sub tab clicked: ${tabName}`);
+            
+            if (this.options.onSubTabSwitch) {
+                this.options.onSubTabSwitch(tabName);
+            } else {
+                console.warn('[EventCoordinator] onSubTabSwitch callback not provided');
+            }
+        };
+        
+        // Add to global listeners for cleanup
+        document.addEventListener('click', handler, true); // Use capture phase
+        this.globalListeners.push({
+            element: document,
+            event: 'click',
+            handler: handler,
+            options: true // capture phase
         });
+        
+        // Also ensure existing buttons have proper styles
+        const subTabButtons = document.querySelectorAll('.tab-btn');
+        console.log(`[EventCoordinator] Found ${subTabButtons.length} sub tab buttons, using event delegation`);
+        subTabButtons.forEach(btn => {
+            btn.style.setProperty('pointer-events', 'auto', 'important');
+            btn.style.setProperty('cursor', 'pointer', 'important');
+        });
+        
+        console.log('[EventCoordinator] ✅ Sub tab buttons set up with event delegation');
     }
     setupCalculateButton() {
         // Use event delegation on document to handle dynamically created calculate buttons
@@ -176,8 +206,8 @@ export class EventCoordinator {
             });
         });
         this.listeners.clear();
-        this.globalListeners.forEach(({ target, event, handler, options }) => {
-            target.removeEventListener(event, handler, options);
+        this.globalListeners.forEach(({ element, event, handler, options }) => {
+            element.removeEventListener(event, handler, options);
         });
         this.globalListeners = [];
         this.setupComplete = false;

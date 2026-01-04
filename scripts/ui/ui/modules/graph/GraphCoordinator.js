@@ -7,6 +7,7 @@ export class GraphCoordinator {
         this.updateQueue = [];
         this.isUpdating = false;
         this.MAX_QUEUE_SIZE = 10;
+        this.MAX_INIT_ATTEMPTS = 3;
         this.enabled = options.enabled ?? true;
         this.containerId = options.containerId || 'desmos-graph';
         this.tabId = options.tabId || 'graph-tab';
@@ -342,7 +343,8 @@ export class GraphCoordinator {
      * Cleanup resources
      */
     cleanup() {
-        this.initializationAttempts.clear();
+        this.initializationPromise = null;
+        this.graphReady = false;
         this.updateQueue = [];
         this.isUpdating = false;
     }

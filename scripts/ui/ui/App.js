@@ -219,10 +219,9 @@ export class App {
      * Setup search functionality
      */
     setupSearch() {
-        const searchInput = document.getElementById('formula-search');
-        const clearBtn = document.getElementById('clear-search');
-        if (!searchInput || !clearBtn) {
-            console.warn('[App] Search elements not found');
+        const searchInput = document.getElementById('command-palette-input');
+        if (!searchInput) {
+            console.warn('[App] Command palette input not found');
             return;
         }
         let debounceTimer = null;
@@ -230,11 +229,7 @@ export class App {
         searchInput.addEventListener('input', (e) => {
             const target = e.target;
             const searchTerm = target.value.trim();
-            if (searchTerm.length > 0) {
-                clearBtn.style.display = 'flex';
-            }
-            else {
-                clearBtn.style.display = 'none';
+            if (searchTerm.length === 0) {
                 this.renderFormulaList();
                 return;
             }
@@ -248,11 +243,12 @@ export class App {
                 }
             }, DEBOUNCE_MS);
         });
-        clearBtn.addEventListener('click', () => {
+        // Handle Escape key to clear search
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
             searchInput.value = '';
-            clearBtn.style.display = 'none';
             this.renderFormulaList();
-            searchInput.focus();
+            }
         });
     }
     /**

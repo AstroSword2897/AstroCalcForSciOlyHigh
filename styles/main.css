@@ -263,10 +263,32 @@ header h1 {
 .screen {
     display: none;
     padding: 30px;
+    visibility: hidden;
+    opacity: 0;
 }
 
 .screen.active {
     display: block !important; /* Force visibility in all browsers */
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative;
+    z-index: 100;
+}
+
+/* Ensure formula-selection is visible when active */
+#formula-selection.active {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Hide input-screen by default */
+#input-screen {
+    display: none !important;
+}
+
+#input-screen.active {
+    display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
 }
@@ -293,6 +315,84 @@ header h1 {
     background: #5568d3;
 }
 
+/* Tab styles for calculator screen */
+.tab-container {
+    margin-bottom: 30px;
+}
+
+.tabs {
+    display: flex;
+    gap: 10px;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.3);
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    background: transparent;
+    color: #a8c7ff;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1em;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s;
+    pointer-events: auto !important;
+}
+
+.tab-btn:hover {
+    color: #ffffff;
+    background: rgba(102, 126, 234, 0.2);
+}
+
+.tab-btn.active {
+    color: #ffffff;
+    border-bottom-color: #667eea;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+/* Tab content panels */
+.tab-content {
+    display: none;
+    padding: 20px 0;
+}
+
+.tab-content.active {
+    display: block !important;
+}
+
+/* Formula display styles */
+.formula-display {
+    margin: 20px 0;
+    padding: 15px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 8px;
+}
+
+.formula-display #formula-equation {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #ffffff;
+    margin-bottom: 10px;
+}
+
+.formula-display .description {
+    color: #a8c7ff;
+    line-height: 1.6;
+}
+
+/* Calculator instructions */
+.calculator-instructions {
+    background: rgba(102, 126, 234, 0.15);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    color: #a8c7ff;
+}
+
+.calculator-instructions strong {
+    color: #ffffff;
+}
+
 .formula-search-container {
     position: relative;
     margin-bottom: 20px;
@@ -305,7 +405,7 @@ header h1 {
     font-size: 1em;
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 12px;
-    background: rgba(10, 14, 39, 0.85);
+    background: #000000; /* Black background */
     color: white;
     backdrop-filter: blur(10px);
     transition: all 0.3s ease;
@@ -668,11 +768,7 @@ header h1 {
     color: #e0e0e0; /* Improved contrast - meets WCAG AA */
 }
 
-/* Enhanced Formula Card Styles */
-.formula-card {
-    /* Ensure cards are visible and properly layered */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
+/* Enhanced Formula Card Styles - REMOVED: border defined later */
 
 .formula-card:focus-visible {
     outline: 3px solid #667eea;
@@ -792,7 +888,8 @@ header h1 {
     width: 100%;
     height: 100%;
     z-index: 10000;
-    display: flex;
+    /* Hidden by default; shown when .active is set */
+    display: none;
     align-items: flex-start;
     justify-content: center;
     padding-top: 10vh;
@@ -981,10 +1078,7 @@ header h1 {
     transform: scale(0.95);
 }
 
-/* Faster Card Hover */
-.formula-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
+/* Faster Card Hover - REMOVED: transition defined in main .formula-card rule */
 
 .formula-card:hover {
     transform: translateY(-4px) scale(1.02);
@@ -1318,8 +1412,8 @@ header h1 {
 }
 
 .formula-card {
-    background: rgba(10, 14, 39, 0.85);
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: rgba(10, 14, 39, 0.85) !important;
+    border: 2px solid rgba(102, 126, 234, 0.5) !important; /* Blue border by default - FORCE */
     border-radius: 16px;
     padding: 24px;
     cursor: pointer;
@@ -1424,6 +1518,33 @@ header h1 {
     color: #ffffff;
     font-size: 0.95em;
     margin: 12px 0;
+    line-height: 1.5;
+}
+
+/* FormulaRenderer CSS Classes - Optimized for performance */
+.formula-card-title {
+    color: #667eea;
+    margin: 0 0 12px 0;
+    font-size: 1.4em;
+    font-weight: 700;
+}
+
+.formula-card-equation {
+    font-family: 'Courier New', monospace;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 14px;
+    border-radius: 8px;
+    font-size: 0.95em;
+    color: #a8c7ff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.formula-card-description {
+    color: #ffffff;
+    font-size: 0.95em;
+    margin: 0;
     line-height: 1.5;
 }
 
@@ -2150,13 +2271,18 @@ input.unit-input-field {
 /* Main page tabs */
 .main-tab-container {
     margin-bottom: 20px;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .main-tabs {
-    display: flex;
+    display: flex !important;
     gap: 10px;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 2px solid rgba(102, 126, 234, 0.3);
     margin-bottom: 20px;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .main-tab-btn {
@@ -2165,7 +2291,7 @@ input.unit-input-field {
     padding: 12px 24px;
     font-size: 1em;
     font-weight: 500;
-    color: #666;
+    color: #a8c7ff;
     cursor: pointer;
     border-bottom: 3px solid transparent;
     transition: all 0.3s;
@@ -2174,14 +2300,15 @@ input.unit-input-field {
 }
 
 .main-tab-btn:hover {
-    color: #667eea;
-    background: #f8f9fa;
+    color: #ffffff;
+    background: rgba(102, 126, 234, 0.2);
 }
 
 .main-tab-btn.active {
-    color: #667eea;
+    color: #ffffff;
     border-bottom-color: #667eea;
     font-weight: 600;
+    background: rgba(102, 126, 234, 0.1);
 }
 
 .main-tab-content {

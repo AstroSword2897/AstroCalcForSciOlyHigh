@@ -2,7 +2,7 @@
  * SearchEngine - Orchestrates search with caching and filtering
  * Separated concerns: scoring, caching, filtering
  */
-import { FormulaScorer } from './Scorer';
+import { FormulaScorer } from './Scorer.js';
 export class SearchEngine {
     constructor(options) {
         this.formulas = options.formulas;

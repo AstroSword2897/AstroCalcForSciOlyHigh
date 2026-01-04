@@ -95,7 +95,7 @@ class EventHandlers {
             if (suggestion) {
                 const suggestionText = suggestion.getAttribute('data-suggestion');
                 if (suggestionText) {
-                    const searchInput = this.helpers ? this.helpers.getElement('formula-search') : document.getElementById('formula-search');
+                    const searchInput = this.helpers ? this.helpers.getElement('command-palette-input') : document.getElementById('command-palette-input');
                     if (searchInput) {
                         e.preventDefault();
                         e.stopPropagation();

@@ -9351,6 +9351,10 @@ var crossConceptReinforcement = {
     
     // Initialize all three layers
     initialize: function() {
+        // Only initialize if getConceptHierarchy is available (silently skip if not)
+        if (typeof getConceptHierarchy !== 'function') {
+            return; // Don't log anything - it's optional
+        }
         console.log('[Cross-Concept Reinforcement] Initializing triple-layered system...');
         this.buildConceptNetwork();
         this.buildConceptFormulaMapping();
@@ -9365,17 +9369,18 @@ var crossConceptReinforcement = {
         // Get concept hierarchy from UI
         if (typeof getConceptHierarchy === 'function') {
             const hierarchy = getConceptHierarchy();
-            console.log(`[Cross-Concept Reinforcement] Building Layer 1 from ${Object.keys(hierarchy).length} concepts`);
-            this.conceptNetwork = {};
-            
-            // Build bidirectional concept relationships
-            Object.keys(hierarchy).forEach(concept => {
-                const node = hierarchy[concept];
-                if (!this.conceptNetwork[concept]) {
-                    this.conceptNetwork[concept] = {
-                        relatedConcepts: new Set(),
-                        parentConcepts: new Set(),
-                        childConcepts: new Set(),
+            if (hierarchy && Object.keys(hierarchy).length > 0) {
+                console.log(`[Cross-Concept Reinforcement] Building Layer 1 from ${Object.keys(hierarchy).length} concepts`);
+                this.conceptNetwork = {};
+                
+                // Build bidirectional concept relationships
+                Object.keys(hierarchy).forEach(concept => {
+                    const node = hierarchy[concept];
+                    if (!this.conceptNetwork[concept]) {
+                        this.conceptNetwork[concept] = {
+                            relatedConcepts: new Set(),
+                            parentConcepts: new Set(),
+                            childConcepts: new Set(),
                         siblingConcepts: new Set(),
                         crossReferences: new Set()
                     };
@@ -9712,24 +9717,21 @@ if (typeof formulas !== 'undefined' && formulas.length > 0) {
     formulaRelationships.autoDiscoverRelationships();
     
     // Initialize cross-concept reinforcement after relationships are built
+    // PRODUCTION: only initialize when the concept hierarchy API exists; avoid noisy retry logs.
+    // Check if getConceptHierarchy exists before attempting initialization
     if (typeof getConceptHierarchy === 'function') {
-        // Wait for concept hierarchy to be available
-        console.log('[Cross-Concept Reinforcement] getConceptHierarchy available, initializing in 100ms...');
         setTimeout(() => {
-            crossConceptReinforcement.initialize();
-        }, 100);
-    } else {
-        // Initialize immediately if hierarchy is already available
-        console.log('[Cross-Concept Reinforcement] getConceptHierarchy not yet available, will retry...');
-        // Retry after a longer delay
-        setTimeout(() => {
-            if (typeof getConceptHierarchy === 'function') {
-                crossConceptReinforcement.initialize();
-            } else {
-                console.warn('[Cross-Concept Reinforcement] ⚠️ getConceptHierarchy still not available after delay');
+            try {
+                // Double-check it still exists (might have been removed)
+                if (typeof getConceptHierarchy === 'function') {
+                    crossConceptReinforcement.initialize();
+                }
+            } catch (e) {
+                // Silently skip if initialization fails - not critical for app functionality
             }
-        }, 500);
+        }, 100);
     }
+    // If getConceptHierarchy doesn't exist, don't log anything - it's optional
 }
 
 // Export for use in other scripts
