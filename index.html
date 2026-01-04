@@ -36,6 +36,7 @@
         // FORCE BLUE STYLES IMMEDIATELY - Run before any other scripts
         (function() {
             function forceBlueStyles() {
+                console.log('[Style Force] Applying blue styles...');
                 const style = document.createElement('style');
                 style.id = 'force-blue-styles';
                 style.textContent = `
@@ -65,11 +66,14 @@
                 document.head.appendChild(style);
                 
                 // Also force styles on existing elements
-                document.querySelectorAll('.formula-card').forEach(card => {
+                const cards = document.querySelectorAll('.formula-card');
+                const titles = document.querySelectorAll('.formula-card-title, .formula-card h3');
+                console.log(`[Style Force] Found ${cards.length} cards and ${titles.length} titles to style`);
+                cards.forEach(card => {
                     card.style.border = '2px solid rgba(102, 126, 234, 0.5)';
                     card.style.borderColor = 'rgba(102, 126, 234, 0.5)';
                 });
-                document.querySelectorAll('.formula-card-title, .formula-card h3').forEach(title => {
+                titles.forEach(title => {
                     title.style.color = '#667eea';
                 });
             }
