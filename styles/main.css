@@ -857,6 +857,9 @@ header h1 {
 .command-palette-input:focus {
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    transform: scale(1.01);
+    outline: 3px solid #3b82f6;
+    outline-offset: 2px;
 }
 
 .command-palette-results {
@@ -5007,22 +5010,27 @@ input.unit-input-field {
     background: #ffffff !important;
 }
 
-/* FINAL OVERRIDE - Force command palette to be visible */
+/* FINAL OVERRIDE - Fix command palette to not block interactions */
 .command-palette {
-    display: flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    pointer-events: none !important;
-}
-
-.command-palette-input {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
     pointer-events: auto !important;
 }
 
-/* Fix overlay to not block interactions */
+.command-palette-input {
+    pointer-events: auto !important;
+}
+
 .command-palette-overlay {
     pointer-events: none !important;
+}
+
+/* Allow command palette results to be clickable */
+.command-palette-results {
+    pointer-events: auto !important;
+    position: relative;
+    z-index: 1001;
+}
+
+.command-palette-item {
+    pointer-events: auto !important;
+    cursor: pointer;
 }

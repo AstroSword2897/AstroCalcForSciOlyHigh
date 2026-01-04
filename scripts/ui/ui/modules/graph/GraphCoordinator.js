@@ -1,13 +1,11 @@
 /**
  * GraphCoordinator - IMPROVED VERSION
- * Better error handling, retry logic, state management, and performance
+ * Better error handling, readiness gating, state management, and performance
  */
 export class GraphCoordinator {
     constructor(options = {}) {
-        this.initializationAttempts = new Map();
         this.updateQueue = [];
         this.isUpdating = false;
-        this.MAX_INIT_ATTEMPTS = 3;
         this.MAX_QUEUE_SIZE = 10;
         this.enabled = options.enabled ?? true;
         this.containerId = options.containerId || 'desmos-graph';
@@ -16,13 +14,91 @@ export class GraphCoordinator {
         this.createGraphManager = options.createGraphManager || (() => null);
         this.onGraphUpdate = options.onGraphUpdate;
         this.onGraphError = options.onGraphError;
+        this.graphReady = false;
+        this.initializationPromise = null;
     }
+    
     /**
-     * Ensure graph manager is initialized with improved retry logic
+     * Ensure graph is ready before operations
      */
-    ensureGraphManager() {
+    async ensureGraphReady() {
+        if (!this.enabled) return false;
+        
+        // If already ready, return immediately
+        if (this.graphReady) {
+            return true;
+        }
+        
+        // If initialization is in progress, wait for it
+        if (this.initializationPromise) {
+            return this.initializationPromise;
+        }
+        
+        // Start initialization
+        this.initializationPromise = this.initializeGraphOnce();
+        return this.initializationPromise;
+    }
+    
+    /**
+     * Initialize graph exactly once, no retries
+     */
+    async initializeGraphOnce() {
+        try {
+            // Try to get existing manager
+            let manager = this.getGraphManager();
+            
+            if (manager) {
+                // Validate manager is functional
+                if (this.validateManager(manager)) {
+                    this.graphReady = true;
+                    console.log('[GraphCoordinator] ✅ Graph ready with existing manager');
+                    return true;
+                }
+            }
+            
+            // Create new manager
+            manager = this.createGraphManager();
+            if (!manager) {
+                console.warn('[GraphCoordinator] No graph manager available');
+                this.graphReady = false;
+                return false;
+            }
+            
+            // Initialize once
+            if (typeof manager.init === 'function') {
+                const initialized = manager.init();
+                if (initialized) {
+                    this.graphReady = true;
+                    console.log('[GraphCoordinator] ✅ Graph initialized successfully');
+                    return true;
+                }
+            }
+            
+            console.warn('[GraphCoordinator] Graph initialization failed');
+            this.graphReady = false;
+            return false;
+            
+        } catch (error) {
+            console.error('[GraphCoordinator] Error during graph initialization:', error);
+            this.graphReady = false;
+            return false;
+        }
+    }
+    
+    /**
+     * Ensure graph manager is initialized with readiness gating
+     */
+    async ensureGraphManager() {
         if (!this.enabled)
             return null;
+        
+        // Ensure graph is ready
+        const ready = await this.ensureGraphReady();
+        if (!ready) {
+            console.warn('[GraphCoordinator] Graph not ready');
+            return null;
+        }
+        
         // Try to get existing manager
         let manager = this.getGraphManager();
         if (manager) {
@@ -31,29 +107,12 @@ export class GraphCoordinator {
                 return manager;
             }
         }
+        
         // Create new manager
         manager = this.createGraphManager();
         if (!manager)
             return null;
-        // Track initialization attempts
-        const attempts = this.initializationAttempts.get(manager) || 0;
-        if (attempts >= this.MAX_INIT_ATTEMPTS) {
-            console.warn('[GraphCoordinator] Max initialization attempts reached');
-            return null;
-        }
-        // Initialize with retry
-        if (typeof manager.init === 'function') {
-            const initialized = manager.init();
-            if (initialized) {
-                this.initializationAttempts.delete(manager);
-                return manager;
-            }
-            else {
-                this.initializationAttempts.set(manager, attempts + 1);
-                // Retry initialization
-                this.retryInitialization(manager);
-            }
-        }
+        
         return manager;
     }
     validateManager(manager) {
@@ -62,43 +121,36 @@ export class GraphCoordinator {
             typeof manager.render === 'function' ||
             typeof manager.setFormula === 'function';
     }
-    retryInitialization(manager, attempt = 1) {
-        if (attempt > this.MAX_INIT_ATTEMPTS)
-            return;
-        setTimeout(() => {
-            if (typeof manager.init === 'function') {
-                const initialized = manager.init();
-                if (initialized) {
-                    this.initializationAttempts.delete(manager);
-                    // Process queued updates
-                    this.processUpdateQueue();
-                }
-                else {
-                    this.retryInitialization(manager, attempt + 1);
-                }
-            }
-        }, 200 * attempt); // Exponential backoff
-    }
+    
     /**
      * Update graph with queuing and batching for performance
      */
-    updateGraphIfEnabled(formula, values = {}, options = {}) {
+    async updateGraphIfEnabled(formula, values = {}, options = {}) {
         if (!this.enabled || !formula)
             return;
+            
+        // Ensure graph is ready before updating
+        const ready = await this.ensureGraphReady();
+        if (!ready) {
+            console.warn('[GraphCoordinator] Graph not ready, skipping update');
+            return;
+        }
+        
         // Queue update if already updating
         if (this.isUpdating) {
             this.queueUpdate(formula, values, options);
             return;
         }
+        
         this.isUpdating = true;
         try {
-            const manager = this.ensureGraphManager();
+            const manager = await this.ensureGraphManager();
             if (!manager) {
                 console.warn('[GraphCoordinator] Graph manager not available');
                 this.queueUpdate(formula, values, options);
-                this.isUpdating = false;
                 return;
             }
+            
             // Handle special visualization modes
             if (options.solveGraph && options.context) {
                 if (typeof manager.visualizeSolveGraph === 'function') {
@@ -107,6 +159,7 @@ export class GraphCoordinator {
                     return;
                 }
             }
+            
             if (options.executionTrace && options.context) {
                 if (typeof manager.visualizeExecutionTrace === 'function') {
                     manager.visualizeExecutionTrace(options.context, options.traceOptions || {});

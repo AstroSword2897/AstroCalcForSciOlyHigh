@@ -42,7 +42,7 @@ test.describe('Zero-Time-Waste Navigation', () => {
         await page.keyboard.press(isMac ? 'Meta+KeyK' : 'Control+KeyK');
         
         // Check if search input is focused
-        const searchInput = page.locator('#formula-search');
+        const searchInput = page.locator('#command-palette-input');
         await expect(searchInput).toBeFocused();
     });
 
@@ -75,7 +75,7 @@ test.describe('Zero-Time-Waste Navigation', () => {
 
     test('Arrow keys navigate formula cards', async ({ page }) => {
         // Focus search first
-        await page.locator('#formula-search').focus();
+        await page.locator('#command-palette-input').focus();
         
         // Wait for cards to load
         await page.waitForSelector('.formula-card', { timeout: 5000 });
@@ -91,7 +91,7 @@ test.describe('Zero-Time-Waste Navigation', () => {
 
     test('Enter opens selected formula', async ({ page }) => {
         // Focus search and type
-        await page.locator('#formula-search').fill('kepler');
+        await page.locator('#command-palette-input').fill('kepler');
         await page.waitForTimeout(500);
         
         // Press down to select first result
@@ -109,7 +109,7 @@ test.describe('Zero-Time-Waste Navigation', () => {
 
     test('Esc closes modals and goes back', async ({ page }) => {
         // Open a formula first
-        await page.locator('#formula-search').fill('kepler');
+        await page.locator('#command-palette-input').fill('kepler');
         await page.waitForTimeout(500);
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
@@ -156,7 +156,7 @@ test.describe('Zero-Time-Waste Navigation', () => {
         const startTime = Date.now();
         
         // Type in search
-        await page.locator('#formula-search').fill('distance');
+        await page.locator('#command-palette-input').fill('distance');
         
         // Wait for results to appear
         await page.waitForSelector('.formula-card', { timeout: 20000 });

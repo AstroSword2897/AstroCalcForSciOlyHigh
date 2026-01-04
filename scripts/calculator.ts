@@ -291,7 +291,9 @@ export class FormulaCalculator {
         // Manage cache size
         if (this.expressionCache.size >= FormulaCalculator.MAX_CACHE_SIZE) {
             const firstKey = this.expressionCache.keys().next().value;
-            this.expressionCache.delete(firstKey);
+            if (firstKey !== undefined) {
+                this.expressionCache.delete(firstKey);
+            }
         }
         
         this.expressionCache.set(expression, result);

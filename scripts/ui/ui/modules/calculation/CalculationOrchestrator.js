@@ -90,46 +90,33 @@ export class CalculationOrchestrator {
         return variableValues;
     }
     collectVariableValue(variable, formula) {
-        const baseUnit = variable.unit;
-        const alternativeUnits = this.unitConverter.getAlternativeUnits(baseUnit);
-        // Find which input field has a value
-        let foundValue = null;
-        let foundUnit = null;
-        for (let i = 0; i < alternativeUnits.length; i++) {
-            const unit = alternativeUnits[i];
-            const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            let input = document.getElementById(inputId);
-            if (!input) {
-                input = document.querySelector(`input[data-symbol="${variable.symbol}"][data-unit-index="${i}"]`);
-            }
-            if (input) {
-                const value = input.value.trim();
-                if (value && !this.isNAValue(value)) {
-                    foundValue = value;
-                    foundUnit = unit;
-                    break;
-                }
-            }
+        // Simplified: read directly from rendered inputs
+        const inputId = `var-${variable.symbol}`;
+        let input = document.getElementById(inputId);
+        
+        if (!input) {
+            console.warn(`[CalculationOrchestrator] Input not found: ${inputId}`);
+            return null;
         }
+        
+        const value = input.value.trim();
+        
         // Check for N/A checkbox
         const naCheckbox = document.querySelector(`.na-checkbox[data-symbol="${variable.symbol}"]`);
         const isNA = naCheckbox?.checked || false;
+        
         // Return null if N/A or empty
-        if (!foundValue || this.isNAValue(foundValue) || isNA) {
+        if (!value || this.isNAValue(value) || isNA) {
             return null;
         }
-        // Parse and convert
-        const parsedValue = this.parseNumericValue(foundValue, foundUnit);
+        
+        // Parse and convert (using base unit)
+        const parsedValue = this.parseNumericValue(value, variable.unit);
         if (parsedValue === null) {
-            throw new Error(`Invalid input: "${foundValue}"`);
+            throw new Error(`Invalid value for ${variable.symbol}: "${value}"`);
         }
-        try {
-            const baseValue = this.unitConverter.convertToBase(parsedValue, foundUnit, baseUnit);
-            return baseValue;
-        }
-        catch (error) {
-            throw new Error(`Unit conversion error: ${error.message}`);
-        }
+        
+        return parsedValue;
     }
     validateVariableValues(values, formula) {
         const nonNullCount = Object.values(values).filter(v => v !== null).length;

@@ -80,21 +80,26 @@ export class EventCoordinator {
         });
     }
     setupCalculateButton() {
-        const calcBtn = document.getElementById('calculate-btn');
-        if (!calcBtn) {
-            console.error('[EventCoordinator] Calculate button not found');
-            return;
-        }
+        // Use event delegation on document to handle dynamically created calculate buttons
         const handler = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (this.options.onCalculate) {
-                this.options.onCalculate();
+            if (e.target && e.target.id === 'calculate-btn') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (this.options.onCalculate) {
+                    this.options.onCalculate();
+                }
             }
         };
-        // Multiple strategies for reliability
-        this.addListener(calcBtn, 'click', handler);
-        calcBtn.onclick = handler;
+        
+        // Add to global listeners for cleanup
+        document.addEventListener('click', handler);
+        this.globalListeners.push({
+            element: document,
+            event: 'click',
+            handler: handler
+        });
+        
+        console.log('[EventCoordinator] ✅ Calculate button event delegation set up');
     }
     setupClassificationButtons() {
         const classifyBtn = document.getElementById('classify-btn');

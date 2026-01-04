@@ -34,7 +34,7 @@ test.describe('Accessibility Tests', () => {
 
     test('Screen reader attributes are present', async ({ page }) => {
         // Check for proper ARIA labels
-        const searchInput = page.locator('#formula-search');
+        const searchInput = page.locator('#command-palette-input');
         await expect(searchInput).toHaveAttribute('aria-label');
         
         const formulaCards = page.locator('.formula-card');
@@ -75,16 +75,15 @@ test.describe('Accessibility Tests', () => {
     });
 
     test('Input abuse handling', async ({ page }) => {
-        const searchInput = page.locator('#formula-search');
+        const searchInput = page.locator('#command-palette-input');
         
-        // Test paste invalid content
-        await searchInput.fill('');
-        await page.keyboard.press('Control+V');
+        // Test XSS protection
+        await searchInput.fill('<script>alert("xss")</script>');
         await page.waitForTimeout(500);
         
-        // Should not crash and should handle gracefully
-        const inputValue = await searchInput.inputValue();
-        expect(typeof inputValue).toBe('string');
+        // Should sanitize input
+        const value = await searchInput.inputValue();
+        expect(value).not.toContain('<script>');
         
         // Test rapid input changes
         const rapidInputs = ['a', 'ab', 'abc', 'abcd', 'abcde'];

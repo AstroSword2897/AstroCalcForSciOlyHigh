@@ -257,8 +257,8 @@ test.describe('Confidence Score Calculation', () => {
      * Search for "temperature" and verify Wien's Law has high confidence
      */
     test('integration: "temperature" search → Wien\'s Law ≥85% confidence', async ({ page }) => {
-        // Type search
-        await page.locator('#formula-search').fill('temperature');
+        // Type search using command palette
+        await page.locator('#command-palette-input').fill('temperature');
         await page.waitForTimeout(500);
         
         // Find Wien's Law in results

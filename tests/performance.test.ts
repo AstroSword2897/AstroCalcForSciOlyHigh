@@ -52,7 +52,7 @@ test.describe('Performance Budget Tests', () => {
 
     test('UI render time within budget', async ({ page }) => {
         // Test search render performance
-        const searchInput = page.locator('#formula-search');
+        const searchInput = page.locator('#command-palette-input');
         
         const startTime = Date.now();
         await searchInput.fill('kepler');

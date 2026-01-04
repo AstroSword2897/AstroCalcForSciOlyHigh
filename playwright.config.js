@@ -4,9 +4,9 @@
  * Run with: npx playwright test
  */
 
-const { defineConfig, devices } = require('@playwright/test');
+import { defineConfig, devices } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
     testDir: './tests',
     timeout: 30000, // 30 seconds timeout
     retries: 0, // Disable retries for faster feedback during debugging
@@ -32,6 +32,7 @@ module.exports = defineConfig({
             use: { ...devices['Desktop Safari'] }
         }
     ],
+    reporter: 'list',
     webServer: {
         command: 'python3 -m http.server 8000',
         port: 8000,

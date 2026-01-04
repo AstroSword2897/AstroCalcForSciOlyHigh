@@ -37,7 +37,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Word → formula: "find temperature from peak wavelength" → Wien\'s Law', async ({ page }) => {
-        await page.locator('#formula-search').fill('find temperature from peak wavelength');
+        await page.locator('#command-palette-input').fill('find temperature from peak wavelength');
         await page.waitForTimeout(500);
 
         // Search results should update and remain non-empty
@@ -48,7 +48,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Intent detection: "determine the mass of the planet" → mass formulas', async ({ page }) => {
-        await page.locator('#formula-search').fill('determine the mass of the planet');
+        await page.locator('#command-palette-input').fill('determine the mass of the planet');
         await page.waitForTimeout(500);
 
         const results = page.locator('.formula-card');
@@ -58,7 +58,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Domain-based boosts: "distance to star" → all distance formulas', async ({ page }) => {
-        await page.locator('#formula-search').fill('distance to star');
+        await page.locator('#command-palette-input').fill('distance to star');
         await page.waitForTimeout(500);
 
         const results = page.locator('.formula-card');
@@ -68,7 +68,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Pattern matching: "escape velocity of earth" → Escape Velocity formula top 1', async ({ page }) => {
-        await page.locator('#formula-search').fill('escape velocity of earth');
+        await page.locator('#command-palette-input').fill('escape velocity of earth');
         await page.waitForTimeout(500);
         
         const firstResult = page.locator('.formula-card').first();
@@ -77,7 +77,7 @@ test.describe('Advanced Natural Language Search', () => {
 
     test('Confidence scoring: confidence changes with relevance', async ({ page }) => {
         // Test 1: Specific query
-        await page.locator('#formula-search').fill('kepler third law');
+        await page.locator('#command-palette-input').fill('kepler third law');
         await page.waitForTimeout(500);
         
         const specificFirst = page.locator('.formula-card').first();
@@ -85,7 +85,7 @@ test.describe('Advanced Natural Language Search', () => {
         const specificHasConfidence = await specificFirst.locator('.confidence-badge, [data-confidence]').count() > 0;
         
         // Test 2: Vague query
-        await page.locator('#formula-search').fill('star');
+        await page.locator('#command-palette-input').fill('star');
         await page.waitForTimeout(500);
         
         const vagueFirst = page.locator('.formula-card').first();
@@ -97,7 +97,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Result limiting: max 50 formulas shown', async ({ page }) => {
-        await page.locator('#formula-search').fill('distance');
+        await page.locator('#command-palette-input').fill('distance');
         await page.waitForTimeout(1000);
         
         const results = page.locator('.formula-card');
@@ -107,7 +107,7 @@ test.describe('Advanced Natural Language Search', () => {
     });
 
     test('Semantic similarity: "how bright is the star" → flux/luminosity formulas', async ({ page }) => {
-        await page.locator('#formula-search').fill('how bright is the star');
+        await page.locator('#command-palette-input').fill('how bright is the star');
         await page.waitForTimeout(500);
         
         const results = page.locator('.formula-card');

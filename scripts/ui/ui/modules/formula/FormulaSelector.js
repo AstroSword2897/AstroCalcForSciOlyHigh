@@ -29,6 +29,7 @@ export class FormulaSelector {
             console.error('[FormulaSelector] No formula provided');
             return;
         }
+        
         try {
             console.log('[FormulaSelector] Selecting formula:', formula.name);
             // Step 1: Cleanup previous state
@@ -42,6 +43,7 @@ export class FormulaSelector {
                 this.handleSelectionError('Failed to initialize calculator. Please try again.');
                 return;
             }
+            
             this.currentFormula = formula;
             this.currentCalculator = calculator;
             // Expose to window for backward compatibility
