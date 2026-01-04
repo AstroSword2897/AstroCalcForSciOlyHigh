@@ -9381,9 +9381,9 @@ var crossConceptReinforcement = {
                             relatedConcepts: new Set(),
                             parentConcepts: new Set(),
                             childConcepts: new Set(),
-                        siblingConcepts: new Set(),
-                        crossReferences: new Set()
-                    };
+                            siblingConcepts: new Set(),
+                            crossReferences: new Set()
+                        };
                 }
                 
                 // Add parent
@@ -9461,6 +9461,7 @@ var crossConceptReinforcement = {
                     node.relatedConcepts.add(related);
                 });
             });
+        }
         }
     },
     
