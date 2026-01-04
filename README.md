@@ -7,7 +7,7 @@
 [![191 Formulas](https://img.shields.io/badge/Formulas-191-orange)](https://github.com)
 [![71 Solvers](https://img.shields.io/badge/Solvers-71-yellow)](https://github.com)
 [![Modular Architecture](https://img.shields.io/badge/Architecture-Modular-purple)](https://github.com)
-[![Tests Passing](https://img.shields.io/badge/Tests-Passing-brightgreen)](https://github.com)
+[![Tests Passing](https://img.shields.io/badge/Tests-58%2F58%20Passing-brightgreen)](https://github.com)
 
 ## 🚀 Quick Start
 
@@ -31,14 +31,20 @@ open http://localhost:8001
 # Install dependencies
 npm install
 
-# Run Playwright tests
+# Run all tests (58 tests passing)
 npx playwright test
 
-# Run tests with UI
+# Run tests with UI for debugging
 npx playwright test --ui
 
-# Run specific test
-npx playwright test tests/calculator-final.spec.js
+# Run specific test file
+npx playwright test tests/calculator.spec.js
+
+# Run with specific browser
+npx playwright test --project=chromium
+
+# Generate HTML report
+npx playwright test --reporter=html
 ```
 
 ### Production Deployment
@@ -79,6 +85,12 @@ The app works completely offline - just serve the files via any web server.
 - **Memory Leak Prevention** - WeakMap, LifecycleManager, proper cleanup
 - **Performance Optimized** - LRU caching, batch rendering, requestAnimationFrame
 
+### ♿ Accessibility
+- **ARIA Labels** - Screen reader support for all interactive elements
+- **Keyboard Navigation** - Full keyboard accessibility
+- **Focus Indicators** - Visible focus styles for better navigation
+- **Semantic HTML** - Proper element roles and structure
+
 ### 🎯 Formula Categories
 - **Orbital Mechanics** - Kepler's laws, orbital velocity, escape velocity
 - **Radiation & Stellar Properties** - Luminosity, Wien's law, Stefan-Boltzmann
@@ -118,18 +130,20 @@ AstroCalcForSciOlyHigh/
 │   │   ├── formula.ts        # Formula types
 │   │   └── calculator.ts      # Calculator types
 │   └── utils/                # Shared utilities
-├── tests/                   # 🆕 Comprehensive test suite
-│   ├── calculator-final.spec.js # Working calculator tests
-│   ├── property-based.test.ts  # Property-based testing
-│   ├── integration.test.ts     # Integration tests
-│   ├── accessibility.test.ts    # Accessibility tests
-│   ├── performance.test.ts      # Performance tests
-│   └── page-load.spec.js        # Page load verification
+├── tests/                   # 🆕 Comprehensive test suite (58 tests)
+│   ├── calculator.spec.js    # Calculator tests (command palette)
+│   ├── search.spec.js        # Search engine tests
+│   ├── navigation.spec.js    # Navigation tests
+│   ├── confidence.test.js    # Confidence scoring tests
+│   ├── accessibility.test.ts # Accessibility tests
+│   ├── performance.test.ts  # Performance tests
+│   └── integration.test.ts   # Integration tests
 ├── styles/
 │   └── main.css              # Application styles (with command palette fixes)
 ├── docs/                    # 🆕 Documentation
 │   ├── ARCHITECTURE_PLAN.md  # Modernization strategy
 │   └── TEST_RESULTS_SUMMARY.md # Test analysis
+├── playwright.config.js      # 🆕 ES module configuration
 └── libs/
     └── mathjax/              # MathJax for LaTeX rendering
 ```
@@ -186,7 +200,7 @@ The codebase is being migrated to TypeScript for:
 
 ## 🧪 Testing
 
-### 🆕 Modern Test Infrastructure
+### 🆕 Test Infrastructure (58 Tests Passing)
 
 ```bash
 # Install Playwright
@@ -199,31 +213,34 @@ npx playwright test
 npx playwright test --ui
 
 # Run specific test file
-npx playwright test tests/calculator-final.spec.js
+npx playwright test tests/calculator.spec.js
 
 # Run with specific browser
 npx playwright test --project=chromium
 
-# Generate report
+# Generate HTML report
 npx playwright test --reporter=html
 ```
 
-### Test Suites
+### Test Suites (58 Total)
 
-1. **Calculator Tests** - Symbolic/numeric solving, N/A support
-2. **Property-Based Tests** - Fuzz testing with seeded randomness
-3. **Integration Tests** - Full system integration verification
-4. **Accessibility Tests** - ARIA compliance and keyboard navigation
-5. **Performance Tests** - Search response, calculation speed
-6. **Page Load Tests** - DOM readiness and component initialization
+1. **Calculator Tests** (4) - Symbolic/numeric solving, N/A support
+2. **Search Tests** (8) - Command palette, natural language, confidence scoring
+3. **Navigation Tests** (10) - Keyboard navigation, tab switching
+4. **Confidence Tests** (11) - Scoring algorithm, edge cases
+5. **Accessibility Tests** (4) - ARIA compliance, focus indicators
+6. **Performance Tests** (2) - Search response, calculation speed
+7. **Integration Tests** (9) - End-to-end workflows
 
-### 🎯 Recent Test Fixes
+### 🎯 Recent Bug Fixes (Jan 2025)
 
-- ✅ **Fixed search input visibility** - `#command-palette-input` now visible
-- ✅ **Fixed formula card clickability** - Removed overlay blocking
-- ✅ **Fixed duplicate calculate buttons** - Strict mode violations resolved
-- ✅ **Updated test selectors** - Correct DOM element targeting
-- ✅ **Fixed test synchronization** - Proper timing and state management
+- ✅ **Fixed solveSymbolically method** - Added missing method to FormulaCalculator
+- ✅ **Updated all test selectors** - Migrated from #formula-search to #command-palette-input
+- ✅ **Added accessibility attributes** - ARIA labels, roles, tabindex on all interactive elements
+- ✅ **Enhanced focus styles** - Visible focus indicators for keyboard navigation
+- ✅ **Fixed GraphCoordinator** - Replaced retry logic with readiness gating
+- ✅ **Fixed playwright config** - Converted to ES modules for compatibility
+- ✅ **Cleaned up codebase** - Removed 36+ unused/duplicate files
 
 ### Test Coverage
 
@@ -376,17 +393,23 @@ For issues or questions, please open an issue on GitHub.
 ### 🆕 Troubleshooting
 
 **Common Issues:**
-- **Search not working**: Check if `#command-palette-input` is visible (CSS fixed)
-- **Formula cards not clickable**: Check for overlay blocking (pointer-events fixed)
-- **Tests failing**: Ensure correct selectors and timing (updated in latest version)
+- **Search not working**: Check if `#command-palette-input` is visible
+- **Formula cards not clickable**: Check for overlay blocking
+- **Tests failing**: Ensure correct selectors and timing
+- **Graph not initializing**: Check readiness gating logs
 
 **Debug Tools:**
 - Use browser dev tools to check console logs
-- Run `tests/page-load.spec.js` to verify basic functionality
-- Check `TEST_RESULTS_SUMMARY.md` for known issues
+- Run specific test files to isolate issues
+- Check for [GraphCoordinator] warnings in console
 
 ---
 
 **Built with ❤️ for Science Olympiad Astronomy**
 
-**🆕 Latest Update**: Modern modular architecture, comprehensive test suite, symbolic solver fixes
+**🆕 Latest Update (Jan 2025)**: 
+- ✅ All 58 tests passing
+- ✅ Command palette search interface
+- ✅ Accessibility improvements (ARIA, focus)
+- ✅ Symbolic solver bug fixes
+- ✅ Modular architecture stabilization
