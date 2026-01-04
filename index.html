@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Comprehensive astronomy formula calculator for Science Olympiad - Works offline">
     <meta name="theme-color" content="#667eea">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
-    <link rel="stylesheet" href="styles/main.css?v=2.2.7&_t=1736041000">
+    <link rel="stylesheet" href="styles/main.css?v=2.2.9&_t=1736043000" crossorigin="anonymous">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white'%3E🌌%3C/text%3E%3C/svg%3E">
     <style>
@@ -29,6 +32,91 @@
             opacity: 1 !important;
         }
     </style>
+    <script>
+        // FORCE BLUE STYLES IMMEDIATELY - Run before any other scripts
+        (function() {
+            function forceBlueStyles() {
+                const style = document.createElement('style');
+                style.id = 'force-blue-styles';
+                style.textContent = `
+                    .formula-card {
+                        border: 2px solid rgba(102, 126, 234, 0.5) !important;
+                        border-color: rgba(102, 126, 234, 0.5) !important;
+                    }
+                    .formula-card-title, .formula-card h3 {
+                        color: #667eea !important;
+                    }
+                    .main-tabs {
+                        display: flex !important;
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                    }
+                    .main-tab-container {
+                        display: block !important;
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                    }
+                    .main-tab-btn {
+                        display: inline-block !important;
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                // Also force styles on existing elements
+                document.querySelectorAll('.formula-card').forEach(card => {
+                    card.style.border = '2px solid rgba(102, 126, 234, 0.5)';
+                    card.style.borderColor = 'rgba(102, 126, 234, 0.5)';
+                });
+                document.querySelectorAll('.formula-card-title, .formula-card h3').forEach(title => {
+                    title.style.color = '#667eea';
+                });
+            }
+            
+            // Run immediately
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', forceBlueStyles);
+            } else {
+                forceBlueStyles();
+            }
+            
+            // Also run after a short delay to catch dynamically added elements
+            setTimeout(forceBlueStyles, 100);
+            setTimeout(forceBlueStyles, 500);
+            setTimeout(forceBlueStyles, 1000);
+            
+            // Use MutationObserver to catch dynamically added formula cards
+            const observer = new MutationObserver((mutations) => {
+                let shouldForce = false;
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === 1) { // Element node
+                            if (node.classList && node.classList.contains('formula-card')) {
+                                shouldForce = true;
+                            }
+                            // Also check children
+                            if (node.querySelector && node.querySelector('.formula-card')) {
+                                shouldForce = true;
+                            }
+                        }
+                    });
+                });
+                if (shouldForce) {
+                    forceBlueStyles();
+                }
+            });
+            
+            // Start observing when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    observer.observe(document.body, { childList: true, subtree: true });
+                });
+            } else {
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">

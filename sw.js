@@ -12,8 +12,8 @@
  * - Safe message handlers
  */
 
-const CACHE_NAME = 'astrocalc-shell-v2.2.2'; // Shell: HTML + core scripts
-const RUNTIME_CACHE = 'astrocalc-runtime-v2.2.2'; // Runtime: images + dynamic assets
+const CACHE_NAME = 'astrocalc-shell-v2.2.9'; // Shell: HTML + core scripts
+const RUNTIME_CACHE = 'astrocalc-runtime-v2.2.9'; // Runtime: images + dynamic assets
 const MAX_RUNTIME_ENTRIES = 100; // iOS Safari limit protection
 
 // Dev mode detection
@@ -280,25 +280,25 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // 2. CSS files - network-first to always get latest styles
+    // 2. CSS files - ALWAYS bypass cache completely for latest styles
     if (isCSS) {
         event.respondWith(
-            fetch(event.request, { cache: 'no-store' })
+            fetch(event.request, { 
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            })
                 .then((response) => {
                     if (!response || response.status !== 200 || response.type !== 'basic') {
                         return response;
                     }
-                    // Cache the new CSS
-                    const responseToCache = response.clone();
-                    caches.open(RUNTIME_CACHE)
-                        .then((cache) => {
-                            cache.put(event.request, responseToCache);
-                            enforceCacheSizeLimit(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES);
-                        });
+                    // Don't cache CSS - always fetch fresh
                     return response;
                 })
                 .catch(() => {
-                    // Network failed, try cache as fallback
+                    // Network failed, try cache as fallback only
                     return caches.match(event.request).then((cachedResponse) => {
                         return cachedResponse || getOfflineFallback(event.request);
                     });
