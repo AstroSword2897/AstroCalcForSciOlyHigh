@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unregister Service Worker</title>
+</head>
+<body>
+    <h1>Unregistering Service Worker...</h1>
+    <div id="status"></div>
+    <script>
+        const statusEl = document.getElementById('status');
+        
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                if (registrations.length === 0) {
+                    statusEl.innerHTML = '<p style="color: orange;">No service workers found.</p>';
+                    return;
+                }
+                
+                Promise.all(registrations.map(reg => reg.unregister()))
+                    .then(() => {
+                        statusEl.innerHTML = `<p style="color: green;">✅ Unregistered ${registrations.length} service worker(s).</p>
+                        <p>Now clearing all caches...</p>`;
+                        
+                        return caches.keys().then(cacheNames => {
+                            return Promise.all(
+                                cacheNames.map(cacheName => caches.delete(cacheName))
+                            );
+                        });
+                    })
+                    .then(() => {
+                        statusEl.innerHTML += '<p style="color: green;">✅ Cleared all caches.</p><p><strong>Reloading in 2 seconds...</strong></p>';
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 2000);
+                    })
+                    .catch(err => {
+                        statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + err.message + '</p>';
+                    });
+            });
+        } else {
+            statusEl.innerHTML = '<p style="color: red;">Service workers not supported.</p>';
+        }
+    </script>
+</body>
+</html>
