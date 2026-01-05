@@ -7,13 +7,13 @@
     forceStyle.id = 'force-blue-override';
     forceStyle.setAttribute('data-force', 'true');
     forceStyle.textContent = `
-        /* FORCE BLUE BORDERS - Maximum specificity */
+        /* FORCE SOLID BLUE BORDERS - Maximum specificity */
         .formula-card,
         div.formula-card,
         .formula-list .formula-card,
         #formula-list .formula-card {
-            border: 2px solid rgba(102, 126, 234, 0.5) !important;
-            border-color: rgba(102, 126, 234, 0.5) !important;
+            border: 2px solid #667eea !important; /* SOLID BLUE */
+            border-color: #667eea !important;
         }
         
         /* FORCE BLUE TITLES */
@@ -41,29 +41,33 @@
     // Insert at the very end of head to override everything
     if (document.head) {
         document.head.appendChild(forceStyle);
+        console.log('[FORCE BLUE] ✅ Style element injected into HEAD');
     } else {
         document.addEventListener('DOMContentLoaded', () => {
             document.head.appendChild(forceStyle);
+            console.log('[FORCE BLUE] ✅ Style element injected into HEAD (after DOMContentLoaded)');
         });
     }
     
-    console.log('[FORCE BLUE] ✅ Style injected');
+    console.log('[FORCE BLUE] ✅ Script executed');
     
     // Also force inline styles on existing elements
     function forceInlineStyles() {
         const cards = document.querySelectorAll('.formula-card');
         const titles = document.querySelectorAll('.formula-card-title, .formula-card h3');
         
-        console.log(`[FORCE BLUE] Applying to ${cards.length} cards, ${titles.length} titles`);
+        console.log(`[FORCE BLUE] Applying inline styles to ${cards.length} cards, ${titles.length} titles`);
         
         cards.forEach(card => {
-            card.style.setProperty('border', '2px solid rgba(102, 126, 234, 0.5)', 'important');
-            card.style.setProperty('border-color', 'rgba(102, 126, 234, 0.5)', 'important');
+            card.style.setProperty('border', '2px solid #667eea', 'important');
+            card.style.setProperty('border-color', '#667eea', 'important');
         });
         
         titles.forEach(title => {
             title.style.setProperty('color', '#667eea', 'important');
         });
+        
+        console.log('[FORCE BLUE] ✅ Inline styles applied');
     }
     
     // Run immediately and on DOM ready
