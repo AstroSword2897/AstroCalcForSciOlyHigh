@@ -212,6 +212,32 @@
     };
   }
 
+  // Topic quality validation
+  const GENERIC_TERMS = new Set([
+    'astronomy', 'astrophysics', 'physics', 'space', 'science', 
+    'math', 'universe', 'cosmic', 'celestial', 'observation'
+  ]);
+  
+  function isQualityTopic(topic) {
+    const t = norm(topic);
+    if (!t || t.length < 2) return false; // Must be at least 2 chars
+    
+    // Reject generic terms
+    if (GENERIC_TERMS.has(t)) return false;
+    
+    // Must have at least 2 words OR be a compound term with hyphen/underscore
+    const wordCount = t.split(/\s+/).length;
+    const isCompound = t.includes('-') || t.includes('_');
+    
+    if (wordCount < 2 && !isCompound) {
+      // Allow single words only if they're very specific (e.g., "kepler", "doppler")
+      // Check if it's in the formula name or is a unique identifier
+      return false;
+    }
+    
+    return true;
+  }
+
   function buildTopics(formula) {
     const concepts = uniq(formula.concepts);
     const keywords = uniq(formula.keywords);
@@ -224,6 +250,13 @@
     function add(topic, score) {
       const t = norm(topic);
       if (!t) return;
+      
+      // Apply quality filter (but allow some flexibility for core terms)
+      if (!isQualityTopic(t) && score < 9) {
+        // Only reject low-scoring generic terms
+        return;
+      }
+      
       candidates.set(t, (candidates.get(t) || 0) + score);
     }
 
@@ -231,10 +264,10 @@
     concepts.slice(0, 18).forEach(c => add(c, 10));
     keywords.slice(0, 18).forEach(k => add(k, 6));
 
-    // Add parents of concepts for better "topic" framing
+    // Add parents of concepts for better "topic" framing (but penalized)
     concepts.slice(0, 18).forEach(c => {
       const node = h[norm(c)];
-      if (node?.parent) add(node.parent, 7);
+      if (node?.parent) add(node.parent, 3.5); // Reduced from 7 (50% penalty)
     });
 
     // Add top phrases from description (2-3 grams), conservative
@@ -279,6 +312,16 @@
     return topics.slice(0, 10);
   }
 
+  // Helper: check if two formulas share at least one topic
+  function hasSharedTopic(f1, f2) {
+    const topics1 = new Set(buildTopics(f1).map(t => t.topic));
+    const topics2 = new Set(buildTopics(f2).map(t => t.topic));
+    for (const t of topics1) {
+      if (topics2.has(t)) return true;
+    }
+    return false;
+  }
+
   function buildHierarchyForFormula(formula, allFormulas) {
     const scored = [];
     for (const other of allFormulas) {
@@ -287,29 +330,47 @@
     }
     scored.sort((a, b) => b.confidence - a.confidence);
 
-    const level1 = scored.slice(0, 5);
+    // Level 1: top 5, confidence ≥ 60%
+    const level1Threshold = 60;
+    const level1 = scored
+      .filter(x => x.confidence >= level1Threshold)
+      .slice(0, 5);
     const level1Ids = new Set(level1.map(x => x.id));
 
-    // Level2: connected to Level1 formulas (moderate), ranked by confidence to original formula
+    // Level2: confidence ≥ 35% AND shared topic AND connected via Level1
     const level2Candidates = new Map(); // id -> best confidence object
     const moderateThreshold = 35;
+    
     for (const l1 of level1) {
       const l1Formula = allFormulas.find(f => f.id === l1.id);
       if (!l1Formula) continue;
       const rels = (l1Formula.relationships?.relatedTo || []).slice(0, 25);
+      
       for (const id of rels) {
         if (!id || id === formula.id || level1Ids.has(id)) continue;
         const f2 = allFormulas.find(f => f.id === id);
         if (!f2) continue;
         const conf = computeConnectionConfidence(formula, f2);
         if (conf.confidence < moderateThreshold) continue;
+        
+        // STRICT: Must have shared topic
+        if (!hasSharedTopic(formula, f2)) continue;
+        
         const prev = level2Candidates.get(id);
         if (!prev || conf.confidence > prev.confidence) level2Candidates.set(id, conf);
       }
+      
       // also add top few of l1 by similarity (without relying on relationships)
       for (const c of scored.slice(0, 25)) {
         if (c.id === formula.id || level1Ids.has(c.id)) continue;
         if (c.confidence < moderateThreshold) continue;
+        
+        const f2 = allFormulas.find(f => f.id === c.id);
+        if (!f2) continue;
+        
+        // STRICT: Must have shared topic
+        if (!hasSharedTopic(formula, f2)) continue;
+        
         if (!level2Candidates.has(c.id)) level2Candidates.set(c.id, c);
         if (level2Candidates.size >= 24) break;
       }
@@ -324,14 +385,31 @@
       .filter(x => !level1Ids.has(x.id) && !level2Ids.has(x.id))
       .map(x => ({
         ...x,
-        // “in depth” reason: include up to 5 shared concepts
+        // "in depth" reason: include up to 5 shared concepts
         reasons: {
           ...x.reasons,
           sharedConcepts: (x.reasons.sharedConcepts || []).slice(0, 5)
         }
       }));
 
-    return { level1, level2, level3 };
+    return { 
+      level1: {
+        formulas: level1,
+        threshold: level1Threshold,
+        description: 'Closest - top 5 by confidence ≥60%'
+      },
+      level2: {
+        formulas: level2,
+        threshold: moderateThreshold,
+        description: 'Moderate - confidence ≥35% AND shared topic, via Level 1',
+        requiresSharedTopic: true
+      },
+      level3: {
+        formulas: level3,
+        threshold: 0,
+        description: 'All remaining - shown on demand only'
+      }
+    };
   }
 
   function escapeHtml(str) {
@@ -397,14 +475,22 @@
       `;
     }
 
-    const l3Preview = data.connections.level3.slice(0, 25);
+    // Extract formulas from level objects (v2.1.0+ structure)
+    const level1 = data.connections.level1.formulas || data.connections.level1;
+    const level2 = data.connections.level2.formulas || data.connections.level2;
+    const level3 = data.connections.level3.formulas || data.connections.level3;
+    const level1Desc = data.connections.level1.description || 'Level 1 — Closest (Top 5)';
+    const level2Desc = data.connections.level2.description || 'Level 2 — Moderate via Level 1';
+    const level3Desc = data.connections.level3.description || 'All Remaining';
+    
+    const l3Preview = level3.slice(0, 25);
     relatedEl.innerHTML = `
       <div class="related-formulas">
         <h4>🔗 Connected Formulas (Confidence Hierarchy)</h4>
-        ${renderList(data.connections.level1, 'Level 1 — Closest (Top 5)')}
-        ${renderList(data.connections.level2, 'Level 2 — Moderate via Level 1')}
+        ${renderList(level1, level1Desc)}
+        ${renderList(level2, level2Desc)}
         <details class="related-layer-details">
-          <summary>Level 3 — All Remaining (${data.connections.level3.length})</summary>
+          <summary>Level 3 — ${level3Desc} (${level3.length})</summary>
           ${renderList(l3Preview, 'Top of Level 3 (preview)')}
           <div class="related-note">Showing first 25. Use search to find any formula; all are scored in this layer.</div>
         </details>

@@ -1,10 +1,50 @@
 /**
  * FormulaScorer - Pure scoring logic, no side effects
+ * Version 2.1.0 - Rebalanced weights for improved concept/variable relevance
  */
 export class FormulaScorer {
-    constructor(formulaCategories) {
+    constructor(formulaCategories, config = null) {
         this.formulaCategories = formulaCategories;
+        // Load config (either passed in or use defaults)
+        this.config = config || this.getDefaultConfig();
     }
+    
+    getDefaultConfig() {
+        // Default rebalanced weights (v2.1.0)
+        return {
+            name: {
+                exactMatch: 3500,
+                containsQuery: 1500,
+                wordExactMatch: 300,
+                wordStartsWith: 200,
+                wordContains: 150
+            },
+            concept: {
+                exactMatch: 600,
+                containsOrOverlap: 250,
+                wordMatch: 150
+            },
+            variable: {
+                symbolExact: 500,
+                symbolContains: 180,
+                nameExact: 300,
+                nameContains: 120,
+                wordInSymbol: 120,
+                wordInName: 50
+            },
+            description: {
+                containsQuery: 150,
+                wordMatch: 20,
+                minWordLength: 3
+            },
+            category: {
+                exactMatch: 150,
+                contains: 80
+            },
+            stopwords: ['the', 'is', 'to', 'a', 'an', 'and', 'or', 'of', 'for', 'with', 'from', 'in', 'per']
+        };
+    }
+    
     /**
      * Score a formula against a search query
      */
@@ -18,6 +58,7 @@ export class FormulaScorer {
             variables: this.scoreVariableMatch(formula.variables, queryLower, words),
             category: this.scoreCategoryMatch(formula.id, queryLower, words)
         };
+        
         // Update metrics based on scores
         if (scores.name > 0)
             metrics.nameMatch = true;
@@ -29,6 +70,10 @@ export class FormulaScorer {
             metrics.variableMatch = true;
         if (scores.category > 0)
             metrics.categoryMatch = true;
+        
+        // Store component scores for explainability
+        metrics.componentScores = scores;
+        
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
         return {
             formula,
@@ -38,109 +83,128 @@ export class FormulaScorer {
             contextScore: 0
         };
     }
+    
     scoreNameMatch(name, query, words) {
         let score = 0;
         const nameLower = name.toLowerCase();
-        // Exact match (highest priority)
+        const cfg = this.config.name;
+        
+        // Exact match (highest priority, but rebalanced)
         if (nameLower === query) {
-            score += 10000;
+            score += cfg.exactMatch; // 3500 (down from 10000)
         }
         else if (nameLower.includes(query)) {
-            score += 5000;
+            score += cfg.containsQuery; // 1500 (down from 5000)
         }
+        
         // Word-by-word matching
         words.forEach(word => {
             if (word.length >= 3) {
                 if (nameLower === word) {
-                    score += 300;
+                    score += cfg.wordExactMatch; // 300
                 }
                 else if (nameLower.startsWith(word)) {
-                    score += 200;
+                    score += cfg.wordStartsWith; // 200
                 }
                 else if (nameLower.includes(word)) {
-                    score += 150;
+                    score += cfg.wordContains; // 150
                 }
             }
         });
         return score;
     }
+    
     scoreDescriptionMatch(description, query, words) {
         let score = 0;
         const descLower = description.toLowerCase();
+        const cfg = this.config.description;
+        
         if (descLower.includes(query)) {
-            score += 150;
+            score += cfg.containsQuery; // 150
         }
-        const commonWords = ['the', 'is', 'to', 'a', 'an', 'and', 'or', 'of', 'for', 'with', 'from'];
+        
         words.forEach(word => {
-            if (word.length >= 3 && !commonWords.includes(word)) {
+            if (word.length >= cfg.minWordLength && !this.config.stopwords.includes(word)) {
                 if (descLower.includes(word)) {
-                    score += 20;
+                    score += cfg.wordMatch; // 20
                 }
             }
         });
         return score;
     }
+    
     scoreConceptMatch(concepts, query, words) {
         let score = 0;
+        const cfg = this.config.concept;
+        
         concepts.forEach(concept => {
             const conceptLower = concept.toLowerCase();
             if (conceptLower === query) {
-                score += 400;
+                score += cfg.exactMatch; // 600 (up from 400)
             }
             else if (conceptLower.includes(query) || query.includes(conceptLower)) {
-                score += 200;
+                score += cfg.containsOrOverlap; // 250 (up from 200)
             }
             words.forEach(word => {
                 if (word.length >= 3 && conceptLower.includes(word)) {
-                    score += 150;
+                    score += cfg.wordMatch; // 150
                 }
             });
         });
         return score;
     }
+    
     scoreVariableMatch(variables, query, words) {
         let score = 0;
+        const cfg = this.config.variable;
+        
         variables.forEach(v => {
             const varSymbol = v.symbol.toLowerCase();
             const varName = v.name.toLowerCase();
+            
             if (varSymbol === query) {
-                score += 400;
+                score += cfg.symbolExact; // 500 (up from 400)
             }
             else if (varSymbol.includes(query)) {
-                score += 180;
+                score += cfg.symbolContains; // 180
             }
+            
             if (varName === query) {
-                score += 250;
+                score += cfg.nameExact; // 300 (up from 250)
             }
             else if (varName.includes(query)) {
-                score += 120;
+                score += cfg.nameContains; // 120
             }
+            
             words.forEach(word => {
                 if (word.length >= 2) {
                     if (varSymbol === word) {
-                        score += 120;
+                        score += cfg.wordInSymbol; // 120
                     }
                     else if (varSymbol.includes(word)) {
-                        score += 80;
+                        score += 80; // Legacy behavior preserved
                     }
                     if (varName.includes(word)) {
-                        score += 50;
+                        score += cfg.wordInName; // 50
                     }
                 }
             });
         });
         return score;
     }
+    
     scoreCategoryMatch(formulaId, query, words) {
         let score = 0;
+        const cfg = this.config.category;
+        
         for (const [category, ids] of Object.entries(this.formulaCategories)) {
             if (ids.includes(formulaId)) {
                 const categoryLower = category.toLowerCase();
                 if (categoryLower === query) {
-                    score += 150;
+                    score += cfg.exactMatch; // 150
                 }
                 else if (categoryLower.includes(query)) {
-                    score += 80;
+                    score += cfg.contains; // 80
                 }
                 break;
             }
@@ -166,7 +230,36 @@ export class FormulaScorer {
             dynamicBoost: 0,
             intentMatch: false,
             targetMatch: false,
-            sourceMatch: false
+            sourceMatch: false,
+            componentScores: {} // For explainability
         };
+    }
+    
+    /**
+     * Get a natural language explanation for why a formula matched
+     */
+    explainMatch(result) {
+        const { metrics, score } = result;
+        const reasons = [];
+        
+        if (metrics.nameMatch && metrics.componentScores.name > 0) {
+            reasons.push(`Name match (${metrics.componentScores.name} pts)`);
+        }
+        if (metrics.conceptMatch && metrics.componentScores.concepts > 0) {
+            reasons.push(`Concept match (${metrics.componentScores.concepts} pts)`);
+        }
+        if (metrics.variableMatch && metrics.componentScores.variables > 0) {
+            reasons.push(`Variable match (${metrics.componentScores.variables} pts)`);
+        }
+        if (metrics.descriptionMatch && metrics.componentScores.description > 0) {
+            reasons.push(`Description match (${metrics.componentScores.description} pts)`);
+        }
+        if (metrics.categoryMatch && metrics.componentScores.category > 0) {
+            reasons.push(`Category match (${metrics.componentScores.category} pts)`);
+        }
+        
+        return reasons.length > 0 
+            ? `Matches: ${reasons.join(', ')}. Total score: ${score}`
+            : 'No strong matches found';
     }
 }

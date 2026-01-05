@@ -1,0 +1,140 @@
+{
+  "version": "2.1.0",
+  "description": "Rebalanced scoring weights for improved concept/variable relevance",
+  "lastUpdated": "2026-01-05",
+  "weights": {
+    "name": {
+      "exactMatch": 3500,
+      "containsQuery": 1500,
+      "wordExactMatch": 300,
+      "wordStartsWith": 200,
+      "wordContains": 150,
+      "description": "Name matching - reduced from 10000 to prevent domination"
+    },
+    "concept": {
+      "exactMatch": 600,
+      "containsOrOverlap": 250,
+      "wordMatch": 150,
+      "parentConcept": 0.5,
+      "description": "Concept matching - increased for better topic relevance"
+    },
+    "variable": {
+      "symbolExact": 500,
+      "symbolContains": 180,
+      "nameExact": 300,
+      "nameContains": 120,
+      "wordInSymbol": 120,
+      "wordInName": 50,
+      "description": "Variable matching - increased to value physics meaning"
+    },
+    "description": {
+      "containsQuery": 150,
+      "wordMatch": 20,
+      "minWordLength": 3,
+      "description": "Description matching - unchanged"
+    },
+    "category": {
+      "exactMatch": 150,
+      "contains": 80,
+      "description": "Category matching - unchanged"
+    }
+  },
+  "confidence": {
+    "levels": {
+      "level1": {
+        "threshold": 60,
+        "count": 5,
+        "description": "Closest - top 5 by confidence ≥60%"
+      },
+      "level2": {
+        "threshold": 35,
+        "maxCount": 24,
+        "requireSharedTopic": true,
+        "description": "Moderate - confidence ≥35% AND shared topic, via Level 1"
+      },
+      "level3": {
+        "threshold": 0,
+        "description": "All remaining - shown on demand only"
+      }
+    },
+    "relationshipWeights": {
+      "conceptSimilarity": 0.62,
+      "variableSimilarity": 0.16,
+      "categoryMatch": 0.10,
+      "directRelationship": 0.12,
+      "description": "Formula relationship confidence calculation weights"
+    },
+    "topicWeights": {
+      "baseRelevance": 0.50,
+      "topicRelevance": 0.20,
+      "contextMatch": 0.15,
+      "boosts": 0.35,
+      "description": "Confidence score component weights (sum to 1.0 + boosts)"
+    },
+    "rarity": {
+      "enabled": true,
+      "formula": "weight = base * (1 + 1/log(freq+2))",
+      "parentPenalty": 0.5,
+      "description": "Rare concepts get higher weight; parent concepts penalized"
+    }
+  },
+  "filtering": {
+    "maxResults": 50,
+    "minScore": 0,
+    "requireStrongMatch": {
+      "enabled": true,
+      "conditions": [
+        "nameMatch = true",
+        "score > 0 AND (conceptMatch OR variableMatch)",
+        "score > 0 AND (descriptionMatch OR categoryMatch)"
+      ]
+    },
+    "stopwords": [
+      "the", "a", "an", "and", "or", "of", "for", "with", "from", "to", "is", "in", "per"
+    ]
+  },
+  "topics": {
+    "perFormula": 10,
+    "rules": {
+      "minWords": 2,
+      "mustBeOperational": true,
+      "mustBeFormulaFacing": true,
+      "avoidGenericTerms": [
+        "astronomy", "astrophysics", "physics", "space", "science", "math", "universe", "cosmic"
+      ]
+    },
+    "targetTypes": [
+      "what it computes",
+      "when it applies",
+      "physical system",
+      "key assumptions",
+      "variable interpretation",
+      "common problem types",
+      "closely related laws",
+      "scale (planetary/stellar/galactic)",
+      "edge cases or limits",
+      "educational role"
+    ],
+    "scoring": {
+      "category": 8,
+      "concept": 10,
+      "keyword": 6,
+      "parentConcept": 7,
+      "descriptionBigram": 2,
+      "descriptionTrigram": 1
+    }
+  },
+  "performance": {
+    "fastFilterEnabled": true,
+    "cachingEnabled": true,
+    "debounceMs": 75,
+    "normalizationScale": 1000
+  },
+  "explainability": {
+    "showConfidenceBreakdown": true,
+    "showMatchReasons": true,
+    "showTopicChips": true,
+    "naturalLanguageExplanation": true
+  }
+}
+
