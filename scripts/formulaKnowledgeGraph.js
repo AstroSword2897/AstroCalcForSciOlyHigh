@@ -347,7 +347,13 @@
   function renderFormulaKnowledge(formula) {
     const topicsEl = document.getElementById('formula-topics-container');
     const relatedEl = document.getElementById('related-formulas-container');
-    if (!topicsEl || !relatedEl) return;
+    if (!topicsEl || !relatedEl) {
+      console.warn('[FormulaKnowledgeGraph] Containers not found', {
+        topicsEl: !!topicsEl,
+        relatedEl: !!relatedEl
+      });
+      return;
+    }
 
     const data = window.formulaKnowledgeGraph.get(formula.id);
 
@@ -440,6 +446,7 @@
     }
 
     if (typeof window !== 'undefined') {
+      console.log('[FormulaKnowledgeGraph] ✅ Loaded', { version: VERSION });
       window.formulaKnowledgeGraph = {
         version: VERSION,
         get: (formulaId) => {
@@ -462,6 +469,7 @@
       window.displayRelatedFormulas = function (formula) {
         if (!formula?.id) return;
         try {
+          console.log('[FormulaKnowledgeGraph] Rendering for', formula.id, formula.name);
           renderFormulaKnowledge(formula);
         } catch (e) {
           console.error('[FormulaKnowledgeGraph] render error:', e);
