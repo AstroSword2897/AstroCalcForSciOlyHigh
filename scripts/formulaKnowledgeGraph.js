@@ -255,7 +255,7 @@
       if (topics.length >= 10) break;
       if (used.has(t)) continue;
       // avoid “topic contained within topic”
-      if (topics.some(x => x.includes(t) || t.includes(x))) continue;
+      if (topics.some(x => (x.topic && (x.topic.includes(t) || t.includes(x.topic))))) continue;
       used.add(t);
 
       const detail =
