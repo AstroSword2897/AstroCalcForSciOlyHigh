@@ -50,6 +50,7 @@ const PRECACHE_RESOURCES = [
     './scripts/classification.js',
     './scripts/formulaExplorer.js',
     './scripts/frqSupport.js',
+    './force_blue_now.js',
     './scripts/quickNav.js',
     './scripts/formulaGraphConfig.js',
     './scripts/enhancedOfflineGraph.js',
