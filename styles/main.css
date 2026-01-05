@@ -5420,3 +5420,20 @@ input.unit-input-field {
         transform: translateY(0);
     }
 }
+
+/* ============================================
+   v2.1.0: Command Palette REMOVED
+   Commented out to prevent click interception
+   ============================================ */
+/*
+.command-palette {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+.command-palette-overlay {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+*/
