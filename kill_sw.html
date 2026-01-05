@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Killing Service Worker...</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 40px;
+            font-size: 16px;
+        }
+        .status { margin: 20px 0; padding: 10px; background: #111; border-left: 4px solid #0f0; }
+        .error { border-color: #f00; color: #f00; }
+        .success { border-color: #0f0; color: #0f0; }
+    </style>
+</head>
+<body>
+    <h1>🔥 Killing Service Worker & Clearing All Caches</h1>
+    <div id="log"></div>
+    <script>
+        const log = document.getElementById('log');
+        
+        function addLog(msg, isError = false, isSuccess = false) {
+            const div = document.createElement('div');
+            div.className = 'status' + (isError ? ' error' : '') + (isSuccess ? ' success' : '');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.appendChild(div);
+            console.log(msg);
+        }
+        
+        (async function killEverything() {
+            try {
+                addLog('Starting aggressive cleanup...');
+                
+                // Step 1: Unregister ALL service workers
+                if ('serviceWorker' in navigator) {
+                    addLog('Finding service workers...');
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    addLog(`Found ${registrations.length} service worker(s)`);
+                    
+                    for (const registration of registrations) {
+                        addLog(`Unregistering: ${registration.scope}`);
+                        await registration.unregister();
+                        addLog('✓ Unregistered', false, true);
+                    }
+                } else {
+                    addLog('Service workers not supported', true);
+                }
+                
+                // Step 2: Delete ALL caches
+                addLog('Finding caches...');
+                const cacheNames = await caches.keys();
+                addLog(`Found ${cacheNames.length} cache(s): ${cacheNames.join(', ')}`);
+                
+                for (const cacheName of cacheNames) {
+                    addLog(`Deleting cache: ${cacheName}`);
+                    await caches.delete(cacheName);
+                    addLog('✓ Deleted', false, true);
+                }
+                
+                // Step 3: Clear storage
+                addLog('Clearing localStorage...');
+                localStorage.clear();
+                addLog('✓ Cleared', false, true);
+                
+                addLog('Clearing sessionStorage...');
+                sessionStorage.clear();
+                addLog('✓ Cleared', false, true);
+                
+                // Step 4: Success!
+                addLog('========================================', false, true);
+                addLog('✅ ALL CLEANUP COMPLETE!', false, true);
+                addLog('========================================', false, true);
+                addLog('Redirecting to main page in 2 seconds...');
+                
+                // Step 5: Redirect with cache-busting parameter
+                setTimeout(() => {
+                    addLog('🚀 Loading fresh page...');
+                    // Use location.replace to avoid back button issues
+                    window.location.replace(`/?_kill_cache=${Date.now()}`);
+                }, 2000);
+                
+            } catch (error) {
+                addLog(`❌ ERROR: ${error.message}`, true);
+                console.error(error);
+                addLog('Trying to redirect anyway in 3 seconds...');
+                setTimeout(() => {
+                    window.location.replace(`/?_force=${Date.now()}`);
+                }, 3000);
+            }
+        })();
+    </script>
+</body>
+</html>
+
