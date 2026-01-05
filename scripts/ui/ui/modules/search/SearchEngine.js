@@ -233,7 +233,14 @@ export class SearchEngine {
             metrics: this.createEmptyMetrics(),
             topicRelevanceScore: 0,
             contextScore: 0,
-            normalizedScore: 0
+            normalizedScore: 0,
+            percentile: 0,
+            confidenceMeta: {
+                components: {},
+                semantic: false,
+                hasNameMatch: false,
+                hasStrongMatch: false
+            }
         }));
     }
     createEmptyMetrics() {

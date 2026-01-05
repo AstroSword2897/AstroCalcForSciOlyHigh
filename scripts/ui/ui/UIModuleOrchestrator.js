@@ -30,7 +30,8 @@ export class UIModuleOrchestrator {
                 formulaCategories: this.options.formulaCategories,
                 cache: this.options.searchCache,
                 performanceOptimizer: this.options.performanceOptimizer,
-                semanticSearchSystem: this.options.semanticSearchSystem
+                semanticSearchSystem: this.options.semanticSearchSystem,
+                version: 'v2.1.0' // For cache key invalidation
             });
             // Initialize GraphCoordinator
             this.graphCoordinator = new GraphCoordinator({
