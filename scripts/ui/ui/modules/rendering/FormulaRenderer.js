@@ -382,7 +382,7 @@ export class FormulaRenderer {
                             ${confidenceLevel.level}
                         </span>
                     </div>
-                </div>
+            </div>
         `;
         }
         
@@ -418,19 +418,127 @@ export class FormulaRenderer {
             }
         }
         
-        // Add match details if search data available
+        // Add matched topics as chips (NEW v2.1.0)
+        if (searchData?.metrics && this.renderOptions?.showConfidence) {
+            const matchedTopics = new Set();
+            const matchedVariables = new Set();
+            
+            // Collect matched topics from concepts
+            if (searchData.metrics.matchedConcepts && searchData.metrics.matchedConcepts.length > 0) {
+                searchData.metrics.matchedConcepts.slice(0, 5).forEach(c => matchedTopics.add(c));
+            } else if (searchData.metrics.conceptMatch && formula.concepts) {
+                // Fallback: use formula concepts
+                formula.concepts.slice(0, 3).forEach(c => matchedTopics.add(c));
+            }
+            
+            // Collect matched variables
+            if (searchData.metrics.matchedVariables && searchData.metrics.matchedVariables.length > 0) {
+                searchData.metrics.matchedVariables.slice(0, 4).forEach(v => matchedVariables.add(v));
+            } else if (searchData.metrics.variableMatch && formula.variables) {
+                // Fallback: use first few variables
+                formula.variables.slice(0, 3).forEach(v => matchedVariables.add(v.symbol));
+            }
+            
+            // Display topic chips
+            if (matchedTopics.size > 0 || matchedVariables.size > 0) {
+                html += `
+                    <div class="formula-card-chips" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                        <span style="font-size: 0.75em; color: #888; font-weight: 600;">MATCHED:</span>
+                `;
+                
+                // Topic chips (concepts)
+                matchedTopics.forEach(topic => {
+                    html += `
+                        <span class="topic-chip" style="padding: 4px 10px; background: rgba(102, 126, 234, 0.15); border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 12px; font-size: 0.75em; color: #a8c7ff; font-weight: 500;">
+                            🏷️ ${this.escapeHtml(topic)}
+                        </span>
+                    `;
+                });
+                
+                // Variable chips
+                matchedVariables.forEach(variable => {
+                    html += `
+                        <span class="variable-chip" style="padding: 4px 10px; background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 12px; font-size: 0.75em; color: #4ade80; font-family: 'Courier New', monospace; font-weight: 600;">
+                            ${this.escapeHtml(variable)}
+                        </span>
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+        }
+        
+        // Add confidence breakdown (NEW v2.1.0)
+        if (searchData?.metrics?.componentScores && this.renderOptions?.showConfidence) {
+            const scores = searchData.metrics.componentScores;
+            const hasScores = Object.values(scores).some(s => s > 0);
+            
+            if (hasScores) {
+                html += `
+                    <details class="formula-card-breakdown" style="margin-top: 10px; padding: 10px; background: rgba(255, 255, 255, 0.02); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <summary style="cursor: pointer; font-size: 0.85em; color: #a8c7ff; font-weight: 600; user-select: none;">
+                            📊 Score Breakdown
+                        </summary>
+                        <div class="breakdown-content" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+                `;
+                
+                const scoreComponents = [
+                    { key: 'name', label: 'Name Match', color: '#60a5fa', icon: '📛' },
+                    { key: 'concepts', label: 'Concept Match', color: '#a78bfa', icon: '🧠' },
+                    { key: 'variables', label: 'Variable Match', color: '#4ade80', icon: '🔢' },
+                    { key: 'description', label: 'Description Match', color: '#fbbf24', icon: '📝' },
+                    { key: 'category', label: 'Category Match', color: '#fb923c', icon: '📁' }
+                ];
+                
+                const totalScore = Object.values(scores).reduce((sum, val) => sum + val, 0);
+                
+                scoreComponents.forEach(({ key, label, color, icon }) => {
+                    const score = scores[key] || 0;
+                    if (score > 0) {
+                        const percentage = totalScore > 0 ? ((score / totalScore) * 100).toFixed(1) : 0;
+                        html += `
+                            <div class="breakdown-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
+                                <span style="font-size: 0.8em; color: #cbd5e1;">
+                                    ${icon} ${label}
+                                </span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 80px; height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden;">
+                                        <div style="width: ${percentage}%; height: 100%; background: ${color}; border-radius: 3px;"></div>
+                                    </div>
+                                    <span style="font-size: 0.75em; color: ${color}; font-weight: 600; min-width: 60px; text-align: right;">
+                                        ${score.toFixed(0)} pts (${percentage}%)
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                
+                html += `
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: right;">
+                                <span style="font-size: 0.85em; color: #a8c7ff; font-weight: 600;">
+                                    Total: ${totalScore.toFixed(0)} pts
+                                </span>
+                            </div>
+                        </div>
+                    </details>
+                `;
+            }
+        }
+        
+        // Add match reasons (legacy, kept for compatibility)
         if (searchData?.metrics && this.renderOptions?.showConfidence) {
             const matchReasons = [];
-            if (searchData.metrics.nameMatch) matchReasons.push('Name match');
-            if (searchData.metrics.conceptMatch) matchReasons.push('Concept match');
-            if (searchData.metrics.variableMatch) matchReasons.push('Variable match');
-            if (searchData.metrics.descriptionMatch) matchReasons.push('Description match');
-            if (searchData.metrics.semanticMatch) matchReasons.push('Semantic match');
+            if (searchData.metrics.nameMatch) matchReasons.push('Name');
+            if (searchData.metrics.conceptMatch) matchReasons.push('Concept');
+            if (searchData.metrics.variableMatch) matchReasons.push('Variable');
+            if (searchData.metrics.descriptionMatch) matchReasons.push('Description');
+            if (searchData.metrics.semanticMatch) matchReasons.push('Semantic');
             
             if (matchReasons.length > 0) {
                 html += `
-                    <div class="formula-card-match-reasons" style="margin-top: 6px; font-size: 0.8em; color: #888;">
-                        Matched: ${matchReasons.join(', ')}
+                    <div class="formula-card-match-reasons" style="margin-top: 6px; font-size: 0.75em; color: #64748b;">
+                        ✓ Matched: ${matchReasons.join(' • ')}
                     </div>
                 `;
             }
