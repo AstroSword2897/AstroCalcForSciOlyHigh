@@ -5284,3 +5284,139 @@ input.unit-input-field {
     pointer-events: auto !important;
     cursor: pointer;
 }
+
+/* ============================================
+   v2.1.0 UI Enhancements: Topic Chips & Breakdown
+   ============================================ */
+
+/* Topic chips and variable chips */
+.formula-card-chips {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+.topic-chip {
+    padding: 4px 10px;
+    background: rgba(102, 126, 234, 0.15);
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 12px;
+    font-size: 0.75em;
+    color: #a8c7ff;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.topic-chip:hover {
+    background: rgba(102, 126, 234, 0.25);
+    border-color: rgba(102, 126, 234, 0.5);
+    transform: translateY(-1px);
+}
+
+.variable-chip {
+    padding: 4px 10px;
+    background: rgba(74, 222, 128, 0.15);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: 12px;
+    font-size: 0.75em;
+    color: #4ade80;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.variable-chip:hover {
+    background: rgba(74, 222, 128, 0.25);
+    border-color: rgba(74, 222, 128, 0.5);
+    transform: translateY(-1px);
+}
+
+/* Score breakdown */
+.formula-card-breakdown {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+}
+
+.formula-card-breakdown[open] {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(102, 126, 234, 0.2);
+}
+
+.formula-card-breakdown summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    color: #a8c7ff;
+    font-weight: 600;
+    user-select: none;
+    list-style: none;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.formula-card-breakdown summary::-webkit-details-marker {
+    display: none;
+}
+
+.formula-card-breakdown summary:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.breakdown-content {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    animation: fadeInDown 0.3s ease-out;
+}
+
+.breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    transition: background 0.2s ease;
+}
+
+.breakdown-item:hover {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.breakdown-item:last-child {
+    border-bottom: none;
+}
+
+/* Animations for new UI elements */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
