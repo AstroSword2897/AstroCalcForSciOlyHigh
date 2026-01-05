@@ -13,6 +13,7 @@ import { FormattingUtils } from './modules/utils/FormattingUtils.js';
 import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js';
 import { debounceSearch } from './utils/debounce.js';
 import { validateCalculator, validateFormula } from './contracts.js';
+import { AstrophysicsExpertSystem } from './modules/expert/ExpertSystem.js';
 export class UIModuleOrchestrator {
     constructor(options) {
         this.initialized = false;
@@ -33,6 +34,15 @@ export class UIModuleOrchestrator {
                 semanticSearchSystem: this.options.semanticSearchSystem,
                 version: 'v2.1.0' // For cache key invalidation
             });
+            // Initialize Expert System (question -> formula)
+            this.expertSystem = new AstrophysicsExpertSystem(
+                this.options.formulas,
+                this.searchEngine
+            );
+            // Expose globally for easy access
+            window.expertSystem = this.expertSystem;
+            window.solveQuestion = (q) => this.expertSystem.solveQuestion(q);
+
             // Initialize GraphCoordinator
             this.graphCoordinator = new GraphCoordinator({
                 enabled: true,
@@ -247,6 +257,9 @@ export class UIModuleOrchestrator {
             
             // Setup main search input (if it exists)
             this.setupMainSearchInput();
+
+            // Wire minimal expert question UI (authoritative path)
+            this.wireExpertQuestionUI();
             
             this.initialized = true;
             console.log('[UIModuleOrchestrator] ✅ Initialized');
@@ -751,5 +764,55 @@ export class UIModuleOrchestrator {
         this.eventCoordinator.cleanup();
         this.graphCoordinator.cleanup();
         this.initialized = false;
+    }
+
+    /**
+     * Minimal authoritative UI path for ExpertSystem
+     * Question -> Selected Formula -> Confidence -> Why/Reject
+     */
+    wireExpertQuestionUI() {
+        const input = document.getElementById('expert-question-input');
+        const button = document.getElementById('expert-question-submit');
+        const output = document.getElementById('expert-question-output');
+        if (!input || !button || !output || !this.expertSystem) return;
+
+        const renderResult = (res) => {
+            if (!res) return;
+            if (res.success) {
+                output.innerHTML = `
+                    <div class="expert-result">
+                        <div><strong>Formula:</strong> ${this.escapeHtml(res.formula.id)} — ${this.escapeHtml(res.formula.name)}</div>
+                        <div><strong>Confidence:</strong> ${res.confidence}%</div>
+                        <div><strong>Why:</strong> ${this.escapeHtml(res.explanation || '')}</div>
+                    </div>
+                `;
+            } else {
+                output.innerHTML = `
+                    <div class="expert-result error">
+                        <div><strong>Rejected:</strong> ${this.escapeHtml(res.error || 'Unknown error')}</div>
+                        ${res.hasCalculus ? '<div>Reason: Calculus detected</div>' : ''}
+                        ${res.suggestions ? `<div>Suggestions: ${res.suggestions.map(s => this.escapeHtml(s)).join('; ')}</div>` : ''}
+                    </div>
+                `;
+            }
+        };
+
+        const handle = () => {
+            const q = input.value.trim();
+            if (!q) {
+                renderResult({ success: false, error: 'Please enter a question.' });
+                return;
+            }
+            const res = this.expertSystem.solveQuestion(q);
+            renderResult(res);
+        };
+
+        button.addEventListener('click', handle);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handle();
+            }
+        });
     }
 }

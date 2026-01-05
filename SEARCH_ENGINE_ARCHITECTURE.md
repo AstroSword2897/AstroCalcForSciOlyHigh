@@ -31,7 +31,7 @@ The AstroCalc search system is a **multi-layered, confidence-scored, concept-exp
 │ FormulaScorer│ │ConceptHierarchy│ │SemanticSearch│
 │  (Scoring)   │ │  (38,910 nodes)│ │  (Optional)  │
 └──────────────┘ └──────────────┘ └──────────────┘
-        │              │              │
+        │              │              │ 
         └──────────────┼──────────────┘
                        │
                        ▼

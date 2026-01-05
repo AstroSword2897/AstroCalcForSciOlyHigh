@@ -1,3 +1,15 @@
+++ Begin Insert
+    <!-- Simple Expert Question UI (authoritative path) -->
+    <section style="padding: 10px 20px; background: #0b1224; border-bottom: 1px solid #1f2a44;">
+        <h3 style="color: #a8c7ff; margin-bottom: 8px;">Ask a Question (Expert System)</h3>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input id="expert-question-input" type="text" placeholder="e.g., What is the orbital period of a satellite 7000 km above Earth?" style="flex: 1; min-width: 240px; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: rgba(255,255,255,0.04); color: white;" />
+            <button id="expert-question-submit" style="padding: 10px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; cursor: pointer;">Solve</button>
+        </div>
+        <div id="expert-question-output" style="margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #cbd5e1;"></div>
+    </section>
+
+    <!-- Scripts loaded in dependency order (OFFLINE-FIRST: all local, production-safe) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -561,6 +573,8 @@
     <script src="scripts/frqSupport.js?v=2.1.5"></script>
     <script src="scripts/quickNav.js?v=2.1.5"></script>
     <script src="scripts/formulaKnowledgeGraph.js?v=3.1.2"></script>
+    <!-- Expert System (deterministic question→formula) -->
+    <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js?v=1.0.0"></script>
     <script src="scripts/formulaGraphConfig.js?v=2.1.5"></script>
     <script src="scripts/enhancedOfflineGraph.js?v=2.1.5"></script>
     <script src="scripts/graphManager.js?v=2.1.5"></script>
