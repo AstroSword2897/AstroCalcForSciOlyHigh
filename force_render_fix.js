@@ -1,6 +1,16 @@
 // Force render fix for formula cards
 (function() {
     'use strict';
+
+    // IMPORTANT:
+    // This file was originally introduced to debug cases where formula cards did not render due to caching/UI init issues.
+    // It should NOT override normal navigation in production.
+    // Auto-run is now gated behind a query param or localStorage flag.
+    const params = new URLSearchParams(window.location.search);
+    const AUTO_ENABLED =
+        params.has('forceRender') ||
+        params.has('debugForceRender') ||
+        (window.localStorage && window.localStorage.getItem('astrocalc_force_render') === '1');
     
     function forceRenderFormulas() {
         console.log('🔧 Force rendering formulas...');
@@ -23,16 +33,20 @@
             return false;
         }
         
-        // Ensure formula-selection screen is active
+        // Don't stomp on the calculator screen if user already selected a formula
+        const inputScreen = document.getElementById('input-screen');
+        const inputActive = !!(inputScreen && inputScreen.classList.contains('active'));
+
+        // Ensure formula-selection screen is active (ONLY if not in calculator)
         const formulaSelection = document.getElementById('formula-selection');
-        if (formulaSelection) {
+        if (formulaSelection && !inputActive) {
             formulaSelection.classList.add('active');
             formulaSelection.style.display = 'block';
         }
         
-        // Ensure main-formulas-tab is active
+        // Ensure main-formulas-tab is active (ONLY if not in calculator)
         const mainFormulasTab = document.getElementById('main-formulas-tab');
-        if (mainFormulasTab) {
+        if (mainFormulasTab && !inputActive) {
             mainFormulasTab.classList.add('active');
             mainFormulasTab.style.display = 'block';
         }
@@ -106,13 +120,16 @@
     window.forceRenderFormulas = forceRenderFormulas;
     window.testCalculatorScreen = testCalculatorScreen;
     
-    // Auto-run after page loads
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
+    // Auto-run after page loads (DEBUG ONLY)
+    if (AUTO_ENABLED) {
+        console.warn('[force_render_fix] Auto-enabled (debug mode). This can override normal navigation.');
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                setTimeout(forceRenderFormulas, 2000);
+            });
+        } else {
             setTimeout(forceRenderFormulas, 2000);
-        });
-    } else {
-        setTimeout(forceRenderFormulas, 2000);
+        }
     }
     
     console.log('💡 Available commands:');
