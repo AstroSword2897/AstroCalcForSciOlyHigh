@@ -12,8 +12,8 @@
  * - Safe message handlers
  */
 
-const CACHE_NAME = 'astrocalc-shell-v2.2.9'; // Shell: HTML + core scripts
-const RUNTIME_CACHE = 'astrocalc-runtime-v2.2.9'; // Runtime: images + dynamic assets
+const CACHE_NAME = 'astrocalc-shell-v3.0.0-FORCE-REFRESH'; // Shell: HTML + core scripts
+const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.0-FORCE-REFRESH'; // Runtime: images + dynamic assets
 const MAX_RUNTIME_ENTRIES = 100; // iOS Safari limit protection
 
 // Dev mode detection
@@ -137,7 +137,7 @@ self.addEventListener('install', (event) => {
  * Activate event - clean up old caches and force client reload
  */
 self.addEventListener('activate', (event) => {
-    console.log('[Service Worker] Activating v2.2.9...');
+    console.log('[Service Worker] Activating v3.0.0-FORCE-REFRESH...');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
@@ -159,9 +159,13 @@ self.addEventListener('activate', (event) => {
                     console.log('[Service Worker] Posting reload message to:', client.url);
                     client.postMessage({ 
                         type: 'SW_UPDATED', 
-                        version: '2.2.9',
+                        version: '3.0.0-FORCE-REFRESH',
                         action: 'reload' 
                     });
+                    // Also try to navigate to force refresh
+                    if (client.navigate) {
+                        client.navigate(client.url);
+                    }
                 });
             })
     );
