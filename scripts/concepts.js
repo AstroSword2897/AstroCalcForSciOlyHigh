@@ -170,16 +170,17 @@
 
     // Collect base concepts from formulas + seeds
     const base = new Set(SEED_TERMS.map(norm));
+    const formulaTerms = new Set(); // terms directly evidenced by formulas (highest priority)
     try {
       const formulas = (typeof window !== 'undefined' && window.formulas && Array.isArray(window.formulas)) ? window.formulas : [];
       for (const f of formulas) {
-        (f.concepts || []).forEach(c => base.add(norm(c)));
-        (f.keywords || []).forEach(k => base.add(norm(k)));
+        (f.concepts || []).forEach(c => { const k = norm(c); base.add(k); formulaTerms.add(k); });
+        (f.keywords || []).forEach(k => { const kk = norm(k); base.add(kk); formulaTerms.add(kk); });
         (f.variables || []).forEach(v => {
-          if (v?.name) base.add(norm(v.name));
-          if (v?.symbol) base.add(norm(v.symbol));
+          if (v?.name) tokenizeStrict(v.name).forEach(t => { base.add(t); formulaTerms.add(t); });
+          if (v?.symbol) { const s = norm(v.symbol); base.add(s); formulaTerms.add(s); }
         });
-        if (f?.name) base.add(norm(f.name));
+        if (f?.name) tokenizeStrict(f.name).forEach(t => { base.add(t); formulaTerms.add(t); });
       }
     } catch (_) {
       // ignore
@@ -416,6 +417,69 @@
     }
 
     if (typeof window !== 'undefined') {
+      // HARD CAP: keep the hierarchy around the requested scale (~3500 concepts)
+      // (Large graphs slow `crossConceptReinforcement` at runtime.)
+      const MAX_NONROOT = 3500;
+      const rootsSet = new Set(ROOTS.map(norm));
+      const seedSet = new Set(SEED_TERMS.map(norm));
+
+      const keys = Object.keys(graph).map(norm);
+      const nonRoots = keys.filter(k => !rootsSet.has(k));
+      if (nonRoots.length > MAX_NONROOT) {
+        // Score nodes by evidence + usefulness
+        const scored = nonRoots.map(k => {
+          const node = graph[k] || {};
+          const freq = phraseFreq.get(k) || 0;
+          const childCount = (node.children || []).length;
+          const evidence = formulaTerms.has(k) ? 300 : 0;
+          const seedBoost = seedSet.has(k) ? 120 : 0;
+          const freqBoost = Math.min(250, freq * 6);
+          const hubBoost = Math.min(90, childCount * 2);
+          const lengthPenalty = k.length > 48 ? 25 : 0;
+          const score = evidence + seedBoost + freqBoost + hubBoost - lengthPenalty;
+          return { k, score };
+        }).sort((a, b) => (b.score - a.score) || (a.k < b.k ? -1 : 1));
+
+        const keep = new Set(ROOTS.map(norm));
+        // Keep top N
+        scored.slice(0, MAX_NONROOT).forEach(({ k }) => keep.add(k));
+        // Ensure parents exist for connectivity
+        for (const k of Array.from(keep)) {
+          const p = graph[k]?.parent ? norm(graph[k].parent) : null;
+          if (p) keep.add(p);
+        }
+
+        // Rebuild pruned graph
+        const pruned = {};
+        for (const k of Array.from(keep)) {
+          if (!graph[k]) continue;
+          pruned[k] = {
+            parent: graph[k].parent ? norm(graph[k].parent) : undefined,
+            children: [],
+            siblings: [],
+            related: []
+          };
+        }
+        // Re-attach edges, filtered to kept set
+        for (const [k, node] of Object.entries(pruned)) {
+          const src = graph[k];
+          if (!src) continue;
+          const parent = src.parent ? norm(src.parent) : undefined;
+          if (parent && keep.has(parent)) node.parent = parent;
+          (src.children || []).forEach(c => { const cc = norm(c); if (keep.has(cc)) pushUnique(node.children, cc); });
+          (src.siblings || []).forEach(s => { const ss = norm(s); if (keep.has(ss)) pushUnique(node.siblings, ss); });
+          (src.related || []).forEach(r => { const rr = norm(r); if (keep.has(rr)) pushUnique(node.related, rr); });
+        }
+        // Repair parent->children links to ensure consistency
+        for (const [k, node] of Object.entries(pruned)) {
+          if (node.parent && pruned[node.parent]) pushUnique(pruned[node.parent].children, k);
+        }
+
+        // Replace
+        Object.keys(graph).forEach(k => { delete graph[k]; });
+        Object.entries(pruned).forEach(([k, v]) => { graph[k] = v; });
+      }
+
       // compute per-root counts (for debugging / UI)
       const perRoot = {};
       ROOTS.forEach(r => { perRoot[r] = 0; });

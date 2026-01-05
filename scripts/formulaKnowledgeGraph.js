@@ -351,6 +351,10 @@
 
     const data = window.formulaKnowledgeGraph.get(formula.id);
 
+    // Ensure visible (legacy CSS hides related container by default)
+    topicsEl.style.display = 'block';
+    relatedEl.style.display = 'block';
+
     // Topics
     topicsEl.innerHTML = `
       <div class="formula-topics">
