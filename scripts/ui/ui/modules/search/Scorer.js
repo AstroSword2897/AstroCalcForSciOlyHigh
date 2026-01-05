@@ -54,8 +54,8 @@ export class FormulaScorer {
         const scores = {
             name: this.scoreNameMatch(formula.name, queryLower, words),
             description: this.scoreDescriptionMatch(formula.description, queryLower, words),
-            concepts: this.scoreConceptMatch(formula.concepts || [], queryLower, words),
-            variables: this.scoreVariableMatch(formula.variables, queryLower, words),
+            concepts: this.scoreConceptMatch(formula.concepts || [], queryLower, words, metrics),
+            variables: this.scoreVariableMatch(formula.variables, queryLower, words, metrics),
             category: this.scoreCategoryMatch(formula.id, queryLower, words)
         };
         
@@ -133,63 +133,97 @@ export class FormulaScorer {
         return score;
     }
     
-    scoreConceptMatch(concepts, query, words) {
+    scoreConceptMatch(concepts, query, words, metrics) {
         let score = 0;
         const cfg = this.config.concept;
+        const matched = [];
         
         concepts.forEach(concept => {
             const conceptLower = concept.toLowerCase();
+            let conceptMatched = false;
+            
             if (conceptLower === query) {
                 score += cfg.exactMatch; // 600 (up from 400)
+                conceptMatched = true;
             }
             else if (conceptLower.includes(query) || query.includes(conceptLower)) {
                 score += cfg.containsOrOverlap; // 250 (up from 200)
+                conceptMatched = true;
             }
+            
             words.forEach(word => {
                 if (word.length >= 3 && conceptLower.includes(word)) {
                     score += cfg.wordMatch; // 150
+                    conceptMatched = true;
                 }
             });
+            
+            if (conceptMatched) {
+                matched.push(concept);
+            }
         });
+        
+        if (metrics && matched.length > 0) {
+            metrics.matchedConcepts = matched;
+        }
+        
         return score;
     }
     
-    scoreVariableMatch(variables, query, words) {
+    scoreVariableMatch(variables, query, words, metrics) {
         let score = 0;
         const cfg = this.config.variable;
+        const matched = [];
         
         variables.forEach(v => {
             const varSymbol = v.symbol.toLowerCase();
             const varName = v.name.toLowerCase();
+            let variableMatched = false;
             
             if (varSymbol === query) {
                 score += cfg.symbolExact; // 500 (up from 400)
+                variableMatched = true;
             }
             else if (varSymbol.includes(query)) {
                 score += cfg.symbolContains; // 180
+                variableMatched = true;
             }
             
             if (varName === query) {
                 score += cfg.nameExact; // 300 (up from 250)
+                variableMatched = true;
             }
             else if (varName.includes(query)) {
                 score += cfg.nameContains; // 120
+                variableMatched = true;
             }
             
             words.forEach(word => {
                 if (word.length >= 2) {
                     if (varSymbol === word) {
                         score += cfg.wordInSymbol; // 120
+                        variableMatched = true;
                     }
                     else if (varSymbol.includes(word)) {
                         score += 80; // Legacy behavior preserved
+                        variableMatched = true;
                     }
                     if (varName.includes(word)) {
                         score += cfg.wordInName; // 50
+                        variableMatched = true;
                     }
                 }
             });
+            
+            if (variableMatched) {
+                matched.push(v.symbol);
+            }
         });
+        
+        if (metrics && matched.length > 0) {
+            metrics.matchedVariables = matched;
+        }
+        
         return score;
     }
     
