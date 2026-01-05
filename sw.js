@@ -97,7 +97,9 @@ async function cacheResource(cache, url) {
  * Install event - cache resources with non-atomic behavior
  */
 self.addEventListener('install', (event) => {
-    console.log('[Service Worker] Installing...');
+    console.log('[Service Worker] Installing v2.2.9...');
+    // CRITICAL: Skip waiting to force immediate activation
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(async (cache) => {
@@ -132,10 +134,10 @@ self.addEventListener('install', (event) => {
 });
 
 /**
- * Activate event - clean up old caches
+ * Activate event - clean up old caches and force client reload
  */
 self.addEventListener('activate', (event) => {
-    console.log('[Service Worker] Activating...');
+    console.log('[Service Worker] Activating v2.2.9...');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
             return Promise.all(
@@ -147,9 +149,20 @@ self.addEventListener('activate', (event) => {
                 })
             );
         })
-            .then(() => {
-                console.log('[Service Worker] Claiming clients');
-                return self.clients.claim();
+            .then(async () => {
+                console.log('[Service Worker] Claiming clients and forcing reload...');
+                await self.clients.claim();
+                
+                // Force all clients to reload to get fresh content
+                const clients = await self.clients.matchAll({ type: 'window' });
+                clients.forEach(client => {
+                    console.log('[Service Worker] Posting reload message to:', client.url);
+                    client.postMessage({ 
+                        type: 'SW_UPDATED', 
+                        version: '2.2.9',
+                        action: 'reload' 
+                    });
+                });
             })
     );
 });
