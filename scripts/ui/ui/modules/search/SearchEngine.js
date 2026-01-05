@@ -10,6 +10,8 @@ export class SearchEngine {
         this.cache = options.cache;
         this.performanceOptimizer = options.performanceOptimizer;
         this.semanticSearchSystem = options.semanticSearchSystem;
+        // Version for cache key invalidation
+        this.version = options.version || 'v2.1.0';
     }
     updateFormulas(formulas) {
         this.formulas = formulas;
@@ -45,18 +47,40 @@ export class SearchEngine {
         }
     }
     /**
-     * Fast filter - quick name/concept check before expensive scoring
+     * Fast filter - quick name/concept/variable check before expensive scoring
+     * Upgraded v2.1.0: Now includes variable matching for better recall
      */
     fastFilter(query) {
         const queryLower = query.toLowerCase();
         const words = queryLower.split(/\s+/).filter(w => w.length > 0);
         return this.formulas.filter(f => {
             const nameLower = f.name.toLowerCase();
-            const hasNameMatch = nameLower.includes(queryLower) ||
-                words.some(w => nameLower.includes(w));
-            const hasConceptMatch = f.concepts?.some(c => c.toLowerCase().includes(queryLower) ||
-                words.some(w => c.toLowerCase().includes(w)));
-            return hasNameMatch || hasConceptMatch;
+            
+            // Name match
+            if (nameLower.includes(queryLower) || words.some(w => nameLower.includes(w))) {
+                return true;
+            }
+            
+            // Concept match
+            if (f.concepts?.some(c => {
+                const cLower = c.toLowerCase();
+                return cLower.includes(queryLower) || words.some(w => cLower.includes(w));
+            })) {
+                return true;
+            }
+            
+            // Variable match (NEW v2.1.0)
+            if (f.variables?.some(v => {
+                const varSymbol = v.symbol?.toLowerCase() || '';
+                const varName = v.name?.toLowerCase() || '';
+                return varSymbol.includes(queryLower) || 
+                       varName.includes(queryLower) ||
+                       words.some(w => varSymbol.includes(w) || varName.includes(w));
+            })) {
+                return true;
+            }
+            
+            return false;
         });
     }
     /**
@@ -68,12 +92,14 @@ export class SearchEngine {
         // Score all candidates
         const scored = candidates.map(formula => {
             const result = this.scorer.score(formula, queryLower, searchWords);
-            // Add semantic matching if available
+            // Add semantic matching if available (capped at 400 to prevent overpowering)
             if (this.semanticSearchSystem) {
                 try {
                     const semanticScore = this.semanticSearchSystem.semanticMatch(searchTerm, formula);
                     if (semanticScore && !isNaN(semanticScore) && semanticScore > 0) {
-                        result.score += semanticScore;
+                        // Cap semantic contribution to prevent overpowering literal matches
+                        const capped = Math.min(semanticScore, 400);
+                        result.score += capped;
                         result.metrics.semanticMatch = true;
                     }
                 }
@@ -92,27 +118,92 @@ export class SearchEngine {
         this.normalizeScores(filtered);
         return filtered;
     }
+    /**
+     * Minimum relevance gate - filters out noise
+     * v2.1.0: Stricter inclusion logic to improve top-50 quality
+     */
     shouldIncludeResult(item) {
-        if (item.metrics.nameMatch)
+        // Name matches always included (highest priority)
+        if (item.metrics.nameMatch) {
             return true;
-        const hasStrongMatch = item.metrics.conceptMatch || item.metrics.variableMatch;
-        const hasAnyMatch = item.metrics.descriptionMatch || item.metrics.categoryMatch;
-        return item.score > 0 || hasStrongMatch || hasAnyMatch;
+        }
+        
+        // Strong matches (concept, variable, semantic) must meet score floor
+        const hasStrongMatch = item.metrics.conceptMatch || 
+                              item.metrics.variableMatch || 
+                              item.metrics.semanticMatch;
+        
+        if (hasStrongMatch && item.score >= 200) {
+            return true;
+        }
+        
+        // Soft matches (description, category) must meet higher floor
+        return item.score >= 100;
     }
+    /**
+     * Log-normalization + percentile awareness
+     * v2.1.0: Mathematically robust normalization that handles outliers
+     */
     normalizeScores(results) {
-        const maxScore = results.length > 0 ? results[0].score : 1;
-        results.forEach(item => {
-            item.normalizedScore = (item.score / maxScore) * 1000;
+        if (!results.length) return;
+        
+        const scores = results.map(r => r.score);
+        const max = Math.max(...scores);
+        const min = Math.min(...scores.filter(s => s > 0));
+        
+        // If all scores are 0, skip normalization
+        if (max === 0) {
+            results.forEach(r => {
+                r.normalizedScore = 0;
+                r.percentile = 0;
+            });
+            return;
+        }
+        
+        results.forEach(r => {
+            const raw = r.score;
+            
+            // Log squash to control outliers (log1p handles 0 gracefully)
+            const logNorm = Math.log1p(raw) / Math.log1p(max);
+            
+            // Percentile (confidence-relevant) - how many results score <= this
+            const rank = scores.filter(s => s <= raw).length / scores.length;
+            
+            r.normalizedScore = Math.round(logNorm * 1000);
+            r.percentile = Math.round(rank * 100);
         });
     }
+    /**
+     * Convert scored result to search result with confidence metadata
+     * v2.1.0: Attaches confidence metadata for UI explainability
+     */
     toSearchResult(scored) {
         return {
             ...scored,
-            normalizedScore: 0 // Will be normalized later
+            normalizedScore: 0, // Will be normalized later
+            percentile: 0, // Will be set during normalization
+            confidenceMeta: {
+                components: scored.metrics.componentScores || {},
+                semantic: scored.metrics.semanticMatch || false,
+                hasNameMatch: scored.metrics.nameMatch || false,
+                hasStrongMatch: scored.metrics.conceptMatch || 
+                               scored.metrics.variableMatch || 
+                               scored.metrics.semanticMatch || false
+            }
         };
     }
+    /**
+     * Generate cache key with version/formula count for invalidation
+     * v2.1.0: Prevents stale cache when weights/formulas change
+     */
+    getCacheKey(searchTerm) {
+        const baseKey = searchTerm.toLowerCase().trim();
+        const formulaCount = this.formulas?.length || 0;
+        return `${baseKey}::${this.version}::${formulaCount}`;
+    }
+    
     getCachedResults(searchTerm) {
-        const key = searchTerm.toLowerCase().trim();
+        const key = this.getCacheKey(searchTerm);
         if (this.cache) {
             const cached = this.cache.get(key);
             if (cached)
@@ -125,8 +216,9 @@ export class SearchEngine {
         }
         return null;
     }
+    
     cacheResults(searchTerm, results) {
-        const key = searchTerm.toLowerCase().trim();
+        const key = this.getCacheKey(searchTerm);
         if (this.cache) {
             this.cache.set(key, results);
         }
