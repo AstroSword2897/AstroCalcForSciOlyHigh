@@ -1,15 +1,3 @@
-++ Begin Insert
-    <!-- Simple Expert Question UI (authoritative path) -->
-    <section style="padding: 10px 20px; background: #0b1224; border-bottom: 1px solid #1f2a44;">
-        <h3 style="color: #a8c7ff; margin-bottom: 8px;">Ask a Question (Expert System)</h3>
-        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <input id="expert-question-input" type="text" placeholder="e.g., What is the orbital period of a satellite 7000 km above Earth?" style="flex: 1; min-width: 240px; padding: 10px; border-radius: 6px; border: 1px solid #334155; background: rgba(255,255,255,0.04); color: white;" />
-            <button id="expert-question-submit" style="padding: 10px 16px; border: none; border-radius: 6px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-weight: 600; cursor: pointer;">Solve</button>
-        </div>
-        <div id="expert-question-output" style="margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #cbd5e1;"></div>
-    </section>
-
-    <!-- Scripts loaded in dependency order (OFFLINE-FIRST: all local, production-safe) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -583,7 +571,7 @@
     <script src="scripts/ui/rendering/VariableInputs.js?v=2.1.5"></script>
     
     <!-- UI (ES Modules) -->
-    <script type="module" src="scripts/ui/ui/init.js?v=2.1.5"></script>
+    <script type="module" src="scripts/ui/ui/init.js?v=2.1.8"></script>
     
     <!-- Force render fix -->
     <script src="force_render_fix.js?v=2.1.8"></script>
@@ -826,6 +814,111 @@
             } else {
                 console.log('✅ Diagnostic functions ready (DOM already loaded)');
             }
+        })();
+    </script>
+    
+    <!-- Force-Attach Button Handlers (Backup for Calculate/Classify buttons) -->
+    <script>
+        (function() {
+            'use strict';
+            
+            console.log('[ForceAttach] Setting up Calculate/Classify button fix');
+            
+            function attachHandlers() {
+                // Calculate button
+                const calcBtn = document.getElementById('calculate-btn');
+                if (calcBtn) {
+                    if (!calcBtn._forceAttached) {
+                        calcBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[ForceAttach] Calculate button clicked');
+                            
+                            // Try multiple possible calculation functions
+                            if (typeof window.performCalculation === 'function') {
+                                window.performCalculation();
+                            } else if (typeof window.calculationOrchestrator !== 'undefined' && 
+                                      typeof window.calculationOrchestrator.performCalculation === 'function') {
+                                window.calculationOrchestrator.performCalculation();
+                            } else if (typeof window.uiOrchestrator !== 'undefined' && 
+                                      typeof window.uiOrchestrator.calculationOrchestrator !== 'undefined' &&
+                                      typeof window.uiOrchestrator.calculationOrchestrator.performCalculation === 'function') {
+                                window.uiOrchestrator.calculationOrchestrator.performCalculation();
+                            } else {
+                                console.error('[ForceAttach] ❌ No calculation function found!');
+                                console.log('[ForceAttach] Available functions:', {
+                                    performCalculation: typeof window.performCalculation,
+                                    calculationOrchestrator: typeof window.calculationOrchestrator,
+                                    uiOrchestrator: typeof window.uiOrchestrator
+                                });
+                            }
+                        });
+                        calcBtn._forceAttached = true;
+                        console.log('[ForceAttach] ✅ Calculate button handler attached');
+                    }
+                }
+                
+                // Classify button (calculator tab)
+                const classifyBtn = document.getElementById('classify-btn');
+                if (classifyBtn) {
+                    if (!classifyBtn._forceAttached) {
+                        classifyBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[ForceAttach] Classify button clicked');
+                            
+                            // Try multiple possible classification functions
+                            if (typeof window.performClassification === 'function') {
+                                window.performClassification();
+                            } else if (typeof window.uiOrchestrator !== 'undefined' && 
+                                      typeof window.uiOrchestrator.performClassification === 'function') {
+                                window.uiOrchestrator.performClassification();
+                            } else {
+                                console.error('[ForceAttach] ❌ No classification function found!');
+                            }
+                        });
+                        classifyBtn._forceAttached = true;
+                        console.log('[ForceAttach] ✅ Classify button handler attached');
+                    }
+                }
+                
+                // Main classify button (main classification tab)
+                const mainClassifyBtn = document.getElementById('main-classify-btn');
+                if (mainClassifyBtn) {
+                    if (!mainClassifyBtn._forceAttached) {
+                        mainClassifyBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('[ForceAttach] Main classify button clicked');
+                            
+                            // Try multiple possible classification functions
+                            if (typeof window.performMainClassification === 'function') {
+                                window.performMainClassification();
+                            } else if (typeof window.uiOrchestrator !== 'undefined' && 
+                                      typeof window.uiOrchestrator.performMainClassification === 'function') {
+                                window.uiOrchestrator.performMainClassification();
+                            } else {
+                                console.error('[ForceAttach] ❌ No main classification function found!');
+                            }
+                        });
+                        mainClassifyBtn._forceAttached = true;
+                        console.log('[ForceAttach] ✅ Main classify button handler attached');
+                    }
+                }
+            }
+            
+            // Run immediately
+            attachHandlers();
+            
+            // Retry a few times in case scripts are still loading
+            const retries = [200, 500, 1000, 2000];
+            retries.forEach(delay => setTimeout(attachHandlers, delay));
+            
+            // MutationObserver in case DOM changes dynamically
+            const observer = new MutationObserver(attachHandlers);
+            observer.observe(document.body, { childList: true, subtree: true });
+            
+            console.log('[ForceAttach] ✅ Force-attach system initialized');
         })();
     </script>
     

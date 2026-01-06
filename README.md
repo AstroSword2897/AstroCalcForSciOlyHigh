@@ -70,6 +70,14 @@ The app works completely offline - just serve the files via any web server.
 - **Context Propagation** - Cross-concept reinforcement
 - **Command Palette** - Modern search interface with keyboard navigation
 
+### 🎯 Expert System (Question → Formula)
+- **Deterministic Rule-Based** - No AI/ML models, fully predictable
+- **Question Detection** - Automatically routes question-like queries through ExpertSystem
+- **Single Formula Selection** - Returns the single best formula for non-calculus problems
+- **Confidence Calibration** - Tiers: ≥80% (strong), 60-79% (good), 40-59% (moderate), <40% (weak/rejected)
+- **Refusal Handling** - Cleanly rejects ambiguous, vague, multi-formula, or calculus questions
+- **Explanation Determinism** - Byte-for-byte identical explanations for same input
+
 ### 📊 Graph System
 - **Enhanced Offline Graph Manager V2** - Fully offline, no external dependencies
 - **Formula-Specific Graphs** - Each formula has its own designated graph configuration
@@ -358,6 +366,23 @@ A service worker (`sw.js`) is included for offline support. Ensure HTTPS in prod
 - **Testing Plan**: See `COMPREHENSIVE_TESTING_PLAN.md`
 - **Graph System**: See `GRAPH_SYSTEM_ENHANCEMENTS.md`
 - **Formula Config**: See `scripts/formulaGraphConfig.js`
+
+### 🎯 Expert System Confidence Tiers
+
+The Expert System uses deterministic confidence scoring with clear tiers:
+
+- **≥80% (Strong)** - Exact canonical questions (e.g., "What is the orbital period of a satellite 7000 km above Earth?")
+- **60-79% (Good)** - Paraphrased but clear questions (e.g., "How to find escape velocity")
+- **40-59% (Moderate)** - Partial or less specific questions (e.g., "period from orbit distance")
+- **<40% (Weak/Rejected)** - Ambiguous, vague, or multi-formula questions
+
+The system **refuses** questions that:
+- Involve calculus (derivatives, integrals, rates of change)
+- Are too ambiguous to map to a single formula
+- Request multiple formulas simultaneously
+- Are not physics/astrophysics related
+
+See `tests/expert-system.test.js` for confidence calibration tests.
 
 ## 🤝 Contributing
 

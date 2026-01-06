@@ -345,8 +345,61 @@ export class UIModuleOrchestrator {
     
     /**
      * Handle search - updates both command palette and main formula list
+     * If query looks like a question, route through ExpertSystem for authoritative answer
      */
     handleSearch(query) {
+        // Detect question-like queries (contains question words or is a full sentence)
+        const isQuestion = this.detectQuestionQuery(query);
+        
+        if (isQuestion && this.expertSystem) {
+            // Route through ExpertSystem for authoritative answer
+            const expertResult = this.expertSystem.solveQuestion(query);
+            
+            if (expertResult.success) {
+                // Show single authoritative formula
+                const formulaList = document.getElementById('formula-list');
+                if (formulaList && this.formulaRenderer) {
+                    // Create a search result format for the selected formula
+                    const expertResultItem = {
+                        formula: expertResult.formula,
+                        score: expertResult.confidence * 100, // Scale to 0-10000
+                        searchData: {
+                            metrics: {
+                                matchedConcepts: expertResult.matchedConcepts || [],
+                                matchedVariables: expertResult.matchedVariables || []
+                            },
+                            confidence: expertResult.confidence,
+                            explanation: expertResult.explanation
+                        }
+                    };
+                    
+                    this.formulaRenderer.renderFormulaCards(
+                        [expertResultItem],
+                        formulaList,
+                        {
+                            showConfidence: true,
+                            showTopicScope: true,
+                            maxScore: 10000,
+                            searchQuery: query,
+                            isExpertResult: true
+                        }
+                    );
+                }
+                
+                // Also update command palette with single result
+                this.renderCommandPaletteResults([expertResultItem]);
+                
+                // Show expert explanation in output area if it exists
+                this.renderExpertResult(expertResult);
+                return;
+            } else {
+                // ExpertSystem refused - show refusal reason
+                this.renderExpertRefusal(expertResult);
+                return;
+            }
+        }
+        
+        // Normal search flow
         const results = this.searchEngine.search(query);
         
         // Update command palette
@@ -369,6 +422,81 @@ export class UIModuleOrchestrator {
                 }
             );
         }
+    }
+    
+    /**
+     * Detect if query is question-like (contains question words or is a full sentence)
+     */
+    detectQuestionQuery(query) {
+        if (!query || query.length < 10) return false;
+        
+        const questionWords = ['what', 'how', 'why', 'when', 'where', 'which', 'who', 'calculate', 'compute', 'find', 'determine', 'solve'];
+        const lowerQuery = query.toLowerCase();
+        
+        // Check for question words at start or in sentence
+        if (questionWords.some(word => lowerQuery.startsWith(word) || lowerQuery.includes(` ${word} `))) {
+            return true;
+        }
+        
+        // Check if it's a full sentence (contains multiple words and ends with ? or is long)
+        if (query.includes('?') || (query.split(' ').length >= 5 && query.length > 30)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Render ExpertSystem result (success case)
+     */
+    renderExpertResult(result) {
+        const output = document.getElementById('expert-question-output');
+        if (!output) return;
+        
+        output.innerHTML = `
+            <div style="color: #a8c7ff; font-weight: 600; margin-bottom: 8px;">
+                Selected Formula: ${this.escapeHtml(result.formula.name)}
+            </div>
+            <div style="font-family: 'Courier New', monospace; margin-bottom: 8px; color: #cbd5e1;">
+                ${this.escapeHtml(result.formula.equation)}
+            </div>
+            <div style="margin-bottom: 8px;">
+                <span style="color: #94a3b8;">Confidence: </span>
+                <span style="color: #a8c7ff; font-weight: 600;">${result.confidence.toFixed(1)}%</span>
+            </div>
+            <div style="font-size: 0.9em; color: #cbd5e1; margin-top: 8px;">
+                ${this.escapeHtml(result.explanation)}
+            </div>
+        `;
+    }
+    
+    /**
+     * Render ExpertSystem refusal (failure case)
+     */
+    renderExpertRefusal(result) {
+        const output = document.getElementById('expert-question-output');
+        if (!output) return;
+        
+        let reason = 'Question is too ambiguous or not suitable for formula selection.';
+        if (result.hasCalculus) {
+            reason = 'This question involves calculus, which is not supported.';
+        } else if (result.error) {
+            reason = result.error;
+        }
+        
+        output.innerHTML = `
+            <div style="color: #f87171; font-weight: 600; margin-bottom: 8px;">
+                Cannot determine a single formula
+            </div>
+            <div style="font-size: 0.9em; color: #cbd5e1;">
+                ${this.escapeHtml(reason)}
+            </div>
+            ${result.suggestions && result.suggestions.length > 0 ? `
+                <div style="margin-top: 8px; font-size: 0.85em; color: #94a3b8;">
+                    Try: ${result.suggestions.map(s => `<span style="color: #a8c7ff;">${this.escapeHtml(s)}</span>`).join(', ')}
+                </div>
+            ` : ''}
+        `;
     }
     
     /**

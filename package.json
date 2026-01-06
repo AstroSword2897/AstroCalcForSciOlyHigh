@@ -10,7 +10,10 @@
     "type-check": "tsc --noEmit",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:coverage": "playwright show-report"
+    "test:coverage": "playwright show-report",
+    "test:expert": "playwright test tests/expert-system.test.js",
+    "test:expert:coverage": "node scripts/tools/expertCoverage.js",
+    "ci:expert": "npm run test:expert && npm run test:expert:coverage"
   },
   "devDependencies": {
     "@playwright/test": "^1.42.1",

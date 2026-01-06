@@ -1,0 +1,39 @@
+name: Expert System Determinism CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  expert-system-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run Expert System tests
+      run: npx playwright test tests/expert-system.test.js
+    
+    - name: Run Expert System coverage
+      run: node scripts/tools/expertCoverage.js
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: expert-system-test-results
+        path: |
+          playwright-report/
+          test-results/
+

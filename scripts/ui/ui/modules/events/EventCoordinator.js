@@ -44,7 +44,6 @@ export class EventCoordinator {
             }
         };
         this.addListener(backButton, 'click', handler);
-        backButton.onclick = handler;
     }
     setupMainTabButtons() {
         const mainTabButtons = document.querySelectorAll('.main-tab-btn');
@@ -63,7 +62,6 @@ export class EventCoordinator {
                 }
             };
             this.addListener(element, 'click', handler);
-            element.onclick = handler;
         });
     }
     setupSubTabButtons() {
@@ -110,35 +108,192 @@ export class EventCoordinator {
         console.log('[EventCoordinator] ✅ Sub tab buttons set up with event delegation');
     }
     setupCalculateButton() {
-        // Use event delegation on document to handle dynamically created calculate buttons
-        const handler = (e) => {
-            if (e.target && e.target.id === 'calculate-btn') {
+        // CRITICAL FIX: Use both direct attachment AND event delegation
+        // Direct attachment ensures the button works even if delegation fails
+        const directHandler = (e) => {
+            console.log('[EventCoordinator] 🎯 DIRECT Calculate button clicked!', e.target);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    console.log('[EventCoordinator] Calling onCalculate callback (direct)...');
+                    if (this.options.onCalculate) {
+                        try {
+                            this.options.onCalculate();
+                            console.log('[EventCoordinator] ✅ onCalculate called successfully (direct)');
+                        } catch (error) {
+                            console.error('[EventCoordinator] ❌ Error calling onCalculate (direct):', error);
+                        }
+                    } else {
+                        console.error('[EventCoordinator] ❌ onCalculate callback not defined!');
+                    }
+                }, 50);
+            });
+        };
+        
+        // Try to attach directly to the button if it exists
+        const attachDirectHandler = () => {
+            const calcBtn = document.getElementById('calculate-btn');
+            if (calcBtn && !calcBtn.dataset.directHandlerAttached) {
+                console.log('[EventCoordinator] ✅ Attaching direct handler to calculate button');
+                this.addListener(calcBtn, 'click', directHandler);
+                // Mark as attached to prevent duplicates
+                calcBtn.dataset.directHandlerAttached = 'true';
+                return true;
+            }
+            return false;
+        };
+        
+        // Try immediately
+        attachDirectHandler();
+        
+        // If button doesn't exist yet, retry at intervals
+        const retries = [200, 500, 1000, 2000];
+        retries.forEach(delay => {
+            setTimeout(() => attachDirectHandler(), delay);
+        });
+        
+        // Use MutationObserver to catch when button is added dynamically
+        const observer = new MutationObserver(() => {
+            attachDirectHandler();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Store observer for cleanup if needed
+        this._calculateButtonObserver = observer;
+        
+        // ALSO use event delegation on document as backup
+        const delegationHandler = (e) => {
+            // Check if the clicked element or its parent is the calculate button
+            let calcBtn = e.target.closest('#calculate-btn');
+            if (!calcBtn && e.target.id === 'calculate-btn') {
+                calcBtn = e.target;
+            }
+            // Also check by text content as fallback
+            if (!calcBtn) {
+                const button = e.target.closest('button');
+                if (button && (button.textContent?.trim() === 'Calculate' || button.id === 'calculate-btn')) {
+                    calcBtn = button;
+                }
+            }
+            
+            if (calcBtn) {
+                console.log('[EventCoordinator] 🎯 DELEGATION Calculate button clicked!', calcBtn);
                 e.preventDefault();
                 e.stopPropagation();
-                if (this.options.onCalculate) {
-                    this.options.onCalculate();
-                }
+                e.stopImmediatePropagation();
+                
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        console.log('[EventCoordinator] Calling onCalculate callback (delegation)...');
+                        if (this.options.onCalculate) {
+                            try {
+                                this.options.onCalculate();
+                                console.log('[EventCoordinator] ✅ onCalculate called successfully (delegation)');
+                            } catch (error) {
+                                console.error('[EventCoordinator] ❌ Error calling onCalculate (delegation):', error);
+                            }
+                        } else {
+                            console.error('[EventCoordinator] ❌ onCalculate callback not defined!');
+                        }
+                    }, 50);
+                });
+            }
+        };
+        
+        // Add delegation handler to document
+        document.addEventListener('click', delegationHandler, true); // Use capture phase
+        this.globalListeners.push({
+            element: document,
+            event: 'click',
+            handler: delegationHandler,
+            options: true // capture phase
+        });
+        
+        console.log('[EventCoordinator] ✅ Calculate button handlers set up (direct + delegation)');
+        
+        // Verify the button exists in DOM
+        const testBtn = document.getElementById('calculate-btn');
+        if (testBtn) {
+            console.log('[EventCoordinator] ✅ Calculate button found in DOM:', testBtn);
+        } else {
+            console.warn('[EventCoordinator] ⚠️ Calculate button not found in DOM yet (will attach when available)');
+        }
+    }
+    setupClassificationButtons() {
+        // Use event delegation on document to handle dynamically created classification buttons
+        // This ensures buttons work even if they're added later or inside hidden containers
+        const handler = (e) => {
+            // Enhanced debug logging
+            const isButton = e.target.tagName === 'BUTTON' || e.target.closest('button');
+            const hasClassifyText = e.target.textContent?.includes('Classify') || e.target.closest('button')?.textContent?.includes('Classify');
+            const hasClassifyId = e.target.id === 'classify-btn' || e.target.id === 'main-classify-btn' || 
+                                 e.target.closest('#classify-btn') || e.target.closest('#main-classify-btn');
+            
+            if (isButton && (hasClassifyText || hasClassifyId)) {
+                console.log('[EventCoordinator] 🔍 DEBUG: Classification button click detected!', {
+                    target: e.target,
+                    id: e.target.id,
+                    text: e.target.textContent,
+                    closestButton: e.target.closest('button')
+                });
+            }
+            
+            // Use closest() to handle clicks on nested elements (like text inside button)
+            let classifyBtn = e.target.closest('#classify-btn');
+            let mainClassifyBtn = e.target.closest('#main-classify-btn');
+            
+            // Fallback: check by ID directly
+            if (!classifyBtn && e.target.id === 'classify-btn') {
+                classifyBtn = e.target;
+            }
+            if (!mainClassifyBtn && e.target.id === 'main-classify-btn') {
+                mainClassifyBtn = e.target;
+            }
+            
+            if (classifyBtn || mainClassifyBtn) {
+                console.log('[EventCoordinator] ✅ Classification button clicked!', { classifyBtn, mainClassifyBtn });
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                
+                // Add a small delay to ensure UI is fully updated
+                setTimeout(() => {
+                    if (classifyBtn && this.options.onClassify) {
+                        console.log('[EventCoordinator] Calling onClassify...');
+                        this.options.onClassify();
+                    } else if (mainClassifyBtn && this.options.onMainClassify) {
+                        console.log('[EventCoordinator] Calling onMainClassify...');
+                        this.options.onMainClassify();
+                    }
+                }, 50); // 50ms delay for UI stability
             }
         };
         
         // Add to global listeners for cleanup
-        document.addEventListener('click', handler);
+        document.addEventListener('click', handler, true); // Use capture phase
         this.globalListeners.push({
             element: document,
             event: 'click',
-            handler: handler
+            handler: handler,
+            options: true // capture phase
         });
         
-        console.log('[EventCoordinator] ✅ Calculate button event delegation set up');
-    }
-    setupClassificationButtons() {
+        console.log('[EventCoordinator] ✅ Classification buttons event delegation set up');
+        
+        // Verify buttons exist in DOM
         const classifyBtn = document.getElementById('classify-btn');
-        if (classifyBtn && this.options.onClassify) {
-            this.addListener(classifyBtn, 'click', this.options.onClassify);
-        }
         const mainClassifyBtn = document.getElementById('main-classify-btn');
-        if (mainClassifyBtn && this.options.onMainClassify) {
-            this.addListener(mainClassifyBtn, 'click', this.options.onMainClassify);
+        if (classifyBtn) {
+            console.log('[EventCoordinator] ✅ classify-btn found in DOM');
+        } else {
+            console.warn('[EventCoordinator] ⚠️ classify-btn not found in DOM yet (may be added dynamically)');
+        }
+        if (mainClassifyBtn) {
+            console.log('[EventCoordinator] ✅ main-classify-btn found in DOM');
+        } else {
+            console.warn('[EventCoordinator] ⚠️ main-classify-btn not found in DOM yet (may be added dynamically)');
         }
     }
     setupFormulaCardDelegation() {
