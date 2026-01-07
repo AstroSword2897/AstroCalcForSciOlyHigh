@@ -1011,15 +1011,19 @@ header h1 {
     width: 100%;
     height: 100%;
     z-index: 10000;
-    /* Hidden by default; shown when .active is set */
-    display: none;
+    /* Hidden by default; user wants clean search experience without dropdown */
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
     align-items: flex-start;
     justify-content: center;
     padding-top: 10vh;
 }
 
 .command-palette.active {
-    display: flex;
+    display: none !important; /* Keep hidden even when active - user wants clean search */
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
 
 .command-palette-overlay {

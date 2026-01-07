@@ -146,60 +146,180 @@ export class FormulaRenderer {
     
     /**
      * Handle quick calculation on formula card
+     * Now only processes INPUT variables (excludes result variable)
      */
     handleQuickCalculation(formulaId, container) {
         if (!formulaId || !window.FormulaCalculator) {
+            console.warn('[FormulaRenderer] Quick calc skipped - missing formulaId or FormulaCalculator');
             return;
         }
         
         try {
             const formula = window.formulas?.find(f => f.id === formulaId);
             if (!formula) {
+                console.warn('[FormulaRenderer] Formula not found:', formulaId);
                 return;
             }
             
-            // Collect input values
+            // Collect input values (inputs no longer include result variable)
             const variableValues = {};
             const inputs = container.querySelectorAll(`.quick-calc-input[data-formula-id="${formulaId}"]`);
-            let hasAnyValue = false;
+            let hasAllInputs = true;
+            let inputCount = 0;
             
             inputs.forEach(input => {
                 const symbol = input.getAttribute('data-variable-symbol');
-                const value = parseFloat(input.value);
-                if (!isNaN(value) && value !== 0) {
-                    variableValues[symbol] = value;
-                    hasAnyValue = true;
-                } else {
+                const rawValue = input.value.trim();
+                inputCount++;
+                
+                // Handle scientific notation and regular numbers
+                // Allow 0 as a valid value (e.g., initial conditions)
+                if (rawValue === '') {
                     variableValues[symbol] = null;
+                    hasAllInputs = false;
+                } else {
+                    const value = Number(rawValue);
+                    if (!isNaN(value)) {
+                        variableValues[symbol] = value;
+                    } else {
+                        variableValues[symbol] = null;
+                        hasAllInputs = false;
+                    }
                 }
             });
             
-            if (!hasAnyValue) {
-                // Show symbolic result
-                const resultEl = container.querySelector(`.quick-calc-result[data-formula-id="${formulaId}"]`);
+            const resultEl = container.querySelector(`.quick-calc-result[data-formula-id="${formulaId}"]`);
+            
+            if (inputCount === 0 || !hasAllInputs) {
+                // Need all inputs filled for calculation
                 if (resultEl) {
-                    resultEl.textContent = 'Enter values to calculate';
+                    const missingVars = Object.entries(variableValues)
+                        .filter(([_, v]) => v === null)
+                        .map(([k]) => k);
+                    if (missingVars.length > 0) {
+                        resultEl.textContent = `Enter: ${missingVars.join(', ')}`;
+                    } else {
+                        resultEl.textContent = 'Enter values to calculate';
+                    }
                     resultEl.style.color = '#888';
                 }
                 return;
             }
             
-            // Create calculator and solve
-            const calculator = new window.FormulaCalculator(formula);
-            const result = calculator.solve(variableValues);
-            
-            // Display result
-            const resultEl = container.querySelector(`.quick-calc-result[data-formula-id="${formulaId}"]`);
-            if (resultEl && result && result.result !== null && result.result !== undefined) {
-                const resultValue = result.result;
-                const formattedValue = typeof resultValue === 'number' 
-                    ? resultValue.toExponential(3) 
-                    : String(resultValue);
-                resultEl.textContent = `= ${formattedValue}${result.unit ? ' ' + result.unit : ''}`;
-                resultEl.style.color = '#4ade80';
-            } else if (resultEl) {
-                resultEl.textContent = '⚠️ Check inputs';
-                resultEl.style.color = '#f87171';
+            // Direct evaluation for quick calculation
+            // Parse the equation and substitute values
+            try {
+                // Get the result variable and its unit
+                const lhsMatch = formula.equation.match(/^\s*([a-zA-Z_][a-zA-Z0-9_/]*)/);
+                const resultVariable = lhsMatch ? lhsMatch[1].trim() : null;
+                const resultVarDef = formula.variables.find(v => v.symbol === resultVariable);
+                const resultUnit = resultVarDef?.unit || '';
+                
+                // Get the right-hand side of the equation (after '=')
+                const rhsMatch = formula.equation.match(/=\s*(.+)$/);
+                if (!rhsMatch) {
+                    throw new Error('Could not parse equation');
+                }
+                const rhs = rhsMatch[1].trim();
+                
+                // Build context with constants and variables
+                const constants = {
+                    G: 6.67430e-11,
+                    c: 2.99792458e8,
+                    h: 6.62607015e-34,
+                    k: 1.380649e-23,
+                    σ: 5.670374419e-8,  // Stefan-Boltzmann constant
+                    π: Math.PI,
+                    pi: Math.PI,
+                    e: Math.E,
+                    ...(formula.constants || {})
+                };
+                
+                const context = { ...constants, ...variableValues };
+                
+                // Log values for debugging
+                console.log('[FormulaRenderer] Quick calc inputs:', variableValues);
+                console.log('[FormulaRenderer] Quick calc context:', context);
+                console.log('[FormulaRenderer] RHS expression:', rhs);
+                
+                // Substitute values into expression
+                let expression = rhs;
+                
+                // First, insert explicit multiplication between adjacent terms (e.g., "2GM" -> "2*G*M")
+                // Insert * between: digit-letter, letter-digit, letter-letter (different symbols), )-letter, letter-(, )-digit
+                expression = expression
+                    .replace(/(\d)([a-zA-Z_])/g, '$1*$2')       // 2G -> 2*G
+                    .replace(/([a-zA-Z_])(\d)/g, '$1*$2')       // G2 -> G*2
+                    .replace(/([a-zA-Z_])([a-zA-Z_])/g, '$1*$2') // GM -> G*M (will need multiple passes)
+                    .replace(/([a-zA-Z_])([a-zA-Z_])/g, '$1*$2') // Second pass for triplets like GMm
+                    .replace(/\)([a-zA-Z_\d])/g, ')*$1')         // )G -> )*G
+                    .replace(/([a-zA-Z_\d])\(/g, '$1*(');         // G( -> G*(
+                
+                console.log('[FormulaRenderer] After implicit mult:', expression);
+                
+                // Replace variables with their values (sort by symbol length desc to avoid partial matches)
+                const sortedSymbols = Object.entries(context)
+                    .filter(([_, v]) => v !== null && v !== undefined)
+                    .sort((a, b) => b[0].length - a[0].length);
+                    
+                for (const [symbol, value] of sortedSymbols) {
+                    // Escape special regex characters in symbol
+                    const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    // Match symbol as standalone word (now that implicit mult is explicit)
+                    const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
+                    expression = expression.replace(regex, `(${value})`);
+                }
+                
+                console.log('[FormulaRenderer] Substituted expression:', expression);
+                
+                // Convert math notation to JavaScript
+                expression = expression
+                    .replace(/√/g, 'Math.sqrt')
+                    .replace(/\^/g, '**')
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/²/g, '**2')
+                    .replace(/³/g, '**3')
+                    .replace(/⁴/g, '**4');
+                
+                console.log('[FormulaRenderer] Final JS expression:', expression);
+                
+                // Safely evaluate the expression
+                const evaluator = new Function('Math', `return ${expression}`);
+                const numericResult = evaluator(Math);
+                
+                console.log('[FormulaRenderer] Numeric result:', numericResult);
+                
+                if (isFinite(numericResult)) {
+                    const formattedValue = numericResult.toExponential(4);
+                    resultEl.textContent = `${resultVariable || ''} = ${formattedValue}${resultUnit ? ' ' + resultUnit : ''}`;
+                    resultEl.style.color = '#4ade80';
+                } else {
+                    resultEl.textContent = '⚠️ Check inputs';
+                    resultEl.style.color = '#f87171';
+                }
+            } catch (evalError) {
+                console.error('[FormulaRenderer] Quick calc eval error:', evalError);
+                // Fall back to calculator.solve()
+                try {
+                    const calculator = new window.FormulaCalculator(formula);
+                    const result = calculator.solve(variableValues);
+                    
+                    if (resultEl && result && result.result !== null && result.result !== undefined) {
+                        const resultValue = result.result;
+                        const formattedValue = typeof resultValue === 'number' 
+                            ? resultValue.toExponential(4) 
+                            : String(resultValue);
+                        resultEl.textContent = `= ${formattedValue}${result.unit ? ' ' + result.unit : ''}`;
+                        resultEl.style.color = '#4ade80';
+                    }
+                } catch (calcError) {
+                    console.error('[FormulaRenderer] Fallback calc error:', calcError);
+                    if (resultEl) {
+                        resultEl.textContent = '⚠️ Calculation failed';
+                        resultEl.style.color = '#f87171';
+                    }
+                }
             }
         } catch (error) {
             console.error('[FormulaRenderer] Quick calculation error:', error);
@@ -337,35 +457,46 @@ export class FormulaRenderer {
         
         // Add inline calculation inputs for quick calculations
         if (formula.variables && formula.variables.length > 0 && formula.variables.length <= 4) {
-            html += `<div class="formula-card-quick-calc" style="margin-top: 12px; padding: 12px; background: rgba(102, 126, 234, 0.05); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.2);">`;
-            html += `<div style="font-size: 0.85em; color: #a8c7ff; margin-bottom: 8px; font-weight: 600;">⚡ Quick Calculate:</div>`;
-            html += `<div class="quick-calc-inputs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">`;
+            // Extract result variable from LHS of equation (e.g., "v_esc" from "v_esc = √(2GM/r)")
+            const lhsMatch = formula.equation.match(/^\s*([a-zA-Z_][a-zA-Z0-9_/]*)/);
+            const resultVariable = lhsMatch ? lhsMatch[1].trim() : null;
             
-            formula.variables.slice(0, 4).forEach((variable, idx) => {
-                const inputId = `quick-calc-${formula.id}-${variable.symbol}`;
-                html += `
-                    <div style="display: flex; flex-direction: column;">
-                        <label for="${inputId}" style="font-size: 0.75em; color: #888; margin-bottom: 4px;">${this.escapeHtml(variable.symbol)}</label>
-                        <input 
-                            type="number" 
-                            id="${inputId}"
-                            data-formula-id="${formula.id}"
-                            data-variable-symbol="${this.escapeHtml(variable.symbol)}"
-                            class="quick-calc-input"
-                            placeholder="0"
-                            step="any"
-                            style="padding: 6px; border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 4px; background: rgba(15, 23, 42, 0.5); color: white; font-size: 0.9em;"
-                        >
-                    </div>
-                `;
-            });
+            // Filter out the result variable - user shouldn't input what we're solving for
+            const inputVariables = formula.variables.filter(v => v.symbol !== resultVariable);
             
-            html += `</div>`;
-            html += `<div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">`;
-            html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" style="flex: 1; padding: 6px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; font-size: 0.85em;">Calculate</button>`;
-            html += `<div class="quick-calc-result" data-formula-id="${formula.id}" style="flex: 1; padding: 6px; background: rgba(102, 126, 234, 0.1); border-radius: 6px; font-size: 0.85em; color: #a8c7ff; text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center;"></div>`;
-            html += `</div>`;
-            html += `</div>`;
+            // Only show quick calc if there are input variables (not just the result)
+            if (inputVariables.length > 0) {
+                html += `<div class="formula-card-quick-calc" style="margin-top: 12px; padding: 12px; background: rgba(102, 126, 234, 0.05); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.2);">`;
+                html += `<div style="font-size: 0.85em; color: #a8c7ff; margin-bottom: 8px; font-weight: 600;">⚡ Quick Calculate → ${resultVariable || 'Result'}:</div>`;
+                html += `<div class="quick-calc-inputs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">`;
+                
+                inputVariables.slice(0, 4).forEach((variable, idx) => {
+                    const inputId = `quick-calc-${formula.id}-${variable.symbol}`;
+                    html += `
+                        <div style="display: flex; flex-direction: column;">
+                            <label for="${inputId}" style="font-size: 0.75em; color: #888; margin-bottom: 4px;">${this.escapeHtml(variable.symbol)}</label>
+                            <input 
+                                type="number" 
+                                id="${inputId}"
+                                data-formula-id="${formula.id}"
+                                data-variable-symbol="${this.escapeHtml(variable.symbol)}"
+                                data-result-variable="${resultVariable || ''}"
+                                class="quick-calc-input"
+                                placeholder="0"
+                                step="any"
+                                style="padding: 6px; border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 4px; background: rgba(15, 23, 42, 0.5); color: white; font-size: 0.9em;"
+                            >
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                html += `<div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">`;
+                html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" data-result-variable="${resultVariable || ''}" style="flex: 1; padding: 6px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; font-size: 0.85em;">Calculate → ${resultVariable || 'Result'}</button>`;
+                html += `<div class="quick-calc-result" data-formula-id="${formula.id}" style="flex: 1; padding: 6px; background: rgba(102, 126, 234, 0.1); border-radius: 6px; font-size: 0.85em; color: #a8c7ff; text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center;"></div>`;
+                html += `</div>`;
+                html += `</div>`;
+            }
         }
         
         // Add confidence score if available
