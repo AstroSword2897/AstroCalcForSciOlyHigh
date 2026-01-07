@@ -1,6 +1,6 @@
 // This script forces blue borders and visible tabs immediately
 (function() {
-    console.log('[FORCE BLUE] Starting immediate style override...');
+    console.log('[FORCE BLUE] Starting immediate style override');
     
     // Create a new style element with maximum specificity
     const forceStyle = document.createElement('style');
@@ -41,22 +41,22 @@
     // Insert at the very end of head to override everything
     if (document.head) {
         document.head.appendChild(forceStyle);
-        console.log('[FORCE BLUE] ✅ Style element injected into HEAD');
+        console.log('[FORCE BLUE] Style element injected into HEAD');
     } else {
         document.addEventListener('DOMContentLoaded', () => {
             document.head.appendChild(forceStyle);
-            console.log('[FORCE BLUE] ✅ Style element injected into HEAD (after DOMContentLoaded)');
+            console.log('[FORCE BLUE] Style element injected into HEAD (after DOMContentLoaded)');
         });
     }
     
-    console.log('[FORCE BLUE] ✅ Script executed');
+    console.log('[FORCE BLUE] Script executed');
     
     // Also force inline styles on existing elements
     function forceInlineStyles() {
         const cards = document.querySelectorAll('.formula-card');
         const titles = document.querySelectorAll('.formula-card-title, .formula-card h3');
         
-        console.log(`[FORCE BLUE] Applying inline styles to ${cards.length} cards, ${titles.length} titles`);
+        console.log(`[FORCE BLUE] Applying inline styles to ${cards.length} card${cards.length !== 1 ? 's' : ''} and ${titles.length} title${titles.length !== 1 ? 's' : ''}`);
         
         cards.forEach(card => {
             card.style.setProperty('border', '2px solid #667eea', 'important');
@@ -67,7 +67,7 @@
             title.style.setProperty('color', '#667eea', 'important');
         });
         
-        console.log('[FORCE BLUE] ✅ Inline styles applied');
+        console.log('[FORCE BLUE] Inline styles applied');
     }
     
     // Run immediately and on DOM ready
@@ -95,5 +95,5 @@
         });
     }
     
-    console.log('[FORCE BLUE] ✅ Complete - monitoring for changes');
+    console.log('[FORCE BLUE] Complete - monitoring for changes');
 })();

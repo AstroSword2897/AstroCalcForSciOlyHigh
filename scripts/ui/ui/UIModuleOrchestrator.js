@@ -10,7 +10,7 @@ import { FormulaSelector } from './modules/formula/FormulaSelector.js';
 import { EventCoordinator } from './modules/events/EventCoordinator.js';
 import { CalculationUtils } from './modules/utils/CalculationUtils.js';
 import { FormattingUtils } from './modules/utils/FormattingUtils.js';
-import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js';
+import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js?v=2.1.7';
 import { debounceSearch } from './utils/debounce.js';
 import { validateCalculator, validateFormula } from './contracts.js';
 import { AstrophysicsExpertSystem } from './modules/expert/ExpertSystem.js';
@@ -185,7 +185,21 @@ export class UIModuleOrchestrator {
                 onBackButton: () => this.handleBackButton(),
                 onMainTabSwitch: (tabName) => this.tabManager.switchMainTab(tabName),
                 onSubTabSwitch: (tabName) => this.tabManager.switchTab(tabName),
-                onCalculate: () => this.calculationOrchestrator.performCalculation(),
+                onCalculate: () => {
+                    console.log('[UIModuleOrchestrator] onCalculate callback invoked');
+                    console.log('[UIModuleOrchestrator] calculationOrchestrator:', this.calculationOrchestrator);
+                    console.log('[UIModuleOrchestrator] performCalculation method:', typeof this.calculationOrchestrator?.performCalculation);
+                    if (this.calculationOrchestrator && typeof this.calculationOrchestrator.performCalculation === 'function') {
+                        try {
+                            return this.calculationOrchestrator.performCalculation();
+                        } catch (error) {
+                            console.error('[UIModuleOrchestrator] ❌ Error in performCalculation:', error);
+                            throw error;
+                        }
+                    } else {
+                        console.error('[UIModuleOrchestrator] ❌ calculationOrchestrator or performCalculation not available!');
+                    }
+                },
                 onFormulaCardClick: (formulaId) => {
                     const formula = this.options.formulas.find(f => f.id === formulaId);
                     if (formula) {
@@ -230,13 +244,203 @@ export class UIModuleOrchestrator {
         if (typeof window !== 'undefined') {
             window.uiOrchestrator = this;
             window.selectFormula = (formula) => this.formulaSelector.selectFormula(formula);
-            window.performCalculation = () => this.calculationOrchestrator.performCalculation();
+            window.performCalculation = () => {
+                console.log('[UIModuleOrchestrator] 🎯 window.performCalculation() called');
+                console.log('[UIModuleOrchestrator] calculationOrchestrator:', this.calculationOrchestrator);
+                console.log('[UIModuleOrchestrator] formulaSelector:', this.formulaSelector);
+                console.log('[UIModuleOrchestrator] currentFormula:', this.formulaSelector?.getCurrentFormula());
+                console.log('[UIModuleOrchestrator] currentCalculator:', this.formulaSelector?.getCurrentCalculator());
+                
+                if (!this.calculationOrchestrator) {
+                    console.error('[UIModuleOrchestrator] ❌ calculationOrchestrator is null/undefined!');
+                    return;
+                }
+                
+                if (typeof this.calculationOrchestrator.performCalculation !== 'function') {
+                    console.error('[UIModuleOrchestrator] ❌ performCalculation is not a function!', typeof this.calculationOrchestrator.performCalculation);
+                    return;
+                }
+                
+                try {
+                    console.log('[UIModuleOrchestrator] Calling calculationOrchestrator.performCalculation()...');
+                    const result = this.calculationOrchestrator.performCalculation();
+                    console.log('[UIModuleOrchestrator] ✅ performCalculation() completed, result:', result);
+                    return result;
+                } catch (error) {
+                    console.error('[UIModuleOrchestrator] ❌ Error calling performCalculation():', error);
+                    console.error('[UIModuleOrchestrator] Error stack:', error.stack);
+                    throw error;
+                }
+            };
             window.switchTab = (tabName) => this.tabManager.switchTab(tabName);
             window.switchMainTab = (tabName) => this.tabManager.switchMainTab(tabName);
             window.searchEngine = this.searchEngine;
             window.graphCoordinator = this.graphCoordinator;
             window.renderFormulaList = () => this.renderInitialFormulas();
+            window.performClassification = () => this.performClassification();
+            window.performMainClassification = () => this.performMainClassification();
+            
+            // Diagnostic function
+            window.diagnoseCalculation = () => {
+                console.log('=== CALCULATION SYSTEM DIAGNOSTICS ===');
+                console.log('1. UI Orchestrator:', this ? '✅ Exists' : '❌ Missing');
+                console.log('2. Calculation Orchestrator:', this.calculationOrchestrator ? '✅ Exists' : '❌ Missing');
+                console.log('3. Formula Selector:', this.formulaSelector ? '✅ Exists' : '❌ Missing');
+                console.log('4. Event Coordinator:', this.eventCoordinator ? '✅ Exists' : '❌ Missing');
+                console.log('5. Current Formula:', this.formulaSelector?.getCurrentFormula() || '❌ None selected');
+                console.log('6. Current Calculator:', this.formulaSelector?.getCurrentCalculator() ? '✅ Exists' : '❌ Missing');
+                console.log('7. Calculate Button:', document.getElementById('calculate-btn') ? '✅ Found in DOM' : '❌ Not in DOM');
+                console.log('8. onCalculate callback:', this.eventCoordinator?.options?.onCalculate ? '✅ Set' : '❌ Not set');
+                console.log('9. window.performCalculation:', typeof window.performCalculation === 'function' ? '✅ Exists' : '❌ Missing');
+                console.log('10. Input Screen visible:', document.getElementById('input-screen')?.style.display !== 'none' ? '✅ Visible' : '❌ Hidden');
+                console.log('=====================================');
+                return {
+                    uiOrchestrator: !!this,
+                    calculationOrchestrator: !!this.calculationOrchestrator,
+                    formulaSelector: !!this.formulaSelector,
+                    eventCoordinator: !!this.eventCoordinator,
+                    currentFormula: this.formulaSelector?.getCurrentFormula() || null,
+                    currentCalculator: !!this.formulaSelector?.getCurrentCalculator(),
+                    calculateButton: !!document.getElementById('calculate-btn'),
+                    onCalculateCallback: !!this.eventCoordinator?.options?.onCalculate,
+                    performCalculationFunction: typeof window.performCalculation === 'function',
+                    inputScreenVisible: document.getElementById('input-screen')?.style.display !== 'none'
+                };
+            };
         }
+    }
+    /**
+     * Perform classification for the calculator tab classification section
+     */
+    performClassification() {
+        try {
+            const tempInput = document.getElementById('calc-classification-temperature-input');
+            const lumSelect = document.getElementById('calc-classification-luminosity-class');
+            const protostarCheckbox = document.getElementById('protostar-checkbox');
+            const resultDiv = document.getElementById('classification-result');
+            
+            if (!tempInput || !resultDiv) {
+                console.error('[UIModuleOrchestrator] Classification inputs not found');
+                return;
+            }
+            
+            const temperature = parseFloat(tempInput.value);
+            if (!temperature || temperature <= 0) {
+                resultDiv.innerHTML = '<div class="error">Please enter a valid temperature (K)</div>';
+                return;
+            }
+            
+            const lumValue = lumSelect?.value || null;
+            // Parse luminosity class (e.g., "Ia", "V") vs white dwarf type (e.g., "DA")
+            const isWhiteDwarf = lumValue?.startsWith('D') || false;
+            const whiteDwarfType = isWhiteDwarf ? lumValue : null;
+            // Extract luminosity class (I, II, III, IV, V) from values like "Ia", "Ib", "V"
+            let luminosityClass = null;
+            if (lumValue && !isWhiteDwarf) {
+                if (lumValue.startsWith('I')) {
+                    luminosityClass = lumValue; // "Ia" or "Ib"
+                } else if (lumValue.match(/^[IVX]+$/)) {
+                    luminosityClass = lumValue; // "II", "III", "IV", "V"
+                }
+            }
+            const isProtostar = protostarCheckbox?.checked || false;
+            
+            // Get classifier from TabManager
+            const classifier = this.tabManager?.stellarClassifier;
+            if (!classifier && window.StellarClassifier) {
+                // Fallback: create new instance
+                const StellarClassifier = window.StellarClassifier;
+                const tempClassifier = new StellarClassifier();
+                const classification = tempClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+            } else if (classifier) {
+                const classification = classifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+            } else {
+                resultDiv.innerHTML = '<div class="error">Classification system not available</div>';
+            }
+        } catch (error) {
+            console.error('[UIModuleOrchestrator] Classification error:', error);
+            const resultDiv = document.getElementById('classification-result');
+            if (resultDiv) {
+                resultDiv.innerHTML = `<div class="error">Classification error: ${error.message}</div>`;
+            }
+        }
+    }
+    /**
+     * Perform classification for the main classification tab
+     */
+    performMainClassification() {
+        try {
+            const tempInput = document.getElementById('main-temperature-input');
+            const lumSelect = document.getElementById('main-luminosity-class');
+            const protostarCheckbox = document.getElementById('main-protostar-checkbox');
+            const resultDiv = document.getElementById('main-classification-result');
+            
+            if (!tempInput || !resultDiv) {
+                console.error('[UIModuleOrchestrator] Main classification inputs not found');
+                return;
+            }
+            
+            const temperature = parseFloat(tempInput.value);
+            if (!temperature || temperature <= 0) {
+                resultDiv.innerHTML = '<div class="error">Please enter a valid temperature (K)</div>';
+                return;
+            }
+            
+            const lumValue = lumSelect?.value || null;
+            // Parse luminosity class (e.g., "Ia", "V") vs white dwarf type (e.g., "DA")
+            const isWhiteDwarf = lumValue?.startsWith('D') || false;
+            const whiteDwarfType = isWhiteDwarf ? lumValue : null;
+            // Extract luminosity class (I, II, III, IV, V) from values like "Ia", "Ib", "V"
+            let luminosityClass = null;
+            if (lumValue && !isWhiteDwarf) {
+                if (lumValue.startsWith('I')) {
+                    luminosityClass = lumValue; // "Ia" or "Ib"
+                } else if (lumValue.match(/^[IVX]+$/)) {
+                    luminosityClass = lumValue; // "II", "III", "IV", "V"
+                }
+            }
+            const isProtostar = protostarCheckbox?.checked || false;
+            
+            // Get classifier from TabManager
+            const classifier = this.tabManager?.stellarClassifier;
+            if (!classifier && window.StellarClassifier) {
+                // Fallback: create new instance
+                const StellarClassifier = window.StellarClassifier;
+                const tempClassifier = new StellarClassifier();
+                const classification = tempClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+            } else if (classifier) {
+                const classification = classifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+            } else {
+                resultDiv.innerHTML = '<div class="error">Classification system not available</div>';
+            }
+        } catch (error) {
+            console.error('[UIModuleOrchestrator] Main classification error:', error);
+            const resultDiv = document.getElementById('main-classification-result');
+            if (resultDiv) {
+                resultDiv.innerHTML = `<div class="error">Classification error: ${error.message}</div>`;
+            }
+        }
+    }
+    /**
+     * Display classification result
+     */
+    displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
+        resultDiv.innerHTML = `
+            <div class="classification-result-content">
+                <h4>Classification Result</h4>
+                <div class="result-badge">${classification}</div>
+                <div class="result-details">
+                    <p><strong>Temperature:</strong> ${temperature.toLocaleString()} K</p>
+                    ${luminosityClass ? `<p><strong>Luminosity Class:</strong> ${luminosityClass}</p>` : ''}
+                    ${isProtostar ? '<p><strong>Type:</strong> Protostar (YSO)</p>' : ''}
+                    ${isWhiteDwarf ? `<p><strong>White Dwarf Type:</strong> ${whiteDwarfType}</p>` : ''}
+                </div>
+            </div>
+        `;
     }
     /**
      * Initialize the UI system
@@ -350,8 +554,12 @@ export class UIModuleOrchestrator {
     handleSearch(query) {
         // Detect question-like queries (contains question words or is a full sentence)
         const isQuestion = this.detectQuestionQuery(query);
+        console.log('[UIModuleOrchestrator] handleSearch:', { query, isQuestion, hasExpertSystem: !!this.expertSystem });
         
         if (isQuestion && this.expertSystem) {
+            // Hide command palette dropdown - user wants clean search experience
+            this.hideCommandPaletteResults();
+            
             // Route through ExpertSystem for authoritative answer
             const expertResult = this.expertSystem.solveQuestion(query);
             
@@ -386,8 +594,8 @@ export class UIModuleOrchestrator {
                     );
                 }
                 
-                // Also update command palette with single result
-                this.renderCommandPaletteResults([expertResultItem]);
+                // Don't show command palette results - user wants clean search experience
+                // this.renderCommandPaletteResults([expertResultItem]);
                 
                 // Show expert explanation in output area if it exists
                 this.renderExpertResult(expertResult);
@@ -402,17 +610,47 @@ export class UIModuleOrchestrator {
         // Normal search flow
         const results = this.searchEngine.search(query);
         
-        // Update command palette
-        this.renderCommandPaletteResults(results);
+        // Hide command palette dropdown - user wants clean search experience
+        this.hideCommandPaletteResults();
+        
+        // Ensure results are sorted by confidence percentage (highest first)
+        // The SearchEngine already sorts by score, but we'll ensure it's sorted by the displayed confidence
+        const sortedResults = [...results].sort((a, b) => {
+            // Primary sort: by raw score (descending) - this determines the confidence percentage
+            const scoreDiff = b.score - a.score;
+            if (Math.abs(scoreDiff) > 0.001) { // Use epsilon for floating point comparison
+                return scoreDiff;
+            }
+            // Secondary sort: by percentile if available (descending)
+            if (b.percentile !== undefined && a.percentile !== undefined) {
+                const percentileDiff = b.percentile - a.percentile;
+                if (Math.abs(percentileDiff) > 0.001) {
+                    return percentileDiff;
+                }
+            }
+            // Tertiary sort: by normalized score if available (descending)
+            if (b.normalizedScore !== undefined && a.normalizedScore !== undefined) {
+                const normDiff = b.normalizedScore - a.normalizedScore;
+                if (Math.abs(normDiff) > 0.001) {
+                    return normDiff;
+                }
+            }
+            // Final sort: by formula name (ascending) for consistency
+            return (a.formula?.name || '').localeCompare(b.formula?.name || '');
+        });
+        
+        // Don't show command palette results - user wants clean search experience
+        // this.renderCommandPaletteResults(sortedResults);
         
         // Update main formula list (limited to 50 for performance)
         const formulaList = document.getElementById('formula-list');
         if (formulaList && this.formulaRenderer) {
-            const maxScore = results.length > 0 ? results[0].score : 1;
+            const maxScore = sortedResults.length > 0 ? sortedResults[0].score : 1;
             
             // Pass full search results (with confidence/topic data) to renderer
+            // Results are sorted by highest score/confidence percentage first
             this.formulaRenderer.renderFormulaCards(
-                results.slice(0, 50), // Limit to 50 for performance
+                sortedResults.slice(0, 50), // Limit to 50 for performance, already sorted
                 formulaList,
                 {
                     showConfidence: true,
@@ -670,12 +908,8 @@ export class UIModuleOrchestrator {
 
             const value = input.value.trim();
             
-            // Check for N/A checkbox
-            const naCheckbox = document.querySelector(`.na-checkbox[data-symbol="${variable.symbol}"]`);
-            const isNA = naCheckbox?.checked || false;
-            
-            // Return null if N/A or empty
-            if (!value || this.isNAValue(value) || isNA) {
+            // Return null if empty (empty means unknown, will show symbolic result)
+            if (!value || this.isNAValue(value)) {
                 values[variable.symbol] = null;
                 return;
             }
@@ -775,28 +1009,6 @@ export class UIModuleOrchestrator {
             description.className = 'var-description';
             description.textContent = variable.description || '';
 
-            // N/A checkbox for solving
-            const naContainer = document.createElement('div');
-            naContainer.className = 'na-option';
-
-            const naLabel = document.createElement('label');
-            naLabel.className = 'na-checkbox-label';
-            naLabel.setAttribute('for', `na-${variable.symbol}`);
-
-            const naCheckbox = document.createElement('input');
-            naCheckbox.type = 'checkbox';
-            naCheckbox.className = 'na-checkbox';
-            naCheckbox.id = `na-${variable.symbol}`;
-            naCheckbox.setAttribute('data-symbol', variable.symbol);
-            naCheckbox.setAttribute('aria-label', `Mark ${variable.symbol} as unknown`);
-
-            const naText = document.createElement('span');
-            naText.textContent = 'N/A (solve for this)';
-
-            naLabel.appendChild(naCheckbox);
-            naLabel.appendChild(naText);
-            naContainer.appendChild(naLabel);
-
             // Assemble input group
             inputDiv.appendChild(label);
             inputDiv.appendChild(input);
@@ -806,7 +1018,6 @@ export class UIModuleOrchestrator {
             if (description.textContent) {
                 inputDiv.appendChild(description);
             }
-            inputDiv.appendChild(naContainer);
             
             container.appendChild(inputDiv);
         });

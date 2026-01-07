@@ -213,12 +213,6 @@ class VariableInputsRenderer {
                     ${inputFieldsHTML}
                 </div>
                 <div class="var-description">${variable.description}</div>
-                <div class="na-option">
-                    <label class="na-checkbox-label" for="na-${variable.symbol}">
-                        <input type="checkbox" class="na-checkbox" id="na-${variable.symbol}" name="na-${variable.symbol}" data-symbol="${variable.symbol}" aria-label="Mark ${variable.symbol} as unknown">
-                        <span>Mark as unknown (use as variable in symbolic calculations)</span>
-                    </label>
-                </div>
             `;
             
             container.appendChild(inputDiv);
@@ -258,32 +252,6 @@ class VariableInputsRenderer {
                     this.activeInputListeners.set(input, { inputListener });
                 }
             });
-            
-            // Add N/A checkbox listener
-            const naCheckbox = inputDiv.querySelector(`.na-checkbox[data-symbol="${variable.symbol}"]`);
-            if (naCheckbox) {
-                const changeListener = (e) => {
-                    if (e.target.checked) {
-                        inputElements.forEach(({ input }) => {
-                            if (input) input.value = '';
-                        });
-                    }
-                    clearTimeout(naCheckbox.updateTimeout);
-                    naCheckbox.updateTimeout = setTimeout(() => {
-                        if (typeof updateSolveIndicators === 'function') {
-                            updateSolveIndicators();
-                        }
-                        if (typeof GRAPH_UPDATES_ENABLED !== 'undefined' && GRAPH_UPDATES_ENABLED && typeof currentFormula !== 'undefined' && currentFormula) {
-                            if (typeof getCurrentVariableValues === 'function' && typeof updateGraphIfEnabled === 'function') {
-                                const variableValues = getCurrentVariableValues();
-                                updateGraphIfEnabled(currentFormula, variableValues);
-                            }
-                        }
-                    }, typeof TIMING !== 'undefined' ? TIMING.DEBOUNCE_INDICATORS : 300);
-                };
-                naCheckbox.addEventListener('change', changeListener);
-                this.activeInputListeners.set(naCheckbox, { changeListener });
-            }
         });
         
         // Initial update of solve indicators

@@ -23,31 +23,84 @@ export class CalculationOrchestrator {
      * Perform calculation with improved error handling and validation
      */
     performCalculation() {
+        console.log('[CalculationOrchestrator] ⚡ performCalculation() called');
         const startTime = performance.now();
         try {
+            console.log('[CalculationOrchestrator] Getting calculator and formula...');
             const calculator = this.getCalculator();
             const formula = this.getFormula();
+            console.log('[CalculationOrchestrator] Calculator:', calculator ? '✅ Found' : '❌ Missing');
+            console.log('[CalculationOrchestrator] Formula:', formula ? `✅ Found: ${formula.name || formula.id}` : '❌ Missing');
+            
             if (!calculator || !formula) {
-                this.displayError('⚠️ Please select a formula first');
+                const errorMsg = '⚠️ Please select a formula first';
+                console.error('[CalculationOrchestrator] ❌', errorMsg, { calculator: !!calculator, formula: !!formula });
+                this.displayError(errorMsg);
                 return;
             }
             // Collect and validate variable values
+            console.log('[CalculationOrchestrator] Collecting variable values...');
             const variableValues = this.collectVariableValues(formula);
+            console.log('[CalculationOrchestrator] Collected values:', variableValues);
+            
             const validation = this.validateVariableValues(variableValues, formula);
             if (!validation.valid) {
+                console.error('[CalculationOrchestrator] ❌ Validation failed:', validation.error);
                 this.displayError(validation.error || 'Invalid input values');
                 return;
             }
+            
             const hasAnyValues = Object.values(variableValues).some(v => v !== null && typeof v === 'number');
-            // Handle symbolic result if no values
+            const unknownCount = Object.values(variableValues).filter(v => v === null).length;
+            const knownCount = Object.values(variableValues).filter(v => v !== null).length;
+            
+            console.log(`[CalculationOrchestrator] Values status: ${knownCount} known, ${unknownCount} unknown`);
+            
+            // If no values provided, show symbolic result
             if (!hasAnyValues) {
-                this.handleSymbolicResult(calculator, formula);
+                console.log('[CalculationOrchestrator] No values provided, showing symbolic result...');
+                this.handleSymbolicResult(calculator, formula, variableValues);
                 return;
             }
-            // Perform calculation
-            const result = calculator.solve(variableValues);
+            
+            // Try to solve - calculator.solve() can handle:
+            // - 0 unknowns: evaluates the formula
+            // - 1 unknown: solves for that variable
+            // - Multiple unknowns: returns symbolic result with known values substituted
+            console.log(`[CalculationOrchestrator] Attempting calculation: ${knownCount} known, ${unknownCount} unknown`);
+            console.log('[CalculationOrchestrator] Calling calculator.solve() with values:', variableValues);
+            let result;
+            try {
+                result = calculator.solve(variableValues);
+                console.log('[CalculationOrchestrator] Calculation result:', result);
+                
+                // Check if result is already symbolic (from calculator's internal fallback)
+                if (result && result.isSymbolic) {
+                    console.log('[CalculationOrchestrator] Result is symbolic, displaying directly');
+                    this.displayResult(result);
+                    return;
+                }
+            } catch (solveError) {
+                // Determine if this error is solvable with symbolic calculation
+                const shouldFallbackToSymbolic = this.shouldFallbackToSymbolic(solveError, variableValues);
+                
+                if (shouldFallbackToSymbolic) {
+                    console.log('[CalculationOrchestrator] Solve failed, falling back to symbolic calculation:', solveError.message);
+                    this.handleSymbolicResult(calculator, formula, variableValues);
+                    return;
+                }
+                throw solveError; // Re-throw if it's not a solvable case
+            }
+            
             // Validate result
             if (!this.validateResult(result)) {
+                // If validation fails but we have some known values, try symbolic as fallback
+                const knownCount = Object.values(variableValues).filter(v => v !== null && typeof v === 'number').length;
+                if (knownCount > 0) {
+                    console.log('[CalculationOrchestrator] Result validation failed, attempting symbolic fallback with known values');
+                    this.handleSymbolicResult(calculator, formula, variableValues);
+                    return;
+                }
                 this.displayError('Invalid calculation result. Please check your inputs.');
                 return;
             }
@@ -64,9 +117,10 @@ export class CalculationOrchestrator {
                 this.updateGraphAfterCalculation(formula, variableValues, result);
             }
             const duration = performance.now() - startTime;
-            console.log(`[CalculationOrchestrator] Calculation completed in ${duration.toFixed(2)}ms`);
+            console.log(`[CalculationOrchestrator] ✅ Calculation completed in ${duration.toFixed(2)}ms`);
         }
         catch (error) {
+            console.error('[CalculationOrchestrator] ❌ Exception during calculation:', error);
             this.handleCalculationError(error);
         }
     }
@@ -90,28 +144,47 @@ export class CalculationOrchestrator {
         return variableValues;
     }
     collectVariableValue(variable, formula) {
-        // Simplified: read directly from rendered inputs
-        const inputId = `var-${variable.symbol}`;
+        // Try multiple input ID patterns to handle different rendering methods
+        // Pattern 1: Simple ID (var-symbol)
+        let inputId = `var-${variable.symbol}`;
         let input = document.getElementById(inputId);
         
+        // Pattern 2: With unit suffix (var-symbol-unit) - used by VariableInputsRenderer
+        if (!input && this.unitConverter) {
+            const baseUnit = variable.unit;
+            const alternativeUnits = this.unitConverter.getAlternativeUnits(baseUnit);
+            for (const unit of alternativeUnits) {
+                const unitSuffix = unit.replace(/[^a-zA-Z0-9]/g, '_');
+                inputId = `var-${variable.symbol}-${unitSuffix}`;
+                input = document.getElementById(inputId);
+                if (input && input.value.trim()) {
+                    break; // Found an input with a value
+                }
+            }
+        }
+        
+        // Pattern 3: Use data attributes as fallback
         if (!input) {
-            console.warn(`[CalculationOrchestrator] Input not found: ${inputId}`);
+            input = document.querySelector(`input[data-symbol="${variable.symbol}"]`);
+        }
+        
+        if (!input) {
+            console.warn(`[CalculationOrchestrator] Input not found: var-${variable.symbol}`);
             return null;
         }
         
         const value = input.value.trim();
         
-        // Check for N/A checkbox
-        const naCheckbox = document.querySelector(`.na-checkbox[data-symbol="${variable.symbol}"]`);
-        const isNA = naCheckbox?.checked || false;
-        
-        // Return null if N/A or empty
-        if (!value || this.isNAValue(value) || isNA) {
+        // Return null if empty (no N/A checkbox needed - empty means unknown)
+        if (!value || this.isNAValue(value)) {
             return null;
         }
         
-        // Parse and convert (using base unit)
-        const parsedValue = this.parseNumericValue(value, variable.unit);
+        // Get the unit from the input if available
+        const inputUnit = input.getAttribute('data-unit') || input.getAttribute('data-base-unit') || variable.unit;
+        
+        // Parse and convert (using the input's unit or variable's base unit)
+        const parsedValue = this.parseNumericValue(value, inputUnit);
         if (parsedValue === null) {
             throw new Error(`Invalid value for ${variable.symbol}: "${value}"`);
         }
@@ -163,16 +236,109 @@ export class CalculationOrchestrator {
         const lower = value.toLowerCase();
         return lower === 'null' || lower === 'n/a' || lower === 'na' || lower === 'idk' || lower === '';
     }
-    handleSymbolicResult(calculator, formula) {
-        const constantSymbols = this.getConstantSymbols(formula);
-        const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
+    /**
+     * Determine if an error should trigger symbolic calculation fallback
+     * @param {Error} error - The error from calculator.solve()
+     * @param {Object} variableValues - The variable values that were used
+     * @returns {boolean} - True if symbolic fallback should be attempted
+     */
+    shouldFallbackToSymbolic(error, variableValues) {
+        if (!error || !error.message) return false;
+        
+        const errorMsg = error.message.toLowerCase();
+        const knownCount = Object.values(variableValues).filter(v => v !== null && typeof v === 'number').length;
+        
+        // Cases where symbolic fallback makes sense:
+        const fallbackCases = [
+            'multiple variables',           // Multiple unknowns
+            'cannot solve for multiple',    // Multiple unknowns (alternate wording)
+            'too many unknowns',            // Multiple unknowns (alternate wording)
+            'solver failed',                // Solver couldn't find numeric solution
+            'no solution found',            // No numeric solution exists
+            'cannot isolate',               // Cannot isolate variable
+            'underdetermined',              // System is underdetermined
+            'overdetermined'                // System is overdetermined (might still benefit from symbolic)
+        ];
+        
+        // Check if error message matches any fallback case
+        const matchesFallbackCase = fallbackCases.some(caseStr => errorMsg.includes(caseStr));
+        
+        // Also check if we have partial information (some known values)
+        // This allows partial numeric evaluation
+        const hasPartialInfo = knownCount > 0 && knownCount < Object.keys(variableValues).length;
+        
+        // Fallback if:
+        // 1. Error matches a known fallback case, OR
+        // 2. We have partial information (can do partial evaluation)
+        if (matchesFallbackCase || hasPartialInfo) {
+            console.log(`[CalculationOrchestrator] Fallback condition met: ${matchesFallbackCase ? 'error case' : 'partial evaluation'} (${knownCount} known values)`);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Handle symbolic calculation result
+     * Supports partial numeric evaluation when some values are known
+     */
+    handleSymbolicResult(calculator, formula, knownVars = {}) {
         try {
-            const result = calculator.solveSymbolically(userVariables.map(v => v.symbol), {}, userVariables.map(v => v.symbol));
+            console.log('[CalculationOrchestrator] Getting symbolic result with known vars:', knownVars);
+            
+            // solveSymbolically expects knownVars as an object mapping variable names to values
+            // Filter out null values (unknowns) and pass only known values for partial evaluation
+            const filteredKnownVars = {};
+            for (const [key, value] of Object.entries(knownVars)) {
+                if (value !== null && value !== undefined && typeof value === 'number') {
+                    filteredKnownVars[key] = value;
+                }
+            }
+            
+            const knownCount = Object.keys(filteredKnownVars).length;
+            const totalCount = Object.keys(knownVars).length;
+            
+            console.log(`[CalculationOrchestrator] Partial evaluation: ${knownCount}/${totalCount} variables known`);
+            console.log('[CalculationOrchestrator] Filtered known vars for symbolic solve:', filteredKnownVars);
+            
+            const result = calculator.solveSymbolically(filteredKnownVars);
+            console.log('[CalculationOrchestrator] Symbolic result:', result);
+            
+            // Enhance result with partial evaluation info if applicable
+            if (knownCount > 0 && knownCount < totalCount) {
+                result.partialEvaluation = true;
+                result.knownVariables = Object.keys(filteredKnownVars);
+                result.unknownVariables = Object.keys(knownVars).filter(k => !filteredKnownVars[k]);
+                
+                // Add helpful context about what was substituted
+                if (result.result && typeof result.result === 'string') {
+                    const knownVarsList = result.knownVariables.map(v => {
+                        const val = filteredKnownVars[v];
+                        const formatted = Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0) 
+                            ? val.toExponential(3) 
+                            : val.toString();
+                        return `${v} = ${formatted}`;
+                    }).join(', ');
+                    
+                    // Prepend context if not already in the result
+                    if (!result.result.includes('Known values:')) {
+                        result.result = `Known values: ${knownVarsList}\n${result.result}`;
+                    }
+                }
+            }
+            
             this.displayResult(result);
         }
         catch (error) {
             console.error('[CalculationOrchestrator] Error getting symbolic result:', error);
-            this.displayError('Please enter at least one value to calculate, or leave all empty for a symbolic expression.');
+            
+            // If we have some known values, show a helpful message about partial evaluation
+            const knownCount = Object.values(knownVars).filter(v => v !== null && typeof v === 'number').length;
+            if (knownCount > 0) {
+                this.displayError(`Unable to generate symbolic expression with ${knownCount} known value(s). Please check your inputs or provide more values.`);
+            } else {
+                this.displayError('Unable to generate symbolic expression. Please enter values to calculate numerically.');
+            }
         }
     }
     updateGraphAfterCalculation(formula, variableValues, result) {
@@ -203,7 +369,7 @@ export class CalculationOrchestrator {
     handleCalculationError(error) {
         console.error('[CalculationOrchestrator] Error:', error);
         let errorMessage = error.message || 'An error occurred during calculation.';
-        // Improve error messages
+        // Improve error messagesx
         const improvedMessage = this.improveErrorMessage(errorMessage);
         this.displayError(improvedMessage);
     }

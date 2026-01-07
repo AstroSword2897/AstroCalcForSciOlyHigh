@@ -32,7 +32,8 @@ class FormulaCalculator {
         this.errorPropagator = options.errorPropagator;
         this.unitConverter = options.unitConverter;
         this.mathEvaluator = options.mathEvaluator;
-        this.constants = { ...DEFAULT_CONSTANTS, ...options.constants };
+        // Merge default constants, formula-specific constants, and options constants
+        this.constants = { ...DEFAULT_CONSTANTS, ...(formula.constants || {}), ...options.constants };
         this.solver = options.solver;
     }
     /**
@@ -96,10 +97,11 @@ class FormulaCalculator {
             }
             else if (unknownVars.length === 1) {
                 solvedFor = unknownVars[0];
-                // Check if we should do symbolic solving (when variable is null/undefined)
-                const targetValue = knownVars[solvedFor];
-                if (targetValue === null || targetValue === undefined) {
-                    // Symbolic solving
+                // With exactly one unknown and all others known, do numeric solving
+                try {
+                    numericResult = this.solveForVariable(solvedFor, knownVars);
+                } catch (solverError) {
+                    // If solver fails, fall back to symbolic solving
                     return {
                         solvedFor,
                         result: this.generateSymbolicExpression(solvedFor, knownVars),
@@ -111,12 +113,12 @@ class FormulaCalculator {
                         errorInfo: undefined
                     };
                 }
-                else {
-                    // Numeric solving
-                    numericResult = this.solveForVariable(solvedFor, knownVars);
-                }
             }
             else {
+                // If multiple variables are unknown, return symbolic result instead of error
+                if (unknownVars.length > 1) {
+                    return this.solveSymbolically(knownVars);
+                }
                 throw new Error(`Cannot solve for multiple variables at once: ${unknownVars.join(', ')}. ` +
                     'Please provide all but one variable.');
             }
@@ -209,20 +211,38 @@ class FormulaCalculator {
             }
             
             if (unknownVars.length === 1) {
-                // Single unknown variable, solve for it
+                // Single unknown variable - try numeric solving first, fall back to symbolic
                 const solvedFor = unknownVars[0];
-                const symbolicExpression = this.generateSymbolicExpression(solvedFor, knownVars);
-                
-                return {
-                    solvedFor,
-                    result: symbolicExpression,
-                    unit: this.formula.variables.find(v => v.symbol === solvedFor)?.unit || '',
-                    isSymbolic: true,
-                    variable: solvedFor,
-                    significantFigures: undefined,
-                    arithmeticContext: undefined,
-                    errorInfo: undefined
-                };
+                try {
+                    // Try numeric solving
+                    const numericResult = this.solveForVariable(solvedFor, knownVars);
+                    const varInfo = this.formula.variables.find(v => v.symbol === solvedFor);
+                    
+                    return {
+                        solvedFor,
+                        result: numericResult,
+                        unit: varInfo?.unit || '',
+                        isSymbolic: false,
+                        variable: solvedFor,
+                        significantFigures: undefined,
+                        arithmeticContext: undefined,
+                        errorInfo: undefined
+                    };
+                } catch (solverError) {
+                    // If numeric solving fails, return symbolic expression with known values substituted
+                    const symbolicExpression = this.generateSymbolicExpression(solvedFor, knownVars);
+                    
+                    return {
+                        solvedFor,
+                        result: symbolicExpression,
+                        unit: this.formula.variables.find(v => v.symbol === solvedFor)?.unit || '',
+                        isSymbolic: true,
+                        variable: solvedFor,
+                        significantFigures: undefined,
+                        arithmeticContext: undefined,
+                        errorInfo: undefined
+                    };
+                }
             }
             
             // Multiple unknown variables - return expression with all unknowns
@@ -252,17 +272,30 @@ class FormulaCalculator {
         // Start with the equation
         let expression = this.formula.equation;
         
-        // Substitute known variables
-        for (const [symbol, value] of Object.entries(knownVars)) {
-            if (value !== null && value !== undefined) {
-                const regex = new RegExp(`\\b${symbol}\\b`, 'g');
-                expression = expression.replace(regex, value.toString());
+        // Format values for better readability in symbolic expressions
+        const formatValue = (val) => {
+            if (Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0)) {
+                return val.toExponential(3);
             }
+            return val.toString();
+        };
+        
+        // Substitute known variables with their numeric values
+        // Sort by symbol length (longest first) to avoid partial matches
+        const sortedKnownVars = Object.entries(knownVars)
+            .filter(([_, v]) => v !== null && v !== undefined && typeof v === 'number')
+            .sort((a, b) => b[0].length - a[0].length);
+        
+        for (const [symbol, value] of sortedKnownVars) {
+            const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
+            const formattedValue = formatValue(value);
+            expression = expression.replace(regex, formattedValue);
         }
         
-        // Return the expression with the unknown variable isolated
-        // This is a simplified version - a full implementation would require algebraic manipulation
-        return `${unknownVar} = f(${expression})`;
+        // Return the expression showing the unknown variable
+        // Format: "unknownVar = expression_with_substituted_values"
+        return `${unknownVar} = ${expression}`;
     }
     /**
      * Generate expression for multiple unknown variables
@@ -270,16 +303,33 @@ class FormulaCalculator {
     generateMultiVariableExpression(unknownVars, knownVars) {
         let expression = this.formula.equation;
         
-        // Substitute known variables
-        for (const [symbol, value] of Object.entries(knownVars)) {
-            if (value !== null && value !== undefined) {
-                const regex = new RegExp(`\\b${symbol}\\b`, 'g');
-                expression = expression.replace(regex, value.toString());
+        // Format values for better readability
+        const formatValue = (val) => {
+            if (Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0)) {
+                return val.toExponential(3);
             }
+            return val.toString();
+        };
+        
+        // Substitute known variables with their numeric values
+        // Sort by symbol length (longest first) to avoid partial matches
+        const sortedKnownVars = Object.entries(knownVars)
+            .filter(([_, v]) => v !== null && v !== undefined && typeof v === 'number')
+            .sort((a, b) => b[0].length - a[0].length);
+        
+        for (const [symbol, value] of sortedKnownVars) {
+            const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
+            const formattedValue = formatValue(value);
+            expression = expression.replace(regex, formattedValue);
         }
         
-        // Return expression showing relationship between unknowns
-        return `Relationship: ${expression} (unknowns: ${unknownVars.join(', ')})`;
+        // Return expression showing relationship with known values substituted
+        if (unknownVars.length === 1) {
+            return `${unknownVars[0]} = ${expression}`;
+        } else {
+            return `${expression} (solve for: ${unknownVars.join(', ')})`;
+        }
     }
     /**
      * Evaluates mathematical expressions with caching for performance

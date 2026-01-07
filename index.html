@@ -135,7 +135,7 @@
             });
             
             // DO NOT RE-REGISTER - Let page load without SW
-            console.log('[CLIENT] ⚠️ Service Worker DISABLED for debugging');
+            console.log('[CLIENT] Service Worker disabled for debugging');
         }
     </script>
     
@@ -832,25 +832,45 @@
                         calcBtn.addEventListener('click', function(e) {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('[ForceAttach] Calculate button clicked');
+                            console.log('[ForceAttach] 🎯 Calculate button clicked!');
+                            console.log('[ForceAttach] Event target:', e.target);
+                            console.log('[ForceAttach] Button element:', calcBtn);
+                            
+                            // Diagnostic check
+                            const diagnostics = {
+                                performCalculation: typeof window.performCalculation,
+                                calculationOrchestrator: typeof window.calculationOrchestrator,
+                                uiOrchestrator: typeof window.uiOrchestrator,
+                                currentFormula: window.currentFormula || window.uiOrchestrator?.formulaSelector?.getCurrentFormula(),
+                                currentCalculator: window.calculator || window.uiOrchestrator?.formulaSelector?.getCurrentCalculator()
+                            };
+                            console.log('[ForceAttach] System state:', diagnostics);
                             
                             // Try multiple possible calculation functions
+                            let called = false;
                             if (typeof window.performCalculation === 'function') {
+                                console.log('[ForceAttach] Calling window.performCalculation()...');
                                 window.performCalculation();
+                                called = true;
                             } else if (typeof window.calculationOrchestrator !== 'undefined' && 
                                       typeof window.calculationOrchestrator.performCalculation === 'function') {
+                                console.log('[ForceAttach] Calling window.calculationOrchestrator.performCalculation()...');
                                 window.calculationOrchestrator.performCalculation();
+                                called = true;
                             } else if (typeof window.uiOrchestrator !== 'undefined' && 
                                       typeof window.uiOrchestrator.calculationOrchestrator !== 'undefined' &&
                                       typeof window.uiOrchestrator.calculationOrchestrator.performCalculation === 'function') {
+                                console.log('[ForceAttach] Calling window.uiOrchestrator.calculationOrchestrator.performCalculation()...');
                                 window.uiOrchestrator.calculationOrchestrator.performCalculation();
-                            } else {
+                                called = true;
+                            }
+                            
+                            if (!called) {
                                 console.error('[ForceAttach] ❌ No calculation function found!');
-                                console.log('[ForceAttach] Available functions:', {
-                                    performCalculation: typeof window.performCalculation,
-                                    calculationOrchestrator: typeof window.calculationOrchestrator,
-                                    uiOrchestrator: typeof window.uiOrchestrator
-                                });
+                                console.log('[ForceAttach] Available functions:', diagnostics);
+                                alert('Calculation system not ready. Check console for details.');
+                            } else {
+                                console.log('[ForceAttach] ✅ Calculation function called');
                             }
                         });
                         calcBtn._forceAttached = true;
