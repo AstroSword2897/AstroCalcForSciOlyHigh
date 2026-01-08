@@ -5,9 +5,10 @@
 
 class PerformanceOptimizer {
     constructor() {
-        this.calculationCache = new Map();
-        this.searchCache = new Map();
-        this.renderCache = new Map();
+        // True LRU caches: Map maintains insertion order, we'll track access times
+        this.calculationCache = new Map(); // key -> { result, timestamp, lastAccess }
+        this.searchCache = new Map(); // key -> { results, timestamp, lastAccess }
+        this.renderCache = new Map(); // key -> { element, version, lastAccess }
         this.maxCacheSize = 500;
         
         // Batch DOM updates
@@ -19,36 +20,51 @@ class PerformanceOptimizer {
             cacheHits: 0,
             cacheMisses: 0,
             renderTime: 0,
-            calculationTime: 0
+            calculationTime: 0,
+            domUpdateTime: 0
         };
     }
     
     /**
-     * Cache calculation result
+     * Cache calculation result with true LRU eviction
      */
     cacheCalculation(formulaId, inputs, result) {
         const key = this.generateCacheKey(formulaId, inputs);
+        const now = Date.now();
         
-        // LRU eviction
+        // True LRU eviction: remove least recently used
         if (this.calculationCache.size >= this.maxCacheSize) {
-            const firstKey = this.calculationCache.keys().next().value;
-            this.calculationCache.delete(firstKey);
+            // Find least recently accessed entry
+            let lruKey = null;
+            let lruTime = Infinity;
+            for (const [k, v] of this.calculationCache.entries()) {
+                if (v.lastAccess < lruTime) {
+                    lruTime = v.lastAccess;
+                    lruKey = k;
+                }
+            }
+            if (lruKey) {
+                this.calculationCache.delete(lruKey);
+            }
         }
         
         this.calculationCache.set(key, {
             result,
-            timestamp: Date.now()
+            timestamp: now,
+            lastAccess: now
         });
     }
     
     /**
-     * Get cached calculation
+     * Get cached calculation with access tracking
      */
     getCachedCalculation(formulaId, inputs) {
         const key = this.generateCacheKey(formulaId, inputs);
         const cached = this.calculationCache.get(key);
         
         if (cached) {
+            // Update last access time (true LRU)
+            cached.lastAccess = Date.now();
             this.metrics.cacheHits++;
             return cached.result;
         }
@@ -58,30 +74,44 @@ class PerformanceOptimizer {
     }
     
     /**
-     * Cache search results
+     * Cache search results with TTL and LRU
      */
     cacheSearch(query, results) {
         const key = query.toLowerCase().trim();
+        const now = Date.now();
         
         if (this.searchCache.size >= 100) {
-            const firstKey = this.searchCache.keys().next().value;
-            this.searchCache.delete(firstKey);
+            // Find least recently accessed entry
+            let lruKey = null;
+            let lruTime = Infinity;
+            for (const [k, v] of this.searchCache.entries()) {
+                if (v.lastAccess < lruTime) {
+                    lruTime = v.lastAccess;
+                    lruKey = k;
+                }
+            }
+            if (lruKey) {
+                this.searchCache.delete(lruKey);
+            }
         }
         
         this.searchCache.set(key, {
             results,
-            timestamp: Date.now()
+            timestamp: now,
+            lastAccess: now
         });
     }
     
     /**
-     * Get cached search results
+     * Get cached search results with TTL check
      */
     getCachedSearch(query) {
         const key = query.toLowerCase().trim();
         const cached = this.searchCache.get(key);
+        const now = Date.now();
         
-        if (cached && (Date.now() - cached.timestamp) < 300000) { // 5 min TTL
+        if (cached && (now - cached.timestamp) < 300000) { // 5 min TTL
+            cached.lastAccess = now; // Update access time
             return cached.results;
         }
         
@@ -89,7 +119,7 @@ class PerformanceOptimizer {
     }
     
     /**
-     * Batch DOM updates for better performance
+     * Batch DOM updates for better performance with timing
      */
     batchDOMUpdate(updateFn) {
         this.pendingDOMUpdates.push(updateFn);
@@ -97,6 +127,8 @@ class PerformanceOptimizer {
         if (!this.domUpdateScheduled) {
             this.domUpdateScheduled = true;
             requestAnimationFrame(() => {
+                const startTime = performance.now();
+                
                 // Execute all pending updates
                 const updates = this.pendingDOMUpdates.slice();
                 this.pendingDOMUpdates = [];
@@ -112,18 +144,23 @@ class PerformanceOptimizer {
                         console.error('[PerformanceOptimizer] DOM update error:', e);
                     }
                 });
+                
+                // Track timing
+                this.metrics.domUpdateTime += performance.now() - startTime;
             });
         }
     }
     
     /**
      * Lazy render formulas (virtual scrolling)
+     * Fixed: Creates new DocumentFragment per batch
      */
     lazyRenderFormulas(formulas, container, renderFn, batchSize = 20) {
         let currentIndex = 0;
-        const fragment = document.createDocumentFragment();
         
         const renderBatch = () => {
+            // Create new fragment for each batch (fixes reuse issue)
+            const fragment = document.createDocumentFragment();
             const endIndex = Math.min(currentIndex + batchSize, formulas.length);
             
             for (let i = currentIndex; i < endIndex; i++) {
@@ -137,10 +174,11 @@ class PerformanceOptimizer {
             currentIndex = endIndex;
             
             if (currentIndex < formulas.length) {
-                // Schedule next batch
-                requestIdleCallback ? 
-                    requestIdleCallback(renderBatch, { timeout: 100 }) :
-                    setTimeout(renderBatch, 0);
+                // Polyfill requestIdleCallback for older browsers
+                const ric = window.requestIdleCallback || function(cb) { 
+                    return setTimeout(cb, 50); 
+                };
+                ric(renderBatch, { timeout: 100 });
             }
         };
         
@@ -148,24 +186,60 @@ class PerformanceOptimizer {
     }
     
     /**
+     * Generate stable hash for formula content (for versioning)
+     */
+    _hashFormulaContent(formula) {
+        // Create stable hash from formula content instead of Date.now()
+        const content = JSON.stringify({
+            id: formula.id,
+            name: formula.name,
+            equation: formula.equation,
+            description: formula.description,
+            variables: formula.variables?.map(v => v.symbol).sort()
+        });
+        // Simple hash function
+        let hash = 0;
+        for (let i = 0; i < content.length; i++) {
+            const char = content.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString(36);
+    }
+    
+    /**
      * Optimized formula card rendering with memoization
+     * Fixed: Uses content hash instead of Date.now() for versioning
      */
     memoizedRenderCard(formula) {
         const cacheKey = `card_${formula.id}`;
         const cached = this.renderCache.get(cacheKey);
+        const version = formula.version || this._hashFormulaContent(formula);
         
-        if (cached && cached.version === formula.version) {
+        if (cached && cached.version === version) {
+            cached.lastAccess = Date.now();
             return cached.element.cloneNode(true);
         }
+        
+        const startTime = performance.now();
         
         // Create new card
         const card = this.createFormulaCard(formula);
         
-        // Cache it
+        if (!card) {
+            console.warn('[PerformanceOptimizer] createFormulaCard returned null for:', formula.id);
+            return null;
+        }
+        
+        // Cache it with version and access time
         this.renderCache.set(cacheKey, {
             element: card.cloneNode(true),
-            version: formula.version || Date.now()
+            version: version,
+            lastAccess: Date.now()
         });
+        
+        // Track render time
+        this.metrics.renderTime += performance.now() - startTime;
         
         return card;
     }

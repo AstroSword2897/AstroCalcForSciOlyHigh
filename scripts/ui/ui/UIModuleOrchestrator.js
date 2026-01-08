@@ -187,19 +187,25 @@ export class UIModuleOrchestrator {
                 onSubTabSwitch: (tabName) => this.tabManager.switchTab(tabName),
                 onCalculate: () => {
                     console.log('[UIModuleOrchestrator] onCalculate callback invoked');
-                    console.log('[UIModuleOrchestrator] calculationOrchestrator:', this.calculationOrchestrator);
-                    console.log('[UIModuleOrchestrator] performCalculation method:', typeof this.calculationOrchestrator?.performCalculation);
+                    
+                    // Single execution path: calculationOrchestrator.performCalculation()
                     if (this.calculationOrchestrator && typeof this.calculationOrchestrator.performCalculation === 'function') {
                         try {
-                            return this.calculationOrchestrator.performCalculation();
+                            this.calculationOrchestrator.performCalculation();
                         } catch (error) {
-                            console.error('[UIModuleOrchestrator] ❌ Error in performCalculation:', error);
+                            console.error('[UIModuleOrchestrator] Error in performCalculation:', error);
                             throw error;
                         }
                     } else {
-                        console.error('[UIModuleOrchestrator] ❌ calculationOrchestrator or performCalculation not available!');
+                        console.error('[UIModuleOrchestrator] calculationOrchestrator or performCalculation not available');
                     }
                 },
+            
+            this.eventCoordinator = new EventCoordinator({
+                onBackButton: () => this.handleBackButton(),
+                onMainTabSwitch: (tabName) => this.tabManager.switchMainTab(tabName),
+                onSubTabSwitch: (tabName) => this.tabManager.switchTab(tabName),
+                onCalculate: this.onCalculate.bind(this),
                 onFormulaCardClick: (formulaId) => {
                     const formula = this.options.formulas.find(f => f.id === formulaId);
                     if (formula) {
@@ -233,11 +239,89 @@ export class UIModuleOrchestrator {
             this.setupCacheInvalidationHooks();
             
             console.log('[UIModuleOrchestrator] ✅ All modules initialized');
+            
+            // Verify initialization order
+            this.verifyInitializationOrder();
         }
         catch (error) {
             console.error('[UIModuleOrchestrator] Error initializing modules:', error);
             throw error;
         }
+    }
+
+    /**
+     * Verify initialization order and log dependency graph
+     */
+    verifyInitializationOrder() {
+        console.log('[UIModuleOrchestrator] 🔍 Verifying initialization order...');
+        console.log('[UIModuleOrchestrator] ⏱️ BREAKPOINT: Initialization verification at', new Date().toISOString());
+        
+        const dependencies = {
+            searchEngine: !!this.searchEngine,
+            expertSystem: !!this.expertSystem,
+            graphCoordinator: !!this.graphCoordinator,
+            tabManager: !!this.tabManager,
+            calculationOrchestrator: !!this.calculationOrchestrator,
+            formulaSelector: !!this.formulaSelector,
+            eventCoordinator: !!this.eventCoordinator,
+            formulaRenderer: !!this.formulaRenderer
+        };
+        
+        console.log('[UIModuleOrchestrator] 📊 Dependency status:', dependencies);
+        
+        // Check critical dependencies
+        const criticalDeps = {
+            calculationOrchestrator: !!this.calculationOrchestrator,
+            eventCoordinator: !!this.eventCoordinator,
+            formulaSelector: !!this.formulaSelector
+        };
+        
+        const allCriticalPresent = Object.values(criticalDeps).every(v => v === true);
+        console.log('[UIModuleOrchestrator] Critical dependencies:', criticalDeps);
+        console.log('[UIModuleOrchestrator] All critical dependencies present:', allCriticalPresent);
+        
+        // Verify calculationOrchestrator is created before eventCoordinator
+        if (this.calculationOrchestrator && this.eventCoordinator) {
+            console.log('[UIModuleOrchestrator] ✅ Initialization order correct: calculationOrchestrator before eventCoordinator');
+        } else {
+            console.error('[UIModuleOrchestrator] ❌ Initialization order issue detected');
+            if (!this.calculationOrchestrator) {
+                console.error('[UIModuleOrchestrator] ❌ calculationOrchestrator is missing!');
+            }
+            if (!this.eventCoordinator) {
+                console.error('[UIModuleOrchestrator] ❌ eventCoordinator is missing!');
+            }
+        }
+        
+        // Verify window.performCalculation is assigned
+        const hasWindowPerformCalculation = typeof window.performCalculation === 'function';
+        console.log('[UIModuleOrchestrator] window.performCalculation assigned:', hasWindowPerformCalculation);
+        if (!hasWindowPerformCalculation) {
+            console.warn('[UIModuleOrchestrator] ⚠️ window.performCalculation not assigned yet (may be assigned later)');
+        }
+        
+        // Verify window.uiOrchestrator is assigned
+        const hasWindowUiOrchestrator = typeof window.uiOrchestrator !== 'undefined';
+        console.log('[UIModuleOrchestrator] window.uiOrchestrator assigned:', hasWindowUiOrchestrator);
+        if (!hasWindowUiOrchestrator) {
+            console.warn('[UIModuleOrchestrator] ⚠️ window.uiOrchestrator not assigned yet (may be assigned later)');
+        }
+        
+        // Log dependency graph
+        console.log('[UIModuleOrchestrator] 📊 Dependency Graph:');
+        console.log('  searchEngine → expertSystem');
+        console.log('  graphCoordinator → tabManager');
+        console.log('  formulaSelector → calculationOrchestrator');
+        console.log('  calculationOrchestrator → eventCoordinator (onCalculate callback)');
+        console.log('  formulaRenderer → formulaSelector');
+        
+        return {
+            dependencies,
+            criticalDeps,
+            allCriticalPresent,
+            hasWindowPerformCalculation,
+            hasWindowUiOrchestrator
+        };
     }
     wireModules() {
         // Expose to window for backward compatibility
@@ -767,7 +851,9 @@ export class UIModuleOrchestrator {
         resultsContainer.id = 'command-palette-results';
         resultsContainer.className = 'command-palette-results';
         
-        results.slice(0, 10).forEach(result => {
+        // Vectorized: Use map + DocumentFragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
+        results.slice(0, 10).map(result => {
             const item = document.createElement('div');
             item.className = 'command-palette-item';
             item.innerHTML = `
@@ -782,8 +868,10 @@ export class UIModuleOrchestrator {
                 this.selectFormulaFromCommandPalette(result.formula); // handle selection
             });
             
-            resultsContainer.appendChild(item);
+            fragment.appendChild(item);
+            return item;
         });
+        resultsContainer.appendChild(fragment);
         
         if (overlay) {
             overlay.appendChild(resultsContainer);
@@ -864,20 +952,48 @@ export class UIModuleOrchestrator {
      * Render initial formula cards
      */
     renderInitialFormulas() {
-        const formulaList = document.getElementById('formula-list');
-        if (formulaList && this.formulaRenderer) {
-            formulaList.innerHTML = '';
-            // Render without confidence/topic data (initial view)
-            this.formulaRenderer.renderFormulaCards(
-                this.options.formulas,
-                formulaList,
-                {
-                    showConfidence: false,
-                    showTopicScope: false
-                }
-            );
-            console.log('[UIModuleOrchestrator] ✅ Initial formulas rendered');
+        // Prevent duplicate renders
+        if (this._isRenderingFormulas) {
+            console.log('[UIModuleOrchestrator] ⏭️ Already rendering formulas, skipping');
+            return;
         }
+        
+        const formulaList = document.getElementById('formula-list');
+        
+        if (!formulaList) {
+            console.error('[UIModuleOrchestrator] ❌ formula-list element not found in DOM!');
+            return;
+        }
+        
+        if (!this.formulaRenderer) {
+            console.error('[UIModuleOrchestrator] ❌ formulaRenderer not initialized!');
+            return;
+        }
+        
+        if (!this.options?.formulas || this.options.formulas.length === 0) {
+            console.error('[UIModuleOrchestrator] ❌ No formulas available!');
+            return;
+        }
+        
+        this._isRenderingFormulas = true;
+        formulaList.innerHTML = '';
+        
+        // Render without confidence/topic data (initial view) - optimized with chunked rendering
+        this.formulaRenderer.renderFormulaCards(
+            this.options.formulas,
+            formulaList,
+            {
+                showConfidence: false,
+                showTopicScope: false
+            }
+        );
+        
+        // Reset flag after a short delay to allow render to complete
+        setTimeout(() => {
+            this._isRenderingFormulas = false;
+        }, 100);
+        
+        console.log(`[UIModuleOrchestrator] ✅ Rendering ${this.options.formulas.length} formulas (optimized)`);
     }
     /**
      * Search formulas
@@ -889,43 +1005,94 @@ export class UIModuleOrchestrator {
      * Get current variable values from DOM
      */
     getCurrentVariableValues() {
-        const values = {};
         const formula = this.formulaSelector.getCurrentFormula();
         if (!formula) {
-            return values;
+            return {};
         }
 
-        formula.variables.forEach(variable => {
-            // Get the input directly by ID (matching renderCalculatorInputs)
-            const inputId = `var-${variable.symbol}`;
-            const input = document.getElementById(inputId);
-            
-            if (!input) {
-                console.warn(`[UIModuleOrchestrator] Input not found: ${inputId}`);
-                values[variable.symbol] = null;
-                return;
-            }
+        // Vectorized: Use map + Object.fromEntries for better performance
+        return Object.fromEntries(
+            formula.variables.map(variable => {
+                // Helper function to find input using multiple patterns
+                const findInput = () => {
+                    // Pattern 1: Simple ID (var-symbol) - used by fallback renderer
+                    let input = document.getElementById(`var-${variable.symbol}`);
+                    
+                    // Pattern 2: With unit suffix (var-symbol-unit) - used by VariableInputsRenderer
+                    // Check if simple input doesn't exist OR doesn't have a value
+                    if ((!input || !input.value.trim()) && this.options.UnitConverter) {
+                        const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(variable.unit);
+                        // Vectorized: Use find() instead of for loop
+                        // First try to find input with a value, then any input
+                        let unitInput = alternativeUnits
+                            .map(unit => ({
+                                unit,
+                                input: document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`)
+                            }))
+                            .find(({ input: inp }) => inp !== null && inp.value.trim())?.input;
+                        
+                        // If no input with value found, get any input (for empty fields)
+                        if (!unitInput) {
+                            unitInput = alternativeUnits
+                                .map(unit => document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`))
+                                .find(inp => inp !== null);
+                        }
+                        
+                        if (unitInput) input = unitInput;
+                    }
+                    
+                    // Pattern 3: Use data attributes as fallback
+                    if (!input) {
+                        input = document.querySelector(`input[data-symbol="${variable.symbol}"]`);
+                    }
+                    
+                    // Pattern 4: Try querySelector with name attribute
+                    if (!input) {
+                        input = document.querySelector(`input[name="var-${variable.symbol}"]`);
+                    }
+                    
+                    // Pattern 5: Last resort - find in variables-container
+                    if (!input) {
+                        const container = document.getElementById('variables-container');
+                        if (container) {
+                            const inputs = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                            // Vectorized: Use find() instead of for loop
+                            input = inputs.find(inp => inp.value.trim()) || inputs[0];
+                        }
+                    }
+                    
+                    return input;
+                };
 
-            const value = input.value.trim();
-            
-            // Return null if empty (empty means unknown, will show symbolic result)
-            if (!value || this.isNAValue(value)) {
-                values[variable.symbol] = null;
-                return;
-            }
-            
-            // Parse and convert (using base unit)
-            const parsedValue = this.calculationUtils.parseNumericValue(value, variable.unit);
-            if (parsedValue === null) {
-                console.warn(`[UIModuleOrchestrator] Invalid value for ${variable.symbol}: "${value}"`);
-                values[variable.symbol] = null;
-                return;
-            }
-            
-            values[variable.symbol] = parsedValue;
-        });
+                const input = findInput();
+                
+                if (!input) {
+                    console.warn(`[UIModuleOrchestrator] ❌ Could not find input for ${variable.symbol} after trying all patterns`);
+                    return [variable.symbol, null];
+                }
 
-        return values;
+                const value = input.value.trim();
+                
+                // Return null if empty (empty means unknown, will show symbolic result)
+                if (!value || this.isNAValue(value)) {
+                    return [variable.symbol, null];
+                }
+                
+                // Get the unit from the input if available
+                const inputUnit = input.getAttribute('data-unit') || 
+                                input.getAttribute('data-base-unit') || 
+                                variable.unit;
+                
+                // Parse and convert (using the input's unit or variable's base unit)
+                const parsedValue = this.calculationUtils.parseNumericValue(value, inputUnit);
+                if (parsedValue === null) {
+                    console.warn(`[UIModuleOrchestrator] Invalid value for ${variable.symbol}: "${value}"`);
+                    return [variable.symbol, null];
+                }
+                
+                return [variable.symbol, parsedValue];
+            })
+        );
     }
     
     /**
@@ -940,6 +1107,11 @@ export class UIModuleOrchestrator {
      * Uses VariableInputsRenderer if available, otherwise falls back to simple rendering
      */
     renderCalculatorInputs(formula) {
+        // Clear calculation input cache when inputs are re-rendered
+        if (this.calculationOrchestrator && typeof this.calculationOrchestrator.clearInputCache === 'function') {
+            this.calculationOrchestrator.clearInputCache();
+        }
+        
         // Try to use the proper VariableInputsRenderer first
         if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
             try {
@@ -965,19 +1137,17 @@ export class UIModuleOrchestrator {
         const grid = document.createElement('div');
         grid.className = 'variable-input-grid';
 
-        // Filter out constants
-        const constantSymbols = new Set();
-        if (formula.constants) {
-            Object.keys(formula.constants).forEach(key => constantSymbols.add(key));
-        }
-        if (window.globalConstants) {
-            Object.keys(window.globalConstants).forEach(key => constantSymbols.add(key));
-        }
+        // Vectorized: Filter out constants using Set operations
+        const constantSymbols = new Set([
+            ...(formula.constants ? Object.keys(formula.constants) : []),
+            ...(window.globalConstants ? Object.keys(window.globalConstants) : [])
+        ]);
         
         const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
 
-        // Render each variable
-        userVariables.forEach(variable => {
+        // Vectorized: Use map + DocumentFragment for batch DOM operations
+        const fragment = document.createDocumentFragment();
+        userVariables.map(variable => {
             const inputDiv = document.createElement('div');
             inputDiv.className = 'variable-input-group';
 
@@ -1009,18 +1179,16 @@ export class UIModuleOrchestrator {
             description.className = 'var-description';
             description.textContent = variable.description || '';
 
-            // Assemble input group
-            inputDiv.appendChild(label);
-            inputDiv.appendChild(input);
-            if (unitSpan.textContent) {
-                inputDiv.appendChild(unitSpan);
-            }
-            if (description.textContent) {
-                inputDiv.appendChild(description);
-            }
+            // Assemble input group (vectorized: use array operations)
+            [label, input, ...(unitSpan.textContent ? [unitSpan] : []), ...(description.textContent ? [description] : [])]
+                .forEach(element => inputDiv.appendChild(element));
             
-            container.appendChild(inputDiv);
+            fragment.appendChild(inputDiv);
+            return inputDiv;
         });
+        
+        // Single DOM update for all inputs
+        container.appendChild(fragment);
 
         console.log('[UIModuleOrchestrator] ✅ Rendered calculator inputs using fallback method');
     }
@@ -1038,16 +1206,56 @@ export class UIModuleOrchestrator {
      * Display result
      */
     displayResult(result) {
+        console.log('[UIModuleOrchestrator] 🎯 displayResult() called with:', result);
+        console.log('[UIModuleOrchestrator] Result type:', typeof result);
+        console.log('[UIModuleOrchestrator] Result.isSymbolic:', result?.isSymbolic);
+        console.log('[UIModuleOrchestrator] Result.result:', result?.result);
+        console.log('[UIModuleOrchestrator] window.resultDisplayRenderer:', typeof window.resultDisplayRenderer);
+        
         if (typeof window.resultDisplayRenderer !== 'undefined') {
             const formula = this.formulaSelector.getCurrentFormula();
+            console.log('[UIModuleOrchestrator] Using resultDisplayRenderer, formula:', formula?.name);
             window.resultDisplayRenderer.displayResult(result, formula);
+            console.log('[UIModuleOrchestrator] ✅ resultDisplayRenderer.displayResult() called');
         }
         else {
+            console.log('[UIModuleOrchestrator] Using fallback display');
             // Fallback display
             const resultDisplay = document.getElementById('result-display');
+            console.log('[UIModuleOrchestrator] result-display element:', resultDisplay);
             if (resultDisplay) {
-                const formatted = this.formattingUtils.formatResult(typeof result.result === 'number' ? result.result : result.result, result.unit || '');
-                resultDisplay.innerHTML = `<div class="result">${this.formattingUtils.escapeHtml(formatted)}</div>`;
+                // Show the result display element
+                resultDisplay.classList.add('show');
+                
+                // Handle symbolic results
+                if (result.isSymbolic || (typeof result.result === 'string' && !isFinite(Number(result.result)))) {
+                    console.log('[UIModuleOrchestrator] Displaying symbolic result in fallback');
+                    const symbolicValue = result.result || result.value || 'No symbolic expression available';
+                    const unit = result.unit || '';
+                    
+                    resultDisplay.innerHTML = `
+                        <h3>Symbolic Result</h3>
+                        <div class="result-value" style="font-family: 'Courier New', monospace; white-space: pre-wrap; text-align: left; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; margin: 15px 0;">
+                            ${this.formattingUtils.escapeHtml(String(symbolicValue))}
+                        </div>
+                        ${unit ? `<div class="result-unit">${this.formattingUtils.escapeHtml(unit)}</div>` : ''}
+                        ${result.unknownVariables && result.unknownVariables.length > 0 ? `
+                            <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                                <div style="font-weight: 600; margin-bottom: 8px;">Unknown Variables:</div>
+                                <div>${result.unknownVariables.join(', ')}</div>
+                            </div>
+                        ` : ''}
+                    `;
+                    console.log('[UIModuleOrchestrator] ✅ Symbolic result displayed in fallback');
+                } else {
+                    // Numeric result
+                    const formatted = this.formattingUtils.formatResult(typeof result.result === 'number' ? result.result : result.result, result.unit || '');
+                    console.log('[UIModuleOrchestrator] Formatted result:', formatted);
+                    resultDisplay.innerHTML = `<div class="result">${this.formattingUtils.escapeHtml(formatted)}</div>`;
+                    console.log('[UIModuleOrchestrator] ✅ Result displayed in fallback');
+                }
+            } else {
+                console.error('[UIModuleOrchestrator] ❌ result-display element not found!');
             }
         }
     }

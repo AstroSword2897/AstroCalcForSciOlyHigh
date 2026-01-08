@@ -83,24 +83,47 @@ class SafeExpressionEvaluator {
             }
         }
         
-        // Replace constants
-        for (const [key, value] of Object.entries(this.ALLOWED_CONSTANTS)) {
-            const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-            expr = expr.replace(regex, String(value));
+        // Optimized: Single-pass replacement using sorted keys (longest first to avoid partial matches)
+        const replacements = [];
+        
+        // Add constants (sorted by length descending)
+        const constantEntries = Object.entries(this.ALLOWED_CONSTANTS)
+            .sort(([a], [b]) => b.length - a.length);
+        for (const [key, value] of constantEntries) {
+            const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            replacements.push({
+                pattern: new RegExp(`\\b${escaped}\\b`, 'g'),
+                replacement: String(value)
+            });
         }
         
-        // Replace variables with their values
-        for (const [key, value] of Object.entries(variables)) {
-            if (value !== null && value !== undefined && typeof value === 'number') {
-                const regex = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-                expr = expr.replace(regex, String(value));
-            }
+        // Add variables (sorted by length descending)
+        const variableEntries = Object.entries(variables)
+            .filter(([_, value]) => value !== null && value !== undefined && typeof value === 'number')
+            .sort(([a], [b]) => b.length - a.length);
+        for (const [key, value] of variableEntries) {
+            const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            replacements.push({
+                pattern: new RegExp(`\\b${escaped}\\b`, 'g'),
+                replacement: String(value)
+            });
         }
         
-        // Replace function names with Math.* equivalents
-        for (const funcName of this.ALLOWED_FUNCTIONS) {
-            const regex = new RegExp(`\\b${funcName}\\s*\\(`, 'gi');
-            expr = expr.replace(regex, `Math.${funcName}(`);
+        // Apply all replacements in single pass
+        for (const { pattern, replacement } of replacements) {
+            expr = expr.replace(pattern, replacement);
+        }
+        
+        // Replace function names with Math.* equivalents (pre-compiled regexes)
+        if (!this._functionRegexes) {
+            this._functionRegexes = this.ALLOWED_FUNCTIONS.map(funcName => ({
+                pattern: new RegExp(`\\b${funcName}\\s*\\(`, 'gi'),
+                replacement: `Math.${funcName}(`
+            }));
+        }
+        
+        for (const { pattern, replacement } of this._functionRegexes) {
+            expr = expr.replace(pattern, replacement);
         }
         
         // Replace power notation

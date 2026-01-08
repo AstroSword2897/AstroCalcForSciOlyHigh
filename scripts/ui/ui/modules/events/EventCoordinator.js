@@ -111,36 +111,41 @@ export class EventCoordinator {
         // CRITICAL FIX: Use both direct attachment AND event delegation
         // Direct attachment ensures the button works even if delegation fails
         const directHandler = (e) => {
-            console.log('[EventCoordinator] 🎯 DIRECT Calculate button clicked!', e.target);
+            console.log('[EventCoordinator] 🎯 Calculate button clicked');
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
+            // DO NOT use stopImmediatePropagation - it blocks other handlers
             
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    console.log('[EventCoordinator] Calling onCalculate callback (direct)...');
-                    if (this.options.onCalculate) {
-                        try {
-                            this.options.onCalculate();
-                            console.log('[EventCoordinator] ✅ onCalculate called successfully (direct)');
-                        } catch (error) {
-                            console.error('[EventCoordinator] ❌ Error calling onCalculate (direct):', error);
-                        }
-                    } else {
-                        console.error('[EventCoordinator] ❌ onCalculate callback not defined!');
-                    }
-                }, 50);
-            });
+            // Single execution path: call onCalculate callback only
+            if (this.options?.onCalculate) {
+                try {
+                    console.log('[EventCoordinator] Calling onCalculate callback...');
+                    this.options.onCalculate();
+                } catch (error) {
+                    console.error('[EventCoordinator] Error calling onCalculate:', error);
+                    console.error('[EventCoordinator] Error stack:', error.stack);
+                }
+            } else {
+                console.error('[EventCoordinator] onCalculate callback not defined');
+            }
         };
         
         // Try to attach directly to the button if it exists
         const attachDirectHandler = () => {
             const calcBtn = document.getElementById('calculate-btn');
+            
             if (calcBtn && !calcBtn.dataset.directHandlerAttached) {
                 console.log('[EventCoordinator] ✅ Attaching direct handler to calculate button');
                 this.addListener(calcBtn, 'click', directHandler);
-                // Mark as attached to prevent duplicates
                 calcBtn.dataset.directHandlerAttached = 'true';
+                
+                // Disconnect observer after successful attachment
+                if (this._calculateButtonObserver) {
+                    this._calculateButtonObserver.disconnect();
+                    this._calculateButtonObserver = null;
+                    console.log('[EventCoordinator] ✅ MutationObserver disconnected');
+                }
+                
                 return true;
             }
             return false;
@@ -160,58 +165,13 @@ export class EventCoordinator {
             attachDirectHandler();
         });
         observer.observe(document.body, { childList: true, subtree: true });
-        // Store observer for cleanup if needed
         this._calculateButtonObserver = observer;
         
-        // ALSO use event delegation on document as backup
-        const delegationHandler = (e) => {
-            // Check if the clicked element or its parent is the calculate button
-            let calcBtn = e.target.closest('#calculate-btn');
-            if (!calcBtn && e.target.id === 'calculate-btn') {
-                calcBtn = e.target;
-            }
-            // Also check by text content as fallback
-            if (!calcBtn) {
-                const button = e.target.closest('button');
-                if (button && (button.textContent?.trim() === 'Calculate' || button.id === 'calculate-btn')) {
-                    calcBtn = button;
-                }
-            }
-            
-            if (calcBtn) {
-                console.log('[EventCoordinator] 🎯 DELEGATION Calculate button clicked!', calcBtn);
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                requestAnimationFrame(() => {
-                    setTimeout(() => {
-                        console.log('[EventCoordinator] Calling onCalculate callback (delegation)...');
-                        if (this.options.onCalculate) {
-                            try {
-                                this.options.onCalculate();
-                                console.log('[EventCoordinator] ✅ onCalculate called successfully (delegation)');
-                            } catch (error) {
-                                console.error('[EventCoordinator] ❌ Error calling onCalculate (delegation):', error);
-                            }
-                        } else {
-                            console.error('[EventCoordinator] ❌ onCalculate callback not defined!');
-                        }
-                    }, 50);
-                });
-            }
-        };
+        // REMOVED: Delegation handler for Calculate button
+        // Calculate is a static critical button - direct attachment is sufficient
+        // Delegation with capture phase was blocking other handlers
         
-        // Add delegation handler to document
-        document.addEventListener('click', delegationHandler, true); // Use capture phase
-        this.globalListeners.push({
-            element: document,
-            event: 'click',
-            handler: delegationHandler,
-            options: true // capture phase
-        });
-        
-        console.log('[EventCoordinator] ✅ Calculate button handlers set up (direct + delegation)');
+        console.log('[EventCoordinator] ✅ Calculate button handler set up (direct attachment only)');
         
         // Verify the button exists in DOM
         const testBtn = document.getElementById('calculate-btn');

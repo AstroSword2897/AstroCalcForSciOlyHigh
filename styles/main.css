@@ -5294,6 +5294,186 @@ input.unit-input-field {
    ============================================ */
 
 /* Topic chips and variable chips */
+/* Quick Calculate Section */
+.formula-card-quick-calc {
+    margin-top: 12px;
+    padding: 12px;
+    background: rgba(102, 126, 234, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.quick-calc-header {
+    font-size: 0.85em;
+    color: #a8c7ff;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.quick-calc-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.quick-calc-input-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.quick-calc-label {
+    font-size: 0.75em;
+    color: #888;
+    margin-bottom: 4px;
+}
+
+.quick-calc-input {
+    padding: 6px;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 4px;
+    background: rgba(15, 23, 42, 0.5);
+    color: white;
+    font-size: 0.9em;
+}
+
+.quick-calc-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.quick-calc-btn {
+    flex: 1;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.quick-calc-result {
+    flex: 1;
+    padding: 6px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: #a8c7ff;
+    text-align: center;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Confidence Section */
+.formula-card-confidence {
+    margin-top: 12px;
+    padding: 8px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 6px;
+}
+
+.confidence-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.confidence-value {
+    font-weight: 600;
+}
+
+.confidence-level {
+    font-size: 0.85em;
+    color: #a8c7ff;
+}
+
+/* Topic Scope Section */
+.formula-card-topic-scope {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: #a8c7ff;
+}
+
+.chips-label {
+    font-size: 0.75em;
+    color: #888;
+    font-weight: 600;
+}
+
+.breakdown-summary {
+    cursor: pointer;
+    font-size: 0.85em;
+    color: #a8c7ff;
+    font-weight: 600;
+    user-select: none;
+}
+
+.breakdown-item-label {
+    font-size: 0.8em;
+    color: #cbd5e1;
+}
+
+.breakdown-progress-container {
+    width: 80px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.breakdown-progress-bar {
+    height: 100%;
+    border-radius: 3px;
+}
+
+.breakdown-score {
+    font-size: 0.75em;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+.breakdown-score-value {
+    font-size: 0.75em;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+.confidence-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.confidence-value {
+    font-weight: 600;
+}
+
+.confidence-level {
+    font-size: 0.85em;
+    color: #a8c7ff;
+}
+
+/* Topic Scope Section */
+.formula-card-topic-scope {
+    margin-top: 8px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: #a8c7ff;
+}
+
+/* Chips Section */
 .formula-card-chips {
     margin-top: 10px;
     display: flex;

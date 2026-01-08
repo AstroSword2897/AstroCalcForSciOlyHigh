@@ -832,7 +832,8 @@
                         calcBtn.addEventListener('click', function(e) {
                             e.preventDefault();
                             e.stopPropagation();
-                            console.log('[ForceAttach] 🎯 Calculate button clicked!');
+                            e.stopImmediatePropagation(); // Stop other handlers
+                            console.log('[ForceAttach] 🎯🎯🎯 Calculate button clicked! 🎯🎯🎯');
                             console.log('[ForceAttach] Event target:', e.target);
                             console.log('[ForceAttach] Button element:', calcBtn);
                             
@@ -846,33 +847,60 @@
                             };
                             console.log('[ForceAttach] System state:', diagnostics);
                             
-                            // Try multiple possible calculation functions
+                            // Try multiple possible calculation functions - FORCE EXECUTION
                             let called = false;
-                            if (typeof window.performCalculation === 'function') {
-                                console.log('[ForceAttach] Calling window.performCalculation()...');
-                                window.performCalculation();
-                                called = true;
-                            } else if (typeof window.calculationOrchestrator !== 'undefined' && 
-                                      typeof window.calculationOrchestrator.performCalculation === 'function') {
-                                console.log('[ForceAttach] Calling window.calculationOrchestrator.performCalculation()...');
-                                window.calculationOrchestrator.performCalculation();
-                                called = true;
-                            } else if (typeof window.uiOrchestrator !== 'undefined' && 
-                                      typeof window.uiOrchestrator.calculationOrchestrator !== 'undefined' &&
-                                      typeof window.uiOrchestrator.calculationOrchestrator.performCalculation === 'function') {
-                                console.log('[ForceAttach] Calling window.uiOrchestrator.calculationOrchestrator.performCalculation()...');
-                                window.uiOrchestrator.calculationOrchestrator.performCalculation();
-                                called = true;
+                            let error = null;
+                            
+                            try {
+                                // Priority 1: window.performCalculation (most direct)
+                                if (typeof window.performCalculation === 'function') {
+                                    console.log('[ForceAttach] 🎯 Priority 1: Calling window.performCalculation()...');
+                                    console.log('[ForceAttach] Function exists:', typeof window.performCalculation);
+                                    const result = window.performCalculation();
+                                    console.log('[ForceAttach] ✅ window.performCalculation() returned:', result);
+                                    called = true;
+                                }
+                                // Priority 2: uiOrchestrator.calculationOrchestrator.performCalculation
+                                if (!called && typeof window.uiOrchestrator !== 'undefined') {
+                                    console.log('[ForceAttach] 🎯 Priority 2: Checking uiOrchestrator...');
+                                    console.log('[ForceAttach] uiOrchestrator exists:', !!window.uiOrchestrator);
+                                    console.log('[ForceAttach] calculationOrchestrator exists:', !!window.uiOrchestrator.calculationOrchestrator);
+                                    console.log('[ForceAttach] performCalculation type:', typeof window.uiOrchestrator.calculationOrchestrator?.performCalculation);
+                                    
+                                    if (window.uiOrchestrator.calculationOrchestrator && 
+                                        typeof window.uiOrchestrator.calculationOrchestrator.performCalculation === 'function') {
+                                        console.log('[ForceAttach] 🎯 Calling uiOrchestrator.calculationOrchestrator.performCalculation()...');
+                                        const result = window.uiOrchestrator.calculationOrchestrator.performCalculation();
+                                        console.log('[ForceAttach] ✅ performCalculation() returned:', result);
+                                        called = true;
+                                    }
+                                }
+                                // Priority 3: window.calculationOrchestrator.performCalculation
+                                if (!called && typeof window.calculationOrchestrator !== 'undefined' && 
+                                          typeof window.calculationOrchestrator.performCalculation === 'function') {
+                                    console.log('[ForceAttach] 🎯 Priority 3: Calling window.calculationOrchestrator.performCalculation()...');
+                                    const result = window.calculationOrchestrator.performCalculation();
+                                    console.log('[ForceAttach] ✅ performCalculation() returned:', result);
+                                    called = true;
+                                }
+                            } catch (e) {
+                                error = e;
+                                console.error('[ForceAttach] ❌❌❌ ERROR calling calculation function:', e);
+                                console.error('[ForceAttach] Error stack:', e.stack);
+                                alert('Calculation error: ' + e.message);
                             }
                             
                             if (!called) {
-                                console.error('[ForceAttach] ❌ No calculation function found!');
+                                console.error('[ForceAttach] ❌❌❌ NO CALCULATION FUNCTION FOUND!');
                                 console.log('[ForceAttach] Available functions:', diagnostics);
+                                if (error) {
+                                    console.error('[ForceAttach] Last error:', error);
+                                }
                                 alert('Calculation system not ready. Check console for details.');
                             } else {
-                                console.log('[ForceAttach] ✅ Calculation function called');
+                                console.log('[ForceAttach] ✅✅✅ Calculation function called successfully ✅✅✅');
                             }
-                        });
+                        }, true); // Use capture phase to ensure we get it first
                         calcBtn._forceAttached = true;
                         console.log('[ForceAttach] ✅ Calculate button handler attached');
                     }
@@ -1029,7 +1057,30 @@
     
     <!-- NOTE: Test runner scripts are intentionally NOT loaded in production UI -->
     
-    <!-- NOTE: Debug/verification scripts removed from production UI -->
+    <!-- Debug scripts for Calculate button debugging (development mode) -->
+    <script type="module">
+        // Only load debug scripts if not in production
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.search.includes('debug=true')) {
+            import('./scripts/debug/CalculateButtonDebugger.js').then(module => {
+                console.log('[Debug] CalculateButtonDebugger loaded');
+            }).catch(err => {
+                console.warn('[Debug] Failed to load CalculateButtonDebugger:', err);
+            });
+            
+            import('./scripts/debug/CalculateButtonDebugPanel.js').then(module => {
+                console.log('[Debug] CalculateButtonDebugPanel loaded');
+                // Expose panel creation function
+                window.showCalculateButtonDebugPanel = () => {
+                    const panel = new window.CalculateButtonDebugPanel();
+                    panel.show();
+                    return panel;
+                };
+                console.log('[Debug] Use window.showCalculateButtonDebugPanel() to show debug panel');
+            }).catch(err => {
+                console.warn('[Debug] Failed to load CalculateButtonDebugPanel:', err);
+            });
+        }
+    </script>
 </body>
 </html>
 

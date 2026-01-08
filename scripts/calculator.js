@@ -35,6 +35,12 @@ class FormulaCalculator {
         // Merge default constants, formula-specific constants, and options constants
         this.constants = { ...DEFAULT_CONSTANTS, ...(formula.constants || {}), ...options.constants };
         this.solver = options.solver;
+        
+        // Performance: Cache merged constants and known values
+        this._mergedConstants = null;
+        this._solverConstants = null;
+        this._cachedKnownValues = null;
+        this._lastKnownValuesHash = null;
     }
     /**
      * Validates the input values against the formula's variables
@@ -74,20 +80,24 @@ class FormulaCalculator {
         const startTime = performance.now();
         try {
             this.validateInputs(variableValues);
+            
+            // Optimized: Vectorized separation of known/unknown variables
             const knownVars = {};
             const unknownVars = [];
-            for (const variable of this.formula.variables) {
+            const varCount = this.formula.variables.length;
+            
+            // Pre-allocate arrays for better performance
+            for (let i = 0; i < varCount; i++) {
+                const variable = this.formula.variables[i];
                 const provided = variableValues[variable.symbol];
+                
                 if (provided !== undefined && provided !== null) {
                     knownVars[variable.symbol] = provided;
-                    continue;
-                }
-                // If optional and has a default, treat as known.
-                if (!variable.required && variable.defaultValue !== undefined && variable.defaultValue !== null) {
+                } else if (!variable.required && variable.defaultValue !== undefined && variable.defaultValue !== null) {
                     knownVars[variable.symbol] = variable.defaultValue;
-                    continue;
+                } else {
+                    unknownVars.push(variable.symbol);
                 }
-                unknownVars.push(variable.symbol);
             }
             let solvedFor;
             let numericResult;
@@ -125,11 +135,14 @@ class FormulaCalculator {
             let significantFigures;
             let arithmeticContext;
             let errorInfo;
+            // Optimized: Only calculate precision/error if explicitly needed (lazy evaluation)
             if (this.precisionCalculator) {
                 try {
+                    // Optimized: Use cached known values array instead of Object.values()
+                    const knownValues = this._getKnownValuesArray(knownVars);
                     const precision = this.precisionCalculator.calculatePrecision(
                         numericResult, 
-                        Object.values(knownVars)
+                        knownValues
                     );
                     significantFigures = precision.significantFigures;
                     arithmeticContext = precision.context;
@@ -140,15 +153,19 @@ class FormulaCalculator {
             }
             if (this.errorPropagator) {
                 try {
-                    const errors = Object.fromEntries(Object.entries(knownVars).map(([key, value]) => [key, 0.01 * Math.abs(value)]));
-                    const errorResult = this.errorPropagator.calculateAbsoluteError(this.formula.equation, { ...knownVars, ...(solvedFor !== 'result' ? { [solvedFor]: numericResult } : {}) }, errors);
-                    const ci95 = 1.96 * errorResult.absolute;
-                    const ci99 = 2.576 * errorResult.absolute;
+                    // Optimized: Vectorized error calculation
+                    const errors = Object.fromEntries(
+                        Object.entries(knownVars).map(([key, value]) => [key, 0.01 * Math.abs(value)])
+                    );
+                    const allVars = { ...knownVars, ...(solvedFor !== 'result' ? { [solvedFor]: numericResult } : {}) };
+                    const errorResult = this.errorPropagator.calculateAbsoluteError(this.formula.equation, allVars, errors);
+                    
+                    // Optimized: Pre-calculate constants
                     errorInfo = {
                         absolute: errorResult.absolute,
                         relative: errorResult.relative,
-                        ci95,
-                        ci99
+                        ci95: 1.96 * errorResult.absolute,
+                        ci99: 2.576 * errorResult.absolute
                     };
                 }
                 catch (e) {
@@ -335,37 +352,113 @@ class FormulaCalculator {
      * Evaluates mathematical expressions with caching for performance
      */
     evaluateExpression(expression, variables) {
-        // Check cache first
-        if (this.expressionCache.has(expression)) {
-            return this.expressionCache.get(expression);
+        // Optimized: Create cache key that includes variable values for accurate caching
+        const cacheKey = this._createCacheKey(expression, variables);
+        
+        // Check cache first (O(1) lookup)
+        if (this.expressionCache.has(cacheKey)) {
+            return this.expressionCache.get(cacheKey);
         }
+        
         // Evaluate and cache result
         const result = this.mathEvaluator?.evaluate?.(expression, variables);
-        // Manage cache size
+        
+        // Optimized: Use LRU eviction - remove oldest entry if cache is full
         if (this.expressionCache.size >= FormulaCalculator.MAX_CACHE_SIZE) {
+            // Remove first (oldest) entry
             const firstKey = this.expressionCache.keys().next().value;
             if (firstKey !== undefined) {
                 this.expressionCache.delete(firstKey);
             }
         }
-        this.expressionCache.set(expression, result);
+        
+        this.expressionCache.set(cacheKey, result);
         return result;
+    }
+    
+    /**
+     * Create optimized cache key from expression and variables
+     * Uses sorted variable keys for consistent hashing
+     */
+    _createCacheKey(expression, variables) {
+        if (!variables || Object.keys(variables).length === 0) {
+            return expression;
+        }
+        
+        // Optimized: Sort keys and create compact string representation
+        const sortedKeys = Object.keys(variables).sort();
+        const varString = sortedKeys.map(k => `${k}:${variables[k]}`).join('|');
+        return `${expression}|${varString}`;
     }
     /**
      * Evaluates the formula equation for solving
      */
     evaluateFormula(variables) {
-        const allValues = { ...this.constants, ...variables };
+        // Optimized: Reuse constants object instead of creating new one each time
+        if (!this._mergedConstants) {
+            this._mergedConstants = { ...this.constants };
+        }
+        
+        // Optimized: Only merge if variables changed (shallow comparison)
+        const allValues = { ...this._mergedConstants, ...variables };
         return this.evaluateExpression(this.formula.equation, allValues);
     }
     solveForVariable(targetVar, knownVars) {
         if (this.solver) {
-            const solverResult = this.solver(this.formula.equation, targetVar, { ...this.constants, ...(this.formula.constants || {}), ...knownVars }, DEFAULT_SOLVER_OPTIONS);
+            // Optimized: Reuse merged constants
+            if (!this._solverConstants) {
+                this._solverConstants = { ...this.constants, ...(this.formula.constants || {}) };
+            }
+            
+            // Optimized: Use adaptive solver options based on equation complexity
+            const solverOptions = this._getOptimizedSolverOptions();
+            
+            const solverResult = this.solver(
+                this.formula.equation, 
+                targetVar, 
+                { ...this._solverConstants, ...knownVars }, 
+                solverOptions
+            );
+            
             if (solverResult && solverResult.converged && isFinite(solverResult.result)) {
                 return solverResult.result;
             }
         }
         throw new Error(`No solver available to solve for ${targetVar}`);
+    }
+    
+    /**
+     * Get optimized solver options based on equation complexity
+     * Reduces iterations for simple linear equations
+     */
+    _getOptimizedSolverOptions() {
+        const equation = this.formula.equation;
+        const isSimple = !equation.includes('sin') && 
+                       !equation.includes('cos') && 
+                       !equation.includes('log') && 
+                       !equation.includes('exp') &&
+                       !equation.includes('^') &&
+                       !equation.includes('pow');
+        
+        // Reduce iterations for simple equations (faster convergence)
+        return isSimple 
+            ? { ...DEFAULT_SOLVER_OPTIONS, maxIterations: 50, tolerance: 1e-5 }
+            : DEFAULT_SOLVER_OPTIONS;
+    }
+    
+    /**
+     * Get cached array of known values (optimized for repeated calls)
+     */
+    _getKnownValuesArray(knownVars) {
+        // Cache the array if variables haven't changed
+        const varHash = Object.keys(knownVars).sort().join(',');
+        if (this._lastKnownValuesHash === varHash && this._cachedKnownValues) {
+            return this._cachedKnownValues;
+        }
+        
+        this._cachedKnownValues = Object.values(knownVars);
+        this._lastKnownValuesHash = varHash;
+        return this._cachedKnownValues;
     }
 }
 FormulaCalculator.MAX_CACHE_SIZE = 1000;

@@ -36,6 +36,30 @@ class VariableInputsRenderer {
             }
         });
         this.activeInputListeners.clear();
+        
+        // Remove delegated handlers
+        const container = this.getElement('variables-container');
+        if (container) {
+            if (this.delegatedInputHandler) {
+                container.removeEventListener('input', this.delegatedInputHandler, true);
+                this.delegatedInputHandler = null;
+            }
+            if (this.delegatedKeydownHandler) {
+                container.removeEventListener('keydown', this.delegatedKeydownHandler, true);
+                this.delegatedKeydownHandler = null;
+            }
+        }
+        
+        // Clear timeout
+        if (this.solveIndicatorTimeout) {
+            clearTimeout(this.solveIndicatorTimeout);
+            this.solveIndicatorTimeout = null;
+        }
+        
+        // Clear input elements map
+        if (this.inputElementsBySymbol) {
+            this.inputElementsBySymbol.clear();
+        }
     }
     
     /**
@@ -59,16 +83,20 @@ class VariableInputsRenderer {
         container.classList.remove('hidden');
         container.innerHTML = '';
         
-        // Get constant symbols to exclude
+        // Vectorized: Get constant symbols to exclude using Set operations
         const constantSymbols = new Set();
         if (formula.constants) {
-            Object.keys(formula.constants).forEach(key => {
-                constantSymbols.add(key);
-                if (key === 'pi' || key === 'π') constantSymbols.add('π');
-                if (key === 'G') constantSymbols.add('G');
-                if (key === 'c') constantSymbols.add('c');
-                if (key === 'σ' || key === 'sigma') constantSymbols.add('σ');
-            });
+            // Vectorized: Use flatMap to create array of all constant variations
+            const constantKeys = Object.keys(formula.constants);
+            constantKeys.flatMap(key => {
+                const variations = [key];
+                // Add symbol variations
+                if (key === 'pi' || key === 'π') variations.push('π');
+                if (key === 'G') variations.push('G');
+                if (key === 'c') variations.push('c');
+                if (key === 'σ' || key === 'sigma') variations.push('σ');
+                return variations;
+            }).forEach(symbol => constantSymbols.add(symbol));
         }
         
         // Filter out formula-specific constants
@@ -83,42 +111,45 @@ class VariableInputsRenderer {
             constantsDiv.innerHTML = '<h4>Constants (automatically used):</h4><div class="constants-list"></div>';
             const constantsList = constantsDiv.querySelector('.constants-list');
             
-            Object.entries(formula.constants).forEach(([key, value]) => {
+            // Vectorized: Use map + DocumentFragment for batch DOM operations
+            const constantsFragment = document.createDocumentFragment();
+            Object.entries(formula.constants).map(([key, value]) => {
                 const constantItem = document.createElement('div');
                 constantItem.className = 'constant-item';
-                let displayValue = value;
-                let displayKey = key;
                 
-                // Format common constants
-                if (key === 'pi' || key === 'π') {
-                    displayKey = 'π';
-                    displayValue = '3.14159...';
-                } else if (key === 'G') {
-                    displayKey = 'G';
-                    displayValue = '6.67430 × 10⁻¹¹ N·m²/kg²';
-                } else if (key === 'c') {
-                    displayKey = 'c';
-                    displayValue = '2.998 × 10⁸ m/s';
-                } else if (key === 'σ' || key === 'sigma') {
-                    displayKey = 'σ';
-                    displayValue = '5.670 × 10⁻⁸ W/(m²·K⁴)';
-                } else if (typeof value === 'number') {
-                    if (Math.abs(value) < 0.001 || Math.abs(value) > 1000) {
-                        displayValue = value.toExponential(3);
-                    } else {
-                        displayValue = value.toString();
-                    }
+                // Vectorized: Use object mapping for constant formatting
+                const constantFormats = {
+                    'pi': { key: 'π', value: '3.14159...' },
+                    'π': { key: 'π', value: '3.14159...' },
+                    'G': { key: 'G', value: '6.67430 × 10⁻¹¹ N·m²/kg²' },
+                    'c': { key: 'c', value: '2.998 × 10⁸ m/s' },
+                    'σ': { key: 'σ', value: '5.670 × 10⁻⁸ W/(m²·K⁴)' },
+                    'sigma': { key: 'σ', value: '5.670 × 10⁻⁸ W/(m²·K⁴)' }
+                };
+                
+                const format = constantFormats[key] || {};
+                const displayKey = format.key || key;
+                let displayValue = format.value || value;
+                
+                // Format numeric values
+                if (!format.value && typeof value === 'number') {
+                    displayValue = (Math.abs(value) < 0.001 || Math.abs(value) > 1000)
+                        ? value.toExponential(3)
+                        : value.toString();
                 }
                 
                 constantItem.innerHTML = `<strong>${escapeHtml(displayKey)}:</strong> ${escapeHtml(String(displayValue))}`;
-                constantsList.appendChild(constantItem);
+                constantsFragment.appendChild(constantItem);
+                return constantItem;
             });
+            constantsList.appendChild(constantsFragment);
             
             container.appendChild(constantsDiv);
         }
         
-        // Render input fields for each variable
-        userVariables.forEach(variable => {
+        // Vectorized: Render input fields using map + DocumentFragment
+        const variablesFragment = document.createDocumentFragment();
+        userVariables.map(variable => {
             const inputDiv = document.createElement('div');
             inputDiv.className = 'variable-input';
             
@@ -196,6 +227,10 @@ class VariableInputsRenderer {
                             data-unit-index="${index}"
                             data-base-unit="${baseUnit}"
                             aria-label="${variable.name} in ${unit}"
+                            autocomplete="off"
+                            spellcheck="false"
+                            inputmode="decimal"
+                            tabindex="0"
                         >
                     </div>
                 `;
@@ -215,44 +250,67 @@ class VariableInputsRenderer {
                 <div class="var-description">${variable.description}</div>
             `;
             
-            container.appendChild(inputDiv);
+            variablesFragment.appendChild(inputDiv);
             
-            // Add input listeners
+            // Store input elements for this variable (for unit synchronization)
             const inputElements = alternativeUnits.map((unit, currentIndex) => {
                 const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                return { input: document.getElementById(inputId), unit, currentIndex };
+                const input = document.getElementById(inputId);
+                return { input, unit, currentIndex, symbol: variable.symbol };
             }).filter(item => item.input !== null);
             
-            inputElements.forEach(({ input, currentIndex }) => {
-                if (input) {
-                    const inputListener = (e) => {
-                        const currentValue = e.target.value.trim();
-                        if (currentValue && currentValue.toLowerCase() !== 'null') {
-                            inputElements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
-                                if (otherIndex !== currentIndex && otherInput) {
-                                    otherInput.value = '';
-                                }
-                            });
+            // Store for event delegation (more efficient than individual listeners)
+            if (!this.inputElementsBySymbol) {
+                this.inputElementsBySymbol = new Map();
+            }
+            this.inputElementsBySymbol.set(variable.symbol, inputElements);
+            
+            // Use event delegation for better performance (single listener per variable group)
+            if (inputElements.length > 0 && !this.delegatedInputHandler) {
+                this.delegatedInputHandler = (e) => {
+                    if (!e.target.classList.contains('unit-input-field')) return;
+                    
+                    const symbol = e.target.getAttribute('data-symbol');
+                    if (!symbol) return;
+                    
+                    const elements = this.inputElementsBySymbol?.get(symbol);
+                    if (!elements) return;
+                    
+                    const currentValue = e.target.value.trim();
+                    const currentIndex = elements.findIndex(el => el.input === e.target);
+                    
+                    // Clear other unit inputs for the same variable
+                    if (currentValue && currentValue.toLowerCase() !== 'null') {
+                        elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                            if (otherIndex !== currentIndex && otherInput) {
+                                otherInput.value = '';
+                            }
+                        });
+                    }
+                    
+                    // Debounced update of solve indicators and graph
+                    clearTimeout(this.solveIndicatorTimeout);
+                    this.solveIndicatorTimeout = setTimeout(() => {
+                        if (typeof updateSolveIndicators === 'function') {
+                            updateSolveIndicators();
                         }
-                        
-                        clearTimeout(input.solveIndicatorTimeout);
-                        input.solveIndicatorTimeout = setTimeout(() => {
-                            if (typeof updateSolveIndicators === 'function') {
-                                updateSolveIndicators();
+                        if (typeof GRAPH_UPDATES_ENABLED !== 'undefined' && GRAPH_UPDATES_ENABLED && typeof currentFormula !== 'undefined' && currentFormula) {
+                            if (typeof getCurrentVariableValues === 'function' && typeof updateGraphIfEnabled === 'function') {
+                                const variableValues = getCurrentVariableValues();
+                                updateGraphIfEnabled(currentFormula, variableValues);
                             }
-                            if (typeof GRAPH_UPDATES_ENABLED !== 'undefined' && GRAPH_UPDATES_ENABLED && typeof currentFormula !== 'undefined' && currentFormula) {
-                                if (typeof getCurrentVariableValues === 'function' && typeof updateGraphIfEnabled === 'function') {
-                                    const variableValues = getCurrentVariableValues();
-                                    updateGraphIfEnabled(currentFormula, variableValues);
-                                }
-                            }
-                        }, typeof TIMING !== 'undefined' ? TIMING.DEBOUNCE_INDICATORS : 300);
-                    };
-                    input.addEventListener('input', inputListener);
-                    this.activeInputListeners.set(input, { inputListener });
-                }
-            });
+                        }
+                    }, typeof TIMING !== 'undefined' ? TIMING.DEBOUNCE_INDICATORS : 300);
+                };
+                
+                container.addEventListener('input', this.delegatedInputHandler, true);
+            }
+            
+            return inputDiv;
         });
+        
+        // Single DOM update for all variable inputs
+        container.appendChild(variablesFragment);
         
         // Initial update of solve indicators
         if (typeof updateSolveIndicators === 'function') {
@@ -269,20 +327,25 @@ class VariableInputsRenderer {
             }, typeof TIMING !== 'undefined' ? TIMING.AUTO_FOCUS_DELAY : 200);
         }
         
-        // Keyboard navigation
-        const allInputs = container.querySelectorAll('.unit-input-field');
-        allInputs.forEach((input, index) => {
-            const keydownListener = (e) => {
+        // Keyboard navigation with event delegation (more efficient)
+        if (!this.delegatedKeydownHandler) {
+            this.delegatedKeydownHandler = (e) => {
+                if (!e.target.classList.contains('unit-input-field')) return;
+                
+                const allInputs = Array.from(container.querySelectorAll('.unit-input-field'));
+                const index = allInputs.indexOf(e.target);
+                if (index === -1) return;
+                
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    const filledCount = Array.from(allInputs).filter(inp => inp.value.trim()).length;
+                    const filledCount = allInputs.filter(inp => inp.value.trim()).length;
                     if (filledCount >= userVariables.length - 1) {
                         if (typeof performCalculation === 'function') {
                             performCalculation();
                         }
                     } else {
                         const nextIndex = (index + 1) % allInputs.length;
-                        allInputs[nextIndex].focus();
+                        allInputs[nextIndex]?.focus();
                     }
                 } else if (e.key === 'Tab' && !e.shiftKey) {
                     const nextIndex = (index + 1) % allInputs.length;
@@ -295,9 +358,9 @@ class VariableInputsRenderer {
                     }
                 }
             };
-            input.addEventListener('keydown', keydownListener);
-            this.activeInputListeners.set(input, { ...this.activeInputListeners.get(input), keydownListener });
-        });
+            
+            container.addEventListener('keydown', this.delegatedKeydownHandler, true);
+        }
     }
 }
 

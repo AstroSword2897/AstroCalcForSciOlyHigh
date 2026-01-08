@@ -3,19 +3,63 @@
  * OPTIMIZED: Uses DocumentFragment, event delegation, CSS classes, and batched updates
  */
 export class FormulaRenderer {
-    constructor(options) {
+    constructor(options = {}) {
+        // Injected dependencies (no globals)
         this.onFormulaClick = options.onFormulaClick;
+        this.formulas = options.formulas || (() => window.formulas || []);
+        this.FormulaCalculator = options.FormulaCalculator || (() => window.FormulaCalculator);
+        this.calculateConfidenceScore = options.calculateConfidenceScore || (() => window.calculateConfidenceScore);
+        this.formulaCategories = options.formulaCategories || (() => window.formulaCategories);
+        this.selectFormula = options.selectFormula || (() => window.selectFormula);
+        
         this.container = null;
         this.delegatedHandler = null;
         this.renderScheduled = false;
         this.pendingFormulas = null;
         
-        // LRU cache for card HTML (avoid re-creating)
-        this.cardCache = new Map();
-        this.MAX_CACHE_SIZE = 300;
+        // Performance: Prevent duplicate renders
+        this._lastRenderHash = null;
+        this._isRendering = false;
         
-        // Cache invalidation hooks
-        this.invalidationCallbacks = [];
+        // Per-card quick calc timers (fixes shared timeout issue)
+        this.quickCalcTimeouts = new Map(); // formulaId -> timeout
+        
+        // Formula index for O(1) lookup (instead of linear search)
+        this._formulaIndex = new Map(); // id -> formula
+        this._rebuildFormulaIndex();
+        
+        // Performance metrics
+        this.metrics = {
+            renderTime: 0,
+            quickCalcTime: 0,
+            confidenceCalcTime: 0
+        };
+    }
+    
+    /**
+     * Rebuild formula index for O(1) lookup
+     */
+    _rebuildFormulaIndex() {
+        this._formulaIndex.clear();
+        const formulas = typeof this.formulas === 'function' ? this.formulas() : this.formulas;
+        if (Array.isArray(formulas)) {
+            formulas.forEach(formula => {
+                if (formula.id) {
+                    this._formulaIndex.set(formula.id, formula);
+                }
+            });
+        }
+    }
+    
+    /**
+     * Get formula by ID (O(1) lookup)
+     */
+    _getFormulaById(formulaId) {
+        // Rebuild index if empty (formulas might have changed)
+        if (this._formulaIndex.size === 0) {
+            this._rebuildFormulaIndex();
+        }
+        return this._formulaIndex.get(formulaId);
     }
 
     /**
@@ -27,6 +71,13 @@ export class FormulaRenderer {
     renderFormulaCards(formulas, container, options = {}) {
         if (!container) {
             console.error('[FormulaRenderer] No container found');
+            return;
+        }
+
+        // Prevent duplicate renders: check if already rendering same content
+        const renderHash = this._createRenderHash(formulas, options);
+        if (this._isRendering && renderHash === this._lastRenderHash) {
+            console.log('[FormulaRenderer] ⏭️ Skipping duplicate render');
             return;
         }
 
@@ -52,33 +103,96 @@ export class FormulaRenderer {
         
         this.renderScheduled = true;
         this.pendingFormulas = formulas;
+        this._lastRenderHash = renderHash;
+        this._isRendering = true;
         
         requestAnimationFrame(() => {
             this.performRender(this.pendingFormulas, container);
             this.renderScheduled = false;
             this.pendingFormulas = null;
+            this._isRendering = false;
         });
     }
     
     /**
-     * Perform the actual render using DocumentFragment
+     * Create hash of render parameters to detect duplicates
+     * O(n) where n = number of formulas
+     */
+    _createRenderHash(formulas, options) {
+        const formulaIds = formulas.map(f => (f.formula || f).id || (f.formula || f).name).join(',');
+        const optionsStr = JSON.stringify({
+            showConfidence: options.showConfidence,
+            showTopicScope: options.showTopicScope,
+            maxScore: options.maxScore
+        });
+        return `${formulaIds}|${optionsStr}`;
+    }
+    
+    /**
+     * Perform the actual render using DocumentFragment with chunked rendering for better performance
      */
     performRender(formulas, container) {
-        // Use DocumentFragment for batched DOM updates (single reflow)
-        const fragment = document.createDocumentFragment();
+        const startTime = performance.now();
+        const CHUNK_SIZE = 50; // Render 50 cards at a time for better responsiveness
         
-        // Create all cards
-        formulas.forEach((item, index) => {
-            // Handle both plain formulas and search results
-            const formula = item.formula || item;
-            const searchData = item.formula ? item : null; // If item has .formula, it's a search result
-            const card = this.createFormulaCard(formula, index, searchData);
-            fragment.appendChild(card);
-        });
-        
-        // Single DOM update
+        // Clear container first
         container.innerHTML = '';
-        container.appendChild(fragment);
+        
+        // If we have many formulas, use chunked rendering
+        if (formulas.length > CHUNK_SIZE) {
+            this.performChunkedRender(formulas, container, CHUNK_SIZE);
+        } else {
+            // For smaller lists, render all at once
+            const fragment = document.createDocumentFragment();
+            
+            formulas.forEach((item, index) => {
+                const formula = item.formula || item;
+                const searchData = item.formula ? item : null;
+                const card = this.createFormulaCard(formula, index, searchData);
+                fragment.appendChild(card);
+            });
+            
+            container.appendChild(fragment);
+        }
+        
+        const renderTime = performance.now() - startTime;
+        console.log(`[FormulaRenderer] Rendered ${formulas.length} cards in ${renderTime.toFixed(2)}ms`);
+    }
+    
+    /**
+     * Chunked rendering for large formula lists - renders in batches to keep UI responsive
+     */
+    performChunkedRender(formulas, container, chunkSize) {
+        let currentIndex = 0;
+        
+        const renderChunk = () => {
+            const endIndex = Math.min(currentIndex + chunkSize, formulas.length);
+            const fragment = document.createDocumentFragment();
+            
+            for (let i = currentIndex; i < endIndex; i++) {
+                const item = formulas[i];
+                const formula = item.formula || item;
+                const searchData = item.formula ? item : null;
+                const card = this.createFormulaCard(formula, i, searchData);
+                fragment.appendChild(card);
+            }
+            
+            container.appendChild(fragment);
+            currentIndex = endIndex;
+            
+            // Continue with next chunk if there are more formulas
+            if (currentIndex < formulas.length) {
+                // Use requestIdleCallback if available, otherwise setTimeout
+                if (window.requestIdleCallback) {
+                    requestIdleCallback(renderChunk, { timeout: 100 });
+                } else {
+                    setTimeout(renderChunk, 0);
+                }
+            }
+        };
+        
+        // Start rendering first chunk
+        renderChunk();
     }
 
     /**
@@ -129,14 +243,25 @@ export class FormulaRenderer {
             }
         };
         
-        // Handle input changes for quick calculation (debounced)
+        // Handle input changes for quick calculation (debounced per-card)
         this.inputHandler = (e) => {
             if (e.target.classList.contains('quick-calc-input')) {
-                clearTimeout(this.quickCalcTimeout);
-                this.quickCalcTimeout = setTimeout(() => {
-                    const formulaId = e.target.getAttribute('data-formula-id');
+                const formulaId = e.target.getAttribute('data-formula-id');
+                if (!formulaId) return;
+                
+                // Clear existing timeout for this specific formula
+                const existingTimeout = this.quickCalcTimeouts.get(formulaId);
+                if (existingTimeout) {
+                    clearTimeout(existingTimeout);
+                }
+                
+                // Set new timeout per formula
+                const timeout = setTimeout(() => {
                     this.handleQuickCalculation(formulaId, container);
+                    this.quickCalcTimeouts.delete(formulaId);
                 }, 500);
+                
+                this.quickCalcTimeouts.set(formulaId, timeout);
             }
         };
         
@@ -149,13 +274,16 @@ export class FormulaRenderer {
      * Now only processes INPUT variables (excludes result variable)
      */
     handleQuickCalculation(formulaId, container) {
-        if (!formulaId || !window.FormulaCalculator) {
+        const startTime = performance.now();
+        const FormulaCalc = typeof this.FormulaCalculator === 'function' ? this.FormulaCalculator() : this.FormulaCalculator;
+        if (!formulaId || !FormulaCalc) {
             console.warn('[FormulaRenderer] Quick calc skipped - missing formulaId or FormulaCalculator');
             return;
         }
         
         try {
-            const formula = window.formulas?.find(f => f.id === formulaId);
+            // Use O(1) lookup instead of linear search
+            const formula = this._getFormulaById(formulaId);
             if (!formula) {
                 console.warn('[FormulaRenderer] Formula not found:', formulaId);
                 return;
@@ -206,121 +334,45 @@ export class FormulaRenderer {
                 return;
             }
             
-            // Direct evaluation for quick calculation
-            // Parse the equation and substitute values
+            // Delegate to FormulaCalculator (security: no inline expression evaluation)
+            // This ensures proper validation, unit handling, and error propagation
             try {
-                // Get the result variable and its unit
-                const lhsMatch = formula.equation.match(/^\s*([a-zA-Z_][a-zA-Z0-9_/]*)/);
-                const resultVariable = lhsMatch ? lhsMatch[1].trim() : null;
-                const resultVarDef = formula.variables.find(v => v.symbol === resultVariable);
-                const resultUnit = resultVarDef?.unit || '';
+                const calculator = new window.FormulaCalculator(formula);
+                const result = calculator.solve(variableValues);
                 
-                // Get the right-hand side of the equation (after '=')
-                const rhsMatch = formula.equation.match(/=\s*(.+)$/);
-                if (!rhsMatch) {
-                    throw new Error('Could not parse equation');
-                }
-                const rhs = rhsMatch[1].trim();
-                
-                // Build context with constants and variables
-                const constants = {
-                    G: 6.67430e-11,
-                    c: 2.99792458e8,
-                    h: 6.62607015e-34,
-                    k: 1.380649e-23,
-                    σ: 5.670374419e-8,  // Stefan-Boltzmann constant
-                    π: Math.PI,
-                    pi: Math.PI,
-                    e: Math.E,
-                    ...(formula.constants || {})
-                };
-                
-                const context = { ...constants, ...variableValues };
-                
-                // Log values for debugging
-                console.log('[FormulaRenderer] Quick calc inputs:', variableValues);
-                console.log('[FormulaRenderer] Quick calc context:', context);
-                console.log('[FormulaRenderer] RHS expression:', rhs);
-                
-                // Substitute values into expression
-                let expression = rhs;
-                
-                // First, insert explicit multiplication between adjacent terms (e.g., "2GM" -> "2*G*M")
-                // Insert * between: digit-letter, letter-digit, letter-letter (different symbols), )-letter, letter-(, )-digit
-                expression = expression
-                    .replace(/(\d)([a-zA-Z_])/g, '$1*$2')       // 2G -> 2*G
-                    .replace(/([a-zA-Z_])(\d)/g, '$1*$2')       // G2 -> G*2
-                    .replace(/([a-zA-Z_])([a-zA-Z_])/g, '$1*$2') // GM -> G*M (will need multiple passes)
-                    .replace(/([a-zA-Z_])([a-zA-Z_])/g, '$1*$2') // Second pass for triplets like GMm
-                    .replace(/\)([a-zA-Z_\d])/g, ')*$1')         // )G -> )*G
-                    .replace(/([a-zA-Z_\d])\(/g, '$1*(');         // G( -> G*(
-                
-                console.log('[FormulaRenderer] After implicit mult:', expression);
-                
-                // Replace variables with their values (sort by symbol length desc to avoid partial matches)
-                const sortedSymbols = Object.entries(context)
-                    .filter(([_, v]) => v !== null && v !== undefined)
-                    .sort((a, b) => b[0].length - a[0].length);
+                if (resultEl && result && result.result !== null && result.result !== undefined) {
+                    const resultValue = result.result;
+                    let formattedValue;
                     
-                for (const [symbol, value] of sortedSymbols) {
-                    // Escape special regex characters in symbol
-                    const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    // Match symbol as standalone word (now that implicit mult is explicit)
-                    const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
-                    expression = expression.replace(regex, `(${value})`);
-                }
-                
-                console.log('[FormulaRenderer] Substituted expression:', expression);
-                
-                // Convert math notation to JavaScript
-                expression = expression
-                    .replace(/√/g, 'Math.sqrt')
-                    .replace(/\^/g, '**')
-                    .replace(/×/g, '*')
-                    .replace(/÷/g, '/')
-                    .replace(/²/g, '**2')
-                    .replace(/³/g, '**3')
-                    .replace(/⁴/g, '**4');
-                
-                console.log('[FormulaRenderer] Final JS expression:', expression);
-                
-                // Safely evaluate the expression
-                const evaluator = new Function('Math', `return ${expression}`);
-                const numericResult = evaluator(Math);
-                
-                console.log('[FormulaRenderer] Numeric result:', numericResult);
-                
-                if (isFinite(numericResult)) {
-                    const formattedValue = numericResult.toExponential(4);
-                    resultEl.textContent = `${resultVariable || ''} = ${formattedValue}${resultUnit ? ' ' + resultUnit : ''}`;
+                    if (typeof resultValue === 'number') {
+                        // Format based on magnitude
+                        if (Math.abs(resultValue) >= 1e6 || (Math.abs(resultValue) < 1e-3 && resultValue !== 0)) {
+                            formattedValue = resultValue.toExponential(4);
+                        } else {
+                            formattedValue = resultValue.toFixed(6).replace(/\.?0+$/, '');
+                        }
+                    } else {
+                        formattedValue = String(resultValue);
+                    }
+                    
+                    const resultVariable = result.variable || result.solvedFor || '';
+                    const unit = result.unit || '';
+                    resultEl.textContent = `${resultVariable ? resultVariable + ' = ' : ''}${formattedValue}${unit ? ' ' + unit : ''}`;
                     resultEl.style.color = '#4ade80';
-                } else {
-                    resultEl.textContent = '⚠️ Check inputs';
+                } else if (resultEl) {
+                    resultEl.textContent = '⚠️ No result';
                     resultEl.style.color = '#f87171';
                 }
-            } catch (evalError) {
-                console.error('[FormulaRenderer] Quick calc eval error:', evalError);
-                // Fall back to calculator.solve()
-                try {
-                    const calculator = new window.FormulaCalculator(formula);
-                    const result = calculator.solve(variableValues);
-                    
-                    if (resultEl && result && result.result !== null && result.result !== undefined) {
-                        const resultValue = result.result;
-                        const formattedValue = typeof resultValue === 'number' 
-                            ? resultValue.toExponential(4) 
-                            : String(resultValue);
-                        resultEl.textContent = `= ${formattedValue}${result.unit ? ' ' + result.unit : ''}`;
-                        resultEl.style.color = '#4ade80';
-                    }
-                } catch (calcError) {
-                    console.error('[FormulaRenderer] Fallback calc error:', calcError);
-                    if (resultEl) {
-                        resultEl.textContent = '⚠️ Calculation failed';
-                        resultEl.style.color = '#f87171';
-                    }
+            } catch (calcError) {
+                console.error('[FormulaRenderer] Quick calc error:', calcError);
+                if (resultEl) {
+                    resultEl.textContent = '⚠️ Calculation failed';
+                    resultEl.style.color = '#f87171';
                 }
             }
+            
+            // Track performance
+            this.metrics.quickCalcTime += performance.now() - startTime;
         } catch (error) {
             console.error('[FormulaRenderer] Quick calculation error:', error);
             const resultEl = container.querySelector(`.quick-calc-result[data-formula-id="${formulaId}"]`);
@@ -328,6 +380,7 @@ export class FormulaRenderer {
                 resultEl.textContent = '⚠️ Error';
                 resultEl.style.color = '#f87171';
             }
+            this.metrics.quickCalcTime += performance.now() - startTime;
         }
     }
 
@@ -363,12 +416,15 @@ export class FormulaRenderer {
     }
     
     /**
-     * Calculate confidence score for a card
+     * Calculate confidence score for a card (with performance tracking)
      */
     calculateConfidenceForCard(searchData) {
         if (!searchData) {
             return null;
         }
+        
+        const startTime = performance.now();
+        let result;
         
         // Try to use global confidence function if available
         if (typeof window.calculateConfidenceScore === 'function') {
@@ -379,7 +435,7 @@ export class FormulaRenderer {
                 const topicScore = searchData.topicRelevanceScore || 0;
                 const contextScore = searchData.contextScore || 0;
                 
-                return window.calculateConfidenceScore(
+                result = window.calculateConfidenceScore(
                     literalScore,
                     maxScore,
                     metrics,
@@ -387,6 +443,8 @@ export class FormulaRenderer {
                     topicScore,
                     contextScore
                 );
+                this.metrics.confidenceCalcTime += performance.now() - startTime;
+                return result;
             } catch (e) {
                 console.warn('[FormulaRenderer] Confidence calculation failed:', e);
             }
@@ -408,7 +466,7 @@ export class FormulaRenderer {
         // Clamp to 0-100
         confidence = Math.min(100, Math.max(0, confidence));
         
-        return {
+        result = {
             confidence: confidence,
             breakdown: [
                 {
@@ -418,6 +476,10 @@ export class FormulaRenderer {
                 }
             ]
         };
+        
+        // Track performance
+        this.metrics.confidenceCalcTime += performance.now() - startTime;
+        return result;
     }
     
     /**
@@ -433,8 +495,12 @@ export class FormulaRenderer {
         };
         
         // Try to find category
-        if (window.formulaCategories && formula.id) {
-            for (const [category, ids] of Object.entries(window.formulaCategories)) {
+        const categories = typeof this.formulaCategories === 'function' 
+            ? this.formulaCategories() 
+            : this.formulaCategories;
+        
+        if (categories && formula.id) {
+            for (const [category, ids] of Object.entries(categories)) {
                 if (ids.includes(formula.id)) {
                     scope.category = category;
                     break;
@@ -447,233 +513,243 @@ export class FormulaRenderer {
     
     /**
      * Generate card HTML with confidence and topic details
+     * Split into smaller helpers for maintainability
      */
     generateCardHTML(formula, confidenceData, topicScope, searchData) {
-        let html = `
+        let html = this.generateCardHeader(formula);
+        html += this.generateQuickCalcSection(formula);
+        html += this.generateConfidenceSection(confidenceData);
+        html += this.generateTopicScopeSection(topicScope);
+        html += this.generateChipsSection(formula, searchData);
+        html += this.generateBreakdownSection(searchData);
+        return html;
+    }
+    
+    /**
+     * Generate card header (title, equation, description)
+     */
+    generateCardHeader(formula) {
+        return `
             <h3 class="formula-card-title">${this.escapeHtml(formula.name)}</h3>
             <div class="formula-card-equation">${this.escapeHtml(formula.equation)}</div>
             <p class="formula-card-description">${this.escapeHtml(formula.description || 'Click to use this formula')}</p>
         `;
-        
-        // Add inline calculation inputs for quick calculations
-        if (formula.variables && formula.variables.length > 0 && formula.variables.length <= 4) {
-            // Extract result variable from LHS of equation (e.g., "v_esc" from "v_esc = √(2GM/r)")
-            const lhsMatch = formula.equation.match(/^\s*([a-zA-Z_][a-zA-Z0-9_/]*)/);
-            const resultVariable = lhsMatch ? lhsMatch[1].trim() : null;
-            
-            // Filter out the result variable - user shouldn't input what we're solving for
-            const inputVariables = formula.variables.filter(v => v.symbol !== resultVariable);
-            
-            // Only show quick calc if there are input variables (not just the result)
-            if (inputVariables.length > 0) {
-                html += `<div class="formula-card-quick-calc" style="margin-top: 12px; padding: 12px; background: rgba(102, 126, 234, 0.05); border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.2);">`;
-                html += `<div style="font-size: 0.85em; color: #a8c7ff; margin-bottom: 8px; font-weight: 600;">⚡ Quick Calculate → ${resultVariable || 'Result'}:</div>`;
-                html += `<div class="quick-calc-inputs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">`;
-                
-                inputVariables.slice(0, 4).forEach((variable, idx) => {
-                    const inputId = `quick-calc-${formula.id}-${variable.symbol}`;
-                    html += `
-                        <div style="display: flex; flex-direction: column;">
-                            <label for="${inputId}" style="font-size: 0.75em; color: #888; margin-bottom: 4px;">${this.escapeHtml(variable.symbol)}</label>
-                            <input 
-                                type="number" 
-                                id="${inputId}"
-                                data-formula-id="${formula.id}"
-                                data-variable-symbol="${this.escapeHtml(variable.symbol)}"
-                                data-result-variable="${resultVariable || ''}"
-                                class="quick-calc-input"
-                                placeholder="0"
-                                step="any"
-                                style="padding: 6px; border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 4px; background: rgba(15, 23, 42, 0.5); color: white; font-size: 0.9em;"
-                            >
-                        </div>
-                    `;
-                });
-                
-                html += `</div>`;
-                html += `<div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">`;
-                html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" data-result-variable="${resultVariable || ''}" style="flex: 1; padding: 6px 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; font-size: 0.85em;">Calculate → ${resultVariable || 'Result'}</button>`;
-                html += `<div class="quick-calc-result" data-formula-id="${formula.id}" style="flex: 1; padding: 6px; background: rgba(102, 126, 234, 0.1); border-radius: 6px; font-size: 0.85em; color: #a8c7ff; text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center;"></div>`;
-                html += `</div>`;
-                html += `</div>`;
-            }
+    }
+    
+    /**
+     * Generate quick calculation section
+     */
+    generateQuickCalcSection(formula) {
+        if (!formula.variables || formula.variables.length === 0 || formula.variables.length > 4) {
+            return '';
         }
         
-        // Add confidence score if available
-        if (confidenceData && this.renderOptions?.showConfidence) {
-            const confidence = confidenceData.confidence || 0;
-            const confidenceLevel = this.getConfidenceLevel(confidence);
+        // Extract result variable from LHS of equation
+        const lhsMatch = formula.equation.match(/^\s*([a-zA-Z_][a-zA-Z0-9_/]*)/);
+        const resultVariable = lhsMatch ? lhsMatch[1].trim() : null;
+        
+        // Filter out the result variable - user shouldn't input what we're solving for
+        const inputVariables = formula.variables.filter(v => v.symbol !== resultVariable);
+        
+        if (inputVariables.length === 0) {
+            return '';
+        }
+        
+        let html = '<div class="formula-card-quick-calc">';
+        html += `<div class="quick-calc-header">⚡ Quick Calculate → ${resultVariable || 'Result'}:</div>`;
+        html += '<div class="quick-calc-inputs">';
+        
+        inputVariables.slice(0, 4).forEach((variable) => {
+            const inputId = `quick-calc-${formula.id}-${variable.symbol}`;
             html += `
-                <div class="formula-card-confidence" style="margin-top: 12px; padding: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 6px; border-left: 3px solid ${confidenceLevel.color};">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <span style="font-weight: 600; color: ${confidenceLevel.color};">
-                            ${confidenceLevel.icon} ${confidence}% Match
-                        </span>
-                        <span style="font-size: 0.85em; color: #a8c7ff;">
-                            ${confidenceLevel.level}
-                        </span>
-                    </div>
+                <div class="quick-calc-input-group">
+                    <label for="${inputId}" class="quick-calc-label">${this.escapeHtml(variable.symbol)}</label>
+                    <input 
+                        type="number" 
+                        id="${inputId}"
+                        data-formula-id="${formula.id}"
+                        data-variable-symbol="${this.escapeHtml(variable.symbol)}"
+                        data-result-variable="${resultVariable || ''}"
+                        class="quick-calc-input"
+                        placeholder="0"
+                        step="any"
+                    >
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        html += '<div class="quick-calc-actions">';
+        html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" data-result-variable="${resultVariable || ''}">Calculate → ${resultVariable || 'Result'}</button>`;
+        html += `<div class="quick-calc-result" data-formula-id="${formula.id}"></div>`;
+        html += '</div>';
+        html += '</div>';
+        
+        return html;
+    }
+    
+    /**
+     * Generate confidence section
+     */
+    generateConfidenceSection(confidenceData) {
+        if (!confidenceData || !this.renderOptions?.showConfidence) {
+            return '';
+        }
+        
+        const confidence = confidenceData.confidence || 0;
+        const confidenceLevel = this.getConfidenceLevel(confidence);
+        
+        return `
+            <div class="formula-card-confidence" style="border-left-color: ${confidenceLevel.color};">
+                <div class="confidence-header">
+                    <span class="confidence-value" style="color: ${confidenceLevel.color};">
+                        ${confidenceLevel.icon} ${confidence}% Match
+                    </span>
+                    <span class="confidence-level">${confidenceLevel.level}</span>
+                </div>
             </div>
         `;
+    }
+    
+    /**
+     * Generate topic scope section
+     */
+    generateTopicScopeSection(topicScope) {
+        if (!topicScope || !this.renderOptions?.showTopicScope) {
+            return '';
         }
         
-        // Add topic scope if available
-        if (topicScope && this.renderOptions?.showTopicScope) {
-            const scopeParts = [];
-            
-            if (topicScope.category) {
-                scopeParts.push(`📁 ${topicScope.category}`);
-            }
-            
-            if (topicScope.concepts.length > 0) {
-                const displayConcepts = topicScope.matchedConcepts.length > 0 
-                    ? topicScope.matchedConcepts.slice(0, 3)
-                    : topicScope.concepts.slice(0, 3);
-                scopeParts.push(`🔑 ${displayConcepts.join(', ')}`);
-            }
-            
-            if (topicScope.topicScore > 0) {
-                scopeParts.push(`📊 Topic: ${topicScope.topicScore.toFixed(1)}`);
-            }
-            
-            if (topicScope.contextScore > 0) {
-                scopeParts.push(`🎯 Context: ${topicScope.contextScore.toFixed(1)}`);
-            }
-            
-            if (scopeParts.length > 0) {
-                html += `
-                    <div class="formula-card-topic-scope" style="margin-top: 8px; padding: 8px; background: rgba(255, 255, 255, 0.05); border-radius: 6px; font-size: 0.85em; color: #a8c7ff;">
-                        ${scopeParts.join(' • ')}
-                    </div>
-                `;
-            }
+        const scopeParts = [];
+        
+        if (topicScope.category) {
+            scopeParts.push(`📁 ${topicScope.category}`);
         }
         
-        // Add matched topics as chips (NEW v2.1.0)
-        if (searchData?.metrics && this.renderOptions?.showConfidence) {
-            const matchedTopics = new Set();
-            const matchedVariables = new Set();
-            
-            // Collect matched topics from concepts
-            if (searchData.metrics.matchedConcepts && searchData.metrics.matchedConcepts.length > 0) {
-                searchData.metrics.matchedConcepts.slice(0, 5).forEach(c => matchedTopics.add(c));
-            } else if (searchData.metrics.conceptMatch && formula.concepts) {
-                // Fallback: use formula concepts
-                formula.concepts.slice(0, 3).forEach(c => matchedTopics.add(c));
-            }
-            
-            // Collect matched variables
-            if (searchData.metrics.matchedVariables && searchData.metrics.matchedVariables.length > 0) {
-                searchData.metrics.matchedVariables.slice(0, 4).forEach(v => matchedVariables.add(v));
-            } else if (searchData.metrics.variableMatch && formula.variables) {
-                // Fallback: use first few variables
-                formula.variables.slice(0, 3).forEach(v => matchedVariables.add(v.symbol));
-            }
-            
-            // Display topic chips
-            if (matchedTopics.size > 0 || matchedVariables.size > 0) {
+        if (topicScope.concepts.length > 0) {
+            const displayConcepts = topicScope.matchedConcepts.length > 0 
+                ? topicScope.matchedConcepts.slice(0, 3)
+                : topicScope.concepts.slice(0, 3);
+            scopeParts.push(`🔑 ${displayConcepts.join(', ')}`);
+        }
+        
+        if (topicScope.topicScore > 0) {
+            scopeParts.push(`📊 Topic: ${topicScope.topicScore.toFixed(1)}`);
+        }
+        
+        if (topicScope.contextScore > 0) {
+            scopeParts.push(`🎯 Context: ${topicScope.contextScore.toFixed(1)}`);
+        }
+        
+        if (scopeParts.length === 0) {
+            return '';
+        }
+        
+        return `
+            <div class="formula-card-topic-scope">
+                ${scopeParts.join(' • ')}
+            </div>
+        `;
+    }
+    
+    /**
+     * Generate chips section (matched topics and variables)
+     */
+    generateChipsSection(formula, searchData) {
+        if (!searchData?.metrics || !this.renderOptions?.showConfidence) {
+            return '';
+        }
+        
+        const matchedTopics = new Set();
+        const matchedVariables = new Set();
+        
+        // Collect matched topics from concepts
+        if (searchData.metrics.matchedConcepts && searchData.metrics.matchedConcepts.length > 0) {
+            searchData.metrics.matchedConcepts.slice(0, 5).forEach(c => matchedTopics.add(c));
+        } else if (searchData.metrics.conceptMatch && formula.concepts) {
+            formula.concepts.slice(0, 3).forEach(c => matchedTopics.add(c));
+        }
+        
+        // Collect matched variables
+        if (searchData.metrics.matchedVariables && searchData.metrics.matchedVariables.length > 0) {
+            searchData.metrics.matchedVariables.slice(0, 4).forEach(v => matchedVariables.add(v));
+        } else if (searchData.metrics.variableMatch && formula.variables) {
+            formula.variables.slice(0, 3).forEach(v => matchedVariables.add(v.symbol));
+        }
+        
+        if (matchedTopics.size === 0 && matchedVariables.size === 0) {
+            return '';
+        }
+        
+        let html = '<div class="formula-card-chips">';
+        html += '<span class="chips-label">MATCHED:</span>';
+        
+        // Topic chips (concepts)
+        matchedTopics.forEach(topic => {
+            html += `<span class="topic-chip">🏷️ ${this.escapeHtml(topic)}</span>`;
+        });
+        
+        // Variable chips
+        matchedVariables.forEach(variable => {
+            html += `<span class="variable-chip">${this.escapeHtml(variable)}</span>`;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+    
+    /**
+     * Generate breakdown section
+     */
+    generateBreakdownSection(searchData) {
+        if (!searchData?.metrics?.componentScores || !this.renderOptions?.showConfidence) {
+            return '';
+        }
+        
+        const scores = searchData.metrics.componentScores;
+        const hasScores = Object.values(scores).some(s => s > 0);
+        
+        if (!hasScores) {
+            return '';
+        }
+        
+        const scoreComponents = [
+            { key: 'name', label: 'Name Match', color: '#60a5fa', icon: '📛' },
+            { key: 'concepts', label: 'Concept Match', color: '#a78bfa', icon: '🧠' },
+            { key: 'variables', label: 'Variable Match', color: '#4ade80', icon: '🔢' },
+            { key: 'description', label: 'Description Match', color: '#fbbf24', icon: '📝' },
+            { key: 'category', label: 'Category Match', color: '#fb923c', icon: '📁' }
+        ];
+        
+        const totalScore = Object.values(scores).reduce((sum, val) => sum + val, 0);
+        
+        let html = '<details class="formula-card-breakdown">';
+        html += '<summary class="breakdown-summary">📊 Score Breakdown</summary>';
+        html += '<div class="breakdown-content">';
+        
+        scoreComponents.forEach(({ key, label, color, icon }) => {
+            const score = scores[key] || 0;
+            if (score > 0) {
+                const percentage = totalScore > 0 ? ((score / totalScore) * 100).toFixed(1) : 0;
                 html += `
-                    <div class="formula-card-chips" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
-                        <span style="font-size: 0.75em; color: #888; font-weight: 600;">MATCHED:</span>
-                `;
-                
-                // Topic chips (concepts)
-                matchedTopics.forEach(topic => {
-                    html += `
-                        <span class="topic-chip" style="padding: 4px 10px; background: rgba(102, 126, 234, 0.15); border: 1px solid rgba(102, 126, 234, 0.3); border-radius: 12px; font-size: 0.75em; color: #a8c7ff; font-weight: 500;">
-                            🏷️ ${this.escapeHtml(topic)}
+                    <div class="breakdown-item">
+                        <span class="breakdown-item-label">
+                            ${icon} ${label}
                         </span>
-                    `;
-                });
-                
-                // Variable chips
-                matchedVariables.forEach(variable => {
-                    html += `
-                        <span class="variable-chip" style="padding: 4px 10px; background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.3); border-radius: 12px; font-size: 0.75em; color: #4ade80; font-family: 'Courier New', monospace; font-weight: 600;">
-                            ${this.escapeHtml(variable)}
-                        </span>
-                    `;
-                });
-                
-                html += `</div>`;
-            }
-        }
-        
-        // Add confidence breakdown (NEW v2.1.0)
-        if (searchData?.metrics?.componentScores && this.renderOptions?.showConfidence) {
-            const scores = searchData.metrics.componentScores;
-            const hasScores = Object.values(scores).some(s => s > 0);
-            
-            if (hasScores) {
-                html += `
-                    <details class="formula-card-breakdown" style="margin-top: 10px; padding: 10px; background: rgba(255, 255, 255, 0.02); border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">
-                        <summary style="cursor: pointer; font-size: 0.85em; color: #a8c7ff; font-weight: 600; user-select: none;">
-                            📊 Score Breakdown
-                        </summary>
-                        <div class="breakdown-content" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-                `;
-                
-                const scoreComponents = [
-                    { key: 'name', label: 'Name Match', color: '#60a5fa', icon: '📛' },
-                    { key: 'concepts', label: 'Concept Match', color: '#a78bfa', icon: '🧠' },
-                    { key: 'variables', label: 'Variable Match', color: '#4ade80', icon: '🔢' },
-                    { key: 'description', label: 'Description Match', color: '#fbbf24', icon: '📝' },
-                    { key: 'category', label: 'Category Match', color: '#fb923c', icon: '📁' }
-                ];
-                
-                const totalScore = Object.values(scores).reduce((sum, val) => sum + val, 0);
-                
-                scoreComponents.forEach(({ key, label, color, icon }) => {
-                    const score = scores[key] || 0;
-                    if (score > 0) {
-                        const percentage = totalScore > 0 ? ((score / totalScore) * 100).toFixed(1) : 0;
-                        html += `
-                            <div class="breakdown-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03);">
-                                <span style="font-size: 0.8em; color: #cbd5e1;">
-                                    ${icon} ${label}
-                                </span>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <div style="width: 80px; height: 6px; background: rgba(255, 255, 255, 0.05); border-radius: 3px; overflow: hidden;">
-                                        <div style="width: ${percentage}%; height: 100%; background: ${color}; border-radius: 3px;"></div>
-                                    </div>
-                                    <span style="font-size: 0.75em; color: ${color}; font-weight: 600; min-width: 60px; text-align: right;">
-                                        ${score.toFixed(0)} pts (${percentage}%)
-                                    </span>
-                                </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="breakdown-progress-container">
+                                <div class="breakdown-progress-bar" style="width: ${percentage}%; background: ${color};"></div>
                             </div>
-                        `;
-                    }
-                });
-                
-                html += `
-                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: right;">
-                                <span style="font-size: 0.85em; color: #a8c7ff; font-weight: 600;">
-                                    Total: ${totalScore.toFixed(0)} pts
-                                </span>
-                            </div>
+                            <span class="breakdown-score-value" style="color: ${color};">
+                                ${score.toFixed(0)} pts (${percentage}%)
+                            </span>
                         </div>
-                    </details>
-                `;
-            }
-        }
-        
-        // Add match reasons (legacy, kept for compatibility)
-        if (searchData?.metrics && this.renderOptions?.showConfidence) {
-            const matchReasons = [];
-            if (searchData.metrics.nameMatch) matchReasons.push('Name');
-            if (searchData.metrics.conceptMatch) matchReasons.push('Concept');
-            if (searchData.metrics.variableMatch) matchReasons.push('Variable');
-            if (searchData.metrics.descriptionMatch) matchReasons.push('Description');
-            if (searchData.metrics.semanticMatch) matchReasons.push('Semantic');
-            
-            if (matchReasons.length > 0) {
-                html += `
-                    <div class="formula-card-match-reasons" style="margin-top: 6px; font-size: 0.75em; color: #64748b;">
-                        ✓ Matched: ${matchReasons.join(' • ')}
                     </div>
                 `;
             }
-        }
+        });
+        
+        html += '</div>';
+        html += '</details>';
         
         return html;
     }
@@ -706,7 +782,7 @@ export class FormulaRenderer {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
-            }
+    }
 
     /**
      * Filter formulas (optimized with early exit)
@@ -734,42 +810,47 @@ export class FormulaRenderer {
     }
     
     /**
-     * Invalidate cache (for theme changes, locale changes, formula updates)
-     */
-    invalidateCache(reason = 'unknown') {
-        const previousSize = this.cardCache.size;
-        this.cardCache.clear();
-        console.log(`[FormulaRenderer] Cache invalidated (${previousSize} items) - reason: ${reason}`);
-        
-        // Notify callbacks
-        this.invalidationCallbacks.forEach(callback => {
-            try {
-                callback(reason, previousSize);
-            } catch (e) {
-                console.error('[FormulaRenderer] Cache invalidation callback error:', e);
-            }
-        });
-    }
-    
-    /**
-     * Register callback for cache invalidation events
-     */
-    onCacheInvalidation(callback) {
-        if (typeof callback === 'function') {
-            this.invalidationCallbacks.push(callback);
-        }
-    }
-    
-    /**
      * Cleanup resources
      */
-    destroy() {
+    cleanup() {
         if (this.container && this.delegatedHandler) {
             this.container.removeEventListener('click', this.delegatedHandler);
         }
-        this.cardCache.clear();
-        this.invalidationCallbacks = [];
+        if (this.container && this.inputHandler) {
+            this.container.removeEventListener('input', this.inputHandler);
+        }
+        
+        // Clear all per-card timers
+        this.quickCalcTimeouts.forEach(timeout => clearTimeout(timeout));
+        this.quickCalcTimeouts.clear();
+        
         this.container = null;
         this.delegatedHandler = null;
+        this.inputHandler = null;
+    }
+    
+    /**
+     * Get performance metrics
+     */
+    getMetrics() {
+        return { ...this.metrics };
+    }
+    
+    /**
+     * Reset metrics
+     */
+    resetMetrics() {
+        this.metrics = {
+            renderTime: 0,
+            quickCalcTime: 0,
+            confidenceCalcTime: 0
+        };
+    }
+    
+    /**
+     * Cleanup resources (alias for destroy)
+     */
+    destroy() {
+        this.cleanup();
     }
 }

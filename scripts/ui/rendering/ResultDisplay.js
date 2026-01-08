@@ -65,8 +65,34 @@ class ResultDisplayRenderer {
              resultValue.match(/[a-zA-Z_]/));
         
         if (isExplicitlySymbolic || (isStringWithSymbols && !result.allEquations)) {
+            console.log('[ResultDisplayRenderer] Symbolic result detected, displaying...');
+            console.log('[ResultDisplayRenderer] displaySymbolicResult function:', typeof displaySymbolicResult);
+            
             if (typeof displaySymbolicResult === 'function') {
                 displaySymbolicResult(result, varInfo);
+            } else {
+                // Fallback: Display symbolic result directly
+                console.log('[ResultDisplayRenderer] displaySymbolicResult not found, using fallback display');
+                const symbolicValue = resultValue || result.result || 'No symbolic expression available';
+                const unit = result.unit || '';
+                const unitName = varInfo && varInfo.unit ? varInfo.unit.name : unit;
+                
+                resultDisplay.classList.add('show');
+                resultDisplay.innerHTML = `
+                    <h3>Symbolic Result</h3>
+                    <div class="result-value" style="font-family: 'Courier New', monospace; white-space: pre-wrap; text-align: left; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; margin: 15px 0;">
+                        ${this.helpers.escapeHtml(String(symbolicValue))}
+                    </div>
+                    ${unit ? `<div class="result-unit">${this.helpers.escapeHtml(unit)}</div>` : ''}
+                    ${unitName ? `<div class="result-unit-full">${this.helpers.escapeHtml(unitName)}</div>` : ''}
+                    ${result.unknownVariables && result.unknownVariables.length > 0 ? `
+                        <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                            <div style="font-weight: 600; margin-bottom: 8px;">Unknown Variables:</div>
+                            <div>${result.unknownVariables.join(', ')}</div>
+                        </div>
+                    ` : ''}
+                `;
+                console.log('[ResultDisplayRenderer] ✅ Symbolic result displayed via fallback');
             }
             return;
         }
