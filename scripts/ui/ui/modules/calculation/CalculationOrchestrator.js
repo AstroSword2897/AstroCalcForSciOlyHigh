@@ -320,15 +320,26 @@ export class CalculationOrchestrator {
         const input = this.resolveInputElement(variable);
         
         if (!input) {
-            console.warn(`[CalculationOrchestrator] Input not found: var-${variable.symbol} (tried all patterns)`);
+            console.warn(`[CalculationOrchestrator] ⚠️ Input not found for ${variable.symbol} (tried all strategies)`);
+            console.warn(`[CalculationOrchestrator] Tried patterns: var-${variable.symbol}, var-${variable.symbol}-*, input[data-symbol="${variable.symbol}"]`);
+            // Debug: List all available inputs
+            const allInputs = Array.from(document.querySelectorAll('input[data-symbol]'));
+            if (allInputs.length > 0) {
+                console.warn(`[CalculationOrchestrator] Available inputs with data-symbol:`, 
+                    allInputs.map(inp => ({ id: inp.id, symbol: inp.getAttribute('data-symbol'), value: inp.value })));
+            } else {
+                console.warn(`[CalculationOrchestrator] No inputs with data-symbol found in DOM`);
+            }
             return null;
         }
         
-        console.log(`[CalculationOrchestrator] Found input for ${variable.symbol}:`, { 
+        console.log(`[CalculationOrchestrator] ✅ Found input for ${variable.symbol}:`, { 
             id: input.id, 
             value: input.value, 
             trimmed: input.value.trim(),
-            hasValue: !!input.value.trim()
+            hasValue: !!input.value.trim(),
+            dataSymbol: input.getAttribute('data-symbol'),
+            dataUnit: input.getAttribute('data-unit')
         });
         
         // Extract and parse value
@@ -338,6 +349,7 @@ export class CalculationOrchestrator {
             return parsed;
         } catch (error) {
             console.error(`[CalculationOrchestrator] ❌ Error collecting value for ${variable.symbol}:`, error);
+            console.error(`[CalculationOrchestrator] Error details:`, { message: error.message, stack: error.stack });
             // Return null instead of throwing to allow other variables to be collected
             return null;
         }
