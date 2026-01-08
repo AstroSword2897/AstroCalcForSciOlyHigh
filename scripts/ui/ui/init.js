@@ -2,7 +2,7 @@
  * UI Initialization - Wires all modules together and initializes the application
  * This replaces the monolithic initialization in ui.js
  */
-import { UIModuleOrchestrator } from './UIModuleOrchestrator.js?v=2.2.0';
+import { UIModuleOrchestrator } from './UIModuleOrchestrator.js?v=2.3.0';
 
 let retryCount = 0;
 const MAX_RETRIES = 50;

@@ -3,7 +3,7 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.2.0';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.0';
 import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
@@ -211,6 +211,12 @@ export class UIModuleOrchestrator {
                 onMainTabSwitch: (tabName) => this.tabManager.switchMainTab(tabName),
                 onSubTabSwitch: (tabName) => this.tabManager.switchTab(tabName),
                 onCalculate: this.onCalculate.bind(this),
+                onClear: () => {
+                    // Clear input cache
+                    if (this.calculationOrchestrator && typeof this.calculationOrchestrator.clearInputCache === 'function') {
+                        this.calculationOrchestrator.clearInputCache();
+                    }
+                },
                 onFormulaCardClick: (formulaId) => {
                     const formula = this.options.formulas.find(f => f.id === formulaId);
                     if (formula) {
@@ -1250,18 +1256,43 @@ export class UIModuleOrchestrator {
                         ${unit ? `<div class="result-unit">${this.formattingUtils.escapeHtml(unit)}</div>` : ''}
                         ${result.unknownVariables && result.unknownVariables.length > 0 ? `
                             <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px;">
-                                <div style="font-weight: 600; margin-bottom: 8px;">Unknown Variables:</div>
-                                <div>${result.unknownVariables.join(', ')}</div>
+                                <div style="font-weight: 600; margin-bottom: 8px;">Remaining Variables:</div>
+                                <div style="margin-bottom: 8px;">${result.unknownVariables.map(v => {
+                                    const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v2 => v2.symbol === v);
+                                    return varInfo ? `${v} (${varInfo.name || v})` : v;
+                                }).join(', ')}</div>
+                                ${result.solveableInfo ? `<div style="font-size: 0.9em; opacity: 0.9; margin-top: 8px;">${this.formattingUtils.escapeHtml(result.solveableInfo)}</div>` : ''}
+                            </div>
+                        ` : ''}
+                        ${result.knownVariables && result.knownVariables.length > 0 && result.partialEvaluation ? `
+                            <div style="margin-top: 15px; padding: 12px; background: rgba(0,255,0,0.1); border-radius: 8px;">
+                                <div style="font-weight: 600; margin-bottom: 8px;">Known Values:</div>
+                                <div>${result.knownVariables.map(v => {
+                                    const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v2 => v2.symbol === v);
+                                    return varInfo ? `${v} (${varInfo.name || v})` : v;
+                                }).join(', ')}</div>
                             </div>
                         ` : ''}
                     `;
                     console.log('[UIModuleOrchestrator] ✅ Symbolic result displayed in fallback');
                 } else {
-                    // Numeric result
-                    const formatted = this.formattingUtils.formatResult(typeof result.result === 'number' ? result.result : result.result, result.unit || '');
+                    // Numeric result - show prominently
+                    const resultValue = typeof result.result === 'number' ? result.result : parseFloat(result.result);
+                    const solvedFor = result.solvedFor || result.variable;
+                    const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v => v.symbol === solvedFor);
+                    const varName = varInfo ? (varInfo.name || solvedFor) : solvedFor;
+                    const formatted = this.formattingUtils.formatResult(resultValue, result.unit || '');
                     console.log('[UIModuleOrchestrator] Formatted result:', formatted);
-                    resultDisplay.innerHTML = `<div class="result">${this.formattingUtils.escapeHtml(formatted)}</div>`;
-                    console.log('[UIModuleOrchestrator] ✅ Result displayed in fallback');
+                    
+                    resultDisplay.innerHTML = `
+                        <h3>Numeric Result</h3>
+                        <div class="result-value" style="font-size: 1.5em; font-weight: 600; padding: 15px; background: rgba(0,255,0,0.1); border-radius: 8px; margin: 15px 0;">
+                            ${solvedFor !== 'result' ? `<div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px;">${this.formattingUtils.escapeHtml(varName)} =</div>` : ''}
+                            <div>${this.formattingUtils.escapeHtml(formatted)}</div>
+                        </div>
+                        ${result.unit ? `<div class="result-unit" style="opacity: 0.8;">${this.formattingUtils.escapeHtml(result.unit)}</div>` : ''}
+                    `;
+                    console.log('[UIModuleOrchestrator] ✅ Numeric result displayed in fallback');
                 }
             } else {
                 console.error('[UIModuleOrchestrator] ❌ result-display element not found!');

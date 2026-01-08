@@ -246,12 +246,11 @@ export class CalculationOrchestrator {
             console.log(`[CalculationOrchestrator] Values breakdown:`, valuesArray.map(v => ({ value: v, type: typeof v, isNumber: typeof v === 'number', isFinite: typeof v === 'number' ? Number.isFinite(v) : false })));
             
             // CRITICAL LOG: Check hasAnyValues before symbolic path
-            console.warn('[CalculationOrchestrator] 🔍🔍🔍 HAS ANY VALUES CHECK:', hasAnyValues);
-            console.warn('[CalculationOrchestrator] Variable values:', variableValues);
+            console.log('[CalculationOrchestrator] 🔍 HAS ANY VALUES CHECK:', hasAnyValues);
+            console.log('[CalculationOrchestrator] Variable values:', variableValues);
             
             // If no values provided, show symbolic result
             if (!hasAnyValues) {
-                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → NO VALUES (going symbolic)');
                 console.log('[CalculationOrchestrator] No values provided, showing symbolic result...');
                 this.handleSymbolicResult(calculator, formula, variableValues);
                 return; // finally block will reset _calculationInProgress
@@ -275,9 +274,20 @@ export class CalculationOrchestrator {
                 console.log('[CalculationOrchestrator] Result.result:', result?.result);
                 console.log('[CalculationOrchestrator] Result.isSymbolic:', result?.isSymbolic);
                 
-                // Check if result is already symbolic (from calculator's internal fallback)
-                if (result && result.isSymbolic) {
-                    console.log('[CalculationOrchestrator] Result is symbolic, displaying directly');
+                // IMPORTANT: If result is numeric (not symbolic), display it immediately
+                // Only treat as symbolic if explicitly marked or if result is a string expression
+                if (result && result.isSymbolic === true) {
+                    console.log('[CalculationOrchestrator] Result is explicitly symbolic, displaying directly');
+                    this.displayResult(result);
+                    return; // finally block will reset _calculationInProgress
+                }
+                
+                // If result has a numeric value, it's a valid numeric result
+                if (result && (typeof result.result === 'number' || (typeof result.result === 'string' && !isNaN(parseFloat(result.result)) && isFinite(parseFloat(result.result))))) {
+                    console.log('[CalculationOrchestrator] ✅ Result is numeric, proceeding to display');
+                    // Continue to validation and display below
+                } else {
+                    console.log('[CalculationOrchestrator] Result appears symbolic, displaying directly');
                     this.displayResult(result);
                     return; // finally block will reset _calculationInProgress
                 }

@@ -22,6 +22,7 @@ export class EventCoordinator {
         this.setupMainTabButtons();
         this.setupSubTabButtons();
         this.setupCalculateButton();
+        this.setupClearButton();
         this.setupClassificationButtons();
         this.setupFormulaCardDelegation();
         this.setupGraphControls();
@@ -169,6 +170,75 @@ export class EventCoordinator {
         } else {
             console.warn('[EventCoordinator] ⚠️ Calculate button not found in DOM yet (will attach when available)');
         }
+    }
+    setupClearButton() {
+        const clearHandler = (e) => {
+            console.log('[EventCoordinator] 🧹 Clear button clicked');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear all input fields in the variables container
+            const container = document.getElementById('variables-container') || document.querySelector('.calculator-inputs');
+            if (container) {
+                const inputs = container.querySelectorAll('input[type="text"], input[type="number"]');
+                console.log(`[EventCoordinator] Clearing ${inputs.length} input fields`);
+                inputs.forEach(input => {
+                    input.value = '';
+                    // Trigger input event to notify any listeners
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+            
+            // Clear result display
+            const resultDisplay = document.getElementById('result-display');
+            if (resultDisplay) {
+                resultDisplay.innerHTML = '';
+                resultDisplay.classList.remove('show');
+            }
+            
+            // Clear input cache if available
+            if (this.options.onClear && typeof this.options.onClear === 'function') {
+                this.options.onClear();
+            }
+            
+            // Also clear via window if available
+            if (typeof window.clearInputs === 'function') {
+                window.clearInputs();
+            }
+            
+            console.log('[EventCoordinator] ✅ Inputs cleared');
+        };
+        
+        // Try to attach directly
+        const attachClearHandler = () => {
+            const clearBtn = document.getElementById('clear-btn');
+            if (clearBtn && !clearBtn.dataset.clearHandlerAttached) {
+                console.log('[EventCoordinator] ✅ Attaching clear handler to clear button');
+                this.addListener(clearBtn, 'click', clearHandler);
+                clearBtn.dataset.clearHandlerAttached = 'true';
+                return true;
+            }
+            return false;
+        };
+        
+        // Try immediately
+        attachClearHandler();
+        
+        // Retry at intervals if button doesn't exist yet
+        const retries = [200, 500, 1000, 2000];
+        retries.forEach(delay => {
+            setTimeout(() => attachClearHandler(), delay);
+        });
+        
+        // Use MutationObserver to catch when button is added dynamically
+        const observer = new MutationObserver(() => {
+            attachClearHandler();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        this._clearButtonObserver = observer;
+        
+        console.log('[EventCoordinator] ✅ Clear button handler set up');
     }
     setupClassificationButtons() {
         // Use event delegation on document to handle dynamically created classification buttons

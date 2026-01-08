@@ -262,7 +262,8 @@ class FormulaCalculator {
             // Multiple unknown variables - return expression with all unknowns
             const expression = this.generateMultiVariableExpression(unknownVars, knownVars);
             
-            return {
+            // Create enhanced result with information about what can be solved
+            const result = {
                 solvedFor: unknownVars,
                 result: expression,
                 unit: '',
@@ -270,8 +271,27 @@ class FormulaCalculator {
                 variable: unknownVars,
                 significantFigures: undefined,
                 arithmeticContext: undefined,
-                errorInfo: undefined
+                errorInfo: undefined,
+                unknownVariables: unknownVars,
+                knownVariables: Object.keys(knownVars).filter(k => 
+                    knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
+                ),
+                partialEvaluation: Object.keys(knownVars).filter(k => 
+                    knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
+                ).length > 0
             };
+            
+            // Add helpful message about what can be solved
+            if (result.partialEvaluation && unknownVars.length > 1) {
+                const solveableInfo = unknownVars.map(v => {
+                    const varInfo = this.formula.variables.find(v2 => v2.symbol === v);
+                    return varInfo ? `${v} (${varInfo.name || v})` : v;
+                }).join(', ');
+                result.solveableVariables = unknownVars;
+                result.solveableInfo = `To solve for a specific variable, provide values for all others. Available variables: ${solveableInfo}`;
+            }
+            
+            return result;
             
         } catch (error) {
             throw new Error(`Symbolic solving failed: ${error.message}`);
@@ -342,7 +362,17 @@ class FormulaCalculator {
         if (unknownVars.length === 1) {
             return `${unknownVars[0]} = ${expression}`;
         } else {
-            return `${expression} (solve for: ${unknownVars.join(', ')})`;
+            // Enhanced format for multiple unknowns with known values
+            const knownCount = Object.keys(knownVars).filter(k => 
+                knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
+            ).length;
+            
+            if (knownCount > 0) {
+                // Show partial evaluation with substituted values
+                return `${expression}\n\nRemaining variables: ${unknownVars.join(', ')}\nTo solve for any variable, provide values for all others.`;
+            } else {
+                return `${expression} (solve for: ${unknownVars.join(', ')})`;
+            }
         }
     }
     /**
