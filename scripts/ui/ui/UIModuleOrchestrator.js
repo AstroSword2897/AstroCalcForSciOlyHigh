@@ -3,7 +3,7 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.1.9';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.2.0';
 import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
