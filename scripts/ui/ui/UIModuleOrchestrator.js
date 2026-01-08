@@ -224,8 +224,25 @@ export class UIModuleOrchestrator {
                     }
                 },
                 onClassify: () => {
-                    if (typeof window.performClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] onClassify callback invoked');
+                    // Direct call to method - more reliable than window function
+                    if (this.performClassification && typeof this.performClassification === 'function') {
+                        console.log('[UIModuleOrchestrator] Calling performClassification() directly...');
+                        try {
+                            this.performClassification();
+                        } catch (error) {
+                            console.error('[UIModuleOrchestrator] Error in performClassification:', error);
+                            // Fallback to window function if direct call fails
+                            if (typeof window.performClassification === 'function') {
+                                console.log('[UIModuleOrchestrator] Falling back to window.performClassification');
+                                window.performClassification();
+                            }
+                        }
+                    } else if (typeof window.performClassification === 'function') {
+                        console.log('[UIModuleOrchestrator] Using window.performClassification fallback');
                         window.performClassification();
+                    } else {
+                        console.error('[UIModuleOrchestrator] ❌ performClassification not available');
                     }
                 },
                 onMainClassify: () => {
