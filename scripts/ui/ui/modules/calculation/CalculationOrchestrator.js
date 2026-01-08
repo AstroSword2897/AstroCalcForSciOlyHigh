@@ -122,6 +122,19 @@ export class CalculationOrchestrator {
                 this.displayError(errorMsg);
                 return;
             }
+            
+            // FIXED: Enforce calculator contract - assert required methods exist
+            if (typeof calculator.solve !== 'function') {
+                const errorMsg = 'Calculator is missing solve() method';
+                console.error('[CalculationOrchestrator] ❌', errorMsg);
+                throw new Error(errorMsg);
+            }
+            
+            if (typeof calculator.solveSymbolically !== 'function') {
+                const errorMsg = 'Calculator is missing solveSymbolically() method';
+                console.error('[CalculationOrchestrator] ❌', errorMsg);
+                throw new Error(errorMsg);
+            }
             // Collect and validate variable values (single DOM read)
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Collecting variable values...');
             const variableValues = this.collectVariableValues(formula);
@@ -147,10 +160,12 @@ export class CalculationOrchestrator {
             
             // Check for duplicate calculation using already-collected values
             const inputHash = this._createInputHash(variableValues);
-            if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
-                console.log('[CalculationOrchestrator] ⏭️ Skipping duplicate calculation');
-                return; // finally block will reset _calculationInProgress
-            }
+            console.log('[CalculationOrchestrator] 🔍 Input hash:', inputHash, 'Last hash:', this._lastCalculationHash);
+            // TEMP DEBUG: Disable duplicate hash check to prevent silent skipping
+            // if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
+            //     console.log('[CalculationOrchestrator] ⏭️ Skipping duplicate calculation');
+            //     return; // finally block will reset _calculationInProgress
+            // }
             this._lastCalculationHash = inputHash;
             
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Validating variable values...');
@@ -350,8 +365,8 @@ export class CalculationOrchestrator {
         } catch (error) {
             console.error(`[CalculationOrchestrator] ❌ Error collecting value for ${variable.symbol}:`, error);
             console.error(`[CalculationOrchestrator] Error details:`, { message: error.message, stack: error.stack });
-            // Return null instead of throwing to allow other variables to be collected
-            return null;
+            // FIXED: Throw error instead of swallowing - let global error handling work
+            throw error;
         }
     }
     
