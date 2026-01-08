@@ -679,6 +679,8 @@ class FormulaCalculator {
         }
         
         // Pattern 5e: Handle division patterns: expression = something / (G × targetVar)
+        // For T² = (4π²/GM) × a³, after substitution: 2² = (4π²/G × M) × 15³
+        // We need: M = 4π²a³/(GT²)
         const divisionWithCoeffPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*\\(([^)]*)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)([^=]*)$`);
         match = substituted.match(divisionWithCoeffPattern);
         if (match) {
@@ -691,6 +693,61 @@ class FormulaCalculator {
                 const coeffValue = this.evaluateExpression(coeffExpr, {});
                 if (leftValue !== 0 && coeffValue !== 0) {
                     return numeratorValue / (leftValue * coeffValue);
+                }
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        // Pattern 5f: Handle complex patterns like T² = (4π²/GM) × a³
+        // After substitution: T² = (4π²/G × M) × a³
+        // Rearrange: T² = 4π²a³/(GM) → T²GM = 4π²a³ → M = 4π²a³/(GT²)
+        // Look for pattern: left = (numerator / (coeff × targetVar)) × multiplier
+        const complexDivisionPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*\\(([^)]*)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)\\)\\s*[×*]\\s*([^=]+)$`);
+        match = substituted.match(complexDivisionPattern);
+        if (match) {
+            try {
+                const leftExpr = match[1].trim(); // T²
+                const numeratorExpr = match[2].trim(); // 4π²
+                const coeffExpr = match[3].trim(); // G
+                const multiplierExpr = match[4].trim(); // a³
+                
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                const coeffValue = this.evaluateExpression(coeffExpr, {});
+                const multiplierValue = this.evaluateExpression(multiplierExpr, {});
+                
+                // Rearrange: left = (numerator / (coeff × M)) × multiplier
+                // left = numerator × multiplier / (coeff × M)
+                // left × coeff × M = numerator × multiplier
+                // M = (numerator × multiplier) / (left × coeff)
+                if (leftValue !== 0 && coeffValue !== 0) {
+                    return (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                }
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        // Pattern 5g: Handle pattern: left = (numerator / targetVar) × multiplier
+        // After substitution, rearrange: targetVar = (numerator × multiplier) / left
+        const simpleDivisionMultPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)\\s*[×*]\\s*([^=]+)$`);
+        match = substituted.match(simpleDivisionMultPattern);
+        if (match) {
+            try {
+                const leftExpr = match[1].trim();
+                const numeratorExpr = match[2].trim();
+                const multiplierExpr = match[3].trim();
+                
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                const multiplierValue = this.evaluateExpression(multiplierExpr, {});
+                
+                // left = (numerator / targetVar) × multiplier
+                // left = numerator × multiplier / targetVar
+                // targetVar = numerator × multiplier / left
+                if (leftValue !== 0) {
+                    return (numeratorValue * multiplierValue) / leftValue;
                 }
             } catch (e) {
                 // Continue
