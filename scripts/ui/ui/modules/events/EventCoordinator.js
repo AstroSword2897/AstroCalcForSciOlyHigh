@@ -361,7 +361,7 @@ export class EventCoordinator {
                 return;
             e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
+            // DO NOT use stopImmediatePropagation - it blocks other handlers
             if (this.options.onFormulaCardClick) {
                 this.options.onFormulaCardClick(formulaId);
             }
