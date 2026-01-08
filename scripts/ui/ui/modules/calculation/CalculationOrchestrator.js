@@ -882,8 +882,23 @@ export class CalculationOrchestrator {
             if (!result) {
                 throw new Error('solveSymbolically returned null/undefined');
             }
-            if (!result.result) {
+            
+            // Check if result.result exists and is valid
+            if (result.result === undefined || result.result === null) {
                 throw new Error('solveSymbolically returned result without result.result property');
+            }
+            
+            // Check if result is NaN (which is technically a number but invalid)
+            if (typeof result.result === 'number' && (isNaN(result.result) || !Number.isFinite(result.result))) {
+                console.warn('[CalculationOrchestrator] ⚠️ solveSymbolically returned NaN or non-finite result, falling back to symbolic expression');
+                // Try to generate a symbolic expression instead
+                const unknownVar = result.solvedFor || (Array.isArray(result.solvedFor) ? result.solvedFor[0] : null);
+                if (unknownVar && calculator.generateSymbolicExpression) {
+                    result.result = calculator.generateSymbolicExpression(unknownVar, filteredKnownVars);
+                    result.isSymbolic = true;
+                } else {
+                    throw new Error(`solveSymbolically returned invalid numeric result: ${result.result}`);
+                }
             }
             
             // Ensure result is marked as symbolic

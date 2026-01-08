@@ -270,6 +270,12 @@ class FormulaCalculator {
                 try {
                     // Try numeric solving
                     const numericResult = this.solveForVariable(solvedFor, knownVars);
+                    
+                    // Validate that we got a valid numeric result
+                    if (typeof numericResult !== 'number' || !Number.isFinite(numericResult) || isNaN(numericResult)) {
+                        throw new Error(`solveForVariable returned invalid result: ${numericResult}`);
+                    }
+                    
                     const varInfo = this.formula.variables.find(v => v.symbol === solvedFor);
                     
                     return {
@@ -284,6 +290,7 @@ class FormulaCalculator {
                     };
                 } catch (solverError) {
                     // If numeric solving fails, return symbolic expression with known values substituted
+                    console.log(`[FormulaCalculator] Numeric solve failed for ${solvedFor}, falling back to symbolic:`, solverError.message);
                     const symbolicExpression = this.generateSymbolicExpression(solvedFor, knownVars);
                     
                     return {
