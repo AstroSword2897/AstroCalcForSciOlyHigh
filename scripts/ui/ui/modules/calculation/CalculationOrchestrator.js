@@ -359,11 +359,30 @@ export class CalculationOrchestrator {
      * Vectorized: O(n) -> O(n) but with caching for O(1) DOM lookups
      */
     collectVariableValues(formula) {
+        // CRITICAL DEBUG: Inspect DOM before collecting values
+        console.log('[CalculationOrchestrator] 🔍🔍🔍 DOM INSPECTION BEFORE VALUE COLLECTION 🔍🔍🔍');
+        const allInputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"]'));
+        console.log(`[CalculationOrchestrator] Total inputs in DOM: ${allInputs.length}`);
+        const inputsWithValues = allInputs.filter(inp => inp.value && inp.value.trim());
+        console.log(`[CalculationOrchestrator] Inputs with values: ${inputsWithValues.length}`);
+        inputsWithValues.forEach(inp => {
+            console.log(`[CalculationOrchestrator] Input with value:`, {
+                id: inp.id,
+                value: inp.value,
+                dataSymbol: inp.getAttribute('data-symbol'),
+                dataUnit: inp.getAttribute('data-unit'),
+                className: inp.className,
+                visible: inp.offsetParent !== null
+            });
+        });
+        
         // Use cached constant symbols (O(1) lookup after first call)
         const constantSymbols = this.getConstantSymbols(formula);
         
         // Vectorized: Use filter + map instead of for loop
         const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
+        
+        console.log(`[CalculationOrchestrator] Variables to collect:`, userVariables.map(v => v.symbol));
         
         // Vectorized: Use Object.fromEntries + map for better performance
         return Object.fromEntries(
