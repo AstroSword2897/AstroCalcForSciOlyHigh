@@ -274,6 +274,42 @@ export class CalculationOrchestrator {
                 console.log('[CalculationOrchestrator] Result.result:', result?.result);
                 console.log('[CalculationOrchestrator] Result.isSymbolic:', result?.isSymbolic);
                 
+                // CRITICAL: Check if we have enough values for numeric calculation
+                // If we have all but one variable, we should get a numeric result, not symbolic
+                if (result && result.isSymbolic === true && unknownCount === 1 && knownCount > 0) {
+                    console.warn('[CalculationOrchestrator] ⚠️ Got symbolic result but we have exactly 1 unknown and known values!');
+                    console.warn('[CalculationOrchestrator] This suggests the algebraic solver failed. Variable values:', variableValues);
+                    console.warn('[CalculationOrchestrator] Attempting to force numeric calculation...');
+                    
+                    // Try to manually solve using the algebraic solver
+                    const unknownVar = Object.keys(variableValues).find(k => variableValues[k] === null || variableValues[k] === undefined);
+                    if (unknownVar && calculator.solveForVariable) {
+                        try {
+                            const filteredVars = Object.fromEntries(
+                                Object.entries(variableValues).filter(([k, v]) => v !== null && v !== undefined && typeof v === 'number')
+                            );
+                            console.log('[CalculationOrchestrator] Attempting manual solve for', unknownVar, 'with known vars:', filteredVars);
+                            const numericResult = calculator.solveForVariable(unknownVar, filteredVars);
+                            if (typeof numericResult === 'number' && Number.isFinite(numericResult)) {
+                                console.log('[CalculationOrchestrator] ✅ Manual solve succeeded! Result:', numericResult);
+                                // Create a proper numeric result object
+                                const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                result = {
+                                    solvedFor: unknownVar,
+                                    result: numericResult,
+                                    unit: varInfo?.unit || '',
+                                    isSymbolic: false,
+                                    variable: unknownVar,
+                                    formulaExpression: calculator.generateSymbolicExpression ? calculator.generateSymbolicExpression(unknownVar, filteredVars) : null
+                                };
+                                console.log('[CalculationOrchestrator] ✅ Created numeric result object:', result);
+                            }
+                        } catch (manualError) {
+                            console.error('[CalculationOrchestrator] Manual solve failed:', manualError);
+                        }
+                    }
+                }
+                
                 // IMPORTANT: If result is numeric (not symbolic), display it immediately
                 // Only treat as symbolic if explicitly marked or if result is a string expression
                 if (result && result.isSymbolic === true) {
