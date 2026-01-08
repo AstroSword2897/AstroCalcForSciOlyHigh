@@ -3,11 +3,11 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.1.9';
 import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
-import { EventCoordinator } from './modules/events/EventCoordinator.js';
+import { EventCoordinator } from './modules/events/EventCoordinator.js?v=2.1.9';
 import { CalculationUtils } from './modules/utils/CalculationUtils.js';
 import { FormattingUtils } from './modules/utils/FormattingUtils.js';
 import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js?v=2.1.7';

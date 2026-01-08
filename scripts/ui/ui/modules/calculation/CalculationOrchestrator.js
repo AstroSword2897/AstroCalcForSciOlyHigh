@@ -203,11 +203,32 @@ export class CalculationOrchestrator {
             
             // More robust check: look for any non-null, finite number values
             const valuesArray = Object.values(variableValues);
+            
+            // CRITICAL DEBUG: Log all variable values before checking
+            console.log('[CalculationOrchestrator] 🔍🔍🔍 CHECKING hasAnyValues - Variable values object:', variableValues);
+            console.log('[CalculationOrchestrator] Values array:', valuesArray);
+            valuesArray.forEach((val, idx) => {
+                const keys = Object.keys(variableValues);
+                const key = keys[idx];
+                console.log(`[CalculationOrchestrator]   ${key}:`, {
+                    value: val,
+                    type: typeof val,
+                    isNumber: typeof val === 'number',
+                    isFinite: typeof val === 'number' ? Number.isFinite(val) : 'N/A',
+                    isNull: val === null,
+                    isUndefined: val === undefined
+                });
+            });
+            
             const hasAnyValues = valuesArray.some(v => {
                 const isNumber = typeof v === 'number';
                 const isValueFinite = isNumber && Number.isFinite(v);
                 const isNotNull = v !== null && v !== undefined;
-                return isNotNull && isNumber && isValueFinite;
+                const passes = isNotNull && isNumber && isValueFinite;
+                if (passes) {
+                    console.log('[CalculationOrchestrator] ✅ Found valid value:', v);
+                }
+                return passes;
             });
             
             const unknownCount = valuesArray.filter(v => v === null || v === undefined).length;
