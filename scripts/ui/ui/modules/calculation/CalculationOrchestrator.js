@@ -170,7 +170,7 @@ export class CalculationOrchestrator {
                     isNumber: typeof value === 'number',
                     isNull: value === null,
                     isUndefined: value === undefined,
-                    isFinite: typeof value === 'number' ? isFinite(value) : null,
+                    isFinite: typeof value === 'number' ? Number.isFinite(value) : null,
                     stringified: JSON.stringify(value)
                 };
                 console.log(`[CalculationOrchestrator] Variable ${key}:`, inspection);
@@ -203,13 +203,13 @@ export class CalculationOrchestrator {
             const valuesArray = Object.values(variableValues);
             const hasAnyValues = valuesArray.some(v => {
                 const isNumber = typeof v === 'number';
-                const isValueFinite = isNumber && isFinite(v);
+                const isValueFinite = isNumber && Number.isFinite(v);
                 const isNotNull = v !== null && v !== undefined;
                 return isNotNull && isNumber && isValueFinite;
             });
             
             const unknownCount = valuesArray.filter(v => v === null || v === undefined).length;
-            const knownCount = valuesArray.filter(v => v !== null && v !== undefined && typeof v === 'number' && isFinite(v)).length;
+            const knownCount = valuesArray.filter(v => v !== null && v !== undefined && typeof v === 'number' && Number.isFinite(v)).length;
             
             console.log('[CalculationOrchestrator] 📊 Calculation summary:', {
                 totalVariables: valuesArray.length,
@@ -220,7 +220,7 @@ export class CalculationOrchestrator {
             });
             
             console.log(`[CalculationOrchestrator] Values status: ${knownCount} known, ${unknownCount} unknown, hasAnyValues=${hasAnyValues}`);
-            console.log(`[CalculationOrchestrator] Values breakdown:`, valuesArray.map(v => ({ value: v, type: typeof v, isNumber: typeof v === 'number', isFinite: typeof v === 'number' ? isFinite(v) : false })));
+            console.log(`[CalculationOrchestrator] Values breakdown:`, valuesArray.map(v => ({ value: v, type: typeof v, isNumber: typeof v === 'number', isFinite: typeof v === 'number' ? Number.isFinite(v) : false })));
             
             // CRITICAL LOG: Check hasAnyValues before symbolic path
             console.warn('[CalculationOrchestrator] 🔍🔍🔍 HAS ANY VALUES CHECK:', hasAnyValues);
@@ -564,7 +564,7 @@ export class CalculationOrchestrator {
             try {
                 const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, variable.unit);
                 console.log(`[CalculationOrchestrator] Converted ${numericValue} ${inputUnit} to ${baseValue} ${variable.unit} for ${variable.symbol}`);
-                console.log(`[CalculationOrchestrator] Base value type: ${typeof baseValue}, isFinite: ${isFinite(baseValue)}`);
+                console.log(`[CalculationOrchestrator] Base value type: ${typeof baseValue}, isFinite: ${Number.isFinite(baseValue)}`);
                 return baseValue;
             } catch (error) {
                 console.error(`[CalculationOrchestrator] Unit conversion error for ${variable.symbol}:`, error);
@@ -572,7 +572,7 @@ export class CalculationOrchestrator {
             }
         }
         
-        console.log(`[CalculationOrchestrator] ✅ Final value for ${variable.symbol}:`, numericValue, `(type: ${typeof numericValue}, isFinite: ${isFinite(numericValue)})`);
+        console.log(`[CalculationOrchestrator] ✅ Final value for ${variable.symbol}:`, numericValue, `(type: ${typeof numericValue}, isFinite: ${Number.isFinite(numericValue)})`);
         return numericValue;
     }
     
@@ -592,7 +592,7 @@ export class CalculationOrchestrator {
         
         // Vectorized: Use find() to stop at first invalid value
         const invalidEntry = Object.entries(values).find(([symbol, value]) => 
-            value !== null && (!isFinite(value) || isNaN(value))
+            value !== null && (!Number.isFinite(value) || isNaN(value))
         );
         
         if (invalidEntry) {
@@ -608,7 +608,7 @@ export class CalculationOrchestrator {
             return typeof result.result === 'string' && result.result.length > 0;
         }
         if (typeof result.result === 'number') {
-            return isFinite(result.result) && !isNaN(result.result);
+            return Number.isFinite(result.result) && !isNaN(result.result);
         }
         return false;
     }
@@ -805,7 +805,7 @@ export class CalculationOrchestrator {
             return;
         
         // Guard against symbolic results - graphs need numeric values
-        if (result.isSymbolic || (typeof result.result === 'string' && !isFinite(Number(result.result)))) {
+        if (result.isSymbolic || (typeof result.result === 'string' && !Number.isFinite(Number(result.result)))) {
             console.log('[CalculationOrchestrator] Skipping graph update for symbolic result');
             return;
         }

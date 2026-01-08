@@ -417,7 +417,7 @@ class FormulaCalculator {
                 solverOptions
             );
             
-            if (solverResult && solverResult.converged && isFinite(solverResult.result)) {
+            if (solverResult && solverResult.converged && Number.isFinite(solverResult.result)) {
                 return solverResult.result;
             }
         }
