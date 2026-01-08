@@ -162,10 +162,11 @@ export class CalculationOrchestrator {
             const inputHash = this._createInputHash(variableValues);
             console.log('[CalculationOrchestrator] 🔍 Input hash:', inputHash, 'Last hash:', this._lastCalculationHash);
             // TEMP DEBUG: Disable duplicate hash check to prevent silent skipping
-            // if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
-            //     console.log('[CalculationOrchestrator] ⏭️ Skipping duplicate calculation');
-            //     return; // finally block will reset _calculationInProgress
-            // }
+            if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
+                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → DUPLICATE HASH (inputs unchanged)');
+                console.warn('[CalculationOrchestrator] Hash:', inputHash, 'Last:', this._lastCalculationHash);
+                return; // finally block will reset _calculationInProgress
+            }
             this._lastCalculationHash = inputHash;
             
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Validating variable values...');
@@ -174,6 +175,7 @@ export class CalculationOrchestrator {
             if (!validation.valid) {
                 console.error('[CalculationOrchestrator] ❌ Validation failed:', validation.error);
                 console.error('[CalculationOrchestrator] ⏱️ BREAKPOINT: Validation failed, returning early');
+                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → VALIDATION FAILED');
                 this.displayError(validation.error || 'Invalid input values');
                 return; // finally block will reset _calculationInProgress
             }
@@ -202,8 +204,13 @@ export class CalculationOrchestrator {
             console.log(`[CalculationOrchestrator] Values status: ${knownCount} known, ${unknownCount} unknown, hasAnyValues=${hasAnyValues}`);
             console.log(`[CalculationOrchestrator] Values breakdown:`, valuesArray.map(v => ({ value: v, type: typeof v, isNumber: typeof v === 'number', isFinite: typeof v === 'number' ? isFinite(v) : false })));
             
+            // CRITICAL LOG: Check hasAnyValues before symbolic path
+            console.warn('[CalculationOrchestrator] 🔍🔍🔍 HAS ANY VALUES CHECK:', hasAnyValues);
+            console.warn('[CalculationOrchestrator] Variable values:', variableValues);
+            
             // If no values provided, show symbolic result
             if (!hasAnyValues) {
+                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → NO VALUES (going symbolic)');
                 console.log('[CalculationOrchestrator] No values provided, showing symbolic result...');
                 this.handleSymbolicResult(calculator, formula, variableValues);
                 return; // finally block will reset _calculationInProgress
@@ -694,10 +701,20 @@ export class CalculationOrchestrator {
             console.log('[CalculationOrchestrator] Filtered known vars for symbolic solve:', filteredKnownVars);
             
             const result = calculator.solveSymbolically(filteredKnownVars);
+            console.log('[CalculationOrchestrator] 🔍 Symbolic calculation completed');
             console.log('[CalculationOrchestrator] Symbolic result:', result);
             console.log('[CalculationOrchestrator] Symbolic result type:', typeof result);
             console.log('[CalculationOrchestrator] Symbolic result.result:', result?.result);
             console.log('[CalculationOrchestrator] Symbolic result.isSymbolic:', result?.isSymbolic);
+            console.log('[CalculationOrchestrator] Symbolic result.solvedFor:', result?.solvedFor);
+            
+            // Validate symbolic result structure
+            if (!result) {
+                throw new Error('solveSymbolically returned null/undefined');
+            }
+            if (!result.result) {
+                throw new Error('solveSymbolically returned result without result.result property');
+            }
             
             // Ensure result is marked as symbolic
             if (result) {

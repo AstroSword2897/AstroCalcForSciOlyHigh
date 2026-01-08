@@ -126,11 +126,8 @@ class FormulaCalculator {
             }
             else {
                 // If multiple variables are unknown, return symbolic result instead of error
-                if (unknownVars.length > 1) {
-                    return this.solveSymbolically(knownVars);
-                }
-                throw new Error(`Cannot solve for multiple variables at once: ${unknownVars.join(', ')}. ` +
-                    'Please provide all but one variable.');
+                // Note: This branch only executes when unknownVars.length > 1 (checked above)
+                return this.solveSymbolically(knownVars);
             }
             let significantFigures;
             let arithmeticContext;
