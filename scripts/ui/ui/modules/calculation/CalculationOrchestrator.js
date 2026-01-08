@@ -382,37 +382,48 @@ export class CalculationOrchestrator {
         const cacheKey = `var-${variable.symbol}`;
         
         return [
-            // Strategy 1: Simple ID (var-symbol) - O(1) lookup
+            // Strategy 1: Find by data-symbol attribute (most reliable - matches actual rendered inputs)
+            () => {
+                const container = document.getElementById('variables-container') || document.querySelector('.calculator-inputs');
+                if (container) {
+                    const inputs = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                    // Prefer input with a value, otherwise return first input
+                    return inputs.find(inp => inp && inp.value.trim()) || inputs[0] || null;
+                }
+                // Fallback: search entire document
+                return document.querySelector(`input[data-symbol="${variable.symbol}"]`);
+            },
+            
+            // Strategy 2: Simple ID (var-symbol) - O(1) lookup
             () => document.getElementById(cacheKey),
             
-            // Strategy 2: With unit suffix (var-symbol-unit) - Vectorized
+            // Strategy 3: With unit suffix (var-symbol-unit) - matches VariableInputs.js rendering
             () => {
                 if (!this.unitConverter) return null;
                 const alternativeUnits = this.unitConverter.getAlternativeUnits(variable.unit);
-                // First try to find input with a value, then any input (for empty fields)
+                // First try to find input with a value
                 let unitInput = alternativeUnits
-                    .map(unit => ({
-                        unit,
-                        input: document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`)
-                    }))
-                    .find(({ input: inp }) => inp !== null && inp.value.trim())?.input;
+                    .map(unit => {
+                        const sanitizedUnit = unit.replace(/[^a-zA-Z0-9]/g, '_');
+                        return document.getElementById(`var-${variable.symbol}-${sanitizedUnit}`);
+                    })
+                    .find(inp => inp !== null && inp.value.trim());
                 
+                // If no input with value, find any input for this variable
                 if (!unitInput) {
                     unitInput = alternativeUnits
-                        .map(unit => document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`))
+                        .map(unit => {
+                            const sanitizedUnit = unit.replace(/[^a-zA-Z0-9]/g, '_');
+                            return document.getElementById(`var-${variable.symbol}-${sanitizedUnit}`);
+                        })
                         .find(inp => inp !== null);
                 }
                 return unitInput || null;
             },
             
-            // Strategy 3: Use data attributes as fallback - O(n) but only if needed
-            () => document.querySelector(`input[data-symbol="${variable.symbol}"]`),
-            
-            // Strategy 4: Last resort - find ANY input with matching data-symbol in variables-container
+            // Strategy 4: Last resort - find ANY input with matching data-symbol anywhere
             () => {
-                const container = document.getElementById('variables-container');
-                if (!container) return null;
-                const inputs = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                const inputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
                 return inputs.find(inp => inp.value.trim()) || inputs[0] || null;
             }
         ];
