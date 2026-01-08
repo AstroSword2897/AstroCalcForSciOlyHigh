@@ -754,6 +754,50 @@ class FormulaCalculator {
             }
         }
         
+        // Pattern 5h: Handle cases where targetVar is part of compound expression like GM
+        // For T² = (4π²/GM) × a³, after substitution: 2² = (4π²/GM) × 15³
+        // We need to extract M from GM: M = 4π²a³/(GT²)
+        // Look for pattern: left = (numerator / (coeff × targetVar)) × multiplier
+        // But also handle: left = (numerator / (coefftargetVar)) × multiplier
+        const compoundVarPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*([^)]*)\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^)]*)\\)\\s*[×*]\\s*([^=]+)$`);
+        match = substituted.match(compoundVarPattern);
+        if (match) {
+            try {
+                const leftExpr = match[1].trim(); // T²
+                const numeratorExpr = match[2].trim(); // 4π²
+                const coeffBefore = match[3].trim(); // G (before M)
+                const coeffAfter = match[4].trim(); // (after M, usually empty)
+                const multiplierExpr = match[5].trim(); // a³
+                
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                const multiplierValue = this.evaluateExpression(multiplierExpr, {});
+                
+                // Handle coeffBefore (like G in GM)
+                let coeffValue = 1;
+                if (coeffBefore) {
+                    try {
+                        coeffValue = this.evaluateExpression(coeffBefore, {});
+                    } catch (e) {
+                        // If coeffBefore can't be evaluated, try to extract it from allKnown
+                        if (allKnown[coeffBefore] !== undefined) {
+                            coeffValue = allKnown[coeffBefore];
+                        }
+                    }
+                }
+                
+                // Rearrange: left = (numerator / (coeff × targetVar)) × multiplier
+                // left = numerator × multiplier / (coeff × targetVar)
+                // left × coeff × targetVar = numerator × multiplier
+                // targetVar = (numerator × multiplier) / (left × coeff)
+                if (leftValue !== 0 && coeffValue !== 0) {
+                    return (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                }
+            } catch (e) {
+                // Continue
+            }
+        }
+        
         // Pattern 5c: Try to use formula's solveFunction if available (most reliable)
         if (this.formula.solveFunction && typeof this.formula.solveFunction === 'function') {
             try {
