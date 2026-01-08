@@ -172,6 +172,34 @@ class FormulaCalculator {
             const unit = solvedFor === 'result'
                 ? ''
                 : (this.formula.variables.find(v => v.symbol === solvedFor)?.unit || '');
+            
+            // Generate the formula expression with substituted values for display
+            let formulaExpression = null;
+            try {
+                if (unknownVars.length === 1) {
+                    // For single unknown, show: targetVar = expression (with values substituted)
+                    formulaExpression = this.generateSymbolicExpression(solvedFor, knownVars);
+                } else if (unknownVars.length === 0) {
+                    // For evaluation, show the equation with values substituted
+                    let expr = this.formula.equation;
+                    const sortedKnown = Object.entries(knownVars)
+                        .filter(([k, v]) => typeof v === 'number')
+                        .sort((a, b) => b[0].length - a[0].length);
+                    for (const [symbol, value] of sortedKnown) {
+                        const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                        const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
+                            ? value.toExponential(3)
+                            : value.toString();
+                        expr = expr.replace(regex, formatted);
+                    }
+                    formulaExpression = expr;
+                }
+            } catch (e) {
+                // If formula generation fails, continue without it
+                console.warn('[FormulaCalculator] Failed to generate formula expression:', e);
+            }
+            
             // Keep timing internal for now; CalculationResult does not include calculationTime.
             void (performance.now() - startTime);
             return {
@@ -182,7 +210,8 @@ class FormulaCalculator {
                 variable: solvedFor,
                 significantFigures,
                 arithmeticContext,
-                errorInfo
+                errorInfo,
+                formulaExpression: formulaExpression || this.formula.equation // Include formula expression
             };
         }
         catch (error) {

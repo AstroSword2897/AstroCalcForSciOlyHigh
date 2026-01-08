@@ -1276,21 +1276,29 @@ export class UIModuleOrchestrator {
                     `;
                     console.log('[UIModuleOrchestrator] ✅ Symbolic result displayed in fallback');
                 } else {
-                    // Numeric result - show prominently
+                    // Numeric result - show both formula and numeric value
                     const resultValue = typeof result.result === 'number' ? result.result : parseFloat(result.result);
                     const solvedFor = result.solvedFor || result.variable;
                     const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v => v.symbol === solvedFor);
                     const varName = varInfo ? (varInfo.name || solvedFor) : solvedFor;
                     const formatted = this.formattingUtils.formatResult(resultValue, result.unit || '');
+                    const formulaExpr = result.formulaExpression || result.formula || '';
                     console.log('[UIModuleOrchestrator] Formatted result:', formatted);
+                    console.log('[UIModuleOrchestrator] Formula expression:', formulaExpr);
                     
                     resultDisplay.innerHTML = `
                         <h3>Numeric Result</h3>
+                        ${formulaExpr ? `
+                            <div class="result-formula" style="font-family: 'Courier New', monospace; white-space: pre-wrap; text-align: left; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; margin: 15px 0; font-size: 1.1em;">
+                                <div style="font-weight: 600; margin-bottom: 8px; opacity: 0.9;">Formula with substituted values:</div>
+                                <div>${this.formattingUtils.escapeHtml(formulaExpr)}</div>
+                            </div>
+                        ` : ''}
                         <div class="result-value" style="font-size: 1.5em; font-weight: 600; padding: 15px; background: rgba(0,255,0,0.1); border-radius: 8px; margin: 15px 0;">
                             ${solvedFor !== 'result' ? `<div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 5px;">${this.formattingUtils.escapeHtml(varName)} =</div>` : ''}
                             <div>${this.formattingUtils.escapeHtml(formatted)}</div>
                         </div>
-                        ${result.unit ? `<div class="result-unit" style="opacity: 0.8;">${this.formattingUtils.escapeHtml(result.unit)}</div>` : ''}
+                        ${result.unit ? `<div class="result-unit" style="opacity: 0.8; margin-top: 8px;">${this.formattingUtils.escapeHtml(result.unit)}</div>` : ''}
                     `;
                     console.log('[UIModuleOrchestrator] ✅ Numeric result displayed in fallback');
                 }
