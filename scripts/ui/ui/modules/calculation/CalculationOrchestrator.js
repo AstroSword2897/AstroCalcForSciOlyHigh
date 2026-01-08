@@ -409,54 +409,60 @@ export class CalculationOrchestrator {
      * @returns {HTMLElement|null} - Input element or null
      */
     resolveInputElement(variable) {
-        // Optimized: Cache DOM queries to avoid repeated O(n) lookups
+        // CRITICAL: Always search for inputs with values first, don't rely on cache
+        // The cache can return stale/empty inputs, causing values to be missed
         const cacheKey = `var-${variable.symbol}`;
-        let input = this._inputCache.get(cacheKey);
         
-        // If not cached or cache invalid, find input using strategies
-        if (!input || !document.contains(input)) {
-            const strategies = this._getInputResolutionStrategies(variable);
-            
-            // Try each strategy until one succeeds
-            // Prefer inputs with values over empty ones
-            let inputWithValue = null;
-            for (const strategy of strategies) {
-                const candidate = strategy();
-                if (candidate) {
-                    // If this input has a value, use it immediately
-                    if (candidate.value && candidate.value.trim()) {
-                        inputWithValue = candidate;
-                        break;
-                    }
-                    // Otherwise, keep the first input found as fallback
-                    if (!input) {
-                        input = candidate;
-                    }
+        console.log(`[CalculationOrchestrator] 🔍 Resolving input for ${variable.symbol}, checking cache first...`);
+        let cachedInput = this._inputCache.get(cacheKey);
+        
+        // If cached input exists and has a value, use it
+        if (cachedInput && document.contains(cachedInput) && cachedInput.value && cachedInput.value.trim()) {
+            console.log(`[CalculationOrchestrator] ✅ Using cached input with value: ${cachedInput.id} = "${cachedInput.value}"`);
+            return cachedInput;
+        }
+        
+        // Clear cache if it's stale or empty
+        if (cachedInput && (!document.contains(cachedInput) || !cachedInput.value || !cachedInput.value.trim())) {
+            console.log(`[CalculationOrchestrator] 🗑️ Clearing stale/empty cache for ${variable.symbol}`);
+            this._inputCache.delete(cacheKey);
+        }
+        
+        // Search all strategies, prioritizing inputs with values
+        console.log(`[CalculationOrchestrator] 🔍 Searching for inputs with values for ${variable.symbol}...`);
+        const strategies = this._getInputResolutionStrategies(variable);
+        
+        let inputWithValue = null;
+        let firstInput = null;
+        
+        for (const strategy of strategies) {
+            const candidate = strategy();
+            if (candidate) {
+                // CRITICAL: Always prefer inputs with values
+                if (candidate.value && candidate.value.trim()) {
+                    console.log(`[CalculationOrchestrator] ✅ Found input with value: ${candidate.id} = "${candidate.value}"`);
+                    inputWithValue = candidate;
+                    break; // Stop immediately when we find an input with a value
+                }
+                // Keep first input as fallback only
+                if (!firstInput) {
+                    firstInput = candidate;
+                    console.log(`[CalculationOrchestrator] 📝 Found empty input (fallback): ${candidate.id}`);
                 }
             }
-            
-            // Use input with value if found, otherwise use first input found
-            input = inputWithValue || input;
-            
-            // Only cache inputs that have values (to avoid caching empty inputs)
-            // If input is empty, don't cache it so we can re-check next time
-            if (input && input.value && input.value.trim()) {
-                this._inputCache.set(cacheKey, input);
-            }
+        }
+        
+        // Use input with value if found, otherwise use first input found
+        const input = inputWithValue || firstInput;
+        
+        // Only cache inputs that have values
+        if (input && input.value && input.value.trim()) {
+            this._inputCache.set(cacheKey, input);
+            console.log(`[CalculationOrchestrator] 💾 Cached input with value: ${input.id}`);
+        } else if (input) {
+            console.log(`[CalculationOrchestrator] ⚠️ Found input but it's empty, not caching: ${input.id}`);
         } else {
-            // If cached input exists but is empty, re-check for inputs with values
-            if (!input.value || !input.value.trim()) {
-                console.log(`[CalculationOrchestrator] Cached input for ${variable.symbol} is empty, re-checking for inputs with values...`);
-                const strategies = this._getInputResolutionStrategies(variable);
-                for (const strategy of strategies) {
-                    const candidate = strategy();
-                    if (candidate && candidate.value && candidate.value.trim()) {
-                        input = candidate;
-                        this._inputCache.set(cacheKey, input);
-                        break;
-                    }
-                }
-            }
+            console.log(`[CalculationOrchestrator] ❌ No input found for ${variable.symbol}`);
         }
         
         return input;
