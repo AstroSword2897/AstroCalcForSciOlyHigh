@@ -519,9 +519,27 @@ class FormulaCalculator {
         let equation = this.formula.equation;
         
         // Try to isolate the target variable algebraically
-        // Pattern 1: targetVar = expression (already isolated)
+        // Pattern 1: targetVar = √(expression) or targetVar = sqrt(expression)
+        const sqrtPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*[√]\\s*\\((.+)\\)$`);
+        match = equation.match(sqrtPattern);
+        if (match) {
+            const expression = match[1].trim();
+            const value = this.evaluateExpression(expression, allKnown);
+            return Math.sqrt(value);
+        }
+        
+        // Pattern 1b: targetVar = sqrt(expression)
+        const sqrtFunctionPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*sqrt\\s*\\((.+)\\)$`, 'i');
+        match = equation.match(sqrtFunctionPattern);
+        if (match) {
+            const expression = match[1].trim();
+            const value = this.evaluateExpression(expression, allKnown);
+            return Math.sqrt(value);
+        }
+        
+        // Pattern 1c: targetVar = expression (already isolated)
         const directPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
-        let match = equation.match(directPattern);
+        match = equation.match(directPattern);
         if (match) {
             // Evaluate the right side
             const expression = match[1].trim();
