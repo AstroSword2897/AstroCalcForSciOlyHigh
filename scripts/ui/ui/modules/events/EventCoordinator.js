@@ -290,18 +290,31 @@ export class EventCoordinator {
                 console.log('[EventCoordinator] ✅ Classification button clicked!', { classifyBtn, mainClassifyBtn });
                 e.preventDefault();
                 e.stopPropagation();
-                e.stopImmediatePropagation();
+                // DO NOT use stopImmediatePropagation - it blocks other handlers
                 
-                // Add a small delay to ensure UI is fully updated
-                setTimeout(() => {
-                    if (classifyBtn && this.options.onClassify) {
-                        console.log('[EventCoordinator] Calling onClassify...');
+                // Call the callback immediately (no delay needed)
+                if (classifyBtn && this.options.onClassify) {
+                    console.log('[EventCoordinator] Calling onClassify...');
+                    try {
                         this.options.onClassify();
-                    } else if (mainClassifyBtn && this.options.onMainClassify) {
-                        console.log('[EventCoordinator] Calling onMainClassify...');
-                        this.options.onMainClassify();
+                    } catch (error) {
+                        console.error('[EventCoordinator] Error calling onClassify:', error);
                     }
-                }, 50); // 50ms delay for UI stability
+                } else if (mainClassifyBtn && this.options.onMainClassify) {
+                    console.log('[EventCoordinator] Calling onMainClassify...');
+                    try {
+                        this.options.onMainClassify();
+                    } catch (error) {
+                        console.error('[EventCoordinator] Error calling onMainClassify:', error);
+                    }
+                } else {
+                    console.warn('[EventCoordinator] ⚠️ Classification button clicked but no callback available', {
+                        hasClassifyBtn: !!classifyBtn,
+                        hasMainClassifyBtn: !!mainClassifyBtn,
+                        hasOnClassify: !!this.options.onClassify,
+                        hasOnMainClassify: !!this.options.onMainClassify
+                    });
+                }
             }
         };
         

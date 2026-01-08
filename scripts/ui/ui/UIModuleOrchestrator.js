@@ -229,8 +229,25 @@ export class UIModuleOrchestrator {
                     }
                 },
                 onMainClassify: () => {
-                    if (typeof window.performMainClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] onMainClassify callback invoked');
+                    // Direct call to method - more reliable than window function
+                    if (this.performMainClassification && typeof this.performMainClassification === 'function') {
+                        console.log('[UIModuleOrchestrator] Calling performMainClassification() directly...');
+                        try {
+                            this.performMainClassification();
+                        } catch (error) {
+                            console.error('[UIModuleOrchestrator] Error in performMainClassification:', error);
+                            // Fallback to window function if direct call fails
+                            if (typeof window.performMainClassification === 'function') {
+                                console.log('[UIModuleOrchestrator] Falling back to window.performMainClassification');
+                                window.performMainClassification();
+                            }
+                        }
+                    } else if (typeof window.performMainClassification === 'function') {
+                        console.log('[UIModuleOrchestrator] Using window.performMainClassification fallback');
                         window.performMainClassification();
+                    } else {
+                        console.error('[UIModuleOrchestrator] ❌ performMainClassification not available');
                     }
                 },
                 setupGraphControls: () => {
