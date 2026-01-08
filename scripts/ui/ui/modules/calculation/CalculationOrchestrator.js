@@ -179,12 +179,14 @@ export class CalculationOrchestrator {
             // Check for duplicate calculation using already-collected values
             const inputHash = this._createInputHash(variableValues);
             console.log('[CalculationOrchestrator] 🔍 Input hash:', inputHash, 'Last hash:', this._lastCalculationHash);
-            // TEMP DEBUG: Disable duplicate hash check to prevent silent skipping
-            if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
-                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → DUPLICATE HASH (inputs unchanged)');
-                console.warn('[CalculationOrchestrator] Hash:', inputHash, 'Last:', this._lastCalculationHash);
-                return; // finally block will reset _calculationInProgress
-            }
+            console.log('[CalculationOrchestrator] 🔍 Variable values for hash:', variableValues);
+            // TEMP DEBUG: Disable duplicate hash check to prevent silent skipping during debugging
+            // Re-enable this after fixing input collection
+            // if (inputHash === this._lastCalculationHash && this._lastCalculationHash !== null) {
+            //     console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → DUPLICATE HASH (inputs unchanged)');
+            //     console.warn('[CalculationOrchestrator] Hash:', inputHash, 'Last:', this._lastCalculationHash);
+            //     return; // finally block will reset _calculationInProgress
+            // }
             this._lastCalculationHash = inputHash;
             
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Validating variable values...');
@@ -345,18 +347,19 @@ export class CalculationOrchestrator {
         // Vectorized: Use Object.fromEntries + map for better performance
         return Object.fromEntries(
             userVariables.map(variable => {
-                try {
-                    const value = this.collectVariableValue(variable, formula);
+            try {
+                const value = this.collectVariableValue(variable, formula);
                     return [variable.symbol, value];
-                }
-                catch (error) {
-                    throw new Error(`Error collecting value for ${variable.symbol}: ${error.message}`);
-                }
+            }
+            catch (error) {
+                throw new Error(`Error collecting value for ${variable.symbol}: ${error.message}`);
+            }
             })
         );
     }
     collectVariableValue(variable, formula) {
         // Split responsibility: resolve input element first
+        console.log(`[CalculationOrchestrator] 🔍 Resolving input for ${variable.symbol}...`);
         const input = this.resolveInputElement(variable);
         
         if (!input) {
@@ -366,7 +369,7 @@ export class CalculationOrchestrator {
             const allInputs = Array.from(document.querySelectorAll('input[data-symbol]'));
             if (allInputs.length > 0) {
                 console.warn(`[CalculationOrchestrator] Available inputs with data-symbol:`, 
-                    allInputs.map(inp => ({ id: inp.id, symbol: inp.getAttribute('data-symbol'), value: inp.value })));
+                    allInputs.map(inp => ({ id: inp.id, symbol: inp.getAttribute('data-symbol'), value: inp.value, trimmed: inp.value.trim() })));
             } else {
                 console.warn(`[CalculationOrchestrator] No inputs with data-symbol found in DOM`);
             }
@@ -376,10 +379,14 @@ export class CalculationOrchestrator {
         console.log(`[CalculationOrchestrator] ✅ Found input for ${variable.symbol}:`, { 
             id: input.id, 
             value: input.value, 
+            valueLength: input.value.length,
             trimmed: input.value.trim(),
+            trimmedLength: input.value.trim().length,
             hasValue: !!input.value.trim(),
+            isEmpty: !input.value.trim(),
             dataSymbol: input.getAttribute('data-symbol'),
-            dataUnit: input.getAttribute('data-unit')
+            dataUnit: input.getAttribute('data-unit'),
+            inputHTML: input.outerHTML.substring(0, 200)
         });
         
         // Extract and parse value
@@ -518,13 +525,25 @@ export class CalculationOrchestrator {
      * @returns {number|null} - Parsed value or null if empty/invalid
      */
     parseInputValue(input, variable) {
-        const value = input.value.trim();
+        const rawValue = input.value;
+        const value = rawValue.trim();
         
-        console.log(`[CalculationOrchestrator] parseInputValue for ${variable.symbol}:`, { value, inputId: input.id });
+        console.log(`[CalculationOrchestrator] 🔍 parseInputValue for ${variable.symbol}:`, { 
+            rawValue, 
+            rawValueLength: rawValue.length,
+            value, 
+            valueLength: value.length,
+            isEmpty: !value,
+            isNAValue: this.isNAValue(value),
+            inputId: input.id,
+            inputValue: input.value,
+            inputValueType: typeof input.value
+        });
         
         // Return null if empty (empty means unknown)
         if (!value || this.isNAValue(value)) {
-            console.log(`[CalculationOrchestrator] Value is empty/NA for ${variable.symbol}, returning null`);
+            console.warn(`[CalculationOrchestrator] ⚠️ Value is empty/NA for ${variable.symbol}, returning null`);
+            console.warn(`[CalculationOrchestrator] Debug: rawValue="${rawValue}", trimmed="${value}", isEmpty=${!value}, isNAValue=${this.isNAValue(value)}`);
             return null;
         }
         
