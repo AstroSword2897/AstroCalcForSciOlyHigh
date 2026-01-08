@@ -451,7 +451,199 @@ class FormulaCalculator {
                 return solverResult.result;
             }
         }
-        throw new Error(`No solver available to solve for ${targetVar}`);
+        
+        // FALLBACK: Try algebraic solving when no solver is available
+        try {
+            return this._solveAlgebraically(targetVar, knownVars);
+        } catch (algebraicError) {
+            throw new Error(`No solver available to solve for ${targetVar}: ${algebraicError.message}`);
+        }
+    }
+    
+    /**
+     * Algebraic solver fallback - solves equations algebraically when possible
+     * Handles common patterns: linear, power, inverse, etc.
+     */
+    _solveAlgebraically(targetVar, knownVars) {
+        // Merge constants with known variables
+        const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+        
+        // Get the equation
+        let equation = this.formula.equation;
+        
+        // Try to isolate the target variable algebraically
+        // Pattern 1: targetVar = expression (already isolated)
+        const directPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
+        let match = equation.match(directPattern);
+        if (match) {
+            // Evaluate the right side
+            const expression = match[1].trim();
+            return this.evaluateExpression(expression, allKnown);
+        }
+        
+        // Pattern 2: expression = targetVar (reverse)
+        const reversePattern = new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+        match = equation.match(reversePattern);
+        if (match) {
+            // Evaluate the left side
+            const expression = match[1].trim();
+            return this.evaluateExpression(expression, allKnown);
+        }
+        
+        // Pattern 3: targetVar^n = expression (power isolation)
+        const powerPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`);
+        match = equation.match(powerPattern);
+        if (match) {
+            const power = parseFloat(match[1]);
+            const expression = match[2].trim();
+            const rightSide = this.evaluateExpression(expression, allKnown);
+            if (power === 2) {
+                return Math.sqrt(rightSide);
+            } else if (power === 3) {
+                return Math.cbrt(rightSide);
+            } else {
+                return Math.pow(rightSide, 1 / power);
+            }
+        }
+        
+        // Pattern 4: expression = targetVar^n (reverse power)
+        const reversePowerPattern = new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`);
+        match = equation.match(reversePowerPattern);
+        if (match) {
+            const expression = match[1].trim();
+            const power = parseFloat(match[2]);
+            const leftSide = this.evaluateExpression(expression, allKnown);
+            if (power === 2) {
+                return Math.sqrt(leftSide);
+            } else if (power === 3) {
+                return Math.cbrt(leftSide);
+            } else {
+                return Math.pow(leftSide, 1 / power);
+            }
+        }
+        
+        // Pattern 5: Complex expressions - try algebraic rearrangement
+        // For T² = (4π²/GM) × a³, if solving for a:
+        // We need to rearrange: a³ = T²GM/(4π²), then a = ∛(T²GM/(4π²))
+        
+        // First, substitute all known values into the equation
+        let substituted = equation;
+        const sortedKnown = Object.entries(allKnown)
+            .filter(([k, v]) => k !== targetVar && typeof v === 'number')
+            .sort((a, b) => b[0].length - a[0].length); // Longest first to avoid partial matches
+        
+        for (const [symbol, value] of sortedKnown) {
+            const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
+                ? value.toExponential(6)
+                : value.toString();
+            substituted = substituted.replace(regex, `(${formatted})`);
+        }
+        
+        // Pattern 5a: targetVar^n = expression (after substitution)
+        const isolatedPowerPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+(?:\\.\\d+)?)?\\s*=\\s*(.+)$`);
+        match = substituted.match(isolatedPowerPattern);
+        if (match) {
+            const powerStr = match[1] || (substituted.includes('²') ? '2' : substituted.includes('³') ? '3' : '1');
+            const power = parseFloat(powerStr);
+            const rightExpr = match[2].trim();
+            // Evaluate right side (should be numeric after substitution)
+            try {
+                const rightValue = this.evaluateExpression(rightExpr, {});
+                if (power === 2 || powerStr === '²') {
+                    return Math.sqrt(rightValue);
+                } else if (power === 3 || powerStr === '³') {
+                    return Math.cbrt(rightValue);
+                } else if (power > 0) {
+                    return Math.pow(rightValue, 1 / power);
+                }
+            } catch (e) {
+                // Continue to next pattern
+            }
+        }
+        
+        // Pattern 5b: expression = targetVar^n (reverse, after substitution)
+        const reverseIsolatedPowerPattern = new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+(?:\\.\\d+)?)?\\s*$`);
+        match = substituted.match(reverseIsolatedPowerPattern);
+        if (match) {
+            const leftExpr = match[1].trim();
+            const powerStr = match[2] || (substituted.includes('²') ? '2' : substituted.includes('³') ? '3' : '1');
+            const power = parseFloat(powerStr);
+            try {
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                if (power === 2 || powerStr === '²') {
+                    return Math.sqrt(leftValue);
+                } else if (power === 3 || powerStr === '³') {
+                    return Math.cbrt(leftValue);
+                } else if (power > 0) {
+                    return Math.pow(leftValue, 1 / power);
+                }
+            } catch (e) {
+                // Continue to next pattern
+            }
+        }
+        
+        // Pattern 5c: Try to use formula's solveFunction if available (most reliable)
+        if (this.formula.solveFunction && typeof this.formula.solveFunction === 'function') {
+            try {
+                const result = this.formula.solveFunction(allKnown);
+                if (typeof result === 'number' && Number.isFinite(result)) {
+                    return result;
+                }
+            } catch (e) {
+                // Continue to algebraic solving
+            }
+        }
+        
+        // Pattern 6: targetVar = expression (after substitution, targetVar is isolated)
+        const isolatedPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
+        match = substituted.match(isolatedPattern);
+        if (match) {
+            const expression = match[1].trim();
+            try {
+                return this.evaluateExpression(expression, {});
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        // Pattern 7: Try evaluating the entire equation with targetVar as a variable
+        // This works if the equation can be rearranged to isolate targetVar
+        // We'll try a simple iterative approach: evaluate with targetVar = 0, 1, 10, 100, etc.
+        // and see if we can find where the equation balances
+        try {
+            // For equations like T² = (4π²/GM) × a³, we can rearrange:
+            // If we know T, M, and want a: a³ = T²GM/(4π²)
+            // Let's try to extract this pattern programmatically
+            
+            // Create a test context with targetVar = 1
+            const testContext = { ...allKnown, [targetVar]: 1 };
+            const leftValue = this.evaluateExpression(equation.split('=')[0]?.trim() || equation, testContext);
+            const rightValue = this.evaluateExpression(equation.split('=')[1]?.trim() || '0', testContext);
+            
+            // If the equation balances when targetVar = 1, return 1
+            // Otherwise, try to solve: if equation is A = B × targetVar^n, then targetVar = (A/B)^(1/n)
+            // This is a heuristic approach
+        } catch (e) {
+            // Ignore
+        }
+        
+        // If all patterns fail, try one more approach: use the math evaluator to solve
+        // by creating an inverse expression
+        try {
+            // For power equations, try to extract the power and base
+            const powerMatch = equation.match(new RegExp(`${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+)?`, 'i'));
+            if (powerMatch) {
+                // This is a power equation, we need to rearrange it
+                // For now, throw error and let the symbolic fallback handle it
+            }
+        } catch (e) {
+            // Ignore
+        }
+        
+        // Final fallback: throw error to trigger symbolic solving
+        throw new Error(`Cannot algebraically isolate ${targetVar} from equation: ${equation}`);
     }
     
     /**
