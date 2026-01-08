@@ -108,26 +108,15 @@ export class EventCoordinator {
         console.log('[EventCoordinator] ✅ Sub tab buttons set up with event delegation');
     }
     setupCalculateButton() {
-        // CRITICAL FIX: Use both direct attachment AND event delegation
-        // Direct attachment ensures the button works even if delegation fails
+        // Minimal, single-path handler for Calculate button
+        // No delegation, no fallbacks, no stopImmediatePropagation
         const directHandler = (e) => {
             console.log('[EventCoordinator] 🎯 Calculate button clicked');
             e.preventDefault();
             e.stopPropagation();
-            // DO NOT use stopImmediatePropagation - it blocks other handlers
             
             // Single execution path: call onCalculate callback only
-            if (this.options?.onCalculate) {
-                try {
-                    console.log('[EventCoordinator] Calling onCalculate callback...');
-                    this.options.onCalculate();
-                } catch (error) {
-                    console.error('[EventCoordinator] Error calling onCalculate:', error);
-                    console.error('[EventCoordinator] Error stack:', error.stack);
-                }
-            } else {
-                console.error('[EventCoordinator] onCalculate callback not defined');
-            }
+            this.options.onCalculate?.();
         };
         
         // Try to attach directly to the button if it exists
