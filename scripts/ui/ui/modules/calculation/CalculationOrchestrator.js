@@ -168,9 +168,9 @@ export class CalculationOrchestrator {
             const valuesArray = Object.values(variableValues);
             const hasAnyValues = valuesArray.some(v => {
                 const isNumber = typeof v === 'number';
-                const isFinite = isNumber && isFinite(v);
+                const isValueFinite = isNumber && isFinite(v);
                 const isNotNull = v !== null && v !== undefined;
-                return isNotNull && isNumber && isFinite;
+                return isNotNull && isNumber && isValueFinite;
             });
             
             const unknownCount = valuesArray.filter(v => v === null || v === undefined).length;
