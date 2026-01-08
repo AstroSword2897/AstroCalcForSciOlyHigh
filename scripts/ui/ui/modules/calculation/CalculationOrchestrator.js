@@ -478,15 +478,36 @@ export class CalculationOrchestrator {
         
         return [
             // Strategy 1: Find by data-symbol attribute (most reliable - matches actual rendered inputs)
+            // Search entire document first, prioritizing inputs with values
             () => {
-                const container = document.getElementById('variables-container') || document.querySelector('.calculator-inputs');
-                if (container) {
-                    const inputs = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                console.log(`[CalculationOrchestrator] Strategy 1: Searching for input[data-symbol="${variable.symbol}"]`);
+                const allInputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                console.log(`[CalculationOrchestrator] Found ${allInputs.length} inputs with data-symbol="${variable.symbol}"`);
+                
+                if (allInputs.length > 0) {
+                    // Log all found inputs for debugging
+                    allInputs.forEach((inp, idx) => {
+                        console.log(`[CalculationOrchestrator] Input ${idx}:`, {
+                            id: inp.id,
+                            value: inp.value,
+                            hasValue: !!inp.value.trim(),
+                            unit: inp.getAttribute('data-unit'),
+                            visible: inp.offsetParent !== null
+                        });
+                    });
+                    
                     // Prefer input with a value, otherwise return first input
-                    return inputs.find(inp => inp && inp.value.trim()) || inputs[0] || null;
+                    const inputWithValue = allInputs.find(inp => inp && inp.value && inp.value.trim());
+                    if (inputWithValue) {
+                        console.log(`[CalculationOrchestrator] ✅ Strategy 1: Found input with value: ${inputWithValue.id} = "${inputWithValue.value}"`);
+                        return inputWithValue;
+                    }
+                    const firstInput = allInputs[0];
+                    console.log(`[CalculationOrchestrator] ⚠️ Strategy 1: Found input but empty: ${firstInput.id}`);
+                    return firstInput;
                 }
-                // Fallback: search entire document
-                return document.querySelector(`input[data-symbol="${variable.symbol}"]`);
+                console.log(`[CalculationOrchestrator] ❌ Strategy 1: No inputs found with data-symbol="${variable.symbol}"`);
+                return null;
             },
             
             // Strategy 2: Simple ID (var-symbol) - O(1) lookup
@@ -494,26 +515,46 @@ export class CalculationOrchestrator {
             
             // Strategy 3: With unit suffix (var-symbol-unit) - matches VariableInputs.js rendering
             () => {
-                if (!this.unitConverter) return null;
+                if (!this.unitConverter) {
+                    console.log(`[CalculationOrchestrator] Strategy 3: unitConverter not available`);
+                    return null;
+                }
                 const alternativeUnits = this.unitConverter.getAlternativeUnits(variable.unit);
+                console.log(`[CalculationOrchestrator] Strategy 3: Searching for ${variable.symbol} with units:`, alternativeUnits);
+                
                 // First try to find input with a value
-                let unitInput = alternativeUnits
+                const inputsWithValues = alternativeUnits
                     .map(unit => {
                         const sanitizedUnit = unit.replace(/[^a-zA-Z0-9]/g, '_');
-                        return document.getElementById(`var-${variable.symbol}-${sanitizedUnit}`);
+                        const inputId = `var-${variable.symbol}-${sanitizedUnit}`;
+                        const input = document.getElementById(inputId);
+                        if (input) {
+                            console.log(`[CalculationOrchestrator] Strategy 3: Found input ${inputId}:`, {
+                                id: input.id,
+                                value: input.value,
+                                hasValue: !!input.value.trim(),
+                                unit: unit
+                            });
+                        }
+                        return input;
                     })
-                    .find(inp => inp !== null && inp.value.trim());
+                    .filter(inp => inp !== null);
+                
+                const inputWithValue = inputsWithValues.find(inp => inp.value && inp.value.trim());
+                if (inputWithValue) {
+                    console.log(`[CalculationOrchestrator] ✅ Strategy 3: Found input with value: ${inputWithValue.id} = "${inputWithValue.value}"`);
+                    return inputWithValue;
+                }
                 
                 // If no input with value, find any input for this variable
-                if (!unitInput) {
-                    unitInput = alternativeUnits
-                        .map(unit => {
-                            const sanitizedUnit = unit.replace(/[^a-zA-Z0-9]/g, '_');
-                            return document.getElementById(`var-${variable.symbol}-${sanitizedUnit}`);
-                        })
-                        .find(inp => inp !== null);
+                if (inputsWithValues.length > 0) {
+                    const firstInput = inputsWithValues[0];
+                    console.log(`[CalculationOrchestrator] ⚠️ Strategy 3: Found input but empty: ${firstInput.id}`);
+                    return firstInput;
                 }
-                return unitInput || null;
+                
+                console.log(`[CalculationOrchestrator] ❌ Strategy 3: No inputs found for ${variable.symbol} with any unit`);
+                return null;
             },
             
             // Strategy 4: Last resort - find ANY input with matching data-symbol anywhere
