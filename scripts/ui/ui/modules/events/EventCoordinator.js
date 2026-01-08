@@ -190,12 +190,27 @@ export class EventCoordinator {
                 });
             }
             
-            // Clear result display
-            const resultDisplay = document.getElementById('result-display');
+            // Clear result display - try multiple selectors to ensure we find it
+            const resultDisplay = document.getElementById('result-display') || 
+                                  document.querySelector('.result-display') ||
+                                  document.querySelector('#result-display');
             if (resultDisplay) {
                 resultDisplay.innerHTML = '';
                 resultDisplay.classList.remove('show');
+                resultDisplay.classList.remove('result');
+                resultDisplay.classList.remove('calculation-result');
+                resultDisplay.removeAttribute('data-result');
+                console.log('[EventCoordinator] ✅ Result display cleared');
+            } else {
+                console.warn('[EventCoordinator] ⚠️ Result display element not found');
             }
+            
+            // Also clear any result-related elements
+            const resultElements = document.querySelectorAll('.result-value, .result-formula, .result-unit, .result-error');
+            resultElements.forEach(el => {
+                el.innerHTML = '';
+                el.style.display = 'none';
+            });
             
             // Clear input cache if available
             if (this.options.onClear && typeof this.options.onClear === 'function') {
