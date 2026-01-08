@@ -247,8 +247,8 @@ export class CalculateButtonDebugPanel {
         if (generateReportBtn) {
             generateReportBtn.addEventListener('click', () => {
                 if (window.CalculateButtonDebugger) {
-                    const debugger = new window.CalculateButtonDebugger();
-                    debugger.generateReport();
+                    const debuggerInstance = new window.CalculateButtonDebugger();
+                    debuggerInstance.generateReport();
                 } else {
                     console.log('CalculateButtonDebugger not available. Make sure debug scripts are loaded.');
                 }

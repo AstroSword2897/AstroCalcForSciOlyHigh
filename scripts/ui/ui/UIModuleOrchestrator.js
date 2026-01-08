@@ -917,26 +917,30 @@ export class UIModuleOrchestrator {
     setupCacheInvalidationHooks() {
         if (!this.formulaRenderer) return;
         
-        // Hook for theme changes
-        this.formulaRenderer.onCacheInvalidation((reason, previousSize) => {
-            console.log(`[UIModuleOrchestrator] Cache invalidated: ${reason} (${previousSize} items cleared)`);
-        });
+        // Note: onCacheInvalidation was removed from FormulaRenderer
+        // Cache invalidation is now handled internally by FormulaRenderer
+        // This method is kept for potential future hooks but does nothing for now
         
         // Listen for theme changes (if theme system exists)
+        // Note: Cache invalidation methods were removed from FormulaRenderer
+        // Cache is now managed internally by FormulaRenderer
         if (typeof window.addEventListener === 'function') {
             // Custom event for theme changes
             window.addEventListener('themechange', () => {
-                this.formulaRenderer?.invalidateCache('theme-change');
+                // Cache invalidation handled internally by FormulaRenderer
+                console.log('[UIModuleOrchestrator] Theme change detected');
             });
             
             // Custom event for locale changes
             window.addEventListener('localechange', () => {
-                this.formulaRenderer?.invalidateCache('locale-change');
+                // Cache invalidation handled internally by FormulaRenderer
+                console.log('[UIModuleOrchestrator] Locale change detected');
             });
             
             // Custom event for formula data reload
             window.addEventListener('formulasreload', () => {
-                this.formulaRenderer?.invalidateCache('formulas-reload');
+                // Cache invalidation handled internally by FormulaRenderer
+                console.log('[UIModuleOrchestrator] Formulas reload detected');
                 // Re-render with new formulas
                 if (this.options.formulas) {
                     this.renderInitialFormulas();
