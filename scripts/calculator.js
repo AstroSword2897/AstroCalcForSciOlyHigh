@@ -108,20 +108,31 @@ class FormulaCalculator {
             else if (unknownVars.length === 1) {
                 solvedFor = unknownVars[0];
                 // With exactly one unknown and all others known, do numeric solving
+                // CRITICAL: We MUST get a numeric result, not symbolic - this is a calculator!
                 try {
                     numericResult = this.solveForVariable(solvedFor, knownVars);
+                    // Validate that we got a real number
+                    if (typeof numericResult !== 'number' || !Number.isFinite(numericResult)) {
+                        throw new Error(`solveForVariable returned invalid result: ${numericResult}`);
+                    }
+                    console.log(`[FormulaCalculator] ✅ Numeric solve successful for ${solvedFor}: ${numericResult}`);
                 } catch (solverError) {
-                    // If solver fails, fall back to symbolic solving
-                    return {
-                        solvedFor,
-                        result: this.generateSymbolicExpression(solvedFor, knownVars),
-                        unit: '',
-                        isSymbolic: true,
-                        variable: solvedFor,
-                        significantFigures: undefined,
-                        arithmeticContext: undefined,
-                        errorInfo: undefined
-                    };
+                    console.error(`[FormulaCalculator] ❌ Numeric solve failed for ${solvedFor}:`, solverError);
+                    console.error(`[FormulaCalculator] Known vars:`, knownVars);
+                    console.error(`[FormulaCalculator] Equation:`, this.formula.equation);
+                    // Try one more time with more detailed error info
+                    try {
+                        console.log(`[FormulaCalculator] Retrying solve for ${solvedFor} with equation: ${this.formula.equation}`);
+                        numericResult = this.solveForVariable(solvedFor, knownVars);
+                        if (typeof numericResult !== 'number' || !Number.isFinite(numericResult)) {
+                            throw new Error(`Retry also returned invalid result: ${numericResult}`);
+                        }
+                        console.log(`[FormulaCalculator] ✅ Retry successful: ${numericResult}`);
+                    } catch (retryError) {
+                        // If all numeric solving fails, throw error - don't fall back to symbolic
+                        // The CalculationOrchestrator will handle this
+                        throw new Error(`Cannot solve for ${solvedFor} numerically: ${solverError.message}. ${retryError.message}`);
+                    }
                 }
             }
             else {
@@ -571,45 +582,118 @@ class FormulaCalculator {
         }
         
         // Pattern 5a: targetVar^n = expression (after substitution)
-        const isolatedPowerPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+(?:\\.\\d+)?)?\\s*=\\s*(.+)$`);
-        match = substituted.match(isolatedPowerPattern);
-        if (match) {
-            const powerStr = match[1] || (substituted.includes('²') ? '2' : substituted.includes('³') ? '3' : '1');
-            const power = parseFloat(powerStr);
-            const rightExpr = match[2].trim();
-            // Evaluate right side (should be numeric after substitution)
-            try {
-                const rightValue = this.evaluateExpression(rightExpr, {});
-                if (power === 2 || powerStr === '²') {
-                    return Math.sqrt(rightValue);
-                } else if (power === 3 || powerStr === '³') {
-                    return Math.cbrt(rightValue);
-                } else if (power > 0) {
-                    return Math.pow(rightValue, 1 / power);
+        // Handle both explicit power notation (^2, ^3) and Unicode (², ³)
+        const powerNotation = [
+            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`), power: null } // dynamic power
+        ];
+        
+        for (const { pattern, power } of powerNotation) {
+            match = substituted.match(pattern);
+            if (match) {
+                const actualPower = power !== null ? power : parseFloat(match[1]);
+                const rightExpr = match[power !== null ? 1 : 2].trim();
+                try {
+                    const rightValue = this.evaluateExpression(rightExpr, {});
+                    if (actualPower === 2) {
+                        return Math.sqrt(rightValue);
+                    } else if (actualPower === 3) {
+                        return Math.cbrt(rightValue);
+                    } else if (actualPower > 0) {
+                        return Math.pow(rightValue, 1 / actualPower);
+                    }
+                } catch (e) {
+                    // Continue to next pattern
                 }
-            } catch (e) {
-                // Continue to next pattern
             }
         }
         
         // Pattern 5b: expression = targetVar^n (reverse, after substitution)
-        const reverseIsolatedPowerPattern = new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+(?:\\.\\d+)?)?\\s*$`);
-        match = substituted.match(reverseIsolatedPowerPattern);
+        const reversePowerNotation = [
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`), power: null }
+        ];
+        
+        for (const { pattern, power } of reversePowerNotation) {
+            match = substituted.match(pattern);
+            if (match) {
+                const actualPower = power !== null ? power : parseFloat(match[2]);
+                const leftExpr = match[1].trim();
+                try {
+                    const leftValue = this.evaluateExpression(leftExpr, {});
+                    if (actualPower === 2) {
+                        return Math.sqrt(leftValue);
+                    } else if (actualPower === 3) {
+                        return Math.cbrt(leftValue);
+                    } else if (actualPower > 0) {
+                        return Math.pow(leftValue, 1 / actualPower);
+                    }
+                } catch (e) {
+                    // Continue to next pattern
+                }
+            }
+        }
+        
+        // Pattern 5c: Handle complex multiplication/division patterns
+        // For T² = (4π²/GM) × a³, if solving for M:
+        // After substitution: T² = (4π²/G × M) × a³ → M = 4π²a³/(GT²)
+        // Try to extract targetVar from multiplication/division expressions
+        const multiplicationPattern = new RegExp(`([^=]+)\\s*=\\s*([^${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]+)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^=]*)$`);
+        match = substituted.match(multiplicationPattern);
         if (match) {
-            const leftExpr = match[1].trim();
-            const powerStr = match[2] || (substituted.includes('²') ? '2' : substituted.includes('³') ? '3' : '1');
-            const power = parseFloat(powerStr);
             try {
+                const leftExpr = match[1].trim();
+                const coeffExpr = match[2].trim();
+                const rightExpr = match[3].trim();
                 const leftValue = this.evaluateExpression(leftExpr, {});
-                if (power === 2 || powerStr === '²') {
-                    return Math.sqrt(leftValue);
-                } else if (power === 3 || powerStr === '³') {
-                    return Math.cbrt(leftValue);
-                } else if (power > 0) {
-                    return Math.pow(leftValue, 1 / power);
+                const coeffValue = this.evaluateExpression(coeffExpr, {});
+                if (coeffValue !== 0) {
+                    return leftValue / coeffValue;
                 }
             } catch (e) {
-                // Continue to next pattern
+                // Continue
+            }
+        }
+        
+        // Pattern 5d: Handle division patterns: expression = something / targetVar
+        const divisionPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^=]*)$`);
+        match = substituted.match(divisionPattern);
+        if (match) {
+            try {
+                const leftExpr = match[1].trim();
+                const numeratorExpr = match[2].trim();
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                if (leftValue !== 0) {
+                    return numeratorValue / leftValue;
+                }
+            } catch (e) {
+                // Continue
+            }
+        }
+        
+        // Pattern 5e: Handle division patterns: expression = something / (G × targetVar)
+        const divisionWithCoeffPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*\\(([^)]*)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)([^=]*)$`);
+        match = substituted.match(divisionWithCoeffPattern);
+        if (match) {
+            try {
+                const leftExpr = match[1].trim();
+                const numeratorExpr = match[2].trim();
+                const coeffExpr = match[3].trim();
+                const leftValue = this.evaluateExpression(leftExpr, {});
+                const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                const coeffValue = this.evaluateExpression(coeffExpr, {});
+                if (leftValue !== 0 && coeffValue !== 0) {
+                    return numeratorValue / (leftValue * coeffValue);
+                }
+            } catch (e) {
+                // Continue
             }
         }
         
