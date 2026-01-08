@@ -183,18 +183,26 @@ export class UIModuleOrchestrator {
             // Initialize EventCoordinator
             // Bind onCalculate to ensure 'this' context is correct
             this.onCalculate = () => {
-                console.log('[UIModuleOrchestrator] onCalculate callback invoked');
+                console.log('[UIModuleOrchestrator] ⚡⚡⚡ onCalculate callback invoked ⚡⚡⚡');
+                console.log('[UIModuleOrchestrator] this:', this);
+                console.log('[UIModuleOrchestrator] this.calculationOrchestrator:', this.calculationOrchestrator);
+                console.log('[UIModuleOrchestrator] typeof performCalculation:', typeof this.calculationOrchestrator?.performCalculation);
                 
                 // Single execution path: calculationOrchestrator.performCalculation()
                 if (this.calculationOrchestrator && typeof this.calculationOrchestrator.performCalculation === 'function') {
+                    console.log('[UIModuleOrchestrator] ✅ Calling calculationOrchestrator.performCalculation() NOW...');
                     try {
                         this.calculationOrchestrator.performCalculation();
+                        console.log('[UIModuleOrchestrator] ✅ performCalculation() call completed');
                     } catch (error) {
-                        console.error('[UIModuleOrchestrator] Error in performCalculation:', error);
+                        console.error('[UIModuleOrchestrator] ❌ Error in performCalculation:', error);
+                        console.error('[UIModuleOrchestrator] Error stack:', error.stack);
                         throw error;
                     }
                 } else {
-                    console.error('[UIModuleOrchestrator] calculationOrchestrator or performCalculation not available');
+                    console.error('[UIModuleOrchestrator] ❌ calculationOrchestrator or performCalculation not available');
+                    console.error('[UIModuleOrchestrator] calculationOrchestrator exists:', !!this.calculationOrchestrator);
+                    console.error('[UIModuleOrchestrator] performCalculation type:', typeof this.calculationOrchestrator?.performCalculation);
                 }
             };
             
