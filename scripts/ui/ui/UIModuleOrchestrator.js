@@ -181,25 +181,22 @@ export class UIModuleOrchestrator {
                 }
             });
             // Initialize EventCoordinator
-            this.eventCoordinator = new EventCoordinator({
-                onBackButton: () => this.handleBackButton(),
-                onMainTabSwitch: (tabName) => this.tabManager.switchMainTab(tabName),
-                onSubTabSwitch: (tabName) => this.tabManager.switchTab(tabName),
-                onCalculate: () => {
-                    console.log('[UIModuleOrchestrator] onCalculate callback invoked');
-                    
-                    // Single execution path: calculationOrchestrator.performCalculation()
-                    if (this.calculationOrchestrator && typeof this.calculationOrchestrator.performCalculation === 'function') {
-                        try {
-                            this.calculationOrchestrator.performCalculation();
-                        } catch (error) {
-                            console.error('[UIModuleOrchestrator] Error in performCalculation:', error);
-                            throw error;
-                        }
-                    } else {
-                        console.error('[UIModuleOrchestrator] calculationOrchestrator or performCalculation not available');
+            // Bind onCalculate to ensure 'this' context is correct
+            this.onCalculate = () => {
+                console.log('[UIModuleOrchestrator] onCalculate callback invoked');
+                
+                // Single execution path: calculationOrchestrator.performCalculation()
+                if (this.calculationOrchestrator && typeof this.calculationOrchestrator.performCalculation === 'function') {
+                    try {
+                        this.calculationOrchestrator.performCalculation();
+                    } catch (error) {
+                        console.error('[UIModuleOrchestrator] Error in performCalculation:', error);
+                        throw error;
                     }
-                },
+                } else {
+                    console.error('[UIModuleOrchestrator] calculationOrchestrator or performCalculation not available');
+                }
+            };
             
             this.eventCoordinator = new EventCoordinator({
                 onBackButton: () => this.handleBackButton(),
