@@ -371,14 +371,44 @@ export class CalculationOrchestrator {
             const strategies = this._getInputResolutionStrategies(variable);
             
             // Try each strategy until one succeeds
+            // Prefer inputs with values over empty ones
+            let inputWithValue = null;
             for (const strategy of strategies) {
-                input = strategy();
-                if (input) break;
+                const candidate = strategy();
+                if (candidate) {
+                    // If this input has a value, use it immediately
+                    if (candidate.value && candidate.value.trim()) {
+                        inputWithValue = candidate;
+                        break;
+                    }
+                    // Otherwise, keep the first input found as fallback
+                    if (!input) {
+                        input = candidate;
+                    }
+                }
             }
             
-            // Cache the result for O(1) future lookups
-            if (input) {
+            // Use input with value if found, otherwise use first input found
+            input = inputWithValue || input;
+            
+            // Only cache inputs that have values (to avoid caching empty inputs)
+            // If input is empty, don't cache it so we can re-check next time
+            if (input && input.value && input.value.trim()) {
                 this._inputCache.set(cacheKey, input);
+            }
+        } else {
+            // If cached input exists but is empty, re-check for inputs with values
+            if (!input.value || !input.value.trim()) {
+                console.log(`[CalculationOrchestrator] Cached input for ${variable.symbol} is empty, re-checking for inputs with values...`);
+                const strategies = this._getInputResolutionStrategies(variable);
+                for (const strategy of strategies) {
+                    const candidate = strategy();
+                    if (candidate && candidate.value && candidate.value.trim()) {
+                        input = candidate;
+                        this._inputCache.set(cacheKey, input);
+                        break;
+                    }
+                }
             }
         }
         
