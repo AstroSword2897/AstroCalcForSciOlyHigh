@@ -85,7 +85,18 @@ export class CalculationOrchestrator {
         
         try {
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Getting calculator and formula...');
+            
+            // CRITICAL: Verify getCalculator and getFormula functions exist
+            if (typeof this.getCalculator !== 'function') {
+                throw new Error('getCalculator is not a function. Check CalculationOrchestrator initialization.');
+            }
+            if (typeof this.getFormula !== 'function') {
+                throw new Error('getFormula is not a function. Check CalculationOrchestrator initialization.');
+            }
+            
+            console.log('[CalculationOrchestrator] 🔍 Calling getCalculator()...');
             const calculator = this.getCalculator();
+            console.log('[CalculationOrchestrator] 🔍 Calling getFormula()...');
             const formula = this.getFormula();
             
             // Detailed logging for calculator
@@ -119,6 +130,13 @@ export class CalculationOrchestrator {
             if (!calculator || !formula) {
                 const errorMsg = '⚠️ Please select a formula first';
                 console.error('[CalculationOrchestrator] ❌', errorMsg, { calculator: !!calculator, formula: !!formula });
+                console.error('[CalculationOrchestrator] ❌ getCalculator() returned:', calculator);
+                console.error('[CalculationOrchestrator] ❌ getFormula() returned:', formula);
+                console.error('[CalculationOrchestrator] This usually means:');
+                console.error('[CalculationOrchestrator]   1. No formula is selected (formulaSelector.currentFormula is null)');
+                console.error('[CalculationOrchestrator]   2. formulaSelector.getCurrentCalculator() is failing');
+                console.error('[CalculationOrchestrator]   3. FormulaCalculatorClass is not provided in options');
+                console.warn('[CalculationOrchestrator] ⚠️⚠️⚠️ EARLY EXIT → CALCULATOR OR FORMULA MISSING');
                 this.displayError(errorMsg);
                 return;
             }
