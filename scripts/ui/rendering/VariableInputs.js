@@ -44,6 +44,10 @@ class VariableInputsRenderer {
                 container.removeEventListener('input', this.delegatedInputHandler, true);
                 this.delegatedInputHandler = null;
             }
+            if (this.delegatedBlurHandler) {
+                container.removeEventListener('blur', this.delegatedBlurHandler, true);
+                this.delegatedBlurHandler = null;
+            }
             if (this.delegatedKeydownHandler) {
                 container.removeEventListener('keydown', this.delegatedKeydownHandler, true);
                 this.delegatedKeydownHandler = null;
@@ -276,17 +280,9 @@ class VariableInputsRenderer {
                     const elements = this.inputElementsBySymbol?.get(symbol);
                     if (!elements) return;
                     
-                    const currentValue = e.target.value.trim();
-                    const currentIndex = elements.findIndex(el => el.input === e.target);
-                    
-                    // Clear other unit inputs for the same variable
-                    if (currentValue && currentValue.toLowerCase() !== 'null') {
-                        elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
-                            if (otherIndex !== currentIndex && otherInput) {
-                                otherInput.value = '';
-                            }
-                        });
-                    }
+                    // CRITICAL FIX: Don't clear other inputs on input event
+                    // This prevents clearing partially typed numbers
+                    // We'll handle clearing in a blur handler instead
                     
                     // Debounced update of solve indicators and graph
                     clearTimeout(this.solveIndicatorTimeout);
@@ -304,6 +300,39 @@ class VariableInputsRenderer {
                 };
                 
                 container.addEventListener('input', this.delegatedInputHandler, true);
+                
+                // Add blur handler to clear other unit inputs when a valid value is entered
+                if (!this.delegatedBlurHandler) {
+                    this.delegatedBlurHandler = (e) => {
+                        if (!e.target.classList.contains('unit-input-field')) return;
+                        
+                        const symbol = e.target.getAttribute('data-symbol');
+                        if (!symbol) return;
+                        
+                        const elements = this.inputElementsBySymbol?.get(symbol);
+                        if (!elements) return;
+                        
+                        const currentValue = e.target.value.trim();
+                        const currentIndex = elements.findIndex(el => el.input === e.target);
+                        
+                        // Only clear other inputs if we have a valid number
+                        if (currentValue && currentValue.toLowerCase() !== 'null') {
+                            const numericValue = parseFloat(currentValue);
+                            const isValidNumber = !isNaN(numericValue) && isFinite(numericValue);
+                            
+                            if (isValidNumber) {
+                                // Clear other unit inputs for the same variable
+                                elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                                    if (otherIndex !== currentIndex && otherInput) {
+                                        otherInput.value = '';
+                                    }
+                                });
+                            }
+                        }
+                    };
+                    
+                    container.addEventListener('blur', this.delegatedBlurHandler, true);
+                }
             }
             
             return inputDiv;
@@ -338,8 +367,26 @@ class VariableInputsRenderer {
                 
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    const filledCount = allInputs.filter(inp => inp.value.trim()).length;
-                    if (filledCount >= userVariables.length - 1) {
+                    
+                    // CRITICAL FIX: Count VARIABLES, not INPUTS
+                    // A single variable may have multiple unit inputs (e.g., meters, km, miles)
+                    // We need to count how many unique variables have values, not total inputs
+                    const filledSymbols = new Set(
+                        allInputs
+                            .filter(inp => {
+                                const value = inp.value.trim();
+                                if (!value) return false;
+                                // Only count if it's a valid number
+                                const num = parseFloat(value);
+                                return !isNaN(num) && isFinite(num);
+                            })
+                            .map(inp => inp.getAttribute('data-symbol'))
+                            .filter(symbol => symbol) // Filter out null/undefined
+                    );
+                    
+                    // If we have N-1 variables filled (where N is total variables), calculate
+                    // Or if user explicitly wants to calculate (Enter key), always allow it
+                    if (filledSymbols.size >= userVariables.length - 1 || filledSymbols.size > 0) {
                         if (typeof performCalculation === 'function') {
                             performCalculation();
                         }

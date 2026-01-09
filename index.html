@@ -1057,6 +1057,9 @@
     
     <!-- NOTE: Test runner scripts are intentionally NOT loaded in production UI -->
     
+    <!-- Calculation Debugger (always available for debugging) -->
+    <script src="scripts/debug/CalculationDebugger.js?v=1.0.0"></script>
+    
     <!-- Debug scripts for Calculate button debugging (development mode) -->
     <script type="module">
         // Only load debug scripts if not in production
@@ -1080,6 +1083,30 @@
                 console.warn('[Debug] Failed to load CalculateButtonDebugPanel:', err);
             });
         }
+        
+        // Integrate CalculationDebugger when UI is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                if (window.calculationDebugger && window.uiOrchestrator) {
+                    // Debug button clicks
+                    const calcBtn = document.getElementById('calculate-btn');
+                    if (calcBtn && window.uiOrchestrator.onCalculate) {
+                        window.calculationDebugger.debugButtonClick('calculate-btn', (e) => {
+                            window.uiOrchestrator.onCalculate();
+                        });
+                    }
+                    
+                    // Debug calculation orchestration
+                    if (window.uiOrchestrator.calculationOrchestrator) {
+                        window.calculationDebugger.debugCalculationOrchestration(
+                            window.uiOrchestrator.calculationOrchestrator
+                        );
+                    }
+                    
+                    console.log('✅ CalculationDebugger integrated. Use window.debugCalculation() to see report.');
+                }
+            }, 1000);
+        });
     </script>
 </body>
 </html>

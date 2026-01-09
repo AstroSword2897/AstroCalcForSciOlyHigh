@@ -129,7 +129,13 @@ export class UIModuleOrchestrator {
             this.formulaSelector = new FormulaSelector({
                 createCalculator: (formula) => {
                     if (this.options.FormulaCalculatorClass) {
-                        return new this.options.FormulaCalculatorClass(formula);
+                        // CRITICAL: Pass mathEvaluator so expressions are actually evaluated!
+                        return new this.options.FormulaCalculatorClass(formula, {
+                            mathEvaluator: this.options.SafeMathEvaluator || window.SafeMathEvaluator,
+                            unitConverter: this.options.UnitConverter ? new this.options.UnitConverter() : undefined,
+                            precisionCalculator: window.precisionCalculator,
+                            errorPropagator: window.errorPropagator
+                        });
                     }
                     return null;
                 },
@@ -1277,7 +1283,7 @@ export class UIModuleOrchestrator {
                 resultDisplay.classList.add('show');
                 
                 // Handle symbolic results
-                if (result.isSymbolic || (typeof result.result === 'string' && !isFinite(Number(result.result)))) {
+                if (result.isSymbolic || (typeof result.result === 'string' && !Number.isFinite(Number(result.result)))) {
                     console.log('[UIModuleOrchestrator] Displaying symbolic result in fallback');
                     const symbolicValue = result.result || result.value || 'No symbolic expression available';
                     const unit = result.unit || '';

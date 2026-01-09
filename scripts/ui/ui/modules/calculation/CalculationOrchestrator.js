@@ -272,7 +272,17 @@ export class CalculationOrchestrator {
                 console.log('[CalculationOrchestrator] ✅ calculator.solve() returned:', result);
                 console.log('[CalculationOrchestrator] Result type:', typeof result);
                 console.log('[CalculationOrchestrator] Result.result:', result?.result);
+                console.log('[CalculationOrchestrator] Result.result type:', typeof result?.result);
                 console.log('[CalculationOrchestrator] Result.isSymbolic:', result?.isSymbolic);
+                console.log('[CalculationOrchestrator] Result.isFinite:', typeof result?.result === 'number' ? Number.isFinite(result.result) : 'N/A');
+                console.log('[CalculationOrchestrator] Result.isNaN:', typeof result?.result === 'number' ? isNaN(result.result) : 'N/A');
+                
+                // CRITICAL DIAGNOSTIC: Check if result is actually numeric
+                if (result && typeof result.result === 'string') {
+                    console.error('[CalculationOrchestrator] ❌❌❌ RESULT IS A STRING, NOT A NUMBER! ❌❌❌');
+                    console.error('[CalculationOrchestrator] This means the calculator is doing string substitution, not math!');
+                    console.error('[CalculationOrchestrator] Result.result:', result.result);
+                }
                 
                 // CRITICAL: Check if we have enough values for numeric calculation
                 // If we have all but one variable, we should get a numeric result, not symbolic
@@ -294,13 +304,38 @@ export class CalculationOrchestrator {
                                 console.log('[CalculationOrchestrator] ✅ Manual solve succeeded! Result:', numericResult);
                                 // Create a proper numeric result object
                                 const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                
+                                // Generate formula expression showing the calculation steps with actual computed values
+                                let formulaExpression = null;
+                                try {
+                                    // Try to generate a readable expression with substituted values
+                                    const sortedVars = Object.entries(filteredVars)
+                                        .filter(([_, v]) => typeof v === 'number' && Number.isFinite(v))
+                                        .sort((a, b) => b[0].length - a[0].length);
+                                    
+                                    let expr = formula.equation || '';
+                                    for (const [symbol, value] of sortedVars) {
+                                        const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                                        const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
+                                            ? value.toExponential(3)
+                                            : value.toString();
+                                        expr = expr.replace(regex, formatted);
+                                    }
+                                    // Show the formula with substituted values AND the computed result
+                                    formulaExpression = `${unknownVar} = ${expr} = ${numericResult}`;
+                                } catch (e) {
+                                    // If expression generation fails, use the equation
+                                    formulaExpression = `${unknownVar} = ${formula.equation || ''} = ${numericResult}`;
+                                }
+                                
                                 result = {
                                     solvedFor: unknownVar,
                                     result: numericResult,
                                     unit: varInfo?.unit || '',
                                     isSymbolic: false,
                                     variable: unknownVar,
-                                    formulaExpression: calculator.generateSymbolicExpression ? calculator.generateSymbolicExpression(unknownVar, filteredVars) : null
+                                    formulaExpression: formulaExpression
                                 };
                                 console.log('[CalculationOrchestrator] ✅ Created numeric result object:', result);
                             }
@@ -310,20 +345,92 @@ export class CalculationOrchestrator {
                     }
                 }
                 
+                // CRITICAL: If we have exactly one unknown, we MUST get a numeric result
+                // Don't accept symbolic results when numeric calculation is possible
+                if (result && result.isSymbolic === true && unknownCount === 1 && knownCount > 0) {
+                    console.warn('[CalculationOrchestrator] ⚠️ Got symbolic result with exactly 1 unknown - this should not happen!');
+                    console.warn('[CalculationOrchestrator] Forcing numeric calculation attempt...');
+                    
+                    // Try harder to get a numeric result
+                    const unknownVar = Object.keys(variableValues).find(k => variableValues[k] === null || variableValues[k] === undefined);
+                    if (unknownVar && calculator.solveForVariable) {
+                        try {
+                            const filteredVars = Object.fromEntries(
+                                Object.entries(variableValues).filter(([k, v]) => v !== null && v !== undefined && typeof v === 'number' && Number.isFinite(v))
+                            );
+                            console.log('[CalculationOrchestrator] 🔄 Force-attempting numeric solve for', unknownVar, 'with known vars:', filteredVars);
+                            
+                            // Try the algebraic solver directly (returns number or null, never throws)
+                            const numericResult = calculator.solveForVariable(unknownVar, filteredVars);
+                            
+                            if (numericResult !== null && typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
+                                console.log('[CalculationOrchestrator] ✅ Force numeric solve succeeded! Result:', numericResult);
+                                const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                result = {
+                                    solvedFor: unknownVar,
+                                    result: numericResult,
+                                    unit: varInfo?.unit || '',
+                                    isSymbolic: false,
+                                    variable: unknownVar,
+                                    formulaExpression: calculator.generateSymbolicExpression ? calculator.generateSymbolicExpression(unknownVar, filteredVars) : null
+                                };
+                                console.log('[CalculationOrchestrator] ✅ Created numeric result from force solve:', result);
+                            } else {
+                                // solveForVariable returned null - try algebraic solver directly
+                                console.log('[CalculationOrchestrator] solveForVariable returned null, trying _solveAlgebraically...');
+                                if (calculator._solveAlgebraically) {
+                                    const algebraicResult = calculator._solveAlgebraically(unknownVar, filteredVars);
+                                    if (algebraicResult !== null && typeof algebraicResult === 'number' && Number.isFinite(algebraicResult) && !isNaN(algebraicResult)) {
+                                        console.log('[CalculationOrchestrator] ✅ Algebraic solve succeeded! Result:', algebraicResult);
+                                        const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                        result = {
+                                            solvedFor: unknownVar,
+                                            result: algebraicResult,
+                                            unit: varInfo?.unit || '',
+                                            isSymbolic: false,
+                                            variable: unknownVar,
+                                            formulaExpression: calculator.generateSymbolicExpression ? calculator.generateSymbolicExpression(unknownVar, filteredVars) : null
+                                        };
+                                        console.log('[CalculationOrchestrator] ✅ Created numeric result from algebraic solve:', result);
+                                    } else {
+                                        console.log('[CalculationOrchestrator] All numeric solve attempts failed, falling back to symbolic');
+                                    }
+                                } else {
+                                    console.log('[CalculationOrchestrator] No algebraic solver available, falling back to symbolic');
+                                }
+                            }
+                        } catch (forceError) {
+                            console.error('[CalculationOrchestrator] ❌ Force numeric solve exception caught:', forceError);
+                            // If force solve fails, fall back to symbolic (don't show error - let symbolic display handle it)
+                            console.log('[CalculationOrchestrator] Force solve exception caught, falling back to symbolic');
+                        }
+                    } else {
+                        // Can't force solve - show error
+                        this.displayError('Unable to perform numeric calculation. Please check your input values.');
+                        return; // finally block will reset _calculationInProgress
+                    }
+                }
+                
                 // IMPORTANT: If result is numeric (not symbolic), display it immediately
                 // Only treat as symbolic if explicitly marked or if result is a string expression
                 if (result && result.isSymbolic === true) {
-                    console.log('[CalculationOrchestrator] Result is explicitly symbolic, displaying directly');
+                    console.log('[CalculationOrchestrator] Result is explicitly symbolic (multiple unknowns), displaying directly');
                     this.displayResult(result);
                     return; // finally block will reset _calculationInProgress
                 }
                 
-                // If result has a numeric value, it's a valid numeric result
-                if (result && (typeof result.result === 'number' || (typeof result.result === 'string' && !isNaN(parseFloat(result.result)) && isFinite(parseFloat(result.result))))) {
-                    console.log('[CalculationOrchestrator] ✅ Result is numeric, proceeding to display');
+                // CRITICAL: Strict numeric validation - if isSymbolic === false, result.result MUST be a number
+                if (result && result.isSymbolic === false) {
+                    if (typeof result.result !== 'number' || !Number.isFinite(result.result) || isNaN(result.result)) {
+                        console.error('[CalculationOrchestrator] ❌❌❌ NUMERIC SOLVER RETURNED NON-NUMBER! ❌❌❌');
+                        console.error('[CalculationOrchestrator] Result.result:', result.result, 'Type:', typeof result.result);
+                        console.error('[CalculationOrchestrator] This is a contract violation - numeric results must be numbers!');
+                        throw new Error(`Numeric solver returned non-number: ${result.result}. Type: ${typeof result.result}`);
+                    }
+                    console.log('[CalculationOrchestrator] ✅ Result is numeric (validated), proceeding to display');
                     // Continue to validation and display below
                 } else {
-                    console.log('[CalculationOrchestrator] Result appears symbolic, displaying directly');
+                    console.log('[CalculationOrchestrator] Result is symbolic, displaying directly');
                     this.displayResult(result);
                     return; // finally block will reset _calculationInProgress
                 }
@@ -331,17 +438,94 @@ export class CalculationOrchestrator {
                 console.error('[CalculationOrchestrator] ❌ Solve error:', solveError);
                 console.error('[CalculationOrchestrator] Error message:', solveError.message);
                 console.error('[CalculationOrchestrator] Error stack:', solveError.stack);
-                // Determine if this error is solvable with symbolic calculation
-                const shouldFallbackToSymbolic = this.shouldFallbackToSymbolic(solveError, variableValues);
                 
-                if (shouldFallbackToSymbolic) {
-                    console.log('[CalculationOrchestrator] Solve failed, falling back to symbolic calculation:', solveError.message);
-                    this.handleSymbolicResult(calculator, formula, variableValues);
-                    return; // finally block will reset _calculationInProgress
+                // CRITICAL: If we have exactly one unknown, we MUST try harder to get a numeric result
+                // Don't fall back to symbolic immediately
+                if (unknownCount === 1 && knownCount > 0) {
+                    console.warn('[CalculationOrchestrator] ⚠️ Solve failed with exactly 1 unknown - attempting force numeric solve...');
+                    const unknownVar = Object.keys(variableValues).find(k => variableValues[k] === null || variableValues[k] === undefined);
+                    if (unknownVar && calculator.solveForVariable) {
+                        try {
+                            const filteredVars = Object.fromEntries(
+                                Object.entries(variableValues).filter(([k, v]) => v !== null && v !== undefined && typeof v === 'number' && Number.isFinite(v))
+                            );
+                            console.log('[CalculationOrchestrator] 🔄 Force-attempting numeric solve for', unknownVar, 'with known vars:', filteredVars);
+                            
+                            // Try the algebraic solver directly
+                            const numericResult = calculator.solveForVariable(unknownVar, filteredVars);
+                            
+                            if (typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
+                                console.log('[CalculationOrchestrator] ✅ Force numeric solve succeeded! Result:', numericResult);
+                                const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                
+                                // Generate formula expression showing the calculation steps with actual computed values
+                                let formulaExpression = null;
+                                try {
+                                    const sortedVars = Object.entries(filteredVars)
+                                        .filter(([_, v]) => typeof v === 'number' && Number.isFinite(v))
+                                        .sort((a, b) => b[0].length - a[0].length);
+                                    
+                                    let expr = formula.equation || '';
+                                    for (const [symbol, value] of sortedVars) {
+                                        const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                                        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                                        const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
+                                            ? value.toExponential(3)
+                                            : value.toString();
+                                        expr = expr.replace(regex, formatted);
+                                    }
+                                    formulaExpression = `${unknownVar} = ${expr} = ${numericResult}`;
+                                } catch (e) {
+                                    formulaExpression = `${unknownVar} = ${formula.equation || ''} = ${numericResult}`;
+                                }
+                                
+                                result = {
+                                    solvedFor: unknownVar,
+                                    result: numericResult, // NUMBER
+                                    unit: varInfo?.unit || '',
+                                    isSymbolic: false, // NUMERIC
+                                    variable: unknownVar,
+                                    formulaExpression: formulaExpression
+                                };
+                                console.log('[CalculationOrchestrator] ✅ Created numeric result from force solve:', result);
+                                // Continue to validation and display below
+                            } else {
+                                throw new Error(`Force solve returned invalid result: ${numericResult}`);
+                            }
+                        } catch (forceError) {
+                            console.error('[CalculationOrchestrator] ❌ Force numeric solve failed:', forceError);
+                            // Only now fall back to symbolic if force solve also fails
+                            const shouldFallbackToSymbolic = this.shouldFallbackToSymbolic(solveError, variableValues);
+                            if (shouldFallbackToSymbolic) {
+                                console.log('[CalculationOrchestrator] All numeric attempts failed, falling back to symbolic:', forceError.message);
+                                this.handleSymbolicResult(calculator, formula, variableValues);
+                                return;
+                            }
+                            throw forceError;
+                        }
+                    } else {
+                        // Can't force solve - determine if we should fall back to symbolic
+                        const shouldFallbackToSymbolic = this.shouldFallbackToSymbolic(solveError, variableValues);
+                        if (shouldFallbackToSymbolic) {
+                            console.log('[CalculationOrchestrator] Cannot force solve, falling back to symbolic:', solveError.message);
+                            this.handleSymbolicResult(calculator, formula, variableValues);
+                            return;
+                        }
+                        throw solveError;
+                    }
+                } else {
+                    // Multiple unknowns or no known values - determine if this error is solvable with symbolic calculation
+                    const shouldFallbackToSymbolic = this.shouldFallbackToSymbolic(solveError, variableValues);
+                    
+                    if (shouldFallbackToSymbolic) {
+                        console.log('[CalculationOrchestrator] Solve failed, falling back to symbolic calculation:', solveError.message);
+                        this.handleSymbolicResult(calculator, formula, variableValues);
+                        return; // finally block will reset _calculationInProgress
+                    }
+                    // Re-throw if it's not a solvable case
+                    console.error('[CalculationOrchestrator] ❌ Non-recoverable solve error, re-throwing');
+                    throw solveError; // finally block will reset _calculationInProgress
                 }
-                // Re-throw if it's not a solvable case
-                console.error('[CalculationOrchestrator] ❌ Non-recoverable solve error, re-throwing');
-                throw solveError; // finally block will reset _calculationInProgress
             }
             
             // Validate result
@@ -657,26 +841,15 @@ export class CalculationOrchestrator {
      * @param {Object} variable - Variable definition
      * @returns {number|null} - Parsed value or null if empty/invalid
      */
+    /**
+     * Parse and convert input value to base unit
+     * Improved: Cleaner, stricter, single exit path
+     */
     parseInputValue(input, variable) {
-        const rawValue = input.value;
-        const value = rawValue.trim();
-        
-        console.log(`[CalculationOrchestrator] 🔍 parseInputValue for ${variable.symbol}:`, { 
-            rawValue, 
-            rawValueLength: rawValue.length,
-            value, 
-            valueLength: value.length,
-            isEmpty: !value,
-            isNAValue: this.isNAValue(value),
-            inputId: input.id,
-            inputValue: input.value,
-            inputValueType: typeof input.value
-        });
+        const value = input.value?.trim();
         
         // Return null if empty (empty means unknown)
         if (!value || this.isNAValue(value)) {
-            console.warn(`[CalculationOrchestrator] ⚠️ Value is empty/NA for ${variable.symbol}, returning null`);
-            console.warn(`[CalculationOrchestrator] Debug: rawValue="${rawValue}", trimmed="${value}", isEmpty=${!value}, isNAValue=${this.isNAValue(value)}`);
             return null;
         }
         
@@ -685,46 +858,23 @@ export class CalculationOrchestrator {
                          input.getAttribute('data-base-unit') || 
                          variable.unit;
         
-        console.log(`[CalculationOrchestrator] Parsing value "${value}" with unit "${inputUnit}" for ${variable.symbol}`);
+        // Parse numeric value
+        const numericValue = this.parseNumericValue(value, inputUnit);
         
-        // Parse and convert (using the input's unit or variable's base unit)
-        const parsedValue = this.parseNumericValue(value, inputUnit);
-        console.log(`[CalculationOrchestrator] Parsed value for ${variable.symbol}:`, parsedValue, `(type: ${typeof parsedValue})`);
-        
-        if (parsedValue === null || parsedValue === undefined) {
-            console.error(`[CalculationOrchestrator] Failed to parse value "${value}" for ${variable.symbol}`);
-            throw new Error(`Invalid value for ${variable.symbol}: "${value}"`);
-        }
-        
-        // Ensure parsedValue is a number
-        let numericValue;
-        if (typeof parsedValue === 'number') {
-            numericValue = parsedValue;
-        } else if (typeof parsedValue === 'string') {
-            numericValue = parseFloat(parsedValue);
-            if (isNaN(numericValue)) {
-                console.error(`[CalculationOrchestrator] Parsed value is not a valid number: ${parsedValue}`);
-                throw new Error(`Invalid numeric value for ${variable.symbol}: "${parsedValue}"`);
-            }
-        } else {
-            console.error(`[CalculationOrchestrator] Parsed value is not a number or string: ${parsedValue} (type: ${typeof parsedValue})`);
-            throw new Error(`Invalid value type for ${variable.symbol}: expected number, got ${typeof parsedValue}`);
+        // Validate: must be a finite number
+        if (!Number.isFinite(numericValue)) {
+            throw new Error(`Invalid numeric value for ${variable.symbol}: "${value}"`);
         }
         
         // Convert to base unit if needed
         if (this.unitConverter && inputUnit !== variable.unit) {
-            try {
-                const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, variable.unit);
-                console.log(`[CalculationOrchestrator] Converted ${numericValue} ${inputUnit} to ${baseValue} ${variable.unit} for ${variable.symbol}`);
-                console.log(`[CalculationOrchestrator] Base value type: ${typeof baseValue}, isFinite: ${Number.isFinite(baseValue)}`);
-                return baseValue;
-            } catch (error) {
-                console.error(`[CalculationOrchestrator] Unit conversion error for ${variable.symbol}:`, error);
-                throw new Error(`Unit conversion error for ${variable.symbol}: ${error.message}`);
+            const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, variable.unit);
+            if (!Number.isFinite(baseValue)) {
+                throw new Error(`Unit conversion failed for ${variable.symbol}`);
             }
+            return baseValue;
         }
         
-        console.log(`[CalculationOrchestrator] ✅ Final value for ${variable.symbol}:`, numericValue, `(type: ${typeof numericValue}, isFinite: ${Number.isFinite(numericValue)})`);
         return numericValue;
     }
     
@@ -734,35 +884,31 @@ export class CalculationOrchestrator {
     clearInputCache() {
         this._inputCache.clear();
     }
+    /**
+     * Validate variable values
+     * Improved: Cleaner, linear scan, no unnecessary vectorization
+     */
     validateVariableValues(values, formula) {
-        // Vectorized: Use array methods instead of for loop
-        const valuesArray = Object.values(values);
-        const nonNullCount = valuesArray.filter(v => v !== null).length;
-        if (nonNullCount === 0) {
-            return { valid: true }; // Symbolic result is valid
+        for (const [symbol, value] of Object.entries(values)) {
+            if (value !== null && !Number.isFinite(value)) {
+                return { valid: false, error: `Invalid value for ${symbol}` };
+            }
         }
-        
-        // Vectorized: Use find() to stop at first invalid value
-        const invalidEntry = Object.entries(values).find(([symbol, value]) => 
-            value !== null && (!Number.isFinite(value) || isNaN(value))
-        );
-        
-        if (invalidEntry) {
-            return { valid: false, error: `Invalid value for ${invalidEntry[0]}` };
-        }
-        
         return { valid: true };
     }
     validateResult(result) {
         if (!result)
             return false;
         if (result.isSymbolic) {
+            // Symbolic results must be strings
             return typeof result.result === 'string' && result.result.length > 0;
         }
-        if (typeof result.result === 'number') {
-            return Number.isFinite(result.result) && !isNaN(result.result);
+        // CRITICAL: Numeric results MUST be numbers - no string parsing allowed
+        if (typeof result.result !== 'number') {
+            console.error('[CalculationOrchestrator] ❌ Validation failed: Numeric result has non-number type:', typeof result.result, 'Value:', result.result);
+            return false;
         }
-        return false;
+        return Number.isFinite(result.result) && !isNaN(result.result);
     }
     getConstantSymbols(formula) {
         // Cache constant symbols per formula (O(1) lookup after first call)
@@ -853,147 +999,49 @@ export class CalculationOrchestrator {
      * Handle symbolic calculation result
      * Supports partial numeric evaluation when some values are known
      */
+    /**
+     * Handle symbolic calculation result
+     * Improved: Streamlined, enforces contracts, removes messy recovery logic
+     */
     handleSymbolicResult(calculator, formula, knownVars = {}) {
-        try {
-            console.log('[CalculationOrchestrator] Getting symbolic result with known vars:', knownVars);
-            
-            // Vectorized: Use Object.fromEntries + filter instead of for loop
-            const filteredKnownVars = Object.fromEntries(
-                Object.entries(knownVars).filter(([key, value]) => 
-                    value !== null && value !== undefined && typeof value === 'number'
-                )
-            );
-            
-            const knownCount = Object.keys(filteredKnownVars).length;
-            const totalCount = Object.keys(knownVars).length;
-            
-            console.log(`[CalculationOrchestrator] Partial evaluation: ${knownCount}/${totalCount} variables known`);
-            console.log('[CalculationOrchestrator] Filtered known vars for symbolic solve:', filteredKnownVars);
-            
-            const result = calculator.solveSymbolically(filteredKnownVars);
-            console.log('[CalculationOrchestrator] 🔍 Symbolic calculation completed');
-            console.log('[CalculationOrchestrator] Symbolic result:', result);
-            console.log('[CalculationOrchestrator] Symbolic result type:', typeof result);
-            console.log('[CalculationOrchestrator] Symbolic result.result:', result?.result);
-            console.log('[CalculationOrchestrator] Symbolic result.isSymbolic:', result?.isSymbolic);
-            console.log('[CalculationOrchestrator] Symbolic result.solvedFor:', result?.solvedFor);
-            
-            // Validate symbolic result structure
-            if (!result) {
-                throw new Error('solveSymbolically returned null/undefined');
-            }
-            
-            // Check if result.result exists and is valid
-            if (result.result === undefined || result.result === null) {
-                throw new Error('solveSymbolically returned result without result.result property');
-            }
-            
-            // Check if result is NaN (which is technically a number but invalid)
-            if (typeof result.result === 'number' && (isNaN(result.result) || !Number.isFinite(result.result))) {
-                console.warn('[CalculationOrchestrator] ⚠️ solveSymbolically returned NaN or non-finite result, falling back to symbolic expression');
-                // Try to generate a symbolic expression instead
-                const unknownVar = result.solvedFor || (Array.isArray(result.solvedFor) ? result.solvedFor[0] : null);
-                if (unknownVar && calculator.generateSymbolicExpression) {
-                    result.result = calculator.generateSymbolicExpression(unknownVar, filteredKnownVars);
-                    result.isSymbolic = true;
-                } else {
-                    throw new Error(`solveSymbolically returned invalid numeric result: ${result.result}`);
-                }
-            }
-            
-            // Ensure result is marked as symbolic
-            if (result) {
-                result.isSymbolic = true;
-            }
-            
-            // Enhance result with partial evaluation info if applicable
-            if (knownCount > 0 && knownCount < totalCount) {
-                result.partialEvaluation = true;
-                result.knownVariables = Object.keys(filteredKnownVars);
-                result.unknownVariables = Object.keys(knownVars).filter(k => !filteredKnownVars[k]);
-                
-                // Mark which constants were used (from formula and global constants)
-                const usedConstants = [];
-                if (formula.constants) {
-                    Object.keys(formula.constants).forEach(key => usedConstants.push(key));
-                }
-                if (this.globalConstants) {
-                    Object.keys(this.globalConstants).forEach(key => {
-                        if (!usedConstants.includes(key)) {
-                            usedConstants.push(key);
-                        }
-                    });
-                }
-                if (usedConstants.length > 0) {
-                    result.usedConstants = usedConstants;
-                }
-                
-                // Vectorized: Add helpful context about what was substituted
-                if (result.result && typeof result.result === 'string') {
-                    const knownVarsList = result.knownVariables
-                        .map(v => {
-                            const val = filteredKnownVars[v];
-                            const formatted = Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0) 
-                                ? val.toExponential(3) 
-                                : val.toString();
-                            return `${v} = ${formatted}`;
-                        })
-                        .join(', ');
-                    
-                    // Prepend context if not already in the result
-                    if (!result.result.includes('Known values:')) {
-                        result.result = `Known values: ${knownVarsList}\n${result.result}`;
-                    }
-                }
-            }
-            
-            console.log('[CalculationOrchestrator] ✅ About to display symbolic result:', result);
-            console.log('[CalculationOrchestrator] displayResult function:', typeof this.displayResult);
-            this.displayResult(result);
-            console.log('[CalculationOrchestrator] ✅ displayResult() called');
+        const filteredKnownVars = Object.fromEntries(
+            Object.entries(knownVars).filter(([_, val]) => Number.isFinite(val))
+        );
+        
+        const result = calculator.solveSymbolically(filteredKnownVars);
+        
+        // Enforce contract: symbolic results must have .result and .isSymbolic = true
+        if (!result || typeof result.result === 'undefined') {
+            throw new Error('Symbolic solver returned invalid result');
         }
-        catch (error) {
-            console.error('[CalculationOrchestrator] Error getting symbolic result:', error);
-            
-            // If we have some known values, show a helpful message about partial evaluation
-            const knownCount = Object.values(knownVars).filter(v => v !== null && typeof v === 'number').length;
-            if (knownCount > 0) {
-                this.displayError(`Unable to generate symbolic expression with ${knownCount} known value(s). Please check your inputs or provide more values.`);
-            } else {
-                this.displayError('Unable to generate symbolic expression. Please enter values to calculate numerically.');
-            }
+        
+        if (typeof result.result === 'number' && !Number.isFinite(result.result)) {
+            throw new Error('Symbolic solver returned non-finite numeric result');
         }
+        
+        result.isSymbolic = true;
+        this.displayResult(result);
     }
+    /**
+     * Update graph after calculation
+     * Improved: Checks symbolic result first, removes redundant type warnings
+     */
     updateGraphAfterCalculation(formula, variableValues, result) {
-        if (!this.updateGraphIfEnabled)
-            return;
+        if (!this.updateGraphIfEnabled || result.isSymbolic) return;
+        
         const graphManager = this.getGraphManager();
-        if (!graphManager || !formula)
-            return;
+        if (!graphManager) return;
         
-        // Guard against symbolic results - graphs need numeric values
-        if (result.isSymbolic || (typeof result.result === 'string' && !Number.isFinite(Number(result.result)))) {
-            console.log('[CalculationOrchestrator] Skipping graph update for symbolic result');
-            return;
-        }
-        
-        // Ensure result.result is numeric before plotting
-        if (result.variable && typeof result.result !== 'number') {
-            console.warn('[CalculationOrchestrator] Graph update skipped: result.result is not numeric', result);
-            return;
-        }
-        
-        // Extract graph context into named helper for clarity
         const graphVariableValues = this.buildGraphVariableContext(formula, variableValues, result);
-        const graphOptions = {
-            calculatedPoint: result.variable && typeof result.result === 'number' ? {
-                x: result.result,
-                label: `${result.variable} = ${result.result} ${result.unit || ''}`.trim()
-            } : undefined,
+        
+        this.updateGraphIfEnabled(formula, graphVariableValues, {
+            calculatedPoint: result.variable
+                ? { x: result.result, label: `${result.variable} = ${result.result} ${result.unit || ''}`.trim() }
+                : undefined,
             equation: formula.equation || formula.name,
             result: result
-        };
-        this.updateGraphIfEnabled(formula, graphVariableValues, graphOptions);
+        });
+        
         if (this.updateGraphInterpretation) {
             this.updateGraphInterpretation(formula, variableValues);
         }

@@ -7,7 +7,7 @@ export class FormattingUtils {
      * Format number with appropriate precision
      */
     formatNumber(value, precision = 6) {
-        if (!isFinite(value)) {
+        if (!Number.isFinite(value)) {
             return String(value);
         }
         if (value === 0)
@@ -26,7 +26,7 @@ export class FormattingUtils {
         if (typeof value === 'string') {
             return unit ? `${value} ${unit}` : value;
         }
-        if (!isFinite(value)) {
+        if (!Number.isFinite(value)) {
             return unit ? `${value} ${unit}` : String(value);
         }
         const formatted = this.formatNumber(value);
@@ -80,7 +80,7 @@ export class FormattingUtils {
      * Format scientific notation
      */
     formatScientific(value, precision = 3) {
-        if (!isFinite(value))
+        if (!Number.isFinite(value))
             return String(value);
         return value.toExponential(precision);
     }

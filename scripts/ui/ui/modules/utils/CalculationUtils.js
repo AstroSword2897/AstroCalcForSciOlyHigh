@@ -20,7 +20,7 @@ export class CalculationUtils {
             .replace(/[\u00A0]/g, ' '); // Non-breaking spaces
         // If already a number, validate and return
         if (typeof input === 'number') {
-            if (isNaN(input) || !isFinite(input))
+            if (isNaN(input) || !Number.isFinite(input))
                 return null;
             if (Math.abs(input) > Number.MAX_SAFE_INTEGER) {
                 console.warn('[CalculationUtils] Number exceeds MAX_SAFE_INTEGER:', input);
@@ -31,7 +31,7 @@ export class CalculationUtils {
         if (this.expressionParser?.parse) {
             try {
                 const parsed = this.expressionParser.parse(normalized, unit);
-                if (parsed !== null && typeof parsed === 'number' && isFinite(parsed)) {
+                if (parsed !== null && typeof parsed === 'number' && Number.isFinite(parsed)) {
                     return parsed;
                 }
             }
@@ -41,7 +41,7 @@ export class CalculationUtils {
         }
         // Fallback to parseFloat
         const parsed = parseFloat(normalized);
-        if (!isNaN(parsed) && isFinite(parsed)) {
+        if (!isNaN(parsed) && Number.isFinite(parsed)) {
             return parsed;
         }
         return null;
@@ -87,7 +87,7 @@ export class CalculationUtils {
         const symbols = Object.keys(allValues).sort((a, b) => b.length - a.length);
         symbols.forEach(symbol => {
             const value = allValues[symbol];
-            if (value !== null && value !== undefined && isFinite(value)) {
+            if (value !== null && value !== undefined && Number.isFinite(value)) {
                 const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const regex = new RegExp(`\\b${escaped}\\b`, 'g');
                 result = result.replace(regex, value.toString());
@@ -104,11 +104,11 @@ export class CalculationUtils {
      */
     isValidNumber(value) {
         if (typeof value === 'number') {
-            return !isNaN(value) && isFinite(value);
+            return !isNaN(value) && Number.isFinite(value);
         }
         if (typeof value === 'string') {
             const parsed = parseFloat(value);
-            return !isNaN(parsed) && isFinite(parsed);
+            return !isNaN(parsed) && Number.isFinite(parsed);
         }
         return false;
     }
@@ -116,7 +116,7 @@ export class CalculationUtils {
      * Format number with significant figures
      */
     formatWithSignificantFigures(value, sigFigs) {
-        if (!isFinite(value))
+        if (!Number.isFinite(value))
             return String(value);
         if (value === 0)
             return '0';

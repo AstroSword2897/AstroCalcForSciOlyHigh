@@ -173,56 +173,12 @@ export class EventCoordinator {
     }
     setupClearButton() {
         const clearHandler = (e) => {
-            console.log('[EventCoordinator] 🧹 Clear button clicked');
+            console.log('[EventCoordinator] 🧹 Clear button clicked - refreshing page');
             e.preventDefault();
             e.stopPropagation();
             
-            // Clear all input fields in the variables container
-            const container = document.getElementById('variables-container') || document.querySelector('.calculator-inputs');
-            if (container) {
-                const inputs = container.querySelectorAll('input[type="text"], input[type="number"]');
-                console.log(`[EventCoordinator] Clearing ${inputs.length} input fields`);
-                inputs.forEach(input => {
-                    input.value = '';
-                    // Trigger input event to notify any listeners
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                });
-            }
-            
-            // Clear result display - try multiple selectors to ensure we find it
-            const resultDisplay = document.getElementById('result-display') || 
-                                  document.querySelector('.result-display') ||
-                                  document.querySelector('#result-display');
-            if (resultDisplay) {
-                resultDisplay.innerHTML = '';
-                resultDisplay.classList.remove('show');
-                resultDisplay.classList.remove('result');
-                resultDisplay.classList.remove('calculation-result');
-                resultDisplay.removeAttribute('data-result');
-                console.log('[EventCoordinator] ✅ Result display cleared');
-            } else {
-                console.warn('[EventCoordinator] ⚠️ Result display element not found');
-            }
-            
-            // Also clear any result-related elements
-            const resultElements = document.querySelectorAll('.result-value, .result-formula, .result-unit, .result-error');
-            resultElements.forEach(el => {
-                el.innerHTML = '';
-                el.style.display = 'none';
-            });
-            
-            // Clear input cache if available
-            if (this.options.onClear && typeof this.options.onClear === 'function') {
-                this.options.onClear();
-            }
-            
-            // Also clear via window if available
-            if (typeof window.clearInputs === 'function') {
-                window.clearInputs();
-            }
-            
-            console.log('[EventCoordinator] ✅ Inputs cleared');
+            // Refresh the page
+            window.location.reload();
         };
         
         // Try to attach directly
