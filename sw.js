@@ -4,8 +4,8 @@
  * This version DELETES ALL OLD CACHES on install before creating new cache
  */
 
-const CACHE_NAME = 'astrocalc-shell-v3.0.0-FORCE-REFRESH';
-const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.0-FORCE-REFRESH';
+const CACHE_NAME = 'astrocalc-shell-v3.0.2-FORCE-REFRESH';
+const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.2-FORCE-REFRESH';
 const MAX_RUNTIME_ENTRIES = 100;
 
 const DEV_MODE = false;
