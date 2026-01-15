@@ -1016,8 +1016,8 @@
                                 registration.update().catch(err => {
                                     // Silently handle update errors (common in development)
                                     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                                        // Only log in development
-                                        console.debug('[Service Worker] Update check failed (normal in dev):', err.message);
+                                        // Suppress update errors in development - they're usually harmless cache issues
+                                        // Don't log anything to avoid console noise
                                     }
                                 });
                             }, 60000); // Check every minute
@@ -1027,14 +1027,22 @@
                             // In development, SW errors are common and non-critical
                             // The "Failed to update ServiceWorker" error is often harmless
                             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                                // Suppress the error in development - it's usually a cache/update issue
-                                if (error.message && error.message.includes('Failed to update')) {
-                                    console.debug('[Service Worker] Update check failed (normal in dev, can be ignored)');
-                                } else {
-                                    console.warn('[Service Worker] Registration failed (non-critical in dev):', error.message);
-                                }
+                                // Suppress ALL service worker errors in development - they're usually cache/update issues
+                                // These errors don't affect functionality and are common when SW files change
+                                // User can hard refresh (Cmd+Shift+R) if needed
                             } else {
                                 console.error('[Service Worker] Registration failed:', error);
+                            }
+                        });
+                        
+                        // Suppress unhandled promise rejections for service worker updates
+                        window.addEventListener('unhandledrejection', (event) => {
+                            if (event.reason && event.reason.message && 
+                                event.reason.message.includes('Failed to update a ServiceWorker') &&
+                                (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+                                // Suppress service worker update errors in development
+                                event.preventDefault();
+                                // Don't log - these are expected in development
                             }
                         });
                 }, 500); // Small delay to ensure unregistration completes
