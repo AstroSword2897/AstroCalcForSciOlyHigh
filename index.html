@@ -1072,57 +1072,8 @@
     
     <!-- NOTE: Test runner scripts are intentionally NOT loaded in production UI -->
     
-    <!-- Calculation Debugger (always available for debugging) -->
-    <script src="scripts/debug/CalculationDebugger.js?v=1.0.0"></script>
-    
-    <!-- Debug scripts for Calculate button debugging (development mode) -->
-    <script type="module">
-        // Only load debug scripts if not in production
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.search.includes('debug=true')) {
-            import('./scripts/debug/CalculateButtonDebugger.js').then(module => {
-                console.log('[Debug] CalculateButtonDebugger loaded');
-            }).catch(err => {
-                console.warn('[Debug] Failed to load CalculateButtonDebugger:', err);
-            });
-            
-            import('./scripts/debug/CalculateButtonDebugPanel.js').then(module => {
-                console.log('[Debug] CalculateButtonDebugPanel loaded');
-                // Expose panel creation function
-                window.showCalculateButtonDebugPanel = () => {
-                    const panel = new window.CalculateButtonDebugPanel();
-                    panel.show();
-                    return panel;
-                };
-                console.log('[Debug] Use window.showCalculateButtonDebugPanel() to show debug panel');
-            }).catch(err => {
-                console.warn('[Debug] Failed to load CalculateButtonDebugPanel:', err);
-            });
-        }
-        
-        // Integrate CalculationDebugger when UI is ready
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                if (window.calculationDebugger && window.uiOrchestrator) {
-                    // Debug button clicks
-                    const calcBtn = document.getElementById('calculate-btn');
-                    if (calcBtn && window.uiOrchestrator.onCalculate) {
-                        window.calculationDebugger.debugButtonClick('calculate-btn', (e) => {
-                            window.uiOrchestrator.onCalculate();
-                        });
-                    }
-                    
-                    // Debug calculation orchestration
-                    if (window.uiOrchestrator.calculationOrchestrator) {
-                        window.calculationDebugger.debugCalculationOrchestration(
-                            window.uiOrchestrator.calculationOrchestrator
-                        );
-                    }
-                    
-                    console.log('✅ CalculationDebugger integrated. Use window.debugCalculation() to see report.');
-                }
-            }, 1000);
-        });
-    </script>
+    <!-- Debug scripts removed - files don't exist and cause connection errors -->
+    <!-- If debug functionality is needed, create the debug scripts first -->
 </body>
 </html>
 
