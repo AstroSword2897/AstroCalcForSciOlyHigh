@@ -1082,6 +1082,23 @@
     
     <!-- Debug scripts removed - files don't exist and cause connection errors -->
     <!-- If debug functionality is needed, create the debug scripts first -->
+    
+    <!-- Cache busting: Force browser to reload this HTML file -->
+    <script>
+        // Prevent service worker from caching this HTML
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            // Clear any cached HTML by forcing a reload if this is an old cached version
+            const currentVersion = '3.0.2';
+            const cachedVersion = sessionStorage.getItem('htmlVersion');
+            if (cachedVersion && cachedVersion !== currentVersion) {
+                console.log('[Cache] Detected old cached HTML, forcing reload...');
+                sessionStorage.setItem('htmlVersion', currentVersion);
+                window.location.reload(true);
+            } else {
+                sessionStorage.setItem('htmlVersion', currentVersion);
+            }
+        }
+    </script>
 </body>
 </html>
 
