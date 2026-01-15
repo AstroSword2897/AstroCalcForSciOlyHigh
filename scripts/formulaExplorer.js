@@ -646,16 +646,17 @@ function renderExplorerCalculatorInputs() {
             <div class="explorer-calculator-inputs">
                 ${userVariables.map(variable => {
                     const currentValue = variableValues[variable.symbol] || '';
+                    const inputId = `explorer-${escapeHtml(variable.symbol)}`;
                     return `
                         <div class="explorer-input-group">
-                            <label class="explorer-input-label">
+                            <label class="explorer-input-label" for="${inputId}">
                                 ${escapeHtml(variable.symbol)} (${escapeHtml(variable.unit)})
                             </label>
                             <input
                                 type="text"
                                 inputmode="decimal"
-                                id="explorer-${escapeHtml(variable.symbol)}"
-                                name="explorer-${escapeHtml(variable.symbol)}"
+                                id="${inputId}"
+                                name="${inputId}"
                                 class="explorer-variable-input"
                                 data-variable-symbol="${escapeHtml(variable.symbol)}"
                                 placeholder="Enter ${escapeHtml(variable.name)}"

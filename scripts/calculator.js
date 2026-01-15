@@ -188,22 +188,98 @@ class FormulaCalculator {
             let formulaExpression = null;
             try {
                 if (unknownVars.length === 1) {
-                    // For single unknown, show: targetVar = expression (with values substituted)
+                    // For single unknown, show: targetVar = expression (with values substituted AND constants computed)
                     formulaExpression = this.generateSymbolicExpression(solvedFor, knownVars);
+                    
+                    // CRITICAL: Ensure constants are evaluated in the expression
+                    // Replace constants with their numeric values in the expression
+                    const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+                    let expr = formulaExpression;
+                    
+                    // Substitute constants with their computed values
+                    const sortedConstants = Object.entries(this.constants || {})
+                        .filter(([k, v]) => typeof v === 'number' && !(k in knownVars))
+                        .sort((a, b) => b[0].length - a[0].length);
+                    
+                    for (const [constName, constValue] of sortedConstants) {
+                        const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                        // Format constant value appropriately
+                        const formattedConst = this._formatNumber(constValue);
+                        expr = expr.replace(regex, formattedConst);
+                    }
+                    
+                    // Also substitute formula-specific constants
+                    if (this.formula.constants) {
+                        const sortedFormulaConstants = Object.entries(this.formula.constants)
+                            .filter(([k, v]) => typeof v === 'number' && !(k in knownVars) && !(k in (this.constants || {})))
+                            .sort((a, b) => b[0].length - a[0].length);
+                        
+                        for (const [constName, constValue] of sortedFormulaConstants) {
+                            const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                            const formattedConst = this._formatNumber(constValue);
+                            expr = expr.replace(regex, formattedConst);
+                        }
+                    }
+                    
+                    formulaExpression = expr;
                 } else if (unknownVars.length === 0) {
-                    // For evaluation, show the equation with values substituted
+                    // For evaluation, show the equation with values substituted AND constants computed
                     let expr = this.formula.equation;
                     const sortedKnown = Object.entries(knownVars)
                         .filter(([k, v]) => typeof v === 'number')
                         .sort((a, b) => b[0].length - a[0].length);
+                    
+                    // First substitute known variables
                     for (const [symbol, value] of sortedKnown) {
                         const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                         const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-                        const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
-                            ? value.toExponential(3)
-                            : value.toString();
+                        
+                        // Convert value to a more readable unit if unitConverter is available
+                        let displayValue = value;
+                        let displayUnit = '';
+                        if (this.unitConverter && typeof this.unitConverter.convertAndFormat === 'function') {
+                            const varDef = this.formula.variables.find(v => v.symbol === symbol);
+                            if (varDef && varDef.unit) {
+                                try {
+                                    const converted = this.unitConverter.convertAndFormat(value, varDef.unit);
+                                    if (converted && converted.value !== null && Number.isFinite(converted.value)) {
+                                        displayValue = converted.value;
+                                        displayUnit = converted.unit || varDef.unit;
+                                    }
+                                } catch (e) {
+                                    // If conversion fails, use original value
+                                }
+                            }
+                        }
+                        
+                        // Format the value
+                        let formatted;
+                        if (displayUnit && displayUnit !== (this.formula.variables.find(v => v.symbol === symbol)?.unit || '')) {
+                            // Show value with unit if converted
+                            formatted = `${this._formatNumber(displayValue)} ${displayUnit}`;
+                        } else {
+                            // Use scientific notation for very large/small numbers
+                            formatted = this._formatNumber(value);
+                        }
+                        
                         expr = expr.replace(regex, formatted);
                     }
+                    
+                    // Then substitute constants with their computed values
+                    const allConstants = { ...this.constants, ...(this.formula.constants || {}) };
+                    const sortedConstants = Object.entries(allConstants)
+                        .filter(([k, v]) => typeof v === 'number' && !(k in knownVars))
+                        .sort((a, b) => b[0].length - a[0].length);
+                    
+                    for (const [constName, constValue] of sortedConstants) {
+                        const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                        const formattedConst = this._formatNumber(constValue);
+                        expr = expr.replace(regex, formattedConst);
+                    }
+                    
                     formulaExpression = expr;
                 }
             } catch (e) {
@@ -349,10 +425,34 @@ class FormulaCalculator {
                 }
             }
             
+            // CRITICAL: Format known values with their base units for display
+            // This ensures "Known values" shows converted base unit values, not raw inputs
+            const formatKnownValue = (symbol, value) => {
+                const varDef = this.formula.variables.find(v => v.symbol === symbol);
+                if (!varDef || !varDef.unit) {
+                    return `${symbol} = ${this._formatNumber(value)}`;
+                }
+                // Value is already in base unit (from parseInputValue conversion)
+                // Format it with the base unit
+                const formatted = this._formatNumber(value);
+                return `${symbol} = ${formatted} ${varDef.unit}`;
+            };
+            
+            const knownValuesDisplay = Object.entries(knownVars)
+                .filter(([_, v]) => v !== null && v !== undefined && typeof v === 'number')
+                .map(([symbol, value]) => formatKnownValue(symbol, value))
+                .join(', ');
+            
+            // Prepend "Known values:" to expression if we have known values
+            let displayExpression = expression;
+            if (knownValuesDisplay && isSymbolic) {
+                displayExpression = `Known values: ${knownValuesDisplay}\n${expression}`;
+            }
+            
             // Create enhanced result with information about what can be solved
             const result = {
                 solvedFor: solvedFor,
-                result: isSymbolic ? expression : numericResult,
+                result: isSymbolic ? displayExpression : numericResult,
                 unit: unknownVars.length === 1 && !isSymbolic ? (this.formula.variables.find(v => v.symbol === unknownVars[0])?.unit || '') : '',
                 isSymbolic: isSymbolic,
                 variable: solvedFor,
@@ -363,6 +463,8 @@ class FormulaCalculator {
                 knownVariables: Object.keys(knownVars).filter(k => 
                     knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
                 ),
+                // Store formatted known values for display
+                knownValuesFormatted: knownValuesDisplay,
                 partialEvaluation: Object.keys(knownVars).filter(k => 
                     knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
                 ).length > 0
@@ -426,19 +528,48 @@ class FormulaCalculator {
         // If we can't solve numerically, fall back to symbolic expression
         console.log(`[FormulaCalculator] generateSymbolicExpression: Cannot solve ${unknownVar} numerically, using symbolic expression`);
         
-        // Fallback: Generate symbolic expression with substituted values
+        // Fallback: Generate symbolic expression with substituted values AND computed constants
         // Start with the equation
         let expression = this.formula.equation;
         
         // Format values for better readability in symbolic expressions
-        const formatValue = (val) => {
-            if (Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0)) {
-                return val.toExponential(3);
+        // Convert to appropriate units if unitConverter is available
+        const formatValue = (val, symbol) => {
+            // Try to convert to a more readable unit
+            if (this.unitConverter && typeof this.unitConverter.convertAndFormat === 'function') {
+                const varDef = this.formula.variables.find(v => v.symbol === symbol);
+                if (varDef && varDef.unit) {
+                    try {
+                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit);
+                        if (converted && converted.value !== null && Number.isFinite(converted.value)) {
+                            const formatted = this._formatNumber(converted.value);
+                            return `${formatted} ${converted.unit}`;
+                        }
+                    } catch (e) {
+                        // If conversion fails, use original value
+                    }
+                }
             }
-            return val.toString();
+            // Fallback: use scientific notation for very large/small numbers
+            return this._formatNumber(val);
         };
         
-        // Substitute known variables with their numeric values
+        // CRITICAL: First substitute constants with their computed numeric values
+        // This ensures constants like G, π, etc. are shown as numbers, not symbols
+        const allConstants = { ...this.constants, ...(this.formula.constants || {}) };
+        const sortedConstants = Object.entries(allConstants)
+            .filter(([k, v]) => typeof v === 'number' && !(k in knownVars))
+            .sort((a, b) => b[0].length - a[0].length);
+        
+        for (const [constName, constValue] of sortedConstants) {
+            const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            const formattedConst = this._formatNumber(constValue);
+            expression = expression.replace(regex, formattedConst);
+            console.log(`[FormulaCalculator] Substituted constant ${constName} = ${formattedConst} in expression`);
+        }
+        
+        // Then substitute known variables with their numeric values
         // Sort by symbol length (longest first) to avoid partial matches
         const sortedKnownVars = Object.entries(knownVars)
             .filter(([_, v]) => v !== null && v !== undefined && typeof v === 'number')
@@ -447,8 +578,9 @@ class FormulaCalculator {
         for (const [symbol, value] of sortedKnownVars) {
             const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
-            const formattedValue = formatValue(value);
+            const formattedValue = formatValue(value, symbol);
             expression = expression.replace(regex, formattedValue);
+            console.log(`[FormulaCalculator] Substituted variable ${symbol} = ${formattedValue} in expression`);
         }
         
         // Try to evaluate the expression if all variables are known
@@ -494,18 +626,46 @@ class FormulaCalculator {
             console.log(`[FormulaCalculator] Numeric solve failed in generateMultiVariableExpression, using symbolic`);
         }
         
-        // Fallback: Generate symbolic expression with substituted values
+        // Fallback: Generate symbolic expression with substituted values AND computed constants
         let expression = this.formula.equation;
         
-        // Format values for better readability
-        const formatValue = (val) => {
-            if (Math.abs(val) >= 1e6 || (Math.abs(val) < 1e-3 && val !== 0)) {
-                return val.toExponential(3);
+        // Format values for better readability with unit conversion
+        const formatValue = (val, symbol) => {
+            // Try to convert to a more readable unit if unitConverter is available
+            if (this.unitConverter && typeof this.unitConverter.convertAndFormat === 'function') {
+                const varDef = this.formula.variables.find(v => v.symbol === symbol);
+                if (varDef && varDef.unit) {
+                    try {
+                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit);
+                        if (converted && converted.value !== null && Number.isFinite(converted.value)) {
+                            const formatted = this._formatNumber(converted.value);
+                            return `${formatted} ${converted.unit}`;
+                        }
+                    } catch (e) {
+                        // If conversion fails, use original value
+                    }
+                }
             }
-            return val.toString();
+            // Fallback: use scientific notation for very large/small numbers
+            return this._formatNumber(val);
         };
         
-        // Substitute known variables with their numeric values
+        // CRITICAL: First substitute constants with their computed numeric values
+        // This ensures constants like G, π, etc. are shown as numbers, not symbols
+        const allConstants = { ...this.constants, ...(this.formula.constants || {}) };
+        const sortedConstants = Object.entries(allConstants)
+            .filter(([k, v]) => typeof v === 'number' && !(k in knownVars))
+            .sort((a, b) => b[0].length - a[0].length);
+        
+        for (const [constName, constValue] of sortedConstants) {
+            const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            const formattedConst = this._formatNumber(constValue);
+            expression = expression.replace(regex, formattedConst);
+            console.log(`[FormulaCalculator] generateMultiVariableExpression: Substituted constant ${constName} = ${formattedConst}`);
+        }
+        
+        // Then substitute known variables with their numeric values
         // Sort by symbol length (longest first) to avoid partial matches
         const sortedKnownVars = Object.entries(knownVars)
             .filter(([_, v]) => v !== null && v !== undefined && typeof v === 'number')
@@ -514,8 +674,9 @@ class FormulaCalculator {
         for (const [symbol, value] of sortedKnownVars) {
             const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
-            const formattedValue = formatValue(value);
+            const formattedValue = formatValue(value, symbol);
             expression = expression.replace(regex, formattedValue);
+            console.log(`[FormulaCalculator] generateMultiVariableExpression: Substituted variable ${symbol} = ${formattedValue}`);
         }
         
         // Try to evaluate the expression if all variables are known
@@ -558,8 +719,12 @@ class FormulaCalculator {
         }
         
         // CRITICAL: Preprocess expression to handle implicit multiplication
-        // Convert patterns like "2GM" to "2*G*M" before evaluation
-        let processedExpression = this._expandImplicitMultiplication(String(expression), variables);
+        // First normalize Unicode operators, then expand implicit multiplication
+        let processedExpression = String(expression)
+            .replace(/×/g, '*')
+            .replace(/÷/g, '/')
+            .replace(/√\s*\(/g, 'Math.sqrt(');
+        processedExpression = this._expandImplicitMultiplication(processedExpression, variables);
         console.log(`[FormulaCalculator] Original expression: ${expression}`);
         console.log(`[FormulaCalculator] Processed expression: ${processedExpression}`);
         
@@ -625,6 +790,12 @@ class FormulaCalculator {
      * CRITICAL: This enables evaluation of expressions like "2GM/r"
      */
     _expandImplicitMultiplication(expression, variables) {
+        // CRITICAL: Normalize Unicode operators first (before any processing)
+        // Replace × with *, ÷ with /, etc.
+        let result = String(expression)
+            .replace(/×/g, '*')
+            .replace(/÷/g, '/');
+        
         // Get all known variable and constant names
         const allNames = new Set([
             ...Object.keys(this.constants || {}),
@@ -634,8 +805,6 @@ class FormulaCalculator {
         
         // Sort by length (longest first) to avoid partial matches
         const sortedNames = Array.from(allNames).sort((a, b) => b.length - a.length);
-        
-        let result = String(expression);
         
         // Pattern 1: Handle number followed by variable(s) - e.g., "2GM" -> "2*G*M"
         // Match: digit(s), then variable name, then optionally another variable
@@ -651,11 +820,34 @@ class FormulaCalculator {
         
         // Pattern 2: Handle variable followed by variable - e.g., "GM" -> "G*M"
         // But only if both are known variables/constants
+        // CRITICAL: Handle sequences of single-character variables first
+        // This handles cases like "GM" where G and M are both single-char variables
+        const singleCharVars = sortedNames.filter(n => n.length === 1);
+        if (singleCharVars.length > 0) {
+            // Build a pattern to match sequences of single-char variables
+            const singleCharPattern = singleCharVars.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+            // Match sequences of 2+ single-char variables that are known
+            const sequencePattern = new RegExp(`([${singleCharPattern}]{2,})`, 'g');
+            result = result.replace(sequencePattern, (match) => {
+                // Check if all characters in the match are known variables
+                const allKnown = match.split('').every(char => singleCharVars.includes(char));
+                if (allKnown && match.length > 1) {
+                    // Insert * between each character
+                    return match.split('').join('*');
+                }
+                return match;
+            });
+        }
+        
+        // Pattern 2b: Handle multi-char variable followed by variable (for remaining cases)
         // Process in pairs, longest first to avoid conflicts
         for (let i = 0; i < sortedNames.length; i++) {
             for (let j = i + 1; j < sortedNames.length; j++) {
                 const name1 = sortedNames[i];
                 const name2 = sortedNames[j];
+                // Skip if both are single-char (already handled above)
+                if (name1.length === 1 && name2.length === 1) continue;
+                
                 const escaped1 = name1.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const escaped2 = name2.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 
@@ -677,6 +869,14 @@ class FormulaCalculator {
         
         // Pattern 5: Handle variable followed by opening paren - e.g., "G(" -> "G*("
         result = result.replace(/([A-Za-z_][A-Za-z0-9_]*)(\()/g, '$1*$2');
+        
+        // Pattern 6: Normalize Unicode characters to ASCII equivalents for evaluation
+        // Replace π with pi (if pi is in constants/variables)
+        if (allNames.has('pi') || allNames.has('π')) {
+            result = result.replace(/π/g, 'pi');
+        }
+        // Replace √( with Math.sqrt( for evaluation
+        result = result.replace(/√\s*\(/g, 'Math.sqrt(');
         
         console.log(`[FormulaCalculator] _expandImplicitMultiplication: "${expression}" -> "${result}"`);
         return result;
@@ -766,8 +966,10 @@ class FormulaCalculator {
         const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
         console.log(`[FormulaCalculator] All known values (including constants):`, allKnown);
         
-        // Get the equation
-        let equation = this.formula.equation;
+        // Get the equation and normalize Unicode operators
+        let equation = this.formula.equation
+            .replace(/×/g, '*')
+            .replace(/÷/g, '/');
         console.log(`[FormulaCalculator] Equation: ${equation}`);
         
         // Declare match variable
@@ -1234,6 +1436,23 @@ class FormulaCalculator {
         // Final fallback: return null to signal failure (let caller handle symbolic fallback)
         console.log(`[FormulaCalculator] _solveAlgebraically: Cannot algebraically isolate ${targetVar} from equation: ${equation}`);
         return null;
+    }
+    
+    /**
+     * Format a number for display (helper method)
+     * @param {number} value - The number to format
+     * @returns {string} Formatted number string
+     */
+    _formatNumber(value) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return String(value);
+        }
+        // Use scientific notation for very large or very small numbers
+        if (Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)) {
+            return value.toExponential(3);
+        }
+        // For regular numbers, show up to 6 decimal places, remove trailing zeros
+        return value.toFixed(6).replace(/\.?0+$/, '');
     }
     
     /**

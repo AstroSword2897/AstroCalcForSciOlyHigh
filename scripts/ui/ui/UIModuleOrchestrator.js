@@ -187,6 +187,49 @@ export class UIModuleOrchestrator {
                 }
             });
             // Initialize EventCoordinator
+            // Create bound methods for callbacks to ensure correct 'this' context
+            const boundOnClassify = () => {
+                console.log('[UIModuleOrchestrator] onClassify callback invoked');
+                if (this.performClassification && typeof this.performClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] Calling performClassification() directly...');
+                    try {
+                        this.performClassification();
+                    } catch (error) {
+                        console.error('[UIModuleOrchestrator] Error in performClassification:', error);
+                        if (typeof window.performClassification === 'function') {
+                            console.log('[UIModuleOrchestrator] Falling back to window.performClassification');
+                            window.performClassification();
+                        }
+                    }
+                } else if (typeof window.performClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] Using window.performClassification fallback');
+                    window.performClassification();
+                } else {
+                    console.error('[UIModuleOrchestrator] ❌ performClassification not available');
+                }
+            };
+            
+            const boundOnMainClassify = () => {
+                console.log('[UIModuleOrchestrator] onMainClassify callback invoked');
+                if (this.performMainClassification && typeof this.performMainClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] Calling performMainClassification() directly...');
+                    try {
+                        this.performMainClassification();
+                    } catch (error) {
+                        console.error('[UIModuleOrchestrator] Error in performMainClassification:', error);
+                        if (typeof window.performMainClassification === 'function') {
+                            console.log('[UIModuleOrchestrator] Falling back to window.performMainClassification');
+                            window.performMainClassification();
+                        }
+                    }
+                } else if (typeof window.performMainClassification === 'function') {
+                    console.log('[UIModuleOrchestrator] Using window.performMainClassification fallback');
+                    window.performMainClassification();
+                } else {
+                    console.error('[UIModuleOrchestrator] ❌ performMainClassification not available');
+                }
+            };
+            
             // Bind onCalculate to ensure 'this' context is correct
             this.onCalculate = () => {
                 console.log('[UIModuleOrchestrator] ⚡⚡⚡ onCalculate callback invoked ⚡⚡⚡');
@@ -229,50 +272,8 @@ export class UIModuleOrchestrator {
                         this.formulaSelector.selectFormula(formula);
                     }
                 },
-                onClassify: () => {
-                    console.log('[UIModuleOrchestrator] onClassify callback invoked');
-                    // Direct call to method - more reliable than window function
-                    if (this.performClassification && typeof this.performClassification === 'function') {
-                        console.log('[UIModuleOrchestrator] Calling performClassification() directly...');
-                        try {
-                            this.performClassification();
-                        } catch (error) {
-                            console.error('[UIModuleOrchestrator] Error in performClassification:', error);
-                            // Fallback to window function if direct call fails
-                            if (typeof window.performClassification === 'function') {
-                                console.log('[UIModuleOrchestrator] Falling back to window.performClassification');
-                                window.performClassification();
-                            }
-                        }
-                    } else if (typeof window.performClassification === 'function') {
-                        console.log('[UIModuleOrchestrator] Using window.performClassification fallback');
-                        window.performClassification();
-                    } else {
-                        console.error('[UIModuleOrchestrator] ❌ performClassification not available');
-                    }
-                },
-                onMainClassify: () => {
-                    console.log('[UIModuleOrchestrator] onMainClassify callback invoked');
-                    // Direct call to method - more reliable than window function
-                    if (this.performMainClassification && typeof this.performMainClassification === 'function') {
-                        console.log('[UIModuleOrchestrator] Calling performMainClassification() directly...');
-                        try {
-                            this.performMainClassification();
-                        } catch (error) {
-                            console.error('[UIModuleOrchestrator] Error in performMainClassification:', error);
-                            // Fallback to window function if direct call fails
-                            if (typeof window.performMainClassification === 'function') {
-                                console.log('[UIModuleOrchestrator] Falling back to window.performMainClassification');
-                                window.performMainClassification();
-                            }
-                        }
-                    } else if (typeof window.performMainClassification === 'function') {
-                        console.log('[UIModuleOrchestrator] Using window.performMainClassification fallback');
-                        window.performMainClassification();
-                    } else {
-                        console.error('[UIModuleOrchestrator] ❌ performMainClassification not available');
-                    }
-                },
+                onClassify: boundOnClassify,
+                onMainClassify: boundOnMainClassify,
                 setupGraphControls: () => {
                     if (typeof window.setupGraphControls === 'function') {
                         window.setupGraphControls();
@@ -449,19 +450,51 @@ export class UIModuleOrchestrator {
      */
     performClassification() {
         try {
-            const tempInput = document.getElementById('calc-classification-temperature-input');
-            const lumSelect = document.getElementById('calc-classification-luminosity-class');
-            const protostarCheckbox = document.getElementById('protostar-checkbox');
-            const resultDiv = document.getElementById('classification-result');
+            console.log('[UIModuleOrchestrator] performClassification() called');
+            
+            // Try calculator tab inputs first
+            let tempInput = document.getElementById('calc-classification-temperature-input');
+            let lumSelect = document.getElementById('calc-classification-luminosity-class');
+            let protostarCheckbox = document.getElementById('protostar-checkbox');
+            let resultDiv = document.getElementById('classification-result');
+            
+            // If calculator tab inputs not found, try main classification tab
+            if (!tempInput || !resultDiv) {
+                console.log('[UIModuleOrchestrator] Calculator tab inputs not found, trying main classification tab...');
+                tempInput = document.getElementById('main-temperature-input');
+                lumSelect = document.getElementById('main-luminosity-class');
+                protostarCheckbox = document.getElementById('main-protostar-checkbox');
+                resultDiv = document.getElementById('main-classification-result');
+            }
             
             if (!tempInput || !resultDiv) {
-                console.error('[UIModuleOrchestrator] Classification inputs not found');
+                console.error('[UIModuleOrchestrator] Classification inputs not found in either tab');
+                console.error('[UIModuleOrchestrator] tempInput:', tempInput);
+                console.error('[UIModuleOrchestrator] resultDiv:', resultDiv);
+                // Try to show error in any available result div
+                const anyResultDiv = document.getElementById('classification-result') || document.getElementById('main-classification-result');
+                if (anyResultDiv) {
+                    anyResultDiv.innerHTML = '<div class="error">Classification inputs not found. Please check the form.</div>';
+                    anyResultDiv.classList.add('show');
+                }
                 return;
             }
             
+            console.log('[UIModuleOrchestrator] Found inputs:', {
+                tempInput: !!tempInput,
+                lumSelect: !!lumSelect,
+                protostarCheckbox: !!protostarCheckbox,
+                resultDiv: !!resultDiv
+            });
+            
             const temperature = parseFloat(tempInput.value);
-            if (!temperature || temperature <= 0) {
-                resultDiv.innerHTML = '<div class="error">Please enter a valid temperature (K)</div>';
+            console.log('[UIModuleOrchestrator] Temperature value:', tempInput.value, 'parsed:', temperature);
+            
+            if (!temperature || temperature <= 0 || isNaN(temperature)) {
+                const errorMsg = '<div class="error">Please enter a valid temperature (K)</div>';
+                resultDiv.innerHTML = errorMsg;
+                resultDiv.classList.add('show');
+                console.error('[UIModuleOrchestrator] Invalid temperature:', tempInput.value);
                 return;
             }
             
@@ -480,25 +513,46 @@ export class UIModuleOrchestrator {
             }
             const isProtostar = protostarCheckbox?.checked || false;
             
+            console.log('[UIModuleOrchestrator] Classification parameters:', {
+                temperature,
+                luminosityClass,
+                isProtostar,
+                isWhiteDwarf,
+                whiteDwarfType
+            });
+            
             // Get classifier from TabManager
             const classifier = this.tabManager?.stellarClassifier;
+            console.log('[UIModuleOrchestrator] Classifier available:', {
+                fromTabManager: !!classifier,
+                fromWindow: typeof window.StellarClassifier !== 'undefined'
+            });
+            
             if (!classifier && window.StellarClassifier) {
                 // Fallback: create new instance
+                console.log('[UIModuleOrchestrator] Creating new StellarClassifier instance');
                 const StellarClassifier = window.StellarClassifier;
                 const tempClassifier = new StellarClassifier();
                 const classification = tempClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                console.log('[UIModuleOrchestrator] Classification result:', classification);
                 this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
             } else if (classifier) {
+                console.log('[UIModuleOrchestrator] Using TabManager classifier');
                 const classification = classifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                console.log('[UIModuleOrchestrator] Classification result:', classification);
                 this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
             } else {
+                console.error('[UIModuleOrchestrator] Classification system not available');
                 resultDiv.innerHTML = '<div class="error">Classification system not available</div>';
+                resultDiv.classList.add('show');
             }
         } catch (error) {
             console.error('[UIModuleOrchestrator] Classification error:', error);
-            const resultDiv = document.getElementById('classification-result');
+            console.error('[UIModuleOrchestrator] Error stack:', error.stack);
+            const resultDiv = document.getElementById('classification-result') || document.getElementById('main-classification-result');
             if (resultDiv) {
                 resultDiv.innerHTML = `<div class="error">Classification error: ${error.message}</div>`;
+                resultDiv.classList.add('show');
             }
         }
     }
@@ -506,20 +560,35 @@ export class UIModuleOrchestrator {
      * Perform classification for the main classification tab
      */
     performMainClassification() {
+        console.log('[UIModuleOrchestrator] performMainClassification() called');
         try {
             const tempInput = document.getElementById('main-temperature-input');
             const lumSelect = document.getElementById('main-luminosity-class');
             const protostarCheckbox = document.getElementById('main-protostar-checkbox');
             const resultDiv = document.getElementById('main-classification-result');
             
+            console.log('[UIModuleOrchestrator] Main classification inputs:', {
+                tempInput: !!tempInput,
+                lumSelect: !!lumSelect,
+                protostarCheckbox: !!protostarCheckbox,
+                resultDiv: !!resultDiv
+            });
+            
             if (!tempInput || !resultDiv) {
                 console.error('[UIModuleOrchestrator] Main classification inputs not found');
+                console.error('[UIModuleOrchestrator] tempInput:', tempInput);
+                console.error('[UIModuleOrchestrator] resultDiv:', resultDiv);
                 return;
             }
             
             const temperature = parseFloat(tempInput.value);
-            if (!temperature || temperature <= 0) {
-                resultDiv.innerHTML = '<div class="error">Please enter a valid temperature (K)</div>';
+            console.log('[UIModuleOrchestrator] Temperature value:', tempInput.value, 'parsed:', temperature);
+            
+            if (!temperature || temperature <= 0 || isNaN(temperature)) {
+                const errorMsg = '<div class="error">Please enter a valid temperature (K)</div>';
+                resultDiv.innerHTML = errorMsg;
+                resultDiv.classList.add('show');
+                console.error('[UIModuleOrchestrator] Invalid temperature:', tempInput.value);
                 return;
             }
             
@@ -538,19 +607,38 @@ export class UIModuleOrchestrator {
             }
             const isProtostar = protostarCheckbox?.checked || false;
             
+            console.log('[UIModuleOrchestrator] Main classification parameters:', {
+                temperature,
+                luminosityClass,
+                isProtostar,
+                isWhiteDwarf,
+                whiteDwarfType
+            });
+            
             // Get classifier from TabManager
             const classifier = this.tabManager?.stellarClassifier;
+            console.log('[UIModuleOrchestrator] Main classifier available:', {
+                fromTabManager: !!classifier,
+                fromWindow: typeof window.StellarClassifier !== 'undefined'
+            });
+            
             if (!classifier && window.StellarClassifier) {
                 // Fallback: create new instance
+                console.log('[UIModuleOrchestrator] Creating new StellarClassifier instance for main tab');
                 const StellarClassifier = window.StellarClassifier;
                 const tempClassifier = new StellarClassifier();
                 const classification = tempClassifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                console.log('[UIModuleOrchestrator] Main classification result:', classification);
                 this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
             } else if (classifier) {
+                console.log('[UIModuleOrchestrator] Using TabManager classifier for main tab');
                 const classification = classifier.classify(temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
+                console.log('[UIModuleOrchestrator] Main classification result:', classification);
                 this.displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType);
             } else {
+                console.error('[UIModuleOrchestrator] Classification system not available for main tab');
                 resultDiv.innerHTML = '<div class="error">Classification system not available</div>';
+                resultDiv.classList.add('show');
             }
         } catch (error) {
             console.error('[UIModuleOrchestrator] Main classification error:', error);
@@ -564,18 +652,33 @@ export class UIModuleOrchestrator {
      * Display classification result
      */
     displayClassificationResult(resultDiv, classification, temperature, luminosityClass, isProtostar, isWhiteDwarf, whiteDwarfType) {
+        console.log('[UIModuleOrchestrator] displayClassificationResult called', {
+            resultDiv: !!resultDiv,
+            classification,
+            temperature
+        });
+        
+        if (!resultDiv) {
+            console.error('[UIModuleOrchestrator] Result div not provided');
+            return;
+        }
+        
         resultDiv.innerHTML = `
             <div class="classification-result-content">
                 <h4>Classification Result</h4>
-                <div class="result-badge">${classification}</div>
+                <div class="result-badge">${this.formattingUtils.escapeHtml(classification)}</div>
                 <div class="result-details">
                     <p><strong>Temperature:</strong> ${temperature.toLocaleString()} K</p>
-                    ${luminosityClass ? `<p><strong>Luminosity Class:</strong> ${luminosityClass}</p>` : ''}
+                    ${luminosityClass ? `<p><strong>Luminosity Class:</strong> ${this.formattingUtils.escapeHtml(luminosityClass)}</p>` : ''}
                     ${isProtostar ? '<p><strong>Type:</strong> Protostar (YSO)</p>' : ''}
-                    ${isWhiteDwarf ? `<p><strong>White Dwarf Type:</strong> ${whiteDwarfType}</p>` : ''}
+                    ${isWhiteDwarf && whiteDwarfType ? `<p><strong>White Dwarf Type:</strong> ${this.formattingUtils.escapeHtml(whiteDwarfType)}</p>` : ''}
                 </div>
             </div>
         `;
+        
+        // Make sure the result div is visible
+        resultDiv.classList.add('show');
+        console.log('[UIModuleOrchestrator] ✅ Classification result displayed');
     }
     /**
      * Initialize the UI system
@@ -1206,20 +1309,22 @@ export class UIModuleOrchestrator {
             const inputDiv = document.createElement('div');
             inputDiv.className = 'variable-input-group';
 
-            // Variable label with symbol and name
+            // Input field (create first to get ID for label)
+            const inputId = `var-${variable.symbol}`;
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = inputId;
+            input.className = 'variable-input';
+            
+            // Variable label with symbol and name (with correct for attribute)
             const label = document.createElement('label');
             label.className = 'variable-main-label';
+            label.setAttribute('for', inputId);
             label.innerHTML = `
                 <span class="symbol">${this.escapeHtml(variable.symbol)}</span>
                 <span class="variable-name">${this.escapeHtml(variable.name || variable.symbol)}</span>
                 <span class="solve-hint" data-symbol="${this.escapeHtml(variable.symbol)}">Leave empty to calculate this</span>
             `;
-
-            // Input field
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.id = `var-${variable.symbol}`;
-            input.className = 'variable-input';
             input.placeholder = `Enter ${variable.name || variable.symbol} (${variable.unit || ''})`;
             input.setAttribute('data-symbol', variable.symbol);
             input.step = 'any';
@@ -1306,9 +1411,15 @@ export class UIModuleOrchestrator {
                         ` : ''}
                         ${result.knownVariables && result.knownVariables.length > 0 && result.partialEvaluation ? `
                             <div style="margin-top: 15px; padding: 12px; background: rgba(0,255,0,0.1); border-radius: 8px;">
-                                <div style="font-weight: 600; margin-bottom: 8px;">Known Values:</div>
-                                <div>${result.knownVariables.map(v => {
+                                <div style="font-weight: 600; margin-bottom: 8px;">Known Values (in base units):</div>
+                                <div>${result.knownValuesFormatted || result.knownVariables.map(v => {
+                                    // Fallback: format with base unit if knownValuesFormatted not available
                                     const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v2 => v2.symbol === v);
+                                    if (varInfo && varInfo.unit) {
+                                        // Try to get the actual value from the result if available
+                                        // This is a fallback - ideally knownValuesFormatted should be set
+                                        return `${v} = ? ${varInfo.unit}`;
+                                    }
                                     return varInfo ? `${v} (${varInfo.name || v})` : v;
                                 }).join(', ')}</div>
                             </div>
@@ -1321,10 +1432,51 @@ export class UIModuleOrchestrator {
                     const solvedFor = result.solvedFor || result.variable;
                     const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v => v.symbol === solvedFor);
                     const varName = varInfo ? (varInfo.name || solvedFor) : solvedFor;
-                    const formatted = this.formattingUtils.formatResult(resultValue, result.unit || '');
+                    const baseUnit = result.unit || (varInfo?.unit || '');
+                    const formatted = this.formattingUtils.formatResult(resultValue, baseUnit);
                     const formulaExpr = result.formulaExpression || result.formula || '';
                     console.log('[UIModuleOrchestrator] Formatted result:', formatted);
                     console.log('[UIModuleOrchestrator] Formula expression:', formulaExpr);
+                    
+                    // Generate unit conversions for all alternative units
+                    let unitConversionsHTML = '';
+                    if (this.options.UnitConverter && baseUnit && solvedFor !== 'result') {
+                        try {
+                            const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(baseUnit);
+                            const conversions = [];
+                            
+                            for (const altUnit of alternativeUnits) {
+                                if (altUnit === baseUnit) continue; // Skip base unit (already shown)
+                                try {
+                                    const convertedValue = this.options.UnitConverter.convert(resultValue, baseUnit, altUnit);
+                                    if (convertedValue !== null && Number.isFinite(convertedValue)) {
+                                        const formattedValue = this.formattingUtils.formatResult(convertedValue, altUnit);
+                                        conversions.push({ unit: altUnit, value: convertedValue, formatted: formattedValue });
+                                    }
+                                } catch (e) {
+                                    console.warn(`[UIModuleOrchestrator] Failed to convert to ${altUnit}:`, e);
+                                }
+                            }
+                            
+                            if (conversions.length > 0) {
+                                unitConversionsHTML = `
+                                    <div style="margin-top: 20px; padding: 15px; background: rgba(0,255,255,0.1); border-radius: 8px;">
+                                        <div style="font-weight: 600; margin-bottom: 12px; opacity: 0.9;">Converted to other units:</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                                            ${conversions.map(conv => `
+                                                <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                                                    <div style="font-size: 1.1em; font-weight: 600;">${this.formattingUtils.escapeHtml(conv.formatted)}</div>
+                                                    <div style="font-size: 0.85em; opacity: 0.8; margin-top: 4px;">${this.formattingUtils.escapeHtml(conv.unit)}</div>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        } catch (e) {
+                            console.warn('[UIModuleOrchestrator] Failed to generate unit conversions:', e);
+                        }
+                    }
                     
                     resultDisplay.innerHTML = `
                         <h3>Numeric Result</h3>
@@ -1339,6 +1491,7 @@ export class UIModuleOrchestrator {
                             <div>${this.formattingUtils.escapeHtml(formatted)}</div>
                         </div>
                         ${result.unit ? `<div class="result-unit" style="opacity: 0.8; margin-top: 8px;">${this.formattingUtils.escapeHtml(result.unit)}</div>` : ''}
+                        ${unitConversionsHTML}
                     `;
                     console.log('[UIModuleOrchestrator] ✅ Numeric result displayed in fallback');
                 }
@@ -1451,3 +1604,4 @@ export class UIModuleOrchestrator {
         });
     }
 }
+

@@ -240,8 +240,13 @@ class VariableInputsRenderer {
                 `;
             });
             
-            const firstInputId = `var-${variable.symbol}-${baseUnit.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            // Calculate firstInputId to match the actual first input in the generated HTML
+            // The first input is always the first unit in alternativeUnits (or baseUnit if empty)
+            const firstUnit = alternativeUnits.length > 0 ? alternativeUnits[0] : baseUnit;
+            const firstInputId = `var-${variable.symbol}-${firstUnit.replace(/[^a-zA-Z0-9]/g, '_')}`;
             
+            // Verify the firstInputId matches an actual input ID in the HTML
+            // This ensures the label's 'for' attribute correctly references the first input
             inputDiv.innerHTML = `
                 <label class="variable-main-label" for="${firstInputId}">
                     <span class="symbol">${variable.symbol}</span>
@@ -284,6 +289,11 @@ class VariableInputsRenderer {
                     // This prevents clearing partially typed numbers
                     // We'll handle clearing in a blur handler instead
                     
+                    // Clear the "calculated" flag when user manually edits
+                    if (e.target.dataset.calculated === 'true') {
+                        e.target.dataset.calculated = 'false';
+                    }
+                    
                     // Debounced update of solve indicators and graph
                     clearTimeout(this.solveIndicatorTimeout);
                     this.solveIndicatorTimeout = setTimeout(() => {
@@ -321,10 +331,14 @@ class VariableInputsRenderer {
                             const isValidNumber = !isNaN(numericValue) && isFinite(numericValue);
                             
                             if (isValidNumber) {
+                                // Clear the "calculated" flag since user is manually entering a value
+                                e.target.dataset.calculated = 'false';
+                                
                                 // Clear other unit inputs for the same variable
                                 elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
                                     if (otherIndex !== currentIndex && otherInput) {
                                         otherInput.value = '';
+                                        otherInput.dataset.calculated = 'false';
                                     }
                                 });
                             }

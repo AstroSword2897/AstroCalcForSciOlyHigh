@@ -158,6 +158,17 @@ export class CalculationOrchestrator {
             const variableValues = this.collectVariableValues(formula);
             console.log('[CalculationOrchestrator] Collected values:', variableValues);
             console.log('[CalculationOrchestrator] Collected values (detailed):', JSON.stringify(variableValues, null, 2));
+            
+            // CRITICAL: Verify all values are in base units
+            console.log('[CalculationOrchestrator] 🔍 VERIFYING BASE UNIT CONVERSION:');
+            Object.entries(variableValues).forEach(([symbol, value]) => {
+                if (value !== null && typeof value === 'number') {
+                    const varDef = formula.variables.find(v => v.symbol === symbol);
+                    const baseUnit = varDef?.unit || 'unknown';
+                    console.log(`[CalculationOrchestrator]   ${symbol} = ${value} ${baseUnit} (should be in base unit)`);
+                }
+            });
+            
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Variable collection completed at', new Date().toISOString());
             
             // Debug: Check each value type with full inspection
@@ -509,7 +520,7 @@ export class CalculationOrchestrator {
                         if (shouldFallbackToSymbolic) {
                             console.log('[CalculationOrchestrator] Cannot force solve, falling back to symbolic:', solveError.message);
                             this.handleSymbolicResult(calculator, formula, variableValues);
-                            return;
+                return;
                         }
                         throw solveError;
                     }
@@ -549,6 +560,15 @@ export class CalculationOrchestrator {
             // Display result
             this.displayResult(result);
             console.log('[CalculationOrchestrator] ✅ Result displayed');
+            
+            // CRITICAL: Update all unit inputs for the solved variable with converted values
+            if (result && !result.isSymbolic && typeof result.result === 'number' && Number.isFinite(result.result)) {
+                const solvedFor = result.solvedFor || result.variable;
+                if (solvedFor && solvedFor !== 'result') {
+                    this.updateVariableUnitInputs(solvedFor, result.result, formula);
+                }
+            }
+            
             // Update UI
             if (this.updateSolveIndicators) {
                 this.updateSolveIndicators();
@@ -858,6 +878,15 @@ export class CalculationOrchestrator {
                          input.getAttribute('data-base-unit') || 
                          variable.unit;
         
+        const baseUnit = variable.unit;
+        
+        console.log(`[CalculationOrchestrator] parseInputValue for ${variable.symbol}:`, {
+            rawValue: value,
+            inputUnit,
+            baseUnit,
+            needsConversion: inputUnit !== baseUnit
+        });
+        
         // Parse numeric value
         const numericValue = this.parseNumericValue(value, inputUnit);
         
@@ -866,13 +895,24 @@ export class CalculationOrchestrator {
             throw new Error(`Invalid numeric value for ${variable.symbol}: "${value}"`);
         }
         
-        // Convert to base unit if needed
-        if (this.unitConverter && inputUnit !== variable.unit) {
-            const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, variable.unit);
-            if (!Number.isFinite(baseValue)) {
-                throw new Error(`Unit conversion failed for ${variable.symbol}`);
+        // CRITICAL: Always convert to base unit if unitConverter is available
+        // This ensures values are in the correct units before being used in formulas
+        if (this.unitConverter) {
+            if (inputUnit !== baseUnit) {
+                // Convert from input unit to base unit
+                console.log(`[CalculationOrchestrator] Converting ${variable.symbol}: ${numericValue} ${inputUnit} → base unit (${baseUnit})`);
+                const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, baseUnit);
+                if (!Number.isFinite(baseValue)) {
+                    throw new Error(`Unit conversion failed for ${variable.symbol}: ${numericValue} ${inputUnit} → ${baseUnit}`);
+                }
+                console.log(`[CalculationOrchestrator] ✅ Converted ${variable.symbol}: ${numericValue} ${inputUnit} = ${baseValue} ${baseUnit}`);
+                return baseValue;
+            } else {
+                // Already in base unit, but log for verification
+                console.log(`[CalculationOrchestrator] ${variable.symbol} already in base unit: ${numericValue} ${baseUnit}`);
             }
-            return baseValue;
+        } else {
+            console.warn(`[CalculationOrchestrator] ⚠️ No unitConverter available for ${variable.symbol}, using raw value`);
         }
         
         return numericValue;
@@ -1022,6 +1062,85 @@ export class CalculationOrchestrator {
         result.isSymbolic = true;
         this.displayResult(result);
     }
+    
+    /**
+     * Update all unit input fields for a variable with converted values
+     * This makes the system fully unit-aware - when a result is calculated,
+     * all unit inputs for that variable are automatically populated
+     */
+    updateVariableUnitInputs(symbol, baseValue, formula) {
+        if (!this.unitConverter || !formula) {
+            console.warn('[CalculationOrchestrator] Cannot update unit inputs: unitConverter or formula missing');
+            return;
+        }
+        
+        const variable = formula.variables.find(v => v.symbol === symbol);
+        if (!variable) {
+            console.warn(`[CalculationOrchestrator] Variable ${symbol} not found in formula`);
+            return;
+        }
+        
+        const baseUnit = variable.unit;
+        if (!baseUnit) {
+            console.warn(`[CalculationOrchestrator] Variable ${symbol} has no unit defined`);
+            return;
+        }
+        
+        try {
+            const alternativeUnits = this.unitConverter.getAlternativeUnits(baseUnit);
+            
+            console.log(`[CalculationOrchestrator] 🔄 Updating unit inputs for ${symbol} = ${baseValue} ${baseUnit}`);
+            console.log(`[CalculationOrchestrator] Alternative units:`, alternativeUnits);
+            
+            // Update each unit input with the converted value
+            alternativeUnits.forEach((unit, index) => {
+                try {
+                    // Convert from base unit to this unit
+                    const convertedValue = this.unitConverter.convert(baseValue, baseUnit, unit);
+                    
+                    if (convertedValue !== null && Number.isFinite(convertedValue)) {
+                        // Find the input field
+                        const inputId = `var-${symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                        let input = document.getElementById(inputId);
+                        
+                        if (!input) {
+                            // Fallback: find by data attributes
+                            input = document.querySelector(`input[data-symbol="${symbol}"][data-unit-index="${index}"]`);
+                        }
+                        
+                        if (input) {
+                            // Format the value appropriately
+                            let formattedValue;
+                            if (Math.abs(convertedValue) >= 1e6 || (Math.abs(convertedValue) < 1e-3 && convertedValue !== 0)) {
+                                formattedValue = convertedValue.toExponential(6);
+                            } else {
+                                // Show reasonable precision, remove trailing zeros
+                                formattedValue = convertedValue.toFixed(6).replace(/\.?0+$/, '');
+                            }
+                            
+                            // Only update if the input is empty or was previously calculated
+                            // Don't overwrite user-entered values unless they were calculated
+                            const currentValue = input.value.trim();
+                            if (!currentValue || currentValue === '' || input.dataset.calculated === 'true') {
+                                input.value = formattedValue;
+                                input.dataset.calculated = 'true'; // Mark as calculated
+                                console.log(`[CalculationOrchestrator] ✅ Updated ${inputId} = ${formattedValue} ${unit}`);
+                            } else {
+                                console.log(`[CalculationOrchestrator] ⏭️  Skipped ${inputId} (has user value: ${currentValue})`);
+                            }
+                        } else {
+                            console.warn(`[CalculationOrchestrator] Input field not found for ${symbol} in ${unit} (${inputId})`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`[CalculationOrchestrator] Failed to convert ${symbol} to ${unit}:`, error.message);
+                }
+            });
+        } catch (error) {
+            console.error(`[CalculationOrchestrator] Error updating unit inputs for ${symbol}:`, error);
+        }
+    }
+    
     /**
      * Update graph after calculation
      * Improved: Checks symbolic result first, removes redundant type warnings

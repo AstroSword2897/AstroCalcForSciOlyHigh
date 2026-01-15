@@ -1,23 +1,48 @@
 /**
  * EventCoordinator - Centralized event handling with proper cleanup
- * Improved: Lifecycle management, memory leak prevention, better organization
+ * Refactored: Unified listener tracking, auto observer cleanup, debug flag, reduced duplication
+ * Enhanced: Optional debounce/throttle support for high-frequency events
  */
 export class EventCoordinator {
     constructor(options = {}) {
-        this.listeners = new Map();
-        this.globalListeners = [];
+        // Unified listener tracking (replaces separate listeners Map and globalListeners array)
+        this.listeners = new Map(); // element -> [{event, handler, options, isGlobal}]
+        this.observers = new Set(); // MutationObservers for cleanup
         this.setupComplete = false;
         this.options = options;
+        this.debug = options.debug ?? false; // Optional debug flag
+        this.debouncedHandlers = new Map(); // Track debounced handlers for cleanup
     }
+    
+    /**
+     * Logging helper - only logs if debug is enabled
+     */
+    log(...args) {
+        if (this.debug) {
+            console.log('[EventCoordinator]', ...args);
+        }
+    }
+    
+    logWarn(...args) {
+        if (this.debug) {
+            console.warn('[EventCoordinator]', ...args);
+        }
+    }
+    
+    logError(...args) {
+        // Errors are always logged
+        console.error('[EventCoordinator]', ...args);
+    }
+    
     /**
      * Setup all event listeners
      */
     setupAll() {
         if (this.setupComplete) {
-            console.log('[EventCoordinator] Already set up, skipping');
+            this.log('Already set up, skipping');
             return;
         }
-        console.log('[EventCoordinator] Setting up event handlers...');
+        this.log('Setting up event handlers...');
         this.setupBackButton();
         this.setupMainTabButtons();
         this.setupSubTabButtons();
@@ -28,208 +53,255 @@ export class EventCoordinator {
         this.setupGraphControls();
         this.setupClassificationInputs();
         this.setupComplete = true;
-        console.log('[EventCoordinator] ✅ All event handlers set up');
+        this.log('✅ All event handlers set up');
     }
+    
+    /**
+     * Helper: Apply consistent button styles
+     */
+    styleButton(btn) {
+        if (!btn) return;
+        btn.style.setProperty('pointer-events', 'auto', 'important');
+        btn.style.setProperty('cursor', 'pointer', 'important');
+    }
+    
+    /**
+     * Helper: Unified listener registration (replaces addListener)
+     * Tracks both direct and global listeners in one system
+     */
+    addListener(element, event, handler, options = false) {
+        // Use tracked listener if provided
+        if (this.options.addTrackedListener) {
+            this.options.addTrackedListener(element, event, handler);
+        } else {
+            element.addEventListener(event, handler, options);
+        }
+        
+        // Track in unified system
+        if (!this.listeners.has(element)) {
+            this.listeners.set(element, []);
+        }
+        this.listeners.get(element).push({ event, handler, options, isGlobal: element === document });
+    }
+    
+    /**
+     * Helper: Setup dynamic button with retry logic and observer
+     * Extracted common pattern for Calculate and Clear buttons
+     */
+    setupDynamicButton(buttonId, handler, options = {}) {
+        const { 
+            retryDelays = [200, 500, 1000, 2000],
+            dataAttribute = `${buttonId.replace(/-/g, '')}HandlerAttached`,
+            logName = buttonId
+        } = options;
+        
+        const attachHandler = () => {
+            const btn = document.getElementById(buttonId);
+            if (btn && !btn.dataset[dataAttribute]) {
+                this.log(`✅ Attaching handler to ${logName}`);
+                this.addListener(btn, 'click', handler);
+                this.styleButton(btn);
+                btn.dataset[dataAttribute] = 'true';
+                
+                // Disconnect observer if attached
+                const observerKey = `_${buttonId.replace(/-/g, '')}Observer`;
+                if (this[observerKey]) {
+                    this[observerKey].disconnect();
+                    this.observers.delete(this[observerKey]);
+                    this[observerKey] = null;
+                    this.log(`✅ MutationObserver disconnected for ${logName}`);
+                }
+                return true;
+            }
+            return false;
+        };
+        
+        // Try immediately
+        if (attachHandler()) {
+            return;
+        }
+        
+        // Retry at intervals
+        retryDelays.forEach(delay => {
+            setTimeout(() => attachHandler(), delay);
+        });
+        
+        // Use MutationObserver for dynamic elements
+        const observer = new MutationObserver(() => {
+            attachHandler();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        const observerKey = `_${buttonId.replace(/-/g, '')}Observer`;
+        this[observerKey] = observer;
+        this.observers.add(observer);
+        
+        this.log(`✅ ${logName} handler set up (will attach when available)`);
+    }
+    
+    /**
+     * Helper: Create debounced or throttled function
+     * Supports both debounce (wait for pause) and throttle (limit frequency)
+     */
+    _createDebouncedOrThrottled(func, options = {}) {
+        const { debounceMs, throttleMs } = options;
+        
+        if (debounceMs) {
+            // Debounce: wait for pause in events
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func(...args);
+                }, debounceMs);
+            };
+        } else if (throttleMs) {
+            // Throttle: limit frequency of events
+            let lastCall = 0;
+            return (...args) => {
+                const now = Date.now();
+                if (now - lastCall >= throttleMs) {
+                    lastCall = now;
+                    func(...args);
+                }
+            };
+        }
+        
+        // No debounce/throttle
+        return func;
+    }
+    
+    /**
+     * Helper: Setup event delegation on document
+     * Unified pattern for delegated click handlers
+     * Supports optional debounce/throttle for high-frequency events
+     */
+    setupDelegation(selector, handler, options = {}) {
+        const {
+            event = 'click',
+            useCapture = true,
+            logName = 'delegation',
+            debounceMs = null, // Optional: debounce handler (wait for pause)
+            throttleMs = null // Optional: throttle handler (limit frequency)
+        } = options;
+        
+        // Apply debounce/throttle if specified
+        let finalHandler = handler;
+        if (debounceMs || throttleMs) {
+            finalHandler = this._createDebouncedOrThrottled(handler, { debounceMs, throttleMs });
+            // Store for cleanup
+            const handlerKey = `${selector}-${event}`;
+            this.debouncedHandlers.set(handlerKey, finalHandler);
+            this.log(`✅ ${logName} event delegation set up with ${debounceMs ? `debounce(${debounceMs}ms)` : `throttle(${throttleMs}ms)`}`);
+        }
+        
+        const wrappedHandler = (e) => {
+            const target = e.target.closest(selector);
+            if (!target) return;
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            finalHandler(e, target);
+        };
+        
+        this.addListener(document, event, wrappedHandler, useCapture);
+        if (!debounceMs && !throttleMs) {
+            this.log(`✅ ${logName} event delegation set up`);
+        }
+    }
+    
     setupBackButton() {
         const backButton = document.getElementById('back-button');
         if (!backButton) {
-            // Back button only exists on calculator screen, not on formula selection screen
-            // This is expected behavior, so don't log a warning
+            // Back button only exists on calculator screen - expected behavior
             return;
         }
+        
         const handler = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (this.options.onBackButton) {
-                this.options.onBackButton();
-            }
+            this.options.onBackButton?.();
         };
+        
         this.addListener(backButton, 'click', handler);
+        this.styleButton(backButton);
     }
+    
     setupMainTabButtons() {
         const mainTabButtons = document.querySelectorAll('.main-tab-btn');
         mainTabButtons.forEach(btn => {
             const tabName = btn.getAttribute('data-main-tab');
-            if (!tabName)
-                return;
-            const element = btn;
-            element.style.setProperty('pointer-events', 'auto', 'important');
-            element.style.setProperty('cursor', 'pointer', 'important');
+            if (!tabName) return;
+            
+            this.styleButton(btn);
+            
             const handler = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (this.options.onMainTabSwitch) {
-                    this.options.onMainTabSwitch(tabName);
-                }
+                this.options.onMainTabSwitch?.(tabName);
             };
-            this.addListener(element, 'click', handler);
+            
+            this.addListener(btn, 'click', handler);
         });
     }
+    
     setupSubTabButtons() {
-        // Use event delegation on document to handle dynamically created buttons
-        // This ensures buttons work even if they're added later or inside hidden containers
-        const handler = (e) => {
-            const btn = e.target.closest('.tab-btn');
-            if (!btn) return;
-            
+        this.setupDelegation('.tab-btn', (e, btn) => {
             const tabName = btn.getAttribute('data-tab');
             if (!tabName) {
-                console.warn('[EventCoordinator] Tab button missing data-tab attribute:', btn);
+                this.logWarn('Tab button missing data-tab attribute:', btn);
                 return;
             }
             
-            e.preventDefault();
-            e.stopPropagation();
-            console.log(`[EventCoordinator] Sub tab clicked: ${tabName}`);
-            
-            if (this.options.onSubTabSwitch) {
-                this.options.onSubTabSwitch(tabName);
-            } else {
-                console.warn('[EventCoordinator] onSubTabSwitch callback not provided');
-            }
-        };
+            this.log(`Sub tab clicked: ${tabName}`);
+            this.options.onSubTabSwitch?.(tabName);
+        }, { logName: 'Sub tab buttons' });
         
-        // Add to global listeners for cleanup
-        document.addEventListener('click', handler, true); // Use capture phase
-        this.globalListeners.push({
-            element: document,
-            event: 'click',
-            handler: handler,
-            options: true // capture phase
-        });
-        
-        // Also ensure existing buttons have proper styles
+        // Style existing buttons
         const subTabButtons = document.querySelectorAll('.tab-btn');
-        console.log(`[EventCoordinator] Found ${subTabButtons.length} sub tab buttons, using event delegation`);
-        subTabButtons.forEach(btn => {
-            btn.style.setProperty('pointer-events', 'auto', 'important');
-            btn.style.setProperty('cursor', 'pointer', 'important');
-        });
-        
-        console.log('[EventCoordinator] ✅ Sub tab buttons set up with event delegation');
+        this.log(`Found ${subTabButtons.length} sub tab buttons, using event delegation`);
+        subTabButtons.forEach(btn => this.styleButton(btn));
     }
+    
     setupCalculateButton() {
-        // Minimal, single-path handler for Calculate button
-        // No delegation, no fallbacks, no stopImmediatePropagation
-        const directHandler = (e) => {
-            console.log('[EventCoordinator] 🎯 Calculate button clicked');
+        const handler = (e) => {
+            this.log('🎯 Calculate button clicked');
             e.preventDefault();
             e.stopPropagation();
-            
-            // Single execution path: call onCalculate callback only
             this.options.onCalculate?.();
         };
         
-        // Try to attach directly to the button if it exists
-        const attachDirectHandler = () => {
-            const calcBtn = document.getElementById('calculate-btn');
-            
-            if (calcBtn && !calcBtn.dataset.directHandlerAttached) {
-                console.log('[EventCoordinator] ✅ Attaching direct handler to calculate button');
-                this.addListener(calcBtn, 'click', directHandler);
-                calcBtn.dataset.directHandlerAttached = 'true';
-                
-                // Disconnect observer after successful attachment
-                if (this._calculateButtonObserver) {
-                    this._calculateButtonObserver.disconnect();
-                    this._calculateButtonObserver = null;
-                    console.log('[EventCoordinator] ✅ MutationObserver disconnected');
-                }
-                
-                return true;
-            }
-            return false;
-        };
-        
-        // Try immediately
-        attachDirectHandler();
-        
-        // If button doesn't exist yet, retry at intervals
-        const retries = [200, 500, 1000, 2000];
-        retries.forEach(delay => {
-            setTimeout(() => attachDirectHandler(), delay);
+        this.setupDynamicButton('calculate-btn', handler, {
+            logName: 'Calculate button'
         });
         
-        // Use MutationObserver to catch when button is added dynamically
-        const observer = new MutationObserver(() => {
-            attachDirectHandler();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-        this._calculateButtonObserver = observer;
-        
-        // REMOVED: Delegation handler for Calculate button
-        // Calculate is a static critical button - direct attachment is sufficient
-        // Delegation with capture phase was blocking other handlers
-        
-        console.log('[EventCoordinator] ✅ Calculate button handler set up (direct attachment only)');
-        
-        // Verify the button exists in DOM
+        // Verify button exists
         const testBtn = document.getElementById('calculate-btn');
         if (testBtn) {
-            console.log('[EventCoordinator] ✅ Calculate button found in DOM:', testBtn);
+            this.log('✅ Calculate button found in DOM');
         } else {
-            console.warn('[EventCoordinator] ⚠️ Calculate button not found in DOM yet (will attach when available)');
+            this.logWarn('⚠️ Calculate button not found in DOM yet (will attach when available)');
         }
     }
+    
     setupClearButton() {
-        const clearHandler = (e) => {
-            console.log('[EventCoordinator] 🧹 Clear button clicked - refreshing page');
+        const handler = (e) => {
+            this.log('🧹 Clear button clicked - refreshing page');
             e.preventDefault();
             e.stopPropagation();
-            
-            // Refresh the page
             window.location.reload();
         };
         
-        // Try to attach directly
-        const attachClearHandler = () => {
-            const clearBtn = document.getElementById('clear-btn');
-            if (clearBtn && !clearBtn.dataset.clearHandlerAttached) {
-                console.log('[EventCoordinator] ✅ Attaching clear handler to clear button');
-                this.addListener(clearBtn, 'click', clearHandler);
-                clearBtn.dataset.clearHandlerAttached = 'true';
-                return true;
-            }
-            return false;
-        };
-        
-        // Try immediately
-        attachClearHandler();
-        
-        // Retry at intervals if button doesn't exist yet
-        const retries = [200, 500, 1000, 2000];
-        retries.forEach(delay => {
-            setTimeout(() => attachClearHandler(), delay);
+        this.setupDynamicButton('clear-btn', handler, {
+            logName: 'Clear button'
         });
-        
-        // Use MutationObserver to catch when button is added dynamically
-        const observer = new MutationObserver(() => {
-            attachClearHandler();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-        this._clearButtonObserver = observer;
-        
-        console.log('[EventCoordinator] ✅ Clear button handler set up');
     }
+    
     setupClassificationButtons() {
-        // Use event delegation on document to handle dynamically created classification buttons
-        // This ensures buttons work even if they're added later or inside hidden containers
-        const handler = (e) => {
-            // Enhanced debug logging
-            const isButton = e.target.tagName === 'BUTTON' || e.target.closest('button');
-            const hasClassifyText = e.target.textContent?.includes('Classify') || e.target.closest('button')?.textContent?.includes('Classify');
-            const hasClassifyId = e.target.id === 'classify-btn' || e.target.id === 'main-classify-btn' || 
-                                 e.target.closest('#classify-btn') || e.target.closest('#main-classify-btn');
-            
-            if (isButton && (hasClassifyText || hasClassifyId)) {
-                console.log('[EventCoordinator] 🔍 DEBUG: Classification button click detected!', {
-                    target: e.target,
-                    id: e.target.id,
-                    text: e.target.textContent,
-                    closestButton: e.target.closest('button')
-                });
-            }
-            
+        // Use custom delegation handler for classification buttons
+        // because we need to check both IDs and handle nested elements
+        // Apply debounce to prevent accidental double-firing
+        const baseHandler = (e) => {
             // Use closest() to handle clicks on nested elements (like text inside button)
             let classifyBtn = e.target.closest('#classify-btn');
             let mainClassifyBtn = e.target.closest('#main-classify-btn');
@@ -243,28 +315,35 @@ export class EventCoordinator {
             }
             
             if (classifyBtn || mainClassifyBtn) {
-                console.log('[EventCoordinator] ✅ Classification button clicked!', { classifyBtn, mainClassifyBtn });
+                this.log('✅ Classification button clicked!', { 
+                    classifyBtn: !!classifyBtn, 
+                    mainClassifyBtn: !!mainClassifyBtn 
+                });
+                
                 e.preventDefault();
                 e.stopPropagation();
-                // DO NOT use stopImmediatePropagation - it blocks other handlers
                 
-                // Call the callback immediately (no delay needed)
+                // Call appropriate callback
                 if (classifyBtn && this.options.onClassify) {
-                    console.log('[EventCoordinator] Calling onClassify...');
+                    this.log('Calling onClassify...');
                     try {
-                        this.options.onClassify();
+                        const result = this.options.onClassify();
+                        this.log('onClassify returned:', result);
                     } catch (error) {
-                        console.error('[EventCoordinator] Error calling onClassify:', error);
+                        this.logError('Error calling onClassify:', error);
+                        this.logError('Error stack:', error.stack);
                     }
                 } else if (mainClassifyBtn && this.options.onMainClassify) {
-                    console.log('[EventCoordinator] Calling onMainClassify...');
+                    this.log('Calling onMainClassify...');
                     try {
-                        this.options.onMainClassify();
+                        const result = this.options.onMainClassify();
+                        this.log('onMainClassify returned:', result);
                     } catch (error) {
-                        console.error('[EventCoordinator] Error calling onMainClassify:', error);
+                        this.logError('Error calling onMainClassify:', error);
+                        this.logError('Error stack:', error.stack);
                     }
                 } else {
-                    console.warn('[EventCoordinator] ⚠️ Classification button clicked but no callback available', {
+                    this.logWarn('⚠️ Classification button clicked but no callback available', {
                         hasClassifyBtn: !!classifyBtn,
                         hasMainClassifyBtn: !!mainClassifyBtn,
                         hasOnClassify: !!this.options.onClassify,
@@ -274,62 +353,59 @@ export class EventCoordinator {
             }
         };
         
-        // Add to global listeners for cleanup
-        document.addEventListener('click', handler, true); // Use capture phase
-        this.globalListeners.push({
-            element: document,
-            event: 'click',
-            handler: handler,
-            options: true // capture phase
-        });
+        // Apply debounce to prevent double-firing (300ms debounce)
+        const debounceMs = this.options.classificationDebounceMs ?? 300;
+        const debouncedHandler = this._createDebouncedOrThrottled(baseHandler, { debounceMs });
+        this.debouncedHandlers.set('classification-buttons', debouncedHandler);
         
-        console.log('[EventCoordinator] ✅ Classification buttons event delegation set up');
+        this.addListener(document, 'click', debouncedHandler, true);
+        this.log(`✅ Classification buttons event delegation set up with ${debounceMs}ms debounce`);
         
-        // Verify buttons exist in DOM
+        // Verify buttons exist
         const classifyBtn = document.getElementById('classify-btn');
         const mainClassifyBtn = document.getElementById('main-classify-btn');
         if (classifyBtn) {
-            console.log('[EventCoordinator] ✅ classify-btn found in DOM');
+            this.log('✅ classify-btn found in DOM');
         } else {
-            console.warn('[EventCoordinator] ⚠️ classify-btn not found in DOM yet (may be added dynamically)');
+            this.logWarn('⚠️ classify-btn not found in DOM yet (may be added dynamically)');
         }
         if (mainClassifyBtn) {
-            console.log('[EventCoordinator] ✅ main-classify-btn found in DOM');
+            this.log('✅ main-classify-btn found in DOM');
         } else {
-            console.warn('[EventCoordinator] ⚠️ main-classify-btn not found in DOM yet (may be added dynamically)');
+            this.logWarn('⚠️ main-classify-btn not found in DOM yet (may be added dynamically)');
         }
     }
+    
     setupFormulaCardDelegation() {
         const formulaList = document.getElementById('formula-list');
         if (!formulaList) {
-            console.warn('[EventCoordinator] Formula list not found');
+            this.logWarn('Formula list not found');
             return;
         }
         if (formulaList.dataset?.delegationSetup === 'true') {
             return;
         }
+        
         const handler = (e) => {
             const card = e.target.closest('.formula-card');
-            if (!card)
-                return;
+            if (!card) return;
+            
             const formulaId = card.getAttribute('data-formula-id');
-            if (!formulaId)
-                return;
+            if (!formulaId) return;
+            
             e.preventDefault();
             e.stopPropagation();
-            // DO NOT use stopImmediatePropagation - it blocks other handlers
-            if (this.options.onFormulaCardClick) {
-                this.options.onFormulaCardClick(formulaId);
-            }
+            this.options.onFormulaCardClick?.(formulaId);
         };
-        formulaList.addEventListener('click', handler, true);
+        
+        this.addListener(formulaList, 'click', handler, true);
         formulaList.dataset.delegationSetup = 'true';
     }
+    
     setupGraphControls() {
-        if (this.options.setupGraphControls) {
-            this.options.setupGraphControls();
-        }
+        this.options.setupGraphControls?.();
     }
+    
     setupClassificationInputs() {
         // Setup Enter key handlers for classification inputs
         const tempInputs = document.querySelectorAll('.classification-inputs input[type="number"]');
@@ -342,32 +418,39 @@ export class EventCoordinator {
             this.addListener(input, 'keydown', handler);
         });
     }
-    addListener(element, event, handler) {
-        if (this.options.addTrackedListener) {
-            this.options.addTrackedListener(element, event, handler);
-        }
-        else {
-            element.addEventListener(event, handler);
-        }
-        if (!this.listeners.has(element)) {
-            this.listeners.set(element, []);
-        }
-        this.listeners.get(element).push({ event, handler });
-    }
+    
     /**
-     * Cleanup all event listeners
+     * Cleanup all event listeners and observers
+     * IMPROVED: Now handles observers, unified listener tracking, and debounced handlers
      */
     cleanup() {
+        // Remove all tracked listeners
         this.listeners.forEach((listeners, element) => {
-            listeners.forEach(({ event, handler }) => {
-                element.removeEventListener(event, handler);
+            listeners.forEach(({ event, handler, options }) => {
+                element.removeEventListener(event, handler, options);
             });
         });
         this.listeners.clear();
-        this.globalListeners.forEach(({ element, event, handler, options }) => {
-            element.removeEventListener(event, handler, options);
+        
+        // Disconnect all MutationObservers
+        this.observers.forEach(observer => {
+            observer.disconnect();
         });
-        this.globalListeners = [];
+        this.observers.clear();
+        
+        // Clear debounced handlers (they may have pending timeouts)
+        // Note: Individual debounced functions can't be cancelled from outside,
+        // but clearing the map prevents memory leaks
+        this.debouncedHandlers.clear();
+        
+        // Clear observer references (dynamic - will be set by setupDynamicButton)
+        Object.keys(this).forEach(key => {
+            if (key.startsWith('_') && key.endsWith('Observer')) {
+                this[key] = null;
+            }
+        });
+        
         this.setupComplete = false;
+        this.log('✅ Cleanup completed');
     }
 }

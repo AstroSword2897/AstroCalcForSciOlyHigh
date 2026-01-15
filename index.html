@@ -124,18 +124,19 @@
 
     <!-- Service Worker Registration & Auto-Reload -->
     <script>
-        // TEMPORARILY DISABLED SERVICE WORKER FOR DEBUGGING
-        // Unregister any existing service workers first
+        // Service Worker handling - unregister old ones and handle errors gracefully
         if ('serviceWorker' in navigator) {
+            // Unregister any existing service workers first to avoid conflicts
             navigator.serviceWorker.getRegistrations().then(registrations => {
                 for (const reg of registrations) {
                     console.log('[CLIENT] Unregistering old SW:', reg.scope);
-                    reg.unregister();
+                    reg.unregister().catch(err => {
+                        console.warn('[CLIENT] Failed to unregister SW:', err);
+                    });
                 }
+            }).catch(err => {
+                console.warn('[CLIENT] Error getting SW registrations:', err);
             });
-            
-            // DO NOT RE-REGISTER - Let page load without SW
-            console.log('[CLIENT] Service Worker disabled for debugging');
         }
     </script>
     
@@ -976,53 +977,67 @@
         // PRODUCTION: keep offline-first, but prevent stale UI by upgrading the SW cleanly.
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                // Register service worker
-                navigator.serviceWorker.register('./sw.js?v=2.1.7')
-                    .then((registration) => {
-                        console.log('[Service Worker] Registered successfully:', registration.scope);
-                        
-                        // If an older SW is controlling this page, prompt an upgrade immediately.
-                        // This avoids "cached old UI" issues while still preserving offline support.
-                        const currentController = navigator.serviceWorker.controller;
-                        if (currentController && !String(currentController.scriptURL || '').includes('sw.js?v=2.1.1')) {
-                            console.log('[Service Worker] Detected older controller, requesting update...');
-                            registration.update();
-                        }
+                // Wait a bit for any unregistration to complete
+                setTimeout(() => {
+                    // Register service worker with current version
+                    navigator.serviceWorker.register('./sw.js?v=3.0.0')
+                        .then((registration) => {
+                            console.log('[Service Worker] Registered successfully:', registration.scope);
+                            
+                            // If an update is already waiting, activate it now.
+                            if (registration.waiting) {
+                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
 
-                        // If an update is already waiting, activate it now.
-                        if (registration.waiting) {
-                            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                        }
-
-                        // When a new SW is found, activate it as soon as it installs.
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            if (!newWorker) return;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && registration.waiting) {
-                                    console.log('[Service Worker] Update installed, activating...');
-                                    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                }
+                            // When a new SW is found, activate it as soon as it installs.
+                            registration.addEventListener('updatefound', () => {
+                                const newWorker = registration.installing;
+                                if (!newWorker) return;
+                                
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && registration.waiting) {
+                                        console.log('[Service Worker] Update installed, activating...');
+                                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                                    }
+                                });
                             });
-                        });
 
-                        // Reload once when the new SW takes control (so the fresh UI/HTML is used).
-                        let reloaded = false;
-                        navigator.serviceWorker.addEventListener('controllerchange', () => {
-                            if (reloaded) return;
-                            reloaded = true;
-                            console.log('[Service Worker] Controller changed, reloading for latest UI...');
-                            window.location.reload();
-                        });
+                            // Reload once when the new SW takes control (so the fresh UI/HTML is used).
+                            let reloaded = false;
+                            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                                if (reloaded) return;
+                                reloaded = true;
+                                console.log('[Service Worker] Controller changed, reloading for latest UI...');
+                                window.location.reload();
+                            });
 
-                        // Check for updates periodically (but don't auto-reload)
-                        setInterval(() => {
-                            registration.update();
-                        }, 60000); // Check every minute
-                    })
-                    .catch((error) => {
-                        console.warn('[Service Worker] Registration failed:', error);
-                    });
+                            // Check for updates periodically (but don't auto-reload)
+                            setInterval(() => {
+                                registration.update().catch(err => {
+                                    // Silently handle update errors (common in development)
+                                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                                        // Only log in development
+                                        console.debug('[Service Worker] Update check failed (normal in dev):', err.message);
+                                    }
+                                });
+                            }, 60000); // Check every minute
+                        })
+                        .catch((error) => {
+                            // Handle registration errors gracefully
+                            // In development, SW errors are common and non-critical
+                            // The "Failed to update ServiceWorker" error is often harmless
+                            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                                // Suppress the error in development - it's usually a cache/update issue
+                                if (error.message && error.message.includes('Failed to update')) {
+                                    console.debug('[Service Worker] Update check failed (normal in dev, can be ignored)');
+                                } else {
+                                    console.warn('[Service Worker] Registration failed (non-critical in dev):', error.message);
+                                }
+                            } else {
+                                console.error('[Service Worker] Registration failed:', error);
+                            }
+                        });
+                }, 500); // Small delay to ensure unregistration completes
             });
             
             // Handle online/offline events
