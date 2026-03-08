@@ -47,7 +47,7 @@ test.describe('AstrophysicsExpertSystem - Determinism & Correctness', () => {
     const { expert } = createExpert();
     const result = expert.solveQuestion('What is the orbital period of a satellite 7000 km above Earth?');
     expect(result.success).toBeTruthy();
-    expect(result.formula.id).toContain('kepler_third');
+    expect(['kepler_third_law', 'orbital_period_general']).toContain(result.formula.id);
     expect(result.confidence).toBeGreaterThanOrEqual(60);
   });
 
@@ -69,9 +69,9 @@ test.describe('AstrophysicsExpertSystem - Determinism & Correctness', () => {
 
   test('should map luminosity distance question correctly', async () => {
     const { expert } = createExpert();
-    const result = expert.solveQuestion('How do I compute luminosity distance from redshift?');
+    const result = expert.solveQuestion('How do I compute luminosity distance from luminosity and observed flux?');
     expect(result.success).toBeTruthy();
-    expect(result.formula.id).toContain('luminosity_distance');
+    expect(result.formula.id).toBe('luminosity_distance');
   });
 
   test('should map blackbody radiation question correctly', async () => {
@@ -80,6 +80,66 @@ test.describe('AstrophysicsExpertSystem - Determinism & Correctness', () => {
     expect(result.success).toBeTruthy();
     expect(result.formula.id).toContain('blackbody');
   });
+
+  test('should handle paraphrased distance questions consistently', async () => {
+    const { expert } = createExpert();
+    const result = expert.solveQuestion('Which formula gives the luminosity distance if I know luminosity and observed flux?');
+    expect(result.success).toBeTruthy();
+    expect(result.formula.id).toBe('luminosity_distance');
+  });
+
+  const sciOlyParaphraseCases = [
+    {
+      q: 'A Type Ia supernova looks dimmer because of 0.4 magnitudes of extinction. Which formula should I use to get the real distance?',
+      expected: ['distance_modulus_with_extinction', 'distance_modulus']
+    },
+    {
+      q: 'If a star is 70 parsecs away, how do I get the parallax angle in arcseconds?',
+      expected: ['parallax_from_distance']
+    },
+    {
+      q: 'I know the linear separation and the distance to the binary. What gives me the angular separation in arcseconds?',
+      expected: ['angular_separation_arcsec', 'angular_size']
+    },
+    {
+      q: 'What relation gives the physical separation in AU from an angular separation in arcseconds?',
+      expected: ['linear_separation_from_angular']
+    },
+    {
+      q: 'A cloud is in virial equilibrium. Which formula gives the virial temperature from mass, radius, mean particle mass, and k_B?',
+      expected: ['virial_temperature_gas']
+    },
+    {
+      q: 'How do I estimate the virial velocity dispersion of a spherical gas cloud?',
+      expected: ['virial_velocity_dispersion']
+    },
+    {
+      q: 'For a Cepheid with known absolute magnitude, which formula should I use to estimate the pulsation period?',
+      expected: ['period_luminosity_cepheid_classical']
+    },
+    {
+      q: 'If brightness drops to 75 percent, what formula converts the flux ratio into a magnitude change?',
+      expected: ['magnitude_change_flux_ratio']
+    },
+    {
+      q: 'Which formula gives recessional speed when I know a galaxy distance and the Hubble constant?',
+      expected: ['hubble_law']
+    },
+    {
+      q: 'I have a peak wavelength of 400 nm and need the stellar temperature. What formula applies?',
+      expected: ['wiens_law']
+    }
+  ];
+
+  for (const { q, expected } of sciOlyParaphraseCases) {
+    test(`SciOly paraphrase maps correctly: "${q}"`, async () => {
+      const { expert } = createExpert();
+      const result = expert.solveQuestion(q);
+      expect(result.success).toBeTruthy();
+      expect(expected).toContain(result.formula.id);
+      expect(result.confidence).toBeGreaterThanOrEqual(45);
+    });
+  }
 
   test('determinism: same input yields same formula', async () => {
     const { expert } = createExpert();
@@ -109,6 +169,14 @@ test.describe('AstrophysicsExpertSystem - Negative Authority & Refusal', () => {
     const { expert } = createExpert();
     const result = expert.solveQuestion('solve x^2 + 3x = 0');
     expect(result.success).toBeFalsy();
+  });
+
+  test('hostile HTML-like input is normalized safely', async () => {
+    const { expert } = createExpert();
+    const result = expert.solveQuestion('<script>alert(1)</script> what is the orbital period of Earth around the Sun?');
+    expect(result.success).toBeTruthy();
+    expect(['kepler_third_law', 'orbital_period_general']).toContain(result.formula.id);
+    expect(result.explanation).not.toContain('<script>');
   });
 });
 

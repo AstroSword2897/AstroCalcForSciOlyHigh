@@ -49,43 +49,62 @@ export class AstrophysicsExpertSystem {
             'partial derivative', 'gradient', 'divergence', 'curl',
             'laplacian', 'jacobian', 'hessian'
         ];
+        this.vagueTerms = ['stuff', 'thing', 'things', 'something', 'formula', 'equation'];
         this.conceptDictionary = this.buildConceptDictionary();
+    }
+
+    clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    normalizeQuestionText(questionText) {
+        return String(questionText || '')
+            .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+            .replace(/[<>`]/g, ' ')
+            .toLowerCase()
+            .replace(/[^\w\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 400);
     }
 
     // Build concept dictionary from formulas (name + concepts + keywords)
     buildConceptDictionary() {
         const dict = {};
+        const addEntry = (key, formula, weight, source) => {
+            const normalizedKey = String(key || '').toLowerCase().trim();
+            if (!normalizedKey || normalizedKey.length < 3) return;
+            if (!dict[normalizedKey]) dict[normalizedKey] = [];
+            dict[normalizedKey].push({ formula, weight, source });
+        };
+
         this.formulas.forEach(formula => {
             // Concepts
             (formula.concepts || []).forEach(concept => {
-                const key = concept.toLowerCase();
-                if (!dict[key]) dict[key] = [];
-                dict[key].push({ formula, weight: 1.0, source: 'concept' });
+                addEntry(concept, formula, 1.0, 'concept');
             });
             // Name tokens
             if (formula.name) {
                 formula.name.toLowerCase().split(/[\s_]+/).forEach(word => {
                     if (word.length > 2) {
-                        if (!dict[word]) dict[word] = [];
-                        dict[word].push({ formula, weight: 1.5, source: 'name' });
+                        addEntry(word, formula, 1.5, 'name');
                     }
                 });
             }
             // Keywords
             (formula.keywords || []).forEach(keyword => {
-                const key = keyword.toLowerCase();
-                if (!dict[key]) dict[key] = [];
-                dict[key].push({ formula, weight: 0.8, source: 'keyword' });
+                addEntry(keyword, formula, 0.8, 'keyword');
+            });
+            // Natural-language question patterns
+            (formula.questionPatterns || []).forEach(pattern => {
+                addEntry(pattern, formula, 1.2, 'questionPattern');
             });
         });
         return dict;
     }
 
     preprocessQuestion(questionText) {
-        const normalized = String(questionText || '').toLowerCase()
-            .replace(/[^\w\s]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
+        const normalized = this.normalizeQuestionText(questionText);
 
         const hasCalculus = this.calculusTerms.some(term => normalized.includes(term));
         if (hasCalculus) {
@@ -179,10 +198,15 @@ export class AstrophysicsExpertSystem {
 
     selectBestFormula(questionText, conceptMatches) {
         if (!conceptMatches.length) return null;
-        const searchResults = this.searchEngine ? this.searchEngine.search(questionText) : [];
+        const normalizedQuestion = this.normalizeQuestionText(questionText);
+        const searchResults = this.searchEngine ? this.searchEngine.search(normalizedQuestion) : [];
+        const preferredBoosts = this.getPreferredFormulaBoosts(normalizedQuestion);
 
         const combined = conceptMatches.map(match => {
             const sr = searchResults.find(r => r.formula.id === match.formula.id);
+            const questionPatternBoost = sr?.metrics?.questionPatternMatch ? 600 : 0;
+            const nameBoost = sr?.metrics?.nameMatch ? 250 : 0;
+            const preferredBoost = preferredBoosts.get(match.formula.id) || 0;
             return {
                 formula: match.formula,
                 conceptScore: match.score,
@@ -193,15 +217,68 @@ export class AstrophysicsExpertSystem {
                 confidenceMeta: sr?.confidenceMeta || {},
                 matchedConcepts: match.matchedConcepts,
                 matchedWords: match.matchedWords,
-                combinedScore: (sr?.score || 0) * 0.6 + match.score * 0.4
+                combinedScore: (sr?.score || 0) * 0.7 + match.score * 65 + questionPatternBoost + nameBoost + preferredBoost
             };
         });
 
         combined.sort((a, b) => b.combinedScore - a.combinedScore);
-        return combined[0] || null;
+        return {
+            best: combined[0] || null,
+            candidates: combined
+        };
     }
 
-    calculateConfidence(matchedWords, formula) {
+    getPreferredFormulaBoosts(normalizedQuestion) {
+        const boosts = new Map();
+        const addBoost = (formulaId, amount) => boosts.set(formulaId, (boosts.get(formulaId) || 0) + amount);
+
+        if (/\bspectral radiance\b|\bplanck\b|\bblackbody spectrum\b/.test(normalizedQuestion)) {
+            addBoost('blackbody_radiation', 2200);
+        }
+
+        if (/\bluminosity distance\b/.test(normalizedQuestion)) {
+            addBoost('luminosity_distance', 2000);
+        }
+
+        if (/\bobserved flux\b/.test(normalizedQuestion) && /\bluminosity\b/.test(normalizedQuestion)) {
+            addBoost('luminosity_distance', 1800);
+        }
+
+        if (/\bextinction\b/.test(normalizedQuestion) && /\bdistance\b/.test(normalizedQuestion)) {
+            addBoost('distance_modulus_with_extinction', 2200);
+            addBoost('distance_from_magnitude', 900);
+        }
+
+        if (/\borbital period\b/.test(normalizedQuestion)) {
+            addBoost('kepler_third_law', 1200);
+            addBoost('orbital_period_general', 900);
+        }
+
+        if (/\bbetween two masses\b|\bforce between masses\b/.test(normalizedQuestion)) {
+            addBoost('newton_gravitational_force', 1500);
+        }
+
+        if (/\blinear separation\b/.test(normalizedQuestion) && /\bdistance\b/.test(normalizedQuestion) && /\bangular separation\b/.test(normalizedQuestion)) {
+            addBoost('angular_separation_arcsec', 2200);
+        }
+
+        if (/\bphysical separation\b/.test(normalizedQuestion) && /\bangular separation\b/.test(normalizedQuestion)) {
+            addBoost('linear_separation_from_angular', 2400);
+        }
+
+        if (/\bflux ratio\b/.test(normalizedQuestion) && /\bmagnitude change\b/.test(normalizedQuestion)) {
+            addBoost('magnitude_change_flux_ratio', 2200);
+        }
+
+        if (/\bbrightness drops?\b|\bbrightness decreased\b/.test(normalizedQuestion) && /\bmagnitude\b/.test(normalizedQuestion)) {
+            addBoost('magnitude_change_flux_ratio', 1800);
+        }
+
+        return boosts;
+    }
+
+    calculateConfidence(match) {
+        const { matchedWords = [], matchedConcepts = [], formula, metrics = {}, normalizedScore = 0, percentile = 0 } = match;
         const formulaWords = new Set();
         if (formula.name) {
             formula.name.toLowerCase().split(/[\s_]+/).forEach(w => { if (w.length > 2) formulaWords.add(w); });
@@ -210,8 +287,48 @@ export class AstrophysicsExpertSystem {
             c.toLowerCase().split(/\s+/).forEach(w => { if (w.length > 2) formulaWords.add(w); });
         });
         const total = formulaWords.size || 1;
-        const matched = matchedWords.length;
-        return Math.min(Math.round((matched / total) * 100), 100);
+        const overlap = this.clamp(Math.round((matchedWords.length / total) * 100), 0, 100);
+        const normalizedContribution = Math.round((normalizedScore / 1000) * 40);
+        const percentileContribution = Math.round((percentile / 100) * 18);
+        const conceptContribution = Math.min(18, matchedConcepts.length * 6);
+        const strongMatchBoost =
+            (metrics.nameMatch ? 14 : 0) +
+            (metrics.questionPatternMatch ? 12 : 0) +
+            (metrics.variableMatch ? 6 : 0) +
+            (metrics.conceptMatch ? 8 : 0);
+
+        let confidence = this.clamp(
+            Math.max(overlap, overlap + normalizedContribution + percentileContribution + conceptContribution + strongMatchBoost),
+            0,
+            100
+        );
+
+        const lacksStrongSignal = !metrics.nameMatch && !metrics.questionPatternMatch && matchedConcepts.length <= 1;
+        if (lacksStrongSignal) {
+            confidence = Math.min(confidence, 55);
+        }
+
+        return confidence;
+    }
+
+    isAmbiguous(pre, rankedMatches) {
+        if (!rankedMatches || rankedMatches.length < 2) return false;
+        const top = rankedMatches[0];
+        const second = rankedMatches[1];
+        if (!top || !second) return false;
+
+        const asksForMultiple = /\b(and|or)\b/.test(pre.normalized) &&
+            (/\bvelocity\b/.test(pre.normalized) || /\bdistance\b/.test(pre.normalized) || /\bmass\b/.test(pre.normalized));
+        const closeScores = second.combinedScore >= top.combinedScore * 0.82;
+        const bothStrong = top.combinedScore > 0 && second.combinedScore > 0;
+
+        return asksForMultiple && closeScores && bothStrong;
+    }
+
+    isTooVague(pre) {
+        const significantWords = (pre.words || []).filter(word => word.length >= 3 && !this.vagueTerms.includes(word));
+        const containsVagueWord = (pre.words || []).some(word => this.vagueTerms.includes(word));
+        return significantWords.length <= 1 && containsVagueWord;
     }
 
     buildExplanation(match, confidence, extractedVariables) {
@@ -257,14 +374,41 @@ export class AstrophysicsExpertSystem {
             return failure;
         }
 
-        const best = this.selectBestFormula(questionText, conceptMatches);
+        if (this.isTooVague(pre)) {
+            const failure = {
+                success: false,
+                error: 'The question is too vague to choose a single formula confidently.',
+                suggestions: [
+                    'Ask for a specific quantity such as distance modulus, luminosity distance, or parallax distance.',
+                    'Include the known values or the relationship you want to use.'
+                ]
+            };
+            this.validateResultShape(failure);
+            return failure;
+        }
+
+        const selection = this.selectBestFormula(questionText, conceptMatches);
+        const best = selection?.best;
         if (!best) {
             const failure = { success: false, error: 'Could not determine the best formula.' };
             this.validateResultShape(failure);
             return failure;
         }
 
-        const confidence = this.calculateConfidence(best.matchedWords, best.formula);
+        if (this.isAmbiguous(pre, selection.candidates)) {
+            const suggestions = selection.candidates
+                .slice(0, 3)
+                .map(candidate => candidate.formula.name);
+            const failure = {
+                success: false,
+                error: 'Your question appears to ask for multiple formulas at once. Please ask for one quantity at a time.',
+                suggestions
+            };
+            this.validateResultShape(failure);
+            return failure;
+        }
+
+        const confidence = this.calculateConfidence(best);
         const explanation = this.buildExplanation(best, confidence, pre.variables);
 
         const success = {

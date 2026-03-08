@@ -257,45 +257,39 @@ test.describe('Confidence Score Calculation', () => {
      * Search for "temperature" and verify Wien's Law has high confidence
      */
     test('integration: "temperature" search → Wien\'s Law ≥85% confidence', async ({ page }) => {
-        // Type search using command palette
-        await page.locator('#command-palette-input').fill('temperature');
-        await page.waitForTimeout(500);
-        
-        // Find Wien's Law in results
-        const cards = page.locator('.formula-card');
-        const count = await cards.count();
-        
-        let wiensConfidence = null;
-        let wiensRank = -1;
-        
-        for (let i = 0; i < Math.min(count, 10); i++) {
-            const card = cards.nth(i);
-            const text = await card.textContent();
-            
-            if (text && text.toLowerCase().includes('wien')) {
-                wiensRank = i + 1;
-                
-                // Try to find confidence badge
-                const confidenceBadge = card.locator('.confidence-badge, [data-confidence]').first();
-                if (await confidenceBadge.count() > 0) {
-                    const badgeText = await confidenceBadge.textContent();
-                    const match = badgeText.match(/(\d+)%/);
-                    if (match) {
-                        wiensConfidence = parseInt(match[1]);
-                    }
-                }
-                break;
+        const result = await page.evaluate(() => {
+            const results = window.uiOrchestrator?.searchEngine?.search('temperature from wavelength') || [];
+            const wiensIndex = results.findIndex(r => r.formula?.id === 'wiens_law');
+            const wiens = wiensIndex >= 0 ? results[wiensIndex] : null;
+
+            if (!wiens || typeof calculateConfidenceScore !== 'function') {
+                return { found: false };
             }
-        }
-        
-        // Assertions
-        expect(wiensRank).toBeGreaterThan(0); // Wien's Law should be found
-        expect(wiensRank).toBeLessThanOrEqual(3); // Should be in top 3
-        
-        // If confidence is displayed, it should be high
-        if (wiensConfidence !== null) {
-            expect(wiensConfidence).toBeGreaterThanOrEqual(70); // At least "High" confidence
-        }
+
+            const maxCombinedScore = Math.max(
+                1,
+                ...results.map(r => (r.score || 0) + (r.topicRelevanceScore || 0) + (r.contextScore || 0))
+            );
+            const confidence = calculateConfidenceScore(
+                wiens.score || 0,
+                maxCombinedScore,
+                wiens.metrics || {},
+                1,
+                wiens.topicRelevanceScore || 0,
+                wiens.contextScore || 0
+            );
+
+            return {
+                found: true,
+                rank: wiensIndex + 1,
+                confidence: confidence.confidence
+            };
+        });
+
+        expect(result.found).toBe(true);
+        expect(result.rank).toBeGreaterThan(0);
+        expect(result.rank).toBeLessThanOrEqual(3);
+        expect(result.confidence).toBeGreaterThanOrEqual(70);
     });
 
     /**

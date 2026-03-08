@@ -37,6 +37,14 @@ export class FormulaScorer {
                 wordMatch: 20,
                 minWordLength: 3
             },
+            keywords: {
+                containsQuery: 280,
+                wordMatch: 70
+            },
+            questionPatterns: {
+                exactOrContains: 700,
+                partialOverlap: 260
+            },
             category: {
                 exactMatch: 150,
                 contains: 80
@@ -51,9 +59,14 @@ export class FormulaScorer {
     score(formula, query, words) {
         const queryLower = query.toLowerCase();
         const metrics = this.createEmptyMetrics();
+        metrics.formulaConfidence = formula.formulaConfidence || 85;
+        metrics.confidenceTier = formula.confidenceTier || 'approximation';
+        metrics.confidenceRationale = formula.confidenceRationale || '';
         const scores = {
             name: this.scoreNameMatch(formula.name, queryLower, words),
             description: this.scoreDescriptionMatch(formula.description, queryLower, words),
+            keywords: this.scoreKeywordMatch(formula.keywords || [], queryLower, words),
+            questionPatterns: this.scoreQuestionPatternMatch(formula.questionPatterns || [], queryLower, words, metrics),
             concepts: this.scoreConceptMatch(formula.concepts || [], queryLower, words, metrics),
             variables: this.scoreVariableMatch(formula.variables, queryLower, words, metrics),
             category: this.scoreCategoryMatch(formula.id, queryLower, words)
@@ -64,6 +77,8 @@ export class FormulaScorer {
             metrics.nameMatch = true;
         if (scores.description > 0)
             metrics.descriptionMatch = true;
+        if (scores.questionPatterns > 0)
+            metrics.questionPatternMatch = true;
         if (scores.concepts > 0)
             metrics.conceptMatch = true;
         if (scores.variables > 0)
@@ -75,9 +90,14 @@ export class FormulaScorer {
         metrics.componentScores = scores;
         
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
+        const weightedScore = totalScore > 0
+            ? Math.round(totalScore * (formula.searchWeight || 1))
+            : 0;
+        metrics.componentScores.reliabilityAdjustment = weightedScore - totalScore;
+
         return {
             formula,
-            score: Math.max(0, totalScore),
+            score: Math.max(0, weightedScore),
             metrics,
             topicRelevanceScore: 0,
             contextScore: 0
@@ -245,6 +265,59 @@ export class FormulaScorer {
         }
         return score;
     }
+
+    scoreKeywordMatch(keywords, query, words) {
+        let score = 0;
+        const cfg = this.config.keywords;
+
+        keywords.forEach(keyword => {
+            const keywordLower = String(keyword || '').toLowerCase();
+            if (!keywordLower)
+                return;
+
+            if (keywordLower.includes(query) || query.includes(keywordLower)) {
+                score += cfg.containsQuery;
+            }
+
+            words.forEach(word => {
+                if (word.length >= 3 && keywordLower.includes(word)) {
+                    score += cfg.wordMatch;
+                }
+            });
+        });
+
+        return score;
+    }
+
+    scoreQuestionPatternMatch(patterns, query, words, metrics) {
+        let score = 0;
+        const cfg = this.config.questionPatterns;
+        const compactQuery = words.join(' ');
+
+        patterns.forEach(pattern => {
+            const patternLower = String(pattern || '').toLowerCase().trim();
+            if (!patternLower)
+                return;
+
+            if (query.includes(patternLower) || patternLower.includes(query)) {
+                score += cfg.exactOrContains;
+                if (metrics) {
+                    metrics.matchReasons.push(`Question phrase match: "${pattern}"`);
+                }
+                return;
+            }
+
+            const overlapCount = words.filter(word => word.length >= 3 && patternLower.includes(word)).length;
+            if (overlapCount >= 2 || (compactQuery.length >= 8 && patternLower.includes(compactQuery))) {
+                score += cfg.partialOverlap;
+                if (metrics) {
+                    metrics.matchReasons.push(`Question phrase overlap: "${pattern}"`);
+                }
+            }
+        });
+
+        return score;
+    }
     createEmptyMetrics() {
         return {
             nameMatch: false,
@@ -265,6 +338,9 @@ export class FormulaScorer {
             intentMatch: false,
             targetMatch: false,
             sourceMatch: false,
+            formulaConfidence: 85,
+            confidenceTier: 'approximation',
+            confidenceRationale: '',
             componentScores: {} // For explainability
         };
     }
@@ -287,6 +363,9 @@ export class FormulaScorer {
         }
         if (metrics.descriptionMatch && metrics.componentScores.description > 0) {
             reasons.push(`Description match (${metrics.componentScores.description} pts)`);
+        }
+        if (metrics.questionPatternMatch && metrics.componentScores.questionPatterns > 0) {
+            reasons.push(`Question match (${metrics.componentScores.questionPatterns} pts)`);
         }
         if (metrics.categoryMatch && metrics.componentScores.category > 0) {
             reasons.push(`Category match (${metrics.componentScores.category} pts)`);

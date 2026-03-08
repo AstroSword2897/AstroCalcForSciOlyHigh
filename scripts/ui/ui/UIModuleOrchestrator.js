@@ -32,7 +32,7 @@ export class UIModuleOrchestrator {
                 cache: this.options.searchCache,
                 performanceOptimizer: this.options.performanceOptimizer,
                 semanticSearchSystem: this.options.semanticSearchSystem,
-                version: 'v2.1.0' // For cache key invalidation
+                version: 'v2.2.0' // For cache key invalidation
             });
             // Initialize Expert System (question -> formula)
             this.expertSystem = new AstrophysicsExpertSystem(
@@ -121,7 +121,15 @@ export class UIModuleOrchestrator {
                         window.updateSolveIndicators();
                     }
                 },
-                unitConverter: this.options.UnitConverter,
+                unitConverter: this.options.UnitConverter ? {
+                    // Wrapper to convert static methods to instance methods
+                    convertToBase: (value, fromUnit, baseUnit) => this.options.UnitConverter.convertToBase(value, fromUnit, baseUnit),
+                    convert: (value, fromUnit, toUnit) => this.options.UnitConverter.convert(value, fromUnit, toUnit),
+                    getAlternativeUnits: (baseUnit) => this.options.UnitConverter.getAlternativeUnits(baseUnit),
+                    convertAndFormat: (value, unit, options) => this.options.UnitConverter.convertAndFormat(value, unit, options),
+                    getCanonical: (unit) => this.options.UnitConverter.getCanonical(unit),
+                    getUnitCategory: (unit) => this.options.UnitConverter.getUnitCategory(unit)
+                } : null,
                 globalConstants: this.options.globalConstants,
                 graphUpdatesEnabled: true
             });
@@ -1440,7 +1448,29 @@ export class UIModuleOrchestrator {
                     
                     // Generate unit conversions for all alternative units
                     let unitConversionsHTML = '';
-                    if (this.options.UnitConverter && baseUnit && solvedFor !== 'result') {
+                    // Use cached unit conversions if available, otherwise generate them
+                    if (result.unitConversions && Array.isArray(result.unitConversions) && result.unitConversions.length > 0) {
+                        // Use cached unit conversions
+                        const conversions = result.unitConversions.map(conv => ({
+                            unit: conv.unit,
+                            value: conv.value,
+                            formatted: this.options.UnitConverter?.convertAndFormat(conv.value, baseUnit, conv.unit) || `${conv.value} ${conv.unit}`
+                        }));
+                        
+                        unitConversionsHTML = `
+                            <div style="margin-top: 20px; padding: 15px; background: rgba(0,255,255,0.1); border-radius: 8px;">
+                                <div style="font-weight: 600; margin-bottom: 12px; opacity: 0.9;">Converted to other units:</div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                                    ${conversions.map(conv => `
+                                        <div style="padding: 8px; background: rgba(255,255,255,0.05); border-radius: 4px;">
+                                            <div style="font-weight: 500; color: #00ffff;">${this.formattingUtils.escapeHtml(conv.formatted)}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    } else if (this.options.UnitConverter && baseUnit && solvedFor !== 'result') {
+                        // Generate unit conversions on the fly
                         try {
                             const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(baseUnit);
                             const conversions = [];

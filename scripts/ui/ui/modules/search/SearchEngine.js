@@ -11,8 +11,18 @@ export class SearchEngine {
         this.performanceOptimizer = options.performanceOptimizer;
         this.semanticSearchSystem = options.semanticSearchSystem;
         // Version for cache key invalidation
-        this.version = options.version || 'v2.1.0';
+        this.version = options.version || 'v2.2.0';
     }
+
+    normalizeQuery(searchTerm) {
+        return String(searchTerm || '')
+            .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+            .replace(/[<>`]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 300);
+    }
+
     updateFormulas(formulas) {
         this.formulas = formulas;
     }
@@ -21,7 +31,8 @@ export class SearchEngine {
      */
     search(searchTerm) {
         // Input validation
-        if (!searchTerm?.trim()) {
+        const normalizedSearchTerm = this.normalizeQuery(searchTerm);
+        if (!normalizedSearchTerm) {
             return this.getEmptyResults(50);
         }
         if (!this.formulas?.length) {
@@ -29,16 +40,16 @@ export class SearchEngine {
         }
         try {
             // 1. Check cache
-            const cached = this.getCachedResults(searchTerm);
+            const cached = this.getCachedResults(normalizedSearchTerm);
             if (cached) {
                 return cached;
             }
             // 2. Fast filter (early exit for performance)
-            const candidates = this.fastFilter(searchTerm);
+            const candidates = this.fastFilter(normalizedSearchTerm);
             // 3. Score candidates
-            const results = this.performSearch(candidates, searchTerm);
+            const results = this.performSearch(candidates, normalizedSearchTerm);
             // 4. Cache results
-            this.cacheResults(searchTerm, results);
+            this.cacheResults(normalizedSearchTerm, results);
             return results;
         }
         catch (error) {
@@ -51,7 +62,7 @@ export class SearchEngine {
      * Upgraded v2.1.0: Now includes variable matching for better recall
      */
     fastFilter(query) {
-        const queryLower = query.toLowerCase();
+        const queryLower = this.normalizeQuery(query).toLowerCase();
         const words = queryLower.split(/\s+/).filter(w => w.length > 0);
         return this.formulas.filter(f => {
             const nameLower = f.name.toLowerCase();
@@ -68,6 +79,24 @@ export class SearchEngine {
             })) {
                 return true;
             }
+
+            // Keyword match
+            if (f.keywords?.some(keyword => {
+                const keywordLower = String(keyword || '').toLowerCase();
+                return keywordLower.includes(queryLower) || words.some(w => keywordLower.includes(w));
+            })) {
+                return true;
+            }
+
+            // Question-pattern match
+            if (f.questionPatterns?.some(pattern => {
+                const patternLower = String(pattern || '').toLowerCase();
+                return queryLower.includes(patternLower) ||
+                    patternLower.includes(queryLower) ||
+                    words.filter(w => w.length >= 3 && patternLower.includes(w)).length >= 2;
+            })) {
+                return true;
+            }
             
             // Variable match (NEW v2.1.0)
             if (f.variables?.some(v => {
@@ -79,6 +108,13 @@ export class SearchEngine {
             })) {
                 return true;
             }
+
+            // Description match as last fallback to improve recall on natural language questions
+            if (f.description) {
+                const descriptionLower = f.description.toLowerCase();
+                return descriptionLower.includes(queryLower) ||
+                    words.some(w => w.length >= 4 && descriptionLower.includes(w));
+            }
             
             return false;
         });
@@ -87,7 +123,7 @@ export class SearchEngine {
      * Perform search - pure search logic, no caching
      */
     performSearch(candidates, searchTerm) {
-        const queryLower = searchTerm.toLowerCase().trim();
+        const queryLower = this.normalizeQuery(searchTerm).toLowerCase();
         const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
         // Score all candidates
         const scored = candidates.map(formula => {
@@ -188,7 +224,10 @@ export class SearchEngine {
                 hasNameMatch: scored.metrics.nameMatch || false,
                 hasStrongMatch: scored.metrics.conceptMatch || 
                                scored.metrics.variableMatch || 
-                               scored.metrics.semanticMatch || false
+                               scored.metrics.semanticMatch || false,
+                formulaConfidence: scored.metrics.formulaConfidence || 85,
+                confidenceTier: scored.metrics.confidenceTier || 'approximation',
+                confidenceRationale: scored.metrics.confidenceRationale || ''
             }
         };
     }
@@ -197,7 +236,7 @@ export class SearchEngine {
      * v2.1.0: Prevents stale cache when weights/formulas change
      */
     getCacheKey(searchTerm) {
-        const baseKey = searchTerm.toLowerCase().trim();
+        const baseKey = this.normalizeQuery(searchTerm).toLowerCase();
         const formulaCount = this.formulas?.length || 0;
         return `${baseKey}::${this.version}::${formulaCount}`;
     }

@@ -393,37 +393,64 @@ class FormulaCalculator {
             
             // Multiple unknown variables - but check if we can solve for any of them
             // CRITICAL: Even with multiple unknowns, if we have enough info to solve for one, do it!
-            let expression = this.generateMultiVariableExpression(unknownVars, knownVars);
+            // Try to solve for each unknown variable individually - return numeric result if successful
+            let expression = null;
             let isSymbolic = true;
-            let solvedFor = unknownVars;
+            let solvedFor = unknownVars.length === 1 ? unknownVars[0] : unknownVars;
             let numericResult = null;
             
-            // If there's exactly one unknown, we should have gotten a numeric result from generateMultiVariableExpression
-            // But if it's still symbolic, try one more time to solve it
-            if (unknownVars.length === 1) {
-                const unknownVar = unknownVars[0];
-                console.log(`[FormulaCalculator] solveSymbolically: Only one unknown (${unknownVar}), forcing numeric solve...`);
+            // CRITICAL: Try to solve for each unknown variable, even if there are multiple unknowns
+            // This ensures we get numeric results whenever possible, not just symbolic strings
+            for (const unknownVar of unknownVars) {
+                console.log(`[FormulaCalculator] solveSymbolically: Attempting to solve for ${unknownVar} (${unknownVars.length} total unknowns)...`);
+                
                 // Try solveForVariable (returns number or null, never throws)
                 numericResult = this.solveForVariable(unknownVar, knownVars);
                 if (numericResult !== null && typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
-                    console.log(`[FormulaCalculator] ✅ Forced numeric solve succeeded: ${unknownVar} = ${numericResult}`);
+                    console.log(`[FormulaCalculator] ✅ Numeric solve succeeded for ${unknownVar}: ${numericResult}`);
                     isSymbolic = false;
                     solvedFor = unknownVar;
-                    expression = `${unknownVar} = ${numericResult}`;
-                } else {
-                    // Try algebraic solver as fallback
+                    const varInfo = this.formula.variables.find(v => v.symbol === unknownVar);
+                    return {
+                        solvedFor: unknownVar,
+                        result: numericResult, // NUMBER, not string
+                        unit: varInfo?.unit || '',
+                        isSymbolic: false,
+                        variable: unknownVar,
+                        significantFigures: undefined,
+                        arithmeticContext: undefined,
+                        errorInfo: undefined
+                    };
+                }
+                
+                // Try algebraic solver as fallback
+                try {
                     const algebraicResult = this._solveAlgebraically(unknownVar, knownVars);
                     if (algebraicResult !== null && typeof algebraicResult === 'number' && Number.isFinite(algebraicResult) && !isNaN(algebraicResult)) {
-                        console.log(`[FormulaCalculator] ✅ Algebraic solve succeeded: ${unknownVar} = ${algebraicResult}`);
+                        console.log(`[FormulaCalculator] ✅ Algebraic solve succeeded for ${unknownVar}: ${algebraicResult}`);
                         isSymbolic = false;
                         solvedFor = unknownVar;
                         numericResult = algebraicResult;
-                        expression = `${unknownVar} = ${algebraicResult}`;
-                    } else {
-                        console.log(`[FormulaCalculator] All numeric solve attempts failed, using symbolic expression`);
+                        const varInfo = this.formula.variables.find(v => v.symbol === unknownVar);
+                        return {
+                            solvedFor: unknownVar,
+                            result: algebraicResult, // NUMBER, not string
+                            unit: varInfo?.unit || '',
+                            isSymbolic: false,
+                            variable: unknownVar,
+                            significantFigures: undefined,
+                            arithmeticContext: undefined,
+                            errorInfo: undefined
+                        };
                     }
+                } catch (algError) {
+                    console.log(`[FormulaCalculator] Algebraic solve failed for ${unknownVar}:`, algError.message);
                 }
             }
+            
+            // If we couldn't solve for any unknown, generate symbolic expression
+            console.log(`[FormulaCalculator] solveSymbolically: Could not solve for any unknown, generating symbolic expression`);
+            expression = this.generateMultiVariableExpression(unknownVars, knownVars);
             
             // CRITICAL: Format known values with their base units for display
             // This ensures "Known values" shows converted base unit values, not raw inputs
@@ -718,12 +745,41 @@ class FormulaCalculator {
             return cached;
         }
         
-        // CRITICAL: Preprocess expression to handle implicit multiplication
-        // First normalize Unicode operators, then expand implicit multiplication
+        // CRITICAL: Universal Scientific Calculator Preprocessing
+        // Normalize ALL scientific functions to Math.* format for consistent evaluation
         let processedExpression = String(expression)
+            // Normalize Unicode operators
             .replace(/×/g, '*')
             .replace(/÷/g, '/')
-            .replace(/√\s*\(/g, 'Math.sqrt(');
+            // Normalize scientific functions to Math.* (universal scientific calculator approach)
+            .replace(/\bsin\s*\(/gi, 'Math.sin(')
+            .replace(/\bcos\s*\(/gi, 'Math.cos(')
+            .replace(/\btan\s*\(/gi, 'Math.tan(')
+            .replace(/\basin\s*\(/gi, 'Math.asin(')
+            .replace(/\bacos\s*\(/gi, 'Math.acos(')
+            .replace(/\batan\s*\(/gi, 'Math.atan(')
+            .replace(/\bsqrt\s*\(/gi, 'Math.sqrt(')
+            .replace(/√\s*\(/g, 'Math.sqrt(')
+            .replace(/\bexp\s*\(/gi, 'Math.exp(')
+            .replace(/\bln\s*\(/gi, 'Math.log(')  // Natural log
+            .replace(/\blog10\s*\(/gi, 'Math.log10(')  // Base-10 log
+            .replace(/\blog2\s*\(/gi, 'Math.log2(')  // Base-2 log
+            .replace(/\blog\s*\(/gi, 'Math.log10(')  // Default log to log10 (scientific calculator standard)
+            .replace(/\bpow\s*\(/gi, 'Math.pow(')
+            .replace(/\babs\s*\(/gi, 'Math.abs(')
+            .replace(/\bfloor\s*\(/gi, 'Math.floor(')
+            .replace(/\bceil\s*\(/gi, 'Math.ceil(')
+            .replace(/\bround\s*\(/gi, 'Math.round(')
+            .replace(/\bmin\s*\(/gi, 'Math.min(')
+            .replace(/\bmax\s*\(/gi, 'Math.max(')
+            // Normalize power notation (^ to **)
+            .replace(/\^/g, '**')
+            // Normalize constants
+            .replace(/\bπ\b/g, 'Math.PI')
+            .replace(/\bpi\b/gi, 'Math.PI')
+            .replace(/\be\b(?![\d.])/g, 'Math.E');
+        
+        // Expand implicit multiplication (e.g., 2GM -> 2*G*M)
         processedExpression = this._expandImplicitMultiplication(processedExpression, variables);
         console.log(`[FormulaCalculator] Original expression: ${expression}`);
         console.log(`[FormulaCalculator] Processed expression: ${processedExpression}`);
@@ -775,12 +831,56 @@ class FormulaCalculator {
             }
         }
         
+        // FALLBACK 4: Universal Scientific Calculator - Direct Math evaluation
+        // This is the final fallback that uses JavaScript's Math object directly
+        // This ensures universal scientific calculator behavior
+        try {
+            // Substitute variables into expression
+            const allVars = { ...this.constants, ...(this.formula.constants || {}), ...variables };
+            let finalExpr = processedExpression;
+            
+            // Replace variables with their values (sorted by length to avoid partial matches)
+            const sortedVars = Object.entries(allVars)
+                .filter(([_, v]) => typeof v === 'number' && Number.isFinite(v))
+                .sort((a, b) => b[0].length - a[0].length);
+            
+            for (const [varName, varValue] of sortedVars) {
+                // Use word boundaries to avoid partial matches
+                const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                finalExpr = finalExpr.replace(regex, String(varValue));
+            }
+            
+            // Validate expression only contains safe characters (numbers, operators, Math.*, parentheses)
+            const safePattern = /^[0-9+\-*/().\sMath,]+$/;
+            if (safePattern.test(finalExpr)) {
+                // Use Function constructor with Math object (universal scientific calculator)
+                const func = new Function('Math', '"use strict"; return (' + finalExpr + ')');
+                result = func(Math);
+                
+                if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
+                    console.log(`[FormulaCalculator] ✅ Universal Scientific Calculator evaluation succeeded: ${finalExpr} = ${result}`);
+                    this.expressionCache.set(cacheKey, result);
+                    return result;
+                }
+            }
+        } catch (fallbackError) {
+            console.warn(`[FormulaCalculator] Universal Scientific Calculator fallback failed:`, fallbackError.message);
+        }
+        
         // If all evaluators failed, throw error - we MUST have a numeric result
         console.error(`[FormulaCalculator] ❌ evaluateExpression FAILED for: ${expression} (processed: ${processedExpression})`);
         console.error(`[FormulaCalculator] Variables:`, variables);
         console.error(`[FormulaCalculator] mathEvaluator available:`, !!this.mathEvaluator);
         console.error(`[FormulaCalculator] SafeMathEvaluator available:`, typeof SafeMathEvaluator !== 'undefined');
         console.error(`[FormulaCalculator] SafeExpressionEvaluator available:`, typeof SafeExpressionEvaluator !== 'undefined');
+        console.error(`[FormulaCalculator] Last result value:`, result, `(type: ${typeof result})`);
+        
+        // CRITICAL: If we got a non-numeric result, throw error
+        if (result !== null && result !== undefined) {
+            throw new Error(`evaluateExpression returned non-numeric result: ${result} (type: ${typeof result}). Expression: ${expression}`);
+        }
+        
         throw new Error(`Cannot evaluate expression: ${expression}. No working evaluator available.`);
     }
     
@@ -919,10 +1019,81 @@ class FormulaCalculator {
                 return algebraicResult;
             }
         } catch (algebraicError) {
-            console.log(`[FormulaCalculator] Algebraic solve failed for ${targetVar}, trying numeric solver:`, algebraicError.message);
+            console.log(`[FormulaCalculator] Algebraic solve failed for ${targetVar}, trying direct evaluation:`, algebraicError.message);
         }
         
-        // FALLBACK: Try numeric solver if algebraic solver failed
+        // FALLBACK 1: Universal Scientific Calculator - Direct expression evaluation
+        // This handles cases like "M_V = -2.76 * log10(P) - 1.4" where we can directly evaluate
+        // Uses universal scientific calculator approach (all functions normalized to Math.*)
+        try {
+            const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+            // Check if equation is in form "targetVar = expression"
+            const equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
+            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const assignmentPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
+            const match = equation.match(assignmentPattern);
+            
+            if (match) {
+                const expression = match[1].trim();
+                console.log(`[FormulaCalculator] Found assignment pattern, using Universal Scientific Calculator: ${expression}`);
+                console.log(`[FormulaCalculator] Known values for evaluation:`, allKnown);
+                // Use evaluateExpression which handles all scientific function normalization
+                // This ensures universal scientific calculator behavior
+                const directResult = this.evaluateExpression(expression, allKnown);
+                if (typeof directResult === 'number' && Number.isFinite(directResult) && !isNaN(directResult)) {
+                    console.log(`[FormulaCalculator] ✅ Universal Scientific Calculator evaluation succeeded for ${targetVar}: ${directResult}`);
+                    return directResult;
+                } else {
+                    console.warn(`[FormulaCalculator] ⚠️ evaluateExpression returned non-numeric:`, directResult, `(type: ${typeof directResult})`);
+                }
+            } else {
+                console.log(`[FormulaCalculator] No assignment pattern found for ${targetVar} in equation: ${equation}`);
+            }
+        } catch (directEvalError) {
+            console.log(`[FormulaCalculator] Universal Scientific Calculator evaluation failed for ${targetVar}:`, directEvalError.message);
+            console.error(`[FormulaCalculator] Evaluation error details:`, directEvalError);
+        }
+        
+        // FALLBACK 1.5: Try to isolate and evaluate the target variable from the equation
+        // This is more aggressive - try to rearrange the equation and evaluate
+        try {
+            const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
+            
+            // Try to substitute all known values and see if we can isolate targetVar
+            // Replace known variables with their values
+            const sortedKnown = Object.entries(allKnown)
+                .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && k !== targetVar)
+                .sort((a, b) => b[0].length - a[0].length);
+            
+            for (const [varName, varValue] of sortedKnown) {
+                const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                equation = equation.replace(regex, String(varValue));
+            }
+            
+            console.log(`[FormulaCalculator] After substitution, equation: ${equation}`);
+            
+            // Try to evaluate the entire equation as an expression
+            // If it's in form "targetVar = expression", evaluate the expression
+            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const isolatedPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
+            const isolatedMatch = equation.match(isolatedPattern);
+            
+            if (isolatedMatch) {
+                const expression = isolatedMatch[1].trim();
+                console.log(`[FormulaCalculator] Isolated expression for ${targetVar}: ${expression}`);
+                const isolatedResult = this.evaluateExpression(expression, {});
+                if (typeof isolatedResult === 'number' && Number.isFinite(isolatedResult) && !isNaN(isolatedResult)) {
+                    console.log(`[FormulaCalculator] ✅ Isolated evaluation succeeded for ${targetVar}: ${isolatedResult}`);
+                    return isolatedResult;
+                }
+            }
+        } catch (isolatedError) {
+            console.log(`[FormulaCalculator] Isolated evaluation failed for ${targetVar}:`, isolatedError.message);
+        }
+        
+        // FALLBACK 2: Try numeric solver if available
         if (this.solver) {
             // Optimized: Reuse merged constants
             if (!this._solverConstants) {
@@ -949,8 +1120,73 @@ class FormulaCalculator {
             }
         }
         
-        // If both methods failed, return null to signal failure (let UI handle fallback)
-        console.log(`[FormulaCalculator] solveForVariable: Unable to solve for ${targetVar} using algebraic or numeric methods. Known vars: ${Object.keys(knownVars).join(', ')}`);
+        // FALLBACK 3: AGGRESSIVE NUMERIC EVALUATION
+        // Try to substitute all known values and evaluate the entire equation
+        // This is a last resort - it will work if the equation can be rearranged to isolate targetVar
+        try {
+            const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
+            
+            console.log(`[FormulaCalculator] FALLBACK 3: Attempting aggressive numeric evaluation for ${targetVar}`);
+            console.log(`[FormulaCalculator] Original equation: ${equation}`);
+            console.log(`[FormulaCalculator] Known values:`, allKnown);
+            
+            // Substitute all known variables with their numeric values
+            const sortedKnown = Object.entries(allKnown)
+                .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && k !== targetVar)
+                .sort((a, b) => b[0].length - a[0].length);
+            
+            let substitutedEquation = equation;
+            for (const [varName, varValue] of sortedKnown) {
+                const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+                substitutedEquation = substitutedEquation.replace(regex, String(varValue));
+            }
+            
+            console.log(`[FormulaCalculator] After substitution: ${substitutedEquation}`);
+            
+            // Try to isolate targetVar by solving the equation
+            // Pattern: targetVar = expression (already isolated)
+            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const isolatedPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
+            const isolatedMatch = substitutedEquation.match(isolatedPattern);
+            
+            if (isolatedMatch) {
+                const expression = isolatedMatch[1].trim();
+                console.log(`[FormulaCalculator] Isolated expression: ${expression}`);
+                const result = this.evaluateExpression(expression, {});
+                if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
+                    console.log(`[FormulaCalculator] ✅ FALLBACK 3 succeeded: ${targetVar} = ${result}`);
+                    return result;
+                }
+            }
+            
+            // Try reverse: expression = targetVar
+            const reversePattern = new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*$`);
+            const reverseMatch = substitutedEquation.match(reversePattern);
+            if (reverseMatch) {
+                const leftSide = reverseMatch[1].trim();
+                console.log(`[FormulaCalculator] Reverse pattern found, left side: ${leftSide}`);
+                // Evaluate left side - result should equal targetVar
+                const leftResult = this.evaluateExpression(leftSide, {});
+                
+                // CRITICAL: Validate numeric result before returning
+                if (typeof leftResult !== 'number' || !Number.isFinite(leftResult) || isNaN(leftResult)) {
+                    console.warn(`[FormulaCalculator] ⚠️ FALLBACK 3 (reverse) returned non-numeric:`, leftResult, `(type: ${typeof leftResult})`);
+                    // Don't throw - let other fallbacks try
+                } else {
+                    console.log(`[FormulaCalculator] ✅ FALLBACK 3 (reverse) succeeded: ${targetVar} = ${leftResult}`);
+                    return leftResult;
+                }
+            }
+            
+        } catch (aggressiveError) {
+            console.log(`[FormulaCalculator] FALLBACK 3 (aggressive evaluation) failed:`, aggressiveError.message);
+        }
+        
+        // If all methods failed, return null to signal failure (let UI handle fallback)
+        console.log(`[FormulaCalculator] ❌ solveForVariable: Unable to solve for ${targetVar} using any method. Known vars: ${Object.keys(knownVars).join(', ')}`);
+        console.log(`[FormulaCalculator] Equation: ${this.formula.equation}`);
         return null;
     }
     
@@ -971,6 +1207,20 @@ class FormulaCalculator {
             .replace(/×/g, '*')
             .replace(/÷/g, '/');
         console.log(`[FormulaCalculator] Equation: ${equation}`);
+        
+        // Step 1: Substitute all known numeric values into the equation
+        let substituted = equation;
+        const sortedKnown = Object.entries(allKnown)
+            .filter(([k, v]) => k !== targetVar && typeof v === 'number' && Number.isFinite(v))
+            .sort((a, b) => b[0].length - a[0].length); // longest first to avoid partial matches
+        
+        for (const [symbol, value] of sortedKnown) {
+            const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            substituted = substituted.replace(regex, `(${value})`);
+        }
+        
+        console.log(`[FormulaCalculator] After substitution: ${substituted}`);
         
         // Declare match variable
         let match;
@@ -998,14 +1248,22 @@ class FormulaCalculator {
                 console.log(`[FormulaCalculator] ✅ Found square root pattern. Expression inside sqrt: ${expression}`);
                 try {
                     const value = this.evaluateExpression(expression, allKnown);
-                    console.log(`[FormulaCalculator] Evaluated expression: ${expression} = ${value}`);
-                    if (typeof value === 'number' && Number.isFinite(value) && !isNaN(value)) {
-                        const result = Math.sqrt(value);
-                        console.log(`[FormulaCalculator] ✅ Square root result: √(${value}) = ${result}`);
-                        return result;
-                    } else {
-                        throw new Error(`Expression evaluated to invalid number: ${value}`);
+                    console.log(`[FormulaCalculator] Evaluated expression: ${expression} = ${value} (type: ${typeof value})`);
+                    
+                    // CRITICAL: Validate numeric result before using it
+                    if (typeof value !== 'number' || !Number.isFinite(value) || isNaN(value)) {
+                        throw new Error(`Expression evaluated to invalid number: ${value} (type: ${typeof value}). Unit conversion cannot proceed.`);
                     }
+                    
+                    const result = Math.sqrt(value);
+                    console.log(`[FormulaCalculator] ✅ Square root result: √(${value}) = ${result}`);
+                    
+                    // Double-check result is numeric
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Square root calculation returned invalid number: ${result}`);
+                    }
+                    
+                    return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate expression inside sqrt:`, e);
                     throw new Error(`Cannot evaluate expression inside square root: ${expression}. ${e.message}`);
@@ -1023,12 +1281,14 @@ class FormulaCalculator {
             console.log(`[FormulaCalculator] ✅ Found direct pattern. Expression: ${expression}`);
             try {
                 const result = this.evaluateExpression(expression, allKnown);
-                console.log(`[FormulaCalculator] ✅ Direct evaluation result: ${result}`);
-                if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                    return result;
-                } else {
-                    throw new Error(`Direct evaluation returned invalid number: ${result}`);
+                console.log(`[FormulaCalculator] ✅ Direct evaluation result: ${result} (type: ${typeof result})`);
+                
+                // CRITICAL: Validate numeric result before returning
+                if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                    throw new Error(`Direct evaluation returned invalid number: ${result} (type: ${typeof result}). Unit conversion cannot proceed.`);
                 }
+                
+                return result;
             } catch (e) {
                 console.error(`[FormulaCalculator] Failed to evaluate direct expression:`, e);
                 throw new Error(`Cannot evaluate expression: ${expression}. ${e.message}`);
@@ -1044,12 +1304,14 @@ class FormulaCalculator {
             console.log(`[FormulaCalculator] ✅ Found reverse pattern. Expression: ${expression}`);
             try {
                 const result = this.evaluateExpression(expression, allKnown);
-                console.log(`[FormulaCalculator] ✅ Reverse evaluation result: ${result}`);
-                if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                    return result;
-                } else {
-                    throw new Error(`Reverse evaluation returned invalid number: ${result}`);
+                console.log(`[FormulaCalculator] ✅ Reverse evaluation result: ${result} (type: ${typeof result})`);
+                
+                // CRITICAL: Validate numeric result before returning
+                if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                    throw new Error(`Reverse evaluation returned invalid number: ${result} (type: ${typeof result}). Unit conversion cannot proceed.`);
                 }
+                
+                return result;
             } catch (e) {
                 console.error(`[FormulaCalculator] Failed to evaluate reverse expression:`, e);
                 throw new Error(`Cannot evaluate expression: ${expression}. ${e.message}`);
@@ -1074,7 +1336,13 @@ class FormulaCalculator {
                 console.log(`[FormulaCalculator] ✅ Found power pattern. ${targetVar}^${actualPower} = ${expression}`);
                 try {
                     const rightSide = this.evaluateExpression(expression, allKnown);
-                    console.log(`[FormulaCalculator] Evaluated right side: ${expression} = ${rightSide}`);
+                    console.log(`[FormulaCalculator] Evaluated right side: ${expression} = ${rightSide} (type: ${typeof rightSide})`);
+                    
+                    // CRITICAL: Validate numeric result before using it
+                    if (typeof rightSide !== 'number' || !Number.isFinite(rightSide) || isNaN(rightSide)) {
+                        throw new Error(`Expression evaluated to invalid number: ${rightSide} (type: ${typeof rightSide}). Unit conversion cannot proceed.`);
+                    }
+                    
                     let result;
                     if (actualPower === 2) {
                         result = Math.sqrt(rightSide);
@@ -1086,11 +1354,13 @@ class FormulaCalculator {
                         throw new Error(`Invalid power: ${actualPower}`);
                     }
                     console.log(`[FormulaCalculator] ✅ Power isolation result: ${result}`);
-                    if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                        return result;
-                    } else {
+                    
+                    // Double-check result is numeric
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
                         throw new Error(`Power isolation returned invalid number: ${result}`);
                     }
+                    
+                    return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate power pattern:`, e);
                     // Continue to next pattern
@@ -1115,7 +1385,13 @@ class FormulaCalculator {
                 console.log(`[FormulaCalculator] ✅ Found reverse power pattern. ${expression} = ${targetVar}^${actualPower}`);
                 try {
                     const leftSide = this.evaluateExpression(expression, allKnown);
-                    console.log(`[FormulaCalculator] Evaluated left side: ${expression} = ${leftSide}`);
+                    console.log(`[FormulaCalculator] Evaluated left side: ${expression} = ${leftSide} (type: ${typeof leftSide})`);
+                    
+                    // CRITICAL: Validate numeric result before using it
+                    if (typeof leftSide !== 'number' || !Number.isFinite(leftSide) || isNaN(leftSide)) {
+                        throw new Error(`Expression evaluated to invalid number: ${leftSide} (type: ${typeof leftSide}). Unit conversion cannot proceed.`);
+                    }
+                    
                     let result;
                     if (actualPower === 2) {
                         result = Math.sqrt(leftSide);
@@ -1127,11 +1403,13 @@ class FormulaCalculator {
                         throw new Error(`Invalid power: ${actualPower}`);
                     }
                     console.log(`[FormulaCalculator] ✅ Reverse power isolation result: ${result}`);
-                    if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                        return result;
-                    } else {
+                    
+                    // Double-check result is numeric
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
                         throw new Error(`Reverse power isolation returned invalid number: ${result}`);
                     }
+                    
+                    return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate reverse power pattern:`, e);
                     // Continue to next pattern
@@ -1139,25 +1417,7 @@ class FormulaCalculator {
             }
         }
         
-        // Pattern 5: Complex expressions - try algebraic rearrangement
-        // For T² = (4π²/GM) × a³, if solving for a:
-        // We need to rearrange: a³ = T²GM/(4π²), then a = ∛(T²GM/(4π²))
-        
-        // First, substitute all known values into the equation
-        let substituted = equation;
-        const sortedKnown = Object.entries(allKnown)
-            .filter(([k, v]) => k !== targetVar && typeof v === 'number')
-            .sort((a, b) => b[0].length - a[0].length); // Longest first to avoid partial matches
-        
-        for (const [symbol, value] of sortedKnown) {
-            const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-            const formatted = Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)
-                ? value.toExponential(6)
-                : value.toString();
-            substituted = substituted.replace(regex, `(${formatted})`);
-        }
-        
+        // Pattern 5: Complex expressions - try algebraic rearrangement (using already-substituted equation)
         // Pattern 5a: targetVar^n = expression (after substitution)
         // Handle both explicit power notation (^2, ^3) and Unicode (², ³)
         const powerNotation = [
@@ -1175,8 +1435,18 @@ class FormulaCalculator {
                 const rightExpr = match[power !== null ? 1 : 2].trim();
                 try {
                     const rightValue = this.evaluateExpression(rightExpr, {});
+                    
+                    // CRITICAL: Validate numeric result before using it
+                    if (typeof rightValue !== 'number' || !Number.isFinite(rightValue) || isNaN(rightValue)) {
+                        throw new Error(`Expression evaluated to invalid number: ${rightValue} (type: ${typeof rightValue}). Unit conversion cannot proceed.`);
+                    }
+                    
                     if (actualPower === 2) {
-                        return Math.sqrt(rightValue);
+                        const result = Math.sqrt(rightValue);
+                        if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                            throw new Error(`Square root returned invalid number: ${result}`);
+                        }
+                        return result;
                     } else if (actualPower === 3) {
                         return Math.cbrt(rightValue);
                     } else if (actualPower > 0) {
@@ -1204,8 +1474,18 @@ class FormulaCalculator {
                 const leftExpr = match[1].trim();
                 try {
                     const leftValue = this.evaluateExpression(leftExpr, {});
+                    
+                    // CRITICAL: Validate numeric result before using it
+                    if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                        throw new Error(`Expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                    }
+                    
                     if (actualPower === 2) {
-                        return Math.sqrt(leftValue);
+                        const result = Math.sqrt(leftValue);
+                        if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                            throw new Error(`Square root returned invalid number: ${result}`);
+                        }
+                        return result;
                     } else if (actualPower === 3) {
                         return Math.cbrt(leftValue);
                     } else if (actualPower > 0) {
@@ -1230,8 +1510,21 @@ class FormulaCalculator {
                 const rightExpr = match[3].trim();
                 const leftValue = this.evaluateExpression(leftExpr, {});
                 const coeffValue = this.evaluateExpression(coeffExpr, {});
+                
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof coeffValue !== 'number' || !Number.isFinite(coeffValue) || isNaN(coeffValue)) {
+                    throw new Error(`Coefficient expression evaluated to invalid number: ${coeffValue} (type: ${typeof coeffValue}). Unit conversion cannot proceed.`);
+                }
+                
                 if (coeffValue !== 0) {
-                    return leftValue / coeffValue;
+                    const result = leftValue / coeffValue;
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Division returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
@@ -1247,8 +1540,21 @@ class FormulaCalculator {
                 const numeratorExpr = match[2].trim();
                 const leftValue = this.evaluateExpression(leftExpr, {});
                 const numeratorValue = this.evaluateExpression(numeratorExpr, {});
+                
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof numeratorValue !== 'number' || !Number.isFinite(numeratorValue) || isNaN(numeratorValue)) {
+                    throw new Error(`Numerator expression evaluated to invalid number: ${numeratorValue} (type: ${typeof numeratorValue}). Unit conversion cannot proceed.`);
+                }
+                
                 if (leftValue !== 0) {
-                    return numeratorValue / leftValue;
+                    const result = numeratorValue / leftValue;
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Division returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
@@ -1268,8 +1574,24 @@ class FormulaCalculator {
                 const leftValue = this.evaluateExpression(leftExpr, {});
                 const numeratorValue = this.evaluateExpression(numeratorExpr, {});
                 const coeffValue = this.evaluateExpression(coeffExpr, {});
+                
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof numeratorValue !== 'number' || !Number.isFinite(numeratorValue) || isNaN(numeratorValue)) {
+                    throw new Error(`Numerator expression evaluated to invalid number: ${numeratorValue} (type: ${typeof numeratorValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof coeffValue !== 'number' || !Number.isFinite(coeffValue) || isNaN(coeffValue)) {
+                    throw new Error(`Coefficient expression evaluated to invalid number: ${coeffValue} (type: ${typeof coeffValue}). Unit conversion cannot proceed.`);
+                }
+                
                 if (leftValue !== 0 && coeffValue !== 0) {
-                    return numeratorValue / (leftValue * coeffValue);
+                    const result = numeratorValue / (leftValue * coeffValue);
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Division returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
@@ -1294,12 +1616,30 @@ class FormulaCalculator {
                 const coeffValue = this.evaluateExpression(coeffExpr, {});
                 const multiplierValue = this.evaluateExpression(multiplierExpr, {});
                 
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof numeratorValue !== 'number' || !Number.isFinite(numeratorValue) || isNaN(numeratorValue)) {
+                    throw new Error(`Numerator expression evaluated to invalid number: ${numeratorValue} (type: ${typeof numeratorValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof coeffValue !== 'number' || !Number.isFinite(coeffValue) || isNaN(coeffValue)) {
+                    throw new Error(`Coefficient expression evaluated to invalid number: ${coeffValue} (type: ${typeof coeffValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof multiplierValue !== 'number' || !Number.isFinite(multiplierValue) || isNaN(multiplierValue)) {
+                    throw new Error(`Multiplier expression evaluated to invalid number: ${multiplierValue} (type: ${typeof multiplierValue}). Unit conversion cannot proceed.`);
+                }
+                
                 // Rearrange: left = (numerator / (coeff × M)) × multiplier
                 // left = numerator × multiplier / (coeff × M)
                 // left × coeff × M = numerator × multiplier
                 // M = (numerator × multiplier) / (left × coeff)
                 if (leftValue !== 0 && coeffValue !== 0) {
-                    return (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                    const result = (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Complex division returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
@@ -1320,11 +1660,26 @@ class FormulaCalculator {
                 const numeratorValue = this.evaluateExpression(numeratorExpr, {});
                 const multiplierValue = this.evaluateExpression(multiplierExpr, {});
                 
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof numeratorValue !== 'number' || !Number.isFinite(numeratorValue) || isNaN(numeratorValue)) {
+                    throw new Error(`Numerator expression evaluated to invalid number: ${numeratorValue} (type: ${typeof numeratorValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof multiplierValue !== 'number' || !Number.isFinite(multiplierValue) || isNaN(multiplierValue)) {
+                    throw new Error(`Multiplier expression evaluated to invalid number: ${multiplierValue} (type: ${typeof multiplierValue}). Unit conversion cannot proceed.`);
+                }
+                
                 // left = (numerator / targetVar) × multiplier
                 // left = numerator × multiplier / targetVar
                 // targetVar = numerator × multiplier / left
                 if (leftValue !== 0) {
-                    return (numeratorValue * multiplierValue) / leftValue;
+                    const result = (numeratorValue * multiplierValue) / leftValue;
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Simple division multiplication returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
@@ -1363,39 +1718,62 @@ class FormulaCalculator {
                     }
                 }
                 
+                // CRITICAL: Validate numeric results before using them
+                if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
+                    throw new Error(`Left expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof numeratorValue !== 'number' || !Number.isFinite(numeratorValue) || isNaN(numeratorValue)) {
+                    throw new Error(`Numerator expression evaluated to invalid number: ${numeratorValue} (type: ${typeof numeratorValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof multiplierValue !== 'number' || !Number.isFinite(multiplierValue) || isNaN(multiplierValue)) {
+                    throw new Error(`Multiplier expression evaluated to invalid number: ${multiplierValue} (type: ${typeof multiplierValue}). Unit conversion cannot proceed.`);
+                }
+                if (typeof coeffValue !== 'number' || !Number.isFinite(coeffValue) || isNaN(coeffValue)) {
+                    throw new Error(`Coefficient expression evaluated to invalid number: ${coeffValue} (type: ${typeof coeffValue}). Unit conversion cannot proceed.`);
+                }
+                
                 // Rearrange: left = (numerator / (coeff × targetVar)) × multiplier
                 // left = numerator × multiplier / (coeff × targetVar)
                 // left × coeff × targetVar = numerator × multiplier
                 // targetVar = (numerator × multiplier) / (left × coeff)
                 if (leftValue !== 0 && coeffValue !== 0) {
-                    return (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                    const result = (numeratorValue * multiplierValue) / (leftValue * coeffValue);
+                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
+                        throw new Error(`Compound variable pattern returned invalid number: ${result}`);
+                    }
+                    return result;
                 }
             } catch (e) {
                 // Continue
             }
         }
         
-        // Pattern 5c: Try to use formula's solveFunction if available (most reliable)
+        // Step 4: Fallback - try formula's dedicated solveFunction if available
         if (this.formula.solveFunction && typeof this.formula.solveFunction === 'function') {
             try {
                 const result = this.formula.solveFunction(allKnown);
-                if (typeof result === 'number' && Number.isFinite(result)) {
+                if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
+                    console.log(`[FormulaCalculator] ✅ Solved ${targetVar} = ${result} (solveFunction)`);
                     return result;
                 }
             } catch (e) {
-                // Continue to algebraic solving
+                console.warn(`[FormulaCalculator] solveFunction failed:`, e);
             }
         }
         
-        // Pattern 6: targetVar = expression (after substitution, targetVar is isolated)
+        // Step 5: Final attempt - evaluate isolated targetVar if equation is like targetVar = expression
         const isolatedPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
         match = substituted.match(isolatedPattern);
         if (match) {
             const expression = match[1].trim();
             try {
-                return this.evaluateExpression(expression, {});
+                const numericResult = this.evaluateExpression(expression, {});
+                if (typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
+                    console.log(`[FormulaCalculator] ✅ Solved ${targetVar} = ${numericResult} (isolated pattern)`);
+                    return numericResult;
+                }
             } catch (e) {
-                // Continue
+                console.warn(`[FormulaCalculator] Isolated targetVar pattern failed:`, e);
             }
         }
         
@@ -1420,21 +1798,8 @@ class FormulaCalculator {
             // Ignore
         }
         
-        // If all patterns fail, try one more approach: use the math evaluator to solve
-        // by creating an inverse expression
-        try {
-            // For power equations, try to extract the power and base
-            const powerMatch = equation.match(new RegExp(`${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[\\^²³]\\s*(\\d+)?`, 'i'));
-            if (powerMatch) {
-                // This is a power equation, we need to rearrange it
-                // For now, throw error and let the symbolic fallback handle it
-            }
-        } catch (e) {
-            // Ignore
-        }
-        
-        // Final fallback: return null to signal failure (let caller handle symbolic fallback)
-        console.log(`[FormulaCalculator] _solveAlgebraically: Cannot algebraically isolate ${targetVar} from equation: ${equation}`);
+        // If all else fails, return null to signal symbolic fallback
+        console.warn(`[FormulaCalculator] ⚠️ Could not solve ${targetVar} numerically. Returning symbolic fallback.`);
         return null;
     }
     

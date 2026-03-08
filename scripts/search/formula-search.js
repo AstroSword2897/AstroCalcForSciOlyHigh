@@ -110,9 +110,100 @@ class FormulaSearchEngine {
                 formulas: ['kepler_third_law', 'kepler_third_law_solar', 'kepler_third_law_binary', 'binary_white_dwarf'],
                 score: 500
             },
-            
-            // Add more patterns as needed - this is a subset for brevity
-            // Full implementation would include all patterns from ui.js
+            // Practice-test / SciOly question phrases
+            'distance to the supernova': { formulas: ['distance_from_magnitude', 'distance_modulus'], score: 600 },
+            'type ia': { formulas: ['distance_from_magnitude', 'distance_modulus'], score: 550 },
+            'recessional velocity': { formulas: ['hubble_law', 'redshift_velocity_relativistic', 'redshift_velocity_low'], score: 500 },
+            'classical redshift': { formulas: ['doppler_shift', 'doppler_velocity_wavelength', 'redshift_definition'], score: 500 },
+            'relativistic redshift': { formulas: ['redshift_velocity_relativistic', 'relativistic_doppler'], score: 550 },
+            'kepler second law': { formulas: ['kepler_second_law_area_rate', 'angular_momentum_elliptical', 'eccentricity_from_area_rate'], score: 550 },
+            'equal area': { formulas: ['kepler_second_law_area_rate', 'angular_momentum_elliptical'], score: 500 },
+            'roche lobe': { formulas: ['roche_lobe_spherical', 'L1_point_approximation', 'roche_limit'], score: 550 },
+            'L1 lagrangian': { formulas: ['L1_point_approximation', 'roche_lobe_spherical'], score: 550 },
+            'RR Lyrae': { formulas: ['distance_from_magnitude', 'distance_modulus'], score: 500 },
+            'RS Puppis': { formulas: ['period_luminosity_cepheid_classical', 'period_luminosity_relation_cepheid', 'parallax_distance_arcsec', 'luminosity', 'flux_from_luminosity'], score: 500 },
+            'cepheid pulsation': { formulas: ['period_luminosity_relation_cepheid', 'period_luminosity_cepheid_classical'], score: 500 },
+            'stellar lifetime': { formulas: ['stellar_lifetime', 'solar_lifetime_efficiency'], score: 500 },
+            'exhaust all energy': { formulas: ['solar_lifetime_efficiency', 'stellar_lifetime'], score: 500 },
+            'mass luminosity': { formulas: ['mass_luminosity_relation', 'luminosity'], score: 450 },
+            'bolometric luminosity': { formulas: ['luminosity_absolute_magnitude', 'luminosity', 'flux_from_luminosity'], score: 500 },
+            'parallax luminosity flux': { formulas: ['parallax_distance_arcsec', 'luminosity_absolute_magnitude', 'flux_from_luminosity'], score: 450 },
+            'angular distance between': { formulas: ['angular_size'], score: 500 },
+            'min max luminosity': { formulas: ['luminosity', 'stefan_boltzmann_law'], score: 450 },
+            // GGSO 2026 Section B
+            'roche limit': { formulas: ['roche_limit_rigid', 'roche_limit', 'tidal_force'], score: 550 },
+            'periapsis apoapsis': { formulas: ['periapsis_from_apoapsis', 'eccentricity_apoapsis_periapsis'], score: 500 },
+            'tidal force balance': { formulas: ['tidal_force', 'roche_limit_rigid'], score: 500 },
+            'virial temperature': { formulas: ['virial_temperature_gas', 'total_energy_virial'], score: 550 },
+            'virial velocity dispersion': { formulas: ['virial_velocity_dispersion', 'virial_temperature_gas'], score: 550 },
+            'virialized cloud': { formulas: ['virial_temperature_gas', 'virial_velocity_dispersion', 'total_energy_virial'], score: 500 },
+            'distance in light years': { formulas: ['parallax_to_light_years', 'parallax_distance_arcsec'], score: 500 },
+            'parallax light years': { formulas: ['parallax_to_light_years'], score: 550 },
+            'extinction 25%': { formulas: ['magnitude_change_flux_ratio', 'distance_from_magnitude'], score: 500 },
+            'brightness decreased': { formulas: ['magnitude_change_flux_ratio'], score: 500 },
+            'illuminated area': { formulas: ['illuminated_area_phase', 'angular_size'], score: 500 },
+            'area lit phase': { formulas: ['illuminated_area_phase'], score: 550 },
+            'pulsar glitch': { formulas: ['rotational_velocity'], score: 400 },
+            'rotational kinetic energy': { formulas: ['rotational_velocity'], score: 400 },
+            // Mason Invitational 2025
+            'speckle imaging': { formulas: ['angular_resolution'], score: 350 },
+            'how many times brighter': { formulas: ['brightness_ratio_times_brighter', 'flux_ratio_magnitude', 'mass_luminosity_relation'], score: 500 },
+            'betelgeuse sirwarha': { formulas: ['brightness_ratio_times_brighter', 'mass_luminosity_relation', 'hr_absolute_magnitude', 'apparent_magnitude_from_luminosity_distance', 'linear_separation_from_angular', 'kepler_binary_solar_units', 'vis_viva'], score: 500 },
+            'solar constant': { formulas: ['apparent_magnitude_from_luminosity_distance', 'flux_from_luminosity'], score: 500 },
+            'distance in AU from arcsec': { formulas: ['linear_separation_from_angular', 'angular_size'], score: 500 },
+            'semi-major axis binary': { formulas: ['kepler_binary_solar_units', 'kepler_third_law_binary'], score: 500 },
+            'orbital velocity km/s': { formulas: ['vis_viva', 'orbital_velocity'], score: 450 },
+            'infalling matter': { formulas: ['luminosity_infall', 'gravitational_potential_energy'], score: 500 },
+            'rate of infalling matter': { formulas: ['luminosity_infall'], score: 550 },
+            'gravitational contraction': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time'], score: 500 },
+            'kelvin helmholtz': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time'], score: 550 },
+            'sun last gravitational': { formulas: ['kelvin_helmholtz_timescale_exact'], score: 500 },
+            'mira luminosity': { formulas: ['flux_change_magnitude_difference', 'brightness_ratio_times_brighter', 'luminosity'], score: 450 },
+            'mira variable': { formulas: ['flux_change_magnitude_difference', 'brightness_ratio_times_brighter', 'stellar_pulsation_mechanics'], score: 450 },
+            'angular separation arcsec': { formulas: ['angular_separation_arcsec', 'linear_separation_from_angular'], score: 500 },
+            'mira B accretion': { formulas: ['accretion_luminosity', 'apparent_magnitude_from_luminosity_distance'], score: 500 },
+            'accretion luminosity': { formulas: ['accretion_luminosity', 'eddington_luminosity'], score: 500 },
+            // Purdue 2026
+            'parallax angle arcseconds': { formulas: ['parallax_from_distance', 'parallax_distance_arcsec'], score: 500 },
+            '70 parsecs parallax': { formulas: ['parallax_from_distance'], score: 550 },
+            'peak wavelength 400 nm': { formulas: ['wiens_law'], score: 550 },
+            'blueshift': { formulas: ['doppler_shift', 'redshift_velocity_low', 'redshift_definition'], score: 500 },
+            'galaxy approaching': { formulas: ['doppler_shift', 'redshift_velocity_low'], score: 500 },
+            'comet elliptical orbit': { formulas: ['velocity_from_orbital_energy', 'vis_viva'], score: 500 },
+            'speed when 6e12 m': { formulas: ['velocity_from_orbital_energy'], score: 550 },
+            'perihelion aphelion distances meters': { formulas: ['perihelion_aphelion', 'aphelion_distance'], score: 500 },
+            'eccentricity 0.148 semi-major axis 3': { formulas: ['perihelion_aphelion', 'aphelion_distance', 'kepler_binary_solar_units'], score: 500 },
+            'orbital period 3 years mass system': { formulas: ['kepler_binary_solar_units', 'kepler_third_law_binary'], score: 500 },
+            'velocity at aphelion': { formulas: ['vis_viva', 'aphelion_distance'], score: 500 },
+            'distance modulus including extinction': { formulas: ['distance_modulus_with_extinction', 'distance_from_magnitude'], score: 550 },
+            'Type Ia extinction': { formulas: ['distance_modulus_with_extinction'], score: 500 },
+            'distance supernova Mpc': { formulas: ['distance_modulus_with_extinction'], score: 500 },
+            'proton-proton chain lifetime': { formulas: ['solar_lifetime_efficiency', 'stellar_lifetime'], score: 500 },
+            'lifetime of the sun seconds': { formulas: ['solar_lifetime_efficiency'], score: 500 },
+            'hubble time': { formulas: ['hubble_time', 'hubble_law'], score: 500 },
+            'time since galaxy began receding': { formulas: ['hubble_time'], score: 550 },
+            'H0 from v and d': { formulas: ['hubble_law'], score: 450 },
+            'cepheid-based distance H0': { formulas: ['hubble_law'], score: 450 },
+            'temperature from luminosity radius': { formulas: ['temperature_from_luminosity_radius_solar', 'luminosity'], score: 500 },
+            'radius 2.7 R sun temperature': { formulas: ['temperature_from_luminosity_radius_solar'], score: 550 },
+            // MIT 2026
+            'lyman alpha': { formulas: ['zeeman_splitting'], score: 250 },
+            'white dwarf merger time': { formulas: ['white_dwarf_merger_timescale'], score: 550 },
+            'gravitational wave merger time': { formulas: ['white_dwarf_merger_timescale'], score: 550 },
+            'scale height': { formulas: ['scale_height_isothermal', 'hydrostatic_balance'], score: 550 },
+            'hydrogen helium atmosphere': { formulas: ['scale_height_isothermal', 'photospheric_pressure_optical_depth'], score: 500 },
+            'photospheric gas pressure': { formulas: ['photospheric_pressure_optical_depth', 'optical_depth'], score: 550 },
+            'rosseland opacity': { formulas: ['photospheric_pressure_optical_depth', 'opacity_general'], score: 500 },
+            'zeeman splitting': { formulas: ['zeeman_splitting', 'magnetic_pressure_si'], score: 550 },
+            'upper bound delta B': { formulas: ['zeeman_splitting', 'magnetic_pressure_si'], score: 500 },
+            'magnetic asymmetry': { formulas: ['magnetic_pressure_si', 'photospheric_pressure_optical_depth'], score: 500 },
+            'mira pulsation': { formulas: ['pulsation_period_scaling', 'stellar_pulsation_mechanics', 'magnitude_variation_pulsation'], score: 500 },
+            'fractional luminosity amplitude': { formulas: ['luminosity_fractional_amplitude_pulsation'], score: 550 },
+            'delta MK': { formulas: ['magnitude_variation_pulsation'], score: 550 },
+            'in phase or out of phase': { formulas: ['magnitude_variation_pulsation'], score: 500 },
+            'spectral index': { formulas: ['spectral_index'], score: 500 },
+            'synchrotron emission': { formulas: ['spectral_index', 'synchrotron_power'], score: 500 },
+            'blackbody radio spectral index': { formulas: ['spectral_index'], score: 400 }
         };
     }
     
@@ -236,7 +327,10 @@ class FormulaSearchEngine {
             dynamicBoost: 0,
             intentMatch: false,
             targetMatch: false,
-            sourceMatch: false
+            sourceMatch: false,
+            formulaConfidence: formula.formulaConfidence || 85,
+            confidenceTier: formula.confidenceTier || 'approximation',
+            confidenceRationale: formula.confidenceRationale || ''
         };
         
         // Parse query
@@ -277,12 +371,32 @@ class FormulaSearchEngine {
             metrics.matchReasons.push(`All search words found in name: "${searchWords.join(' ')}"`);
         }
         
-        // Question pattern matching
+        // Question pattern matching (hardcoded phrase -> formula IDs)
         const questionMatch = this.matchQuestionToFormula(formula, parsedQuery, searchLower, searchWords);
         score += questionMatch.score;
         if (questionMatch.score > 0) {
             metrics.questionPatternMatch = true;
             metrics.matchReasons.push(`Question pattern match: ${questionMatch.reason || 'high relevance'}`);
+        }
+        
+        // Per-formula questionPatterns: when user types main part of a question, boost this formula
+        if (formula.questionPatterns && Array.isArray(formula.questionPatterns)) {
+            for (const pattern of formula.questionPatterns) {
+                const pl = (pattern || '').toLowerCase();
+                if (pl.length < 2) continue;
+                if (searchLower.includes(pl)) {
+                    score += 500;
+                    metrics.questionPatternMatch = true;
+                    metrics.matchReasons.push(`Question phrase match: "${pattern}"`);
+                    break;
+                }
+                if (pl.includes(searchLower) && searchLower.length >= 4) {
+                    score += 350;
+                    metrics.questionPatternMatch = true;
+                    metrics.matchReasons.push(`Question phrase contains query: "${pattern}"`);
+                    break;
+                }
+            }
         }
         
         // Description matching
@@ -431,6 +545,11 @@ class FormulaSearchEngine {
             metrics.matchReasons.push(`Generic match penalty: -${penalty} points`);
         }
         
+        // Modest per-formula reliability weighting
+        if (score > 0) {
+            score = Math.round(score * (formula.searchWeight || 1));
+        }
+
         // Combine scores
         const combinedScore = score + topicRelevanceScore + contextScore;
         

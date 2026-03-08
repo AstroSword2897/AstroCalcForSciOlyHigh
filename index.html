@@ -974,13 +974,22 @@
     <!-- Service Worker Registration for Offline Support -->
     <script>
         // Register service worker for offline support
-        // PRODUCTION: keep offline-first, but prevent stale UI by upgrading the SW cleanly.
+        // FIXED: Removed version parameter - let file contents trigger updates, not URL params
+        // FIXED: Only register when online to prevent update failures during offline transitions
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
+            // Function to register service worker
+            const registerServiceWorker = () => {
+                if (!navigator.onLine) {
+                    console.log('[Service Worker] Offline - skipping registration until online');
+                    return;
+                }
+                
                 // Wait a bit for any unregistration to complete
                 setTimeout(() => {
-                    // Register service worker with current version
-                    navigator.serviceWorker.register('./sw.js?v=3.0.1')
+                    // Register service worker WITHOUT version parameter
+                    // File contents will trigger updates naturally (browser checks file hash)
+                    console.log('[Service Worker] Registering service worker...');
+                    navigator.serviceWorker.register('./sw.js')
                         .then((registration) => {
                             console.log('[Service Worker] Registered successfully:', registration.scope);
                             
@@ -1002,25 +1011,158 @@
                                 });
                             });
 
-                            // Reload once when the new SW takes control (so the fresh UI/HTML is used).
+                            // DISABLED: Auto-reload on controller change (was causing refresh loops)
+                            // Only reload if explicitly needed via sessionStorage flag
                             let reloaded = false;
                             navigator.serviceWorker.addEventListener('controllerchange', () => {
                                 if (reloaded) return;
+                                // Only reload if explicitly requested (not on tunnel access)
+                                const shouldReload = sessionStorage.getItem('sw_force_reload') === 'true';
+                                if (!shouldReload) {
+                                    console.log('[Service Worker] Controller changed, but skipping auto-reload to prevent refresh loop');
+                                    return;
+                                }
                                 reloaded = true;
                                 console.log('[Service Worker] Controller changed, reloading for latest UI...');
+                                sessionStorage.removeItem('sw_force_reload');
                                 window.location.reload();
                             });
 
-                            // Check for updates periodically (but don't auto-reload)
-                            setInterval(() => {
-                                registration.update().catch(err => {
-                                    // Silently handle update errors (common in development)
-                                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                                        // Suppress update errors in development - they're usually harmless cache issues
-                                        // Don't log anything to avoid console noise
+                            // DISABLED: Periodic update checks (was causing refresh loops via tunnel)
+                            // Service worker updates are now manual only
+                            // setInterval(() => {
+                            //     if (navigator.onLine) {
+                            //         registration.update().catch(() => {
+                            //             // Silently ignore update errors
+                            //         });
+                            //     }
+                            // }, 60000); // Check every minute
+                        })
+                        .catch((error) => {
+                            // Handle registration errors gracefully
+                            // In development, SW errors are common and non-critical
+                            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                                // Suppress ALL service worker errors in development
+                            } else {
+                                console.error('[Service Worker] Registration failed:', error);
+                            }
+                        });
+                }, 1000); // Delay to ensure unregistration completes
+            };
+            
+            // Register on load if online
+            if (navigator.onLine) {
+                window.addEventListener('load', registerServiceWorker);
+            }
+            
+            // Also register when coming back online (if not already registered)
+            window.addEventListener('online', () => {
+                console.log('[App] Online - connection restored');
+                if (typeof logger !== 'undefined') {
+                    logger.info('Connection restored');
+                }
+                // Register SW if not already registered
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (!registration) {
+                        console.log('[Service Worker] Registering after coming online...');
+                        registerServiceWorker();
+                    }
+                });
+            });
+            
+            window.addEventListener('offline', () => {
+                console.log('[App] Offline - working in offline mode');
+                if (typeof logger !== 'undefined') {
+                    logger.info('Working offline - all features available except Desmos graphs');
+                }
+            });
+        } else {
+            console.warn('[Service Worker] Not supported in this browser');
+        }
+        
+        // Suppress unhandled promise rejections for service worker updates
+        // This catches errors from update attempts that happen in the background
+        window.addEventListener('unhandledrejection', (event) => {
+            const reason = event.reason;
+            const message = reason?.message || reason?.toString() || '';
+            const isServiceWorkerError = 
+                message.includes('Failed to update a ServiceWorker') ||
+                message.includes('ServiceWorker') ||
+                message.includes('sw.js') ||
+                message.includes('service worker') ||
+                (reason?.name === 'TypeError' && message.includes('fetch'));
+            
+            if (isServiceWorkerError && 
+                (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+                // Suppress service worker update errors in development
+                // These are expected when:
+                // - Dev server restarts
+                // - Network is temporarily unavailable
+                // - SW file is being updated
+                event.preventDefault();
+                // Don't log - these are harmless in development
+            }
+        });
+    </script>
+    
+    <!-- Service Worker Registration (old code - replaced above) -->
+    <script>
+        // OLD CODE - Keeping for reference but not executing
+        if (false && 'serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    navigator.serviceWorker.register('./sw.js')
+                        .then((registration) => {
+                            console.log('[Service Worker] Registered successfully:', registration.scope);
+                            
+                            // If an update is already waiting, activate it now.
+                            if (registration.waiting) {
+                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                            }
+
+                            // When a new SW is found, activate it as soon as it installs.
+                            registration.addEventListener('updatefound', () => {
+                                const newWorker = registration.installing;
+                                if (!newWorker) return;
+                                
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && registration.waiting) {
+                                        console.log('[Service Worker] Update installed, activating...');
+                                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
                                     }
                                 });
-                            }, 60000); // Check every minute
+                            });
+
+                            // DISABLED: Auto-reload on controller change (was causing refresh loops)
+                            // Only reload if explicitly needed via sessionStorage flag
+                            let reloaded = false;
+                            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                                if (reloaded) return;
+                                // Only reload if explicitly requested (not on tunnel access)
+                                const shouldReload = sessionStorage.getItem('sw_force_reload') === 'true';
+                                if (!shouldReload) {
+                                    console.log('[Service Worker] Controller changed, but skipping auto-reload to prevent refresh loop');
+                                    return;
+                                }
+                                reloaded = true;
+                                console.log('[Service Worker] Controller changed, reloading for latest UI...');
+                                sessionStorage.removeItem('sw_force_reload');
+                                window.location.reload();
+                            });
+
+                            // DISABLED: Periodic update checks (was causing refresh loops via tunnel)
+                            // Service worker updates are now manual only
+                            // setInterval(() => {
+                            //     if (navigator.onLine) {
+                            //         registration.update().catch(err => {
+                            //             // Silently handle update errors (common in development)
+                            //             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                            //                 // Suppress update errors in development - they're usually harmless cache issues
+                            //                 // Don't log anything to avoid console noise
+                            //             }
+                            //         });
+                            //     }
+                            // }, 60000); // Check every minute
                         })
                         .catch((error) => {
                             // Handle registration errors gracefully
@@ -1035,34 +1177,46 @@
                             }
                         });
                         
-                        // Suppress unhandled promise rejections for service worker updates
-                        window.addEventListener('unhandledrejection', (event) => {
-                            if (event.reason && event.reason.message && 
-                                event.reason.message.includes('Failed to update a ServiceWorker') &&
-                                (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-                                // Suppress service worker update errors in development
-                                event.preventDefault();
-                                // Don't log - these are expected in development
-                            }
-                        });
-                }, 500); // Small delay to ensure unregistration completes
+                }, 1000); // Delay to ensure unregistration completes
             });
             
-            // Handle online/offline events
+            // Register when coming back online (if not already registered)
             window.addEventListener('online', () => {
                 console.log('[App] Online - connection restored');
-                // Optionally show notification
                 if (typeof logger !== 'undefined') {
                     logger.info('Connection restored');
                 }
+                // Register SW if not already registered
+                navigator.serviceWorker.getRegistration().then(registration => {
+                    if (!registration) {
+                        console.log('[Service Worker] Registering after coming online...');
+                        setTimeout(() => {
+                            navigator.serviceWorker.register('./sw.js').catch(() => {
+                                // Silently ignore registration errors in dev
+                                if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                                    console.warn('[Service Worker] Failed to register after coming online');
+                                }
+                            });
+                        }, 500);
+                    }
+                });
             });
             
             window.addEventListener('offline', () => {
                 console.log('[App] Offline - working in offline mode');
-                // Optionally show notification
                 if (typeof logger !== 'undefined') {
                     logger.info('Working offline - all features available except Desmos graphs');
                 }
+            });
+        } else if ('serviceWorker' in navigator && !navigator.onLine) {
+            // If offline, wait until online to register
+            window.addEventListener('online', () => {
+                console.log('[Service Worker] Coming online, will register service worker...');
+                setTimeout(() => {
+                    navigator.serviceWorker.register('./sw.js').catch(() => {
+                        // Silently ignore in dev
+                    });
+                }, 500);
             });
         } else {
             console.warn('[Service Worker] Not supported in this browser');
@@ -1091,9 +1245,18 @@
             const currentVersion = '3.0.2';
             const cachedVersion = sessionStorage.getItem('htmlVersion');
             if (cachedVersion && cachedVersion !== currentVersion) {
-                console.log('[Cache] Detected old cached HTML, forcing reload...');
-                sessionStorage.setItem('htmlVersion', currentVersion);
-                window.location.reload(true);
+                // Only reload if not accessed via tunnel (tunnel URLs cause false positives)
+                const isTunnel = window.location.hostname.includes('trycloudflare.com') || 
+                                window.location.hostname.includes('ngrok-free.dev') ||
+                                window.location.hostname.includes('loca.lt');
+                if (!isTunnel) {
+                    console.log('[Cache] Detected old cached HTML, forcing reload...');
+                    sessionStorage.setItem('htmlVersion', currentVersion);
+                    window.location.reload(true);
+                } else {
+                    console.log('[Cache] Version changed but skipping reload (tunnel access)');
+                    sessionStorage.setItem('htmlVersion', currentVersion);
+                }
             } else {
                 sessionStorage.setItem('htmlVersion', currentVersion);
             }

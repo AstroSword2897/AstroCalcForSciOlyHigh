@@ -25,6 +25,10 @@ export class CalculationOrchestrator {
         this._constantSymbolsCache = new Map(); // Cache constant symbols per formula
         this._lastCalculationHash = null; // Prevent duplicate calculations
         
+        // Calculation result cache - returns immediately if same inputs
+        this._calculationResultCache = new Map(); // formulaId + input hash -> result with all unit conversions
+        this._maxCacheSize = 100; // Maximum cached calculations
+        
         // Configurable error message rules (can be extended)
         this.errorMessageRules = options.errorMessageRules || this._getDefaultErrorMessageRules();
     }
@@ -171,6 +175,36 @@ export class CalculationOrchestrator {
             
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Variable collection completed at', new Date().toISOString());
             
+            // CRITICAL: Check cache first for immediate return
+            const cacheKey = this._generateCalculationCacheKey(formula.id, variableValues);
+            const cachedResult = this._calculationResultCache.get(cacheKey);
+            if (cachedResult) {
+                console.log('[CalculationOrchestrator] ⚡ CACHE HIT - Returning cached result immediately');
+                console.log('[CalculationOrchestrator] Cached result:', cachedResult.result);
+                
+                // Display cached result with all unit conversions
+                this.displayResult(cachedResult.result);
+                
+                // Update unit inputs if result has a solved variable
+                if (cachedResult.result && !cachedResult.result.isSymbolic && 
+                    typeof cachedResult.result.result === 'number' && 
+                    Number.isFinite(cachedResult.result.result)) {
+                    const solvedFor = cachedResult.result.solvedFor || cachedResult.result.variable;
+                    if (solvedFor && solvedFor !== 'result') {
+                        this.updateVariableUnitInputs(solvedFor, cachedResult.result.result, formula);
+                    }
+                }
+                
+                // Update graph if enabled
+                if (this.updateGraphIfEnabled) {
+                    this.updateGraphIfEnabled(formula, variableValues, { useCache: true });
+                }
+                
+                this._calculationInProgress = false;
+                return;
+            }
+            console.log('[CalculationOrchestrator] ⚡ CACHE MISS - Performing new calculation');
+            
             // Debug: Check each value type with full inspection
             console.log('[CalculationOrchestrator] 📝 Variable values inspection:');
             Object.entries(variableValues).forEach(([key, value]) => {
@@ -293,19 +327,64 @@ export class CalculationOrchestrator {
                     console.error('[CalculationOrchestrator] ❌❌❌ RESULT IS A STRING, NOT A NUMBER! ❌❌❌');
                     console.error('[CalculationOrchestrator] This means the calculator is doing string substitution, not math!');
                     console.error('[CalculationOrchestrator] Result.result:', result.result);
+                    console.error('[CalculationOrchestrator] Attempting to force numeric calculation...');
+                    
+                    // Force numeric calculation by trying to solve for the first unknown
+                    const unknownVars = Object.keys(variableValues).filter(k => 
+                        variableValues[k] === null || variableValues[k] === undefined
+                    );
+                    
+                    if (unknownVars.length > 0 && knownCount > 0 && calculator.solveForVariable) {
+                        const unknownVar = unknownVars[0];
+                        try {
+                            const filteredVars = Object.fromEntries(
+                                Object.entries(variableValues).filter(([k, v]) => 
+                                    v !== null && v !== undefined && typeof v === 'number' && Number.isFinite(v)
+                                )
+                            );
+                            console.log('[CalculationOrchestrator] 🔄 Force-attempting numeric solve for', unknownVar, 'with known vars:', filteredVars);
+                            
+                            const numericResult = calculator.solveForVariable(unknownVar, filteredVars);
+                            
+                            if (numericResult !== null && typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
+                                console.log('[CalculationOrchestrator] ✅ Force numeric solve succeeded! Result:', numericResult);
+                                const varInfo = formula.variables.find(v => v.symbol === unknownVar);
+                                result = {
+                                    solvedFor: unknownVar,
+                                    result: numericResult,
+                                    unit: varInfo?.unit || '',
+                                    isSymbolic: false,
+                                    variable: unknownVar
+                                };
+                                console.log('[CalculationOrchestrator] ✅ Replaced string result with numeric result');
+                            } else {
+                                console.warn('[CalculationOrchestrator] ⚠️ Force numeric solve failed, result:', numericResult);
+                            }
+                        } catch (forceError) {
+                            console.error('[CalculationOrchestrator] ❌ Force numeric solve exception:', forceError);
+                        }
+                    }
                 }
                 
                 // CRITICAL: Check if we have enough values for numeric calculation
                 // If we have all but one variable, we should get a numeric result, not symbolic
-                if (result && result.isSymbolic === true && unknownCount === 1 && knownCount > 0) {
-                    console.warn('[CalculationOrchestrator] ⚠️ Got symbolic result but we have exactly 1 unknown and known values!');
-                    console.warn('[CalculationOrchestrator] This suggests the algebraic solver failed. Variable values:', variableValues);
-                    console.warn('[CalculationOrchestrator] Attempting to force numeric calculation...');
+                // ALSO: If we have symbolic result with 2 unknowns but enough known values to solve for one, try it
+                if (result && result.isSymbolic === true && knownCount > 0) {
+                    const unknownVars = Object.keys(variableValues).filter(k => 
+                        variableValues[k] === null || variableValues[k] === undefined
+                    );
                     
-                    // Try to manually solve using the algebraic solver
-                    const unknownVar = Object.keys(variableValues).find(k => variableValues[k] === null || variableValues[k] === undefined);
-                    if (unknownVar && calculator.solveForVariable) {
-                        try {
+                    // If we have exactly 1 unknown, try to solve for it
+                    // If we have 2 unknowns but the formula can be solved for one of them, try it
+                    if (unknownVars.length === 1 || (unknownVars.length === 2 && knownCount >= 1)) {
+                        console.warn(`[CalculationOrchestrator] ⚠️ Got symbolic result but we have ${unknownVars.length} unknown(s) and ${knownCount} known value(s)!`);
+                        console.warn('[CalculationOrchestrator] This suggests the algebraic solver failed. Variable values:', variableValues);
+                        console.warn('[CalculationOrchestrator] Attempting to force numeric calculation...');
+                        
+                        // Try to solve for the first unknown variable
+                        const unknownVar = unknownVars[0];
+                        if (unknownVar && calculator.solveForVariable) {
+                            try {
                             const filteredVars = Object.fromEntries(
                                 Object.entries(variableValues).filter(([k, v]) => v !== null && v !== undefined && typeof v === 'number')
                             );
@@ -350,8 +429,9 @@ export class CalculationOrchestrator {
                                 };
                                 console.log('[CalculationOrchestrator] ✅ Created numeric result object:', result);
                             }
-                        } catch (manualError) {
-                            console.error('[CalculationOrchestrator] Manual solve failed:', manualError);
+                            } catch (manualError) {
+                                console.error('[CalculationOrchestrator] Manual solve failed:', manualError);
+                            }
                         }
                     }
                 }
@@ -555,17 +635,29 @@ export class CalculationOrchestrator {
             }
             
             console.log('[CalculationOrchestrator] ✅ Result validated successfully, displaying...');
+            
+            // CRITICAL: Cache the result for immediate future returns
+            // Cache key includes formula ID and all input values (in base units)
+            const resultCacheKey = this._generateCalculationCacheKey(formula.id, variableValues);
+            
+            // Enhance result with all unit conversions before caching
+            const enhancedResult = this._enhanceResultWithUnitConversions(result, formula);
+            
+            // Cache the enhanced result
+            this._cacheCalculationResult(resultCacheKey, enhancedResult);
+            console.log('[CalculationOrchestrator] 💾 Result cached for immediate future returns');
+            
             // Track calculation
-            this.addToHistory(formula.id, result);
-            // Display result
-            this.displayResult(result);
+            this.addToHistory(formula.id, enhancedResult);
+            // Display result (with all unit conversions)
+            this.displayResult(enhancedResult);
             console.log('[CalculationOrchestrator] ✅ Result displayed');
             
             // CRITICAL: Update all unit inputs for the solved variable with converted values
-            if (result && !result.isSymbolic && typeof result.result === 'number' && Number.isFinite(result.result)) {
-                const solvedFor = result.solvedFor || result.variable;
+            if (enhancedResult && !enhancedResult.isSymbolic && typeof enhancedResult.result === 'number' && Number.isFinite(enhancedResult.result)) {
+                const solvedFor = enhancedResult.solvedFor || enhancedResult.variable;
                 if (solvedFor && solvedFor !== 'result') {
-                    this.updateVariableUnitInputs(solvedFor, result.result, formula);
+                    this.updateVariableUnitInputs(solvedFor, enhancedResult.result, formula);
                 }
             }
             
@@ -719,10 +811,13 @@ export class CalculationOrchestrator {
         }
         
         // Search all strategies, prioritizing inputs with values
+        // CRITICAL: When multiple inputs have values, prefer non-base unit inputs
         console.log(`[CalculationOrchestrator] 🔍 Searching for inputs with values for ${variable.symbol}...`);
         const strategies = this._getInputResolutionStrategies(variable);
         
+        const baseUnit = variable.unit;
         let inputWithValue = null;
+        let nonBaseUnitInput = null; // Prefer non-base unit inputs
         let firstInput = null;
         
         for (const strategy of strategies) {
@@ -730,9 +825,17 @@ export class CalculationOrchestrator {
             if (candidate) {
                 // CRITICAL: Always prefer inputs with values
                 if (candidate.value && candidate.value.trim()) {
-                    console.log(`[CalculationOrchestrator] ✅ Found input with value: ${candidate.id} = "${candidate.value}"`);
-                    inputWithValue = candidate;
-                    break; // Stop immediately when we find an input with a value
+                    const candidateUnit = candidate.getAttribute('data-unit') || baseUnit;
+                    console.log(`[CalculationOrchestrator] ✅ Found input with value: ${candidate.id} = "${candidate.value}" (unit: ${candidateUnit})`);
+                    
+                    // CRITICAL: Prefer non-base unit inputs (they need conversion)
+                    if (candidateUnit !== baseUnit) {
+                        console.log(`[CalculationOrchestrator] ⭐ Preferring non-base unit input: ${candidateUnit} (base: ${baseUnit})`);
+                        nonBaseUnitInput = candidate;
+                    } else if (!inputWithValue) {
+                        // Keep base unit input as fallback if no non-base unit input found
+                        inputWithValue = candidate;
+                    }
                 }
                 // Keep first input as fallback only
                 if (!firstInput) {
@@ -742,8 +845,30 @@ export class CalculationOrchestrator {
             }
         }
         
-        // Use input with value if found, otherwise use first input found
-        const input = inputWithValue || firstInput;
+        // Use non-base unit input if found, otherwise use base unit input with value, otherwise use first input found
+        const input = nonBaseUnitInput || inputWithValue || firstInput;
+        
+        // CRITICAL: Verify the selected input has the correct data-unit attribute
+        if (input) {
+            const selectedUnit = input.getAttribute('data-unit') || 'not set';
+            const selectedId = input.id || 'unknown';
+            const selectedValue = input.value?.trim() || '';
+            
+            console.log(`[CalculationOrchestrator] 📍 Selected input for ${variable.symbol}:`, {
+                id: selectedId,
+                value: selectedValue,
+                dataUnit: selectedUnit,
+                baseUnit: baseUnit,
+                isNonBase: nonBaseUnitInput === input,
+                isBaseUnit: inputWithValue === input && selectedUnit === baseUnit
+            });
+            
+            // WARNING: If we selected a base unit input but a non-base unit input exists with a value
+            if (input === inputWithValue && selectedUnit === baseUnit && nonBaseUnitInput) {
+                console.warn(`[CalculationOrchestrator] ⚠️⚠️⚠️ WARNING: Selected base unit input (${selectedId}) but non-base unit input exists: ${nonBaseUnitInput.id} (unit: ${nonBaseUnitInput.getAttribute('data-unit')})`);
+                console.warn(`[CalculationOrchestrator] ⚠️ This will cause unit conversion to be skipped!`);
+            }
+        }
         
         // Only cache inputs that have values
         if (input && input.value && input.value.trim()) {
@@ -768,30 +893,57 @@ export class CalculationOrchestrator {
         
         return [
             // Strategy 1: Find by data-symbol attribute (most reliable - matches actual rendered inputs)
-            // Search entire document first, prioritizing inputs with values
+            // Search entire document first, prioritizing inputs with values AND non-base units
+            // CRITICAL: Exclude checkboxes - only text/number inputs
             () => {
                 console.log(`[CalculationOrchestrator] Strategy 1: Searching for input[data-symbol="${variable.symbol}"]`);
-                const allInputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
-                console.log(`[CalculationOrchestrator] Found ${allInputs.length} inputs with data-symbol="${variable.symbol}"`);
+                const allInputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
+                    .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio'); // Exclude checkboxes/radios
+                console.log(`[CalculationOrchestrator] Found ${allInputs.length} inputs with data-symbol="${variable.symbol}" (excluding checkboxes)`);
                 
                 if (allInputs.length > 0) {
+                    // CRITICAL: Sort inputs - prioritize non-base unit inputs with values
+                    const baseUnit = variable.unit;
+                    const inputsWithValues = allInputs.filter(inp => inp.value && inp.value.trim());
+                    const nonBaseInputs = inputsWithValues.filter(inp => {
+                        const unit = inp.getAttribute('data-unit') || baseUnit;
+                        return unit !== baseUnit;
+                    });
+                    const baseInputs = inputsWithValues.filter(inp => {
+                        const unit = inp.getAttribute('data-unit') || baseUnit;
+                        return unit === baseUnit;
+                    });
+                    
                     // Log all found inputs for debugging
                     allInputs.forEach((inp, idx) => {
+                        const unit = inp.getAttribute('data-unit') || baseUnit;
                         console.log(`[CalculationOrchestrator] Input ${idx}:`, {
                             id: inp.id,
                             value: inp.value,
                             hasValue: !!inp.value.trim(),
-                            unit: inp.getAttribute('data-unit'),
+                            unit: unit,
+                            isBaseUnit: unit === baseUnit,
                             visible: inp.offsetParent !== null
                         });
                     });
                     
-                    // Prefer input with a value, otherwise return first input
-                    const inputWithValue = allInputs.find(inp => inp && inp.value && inp.value.trim());
-                    if (inputWithValue) {
-                        console.log(`[CalculationOrchestrator] ✅ Strategy 1: Found input with value: ${inputWithValue.id} = "${inputWithValue.value}"`);
-                        return inputWithValue;
+                    console.log(`[CalculationOrchestrator] Strategy 1: Found ${nonBaseInputs.length} non-base inputs with values, ${baseInputs.length} base inputs with values`);
+                    
+                    // CRITICAL: Prefer non-base unit inputs (they need conversion)
+                    if (nonBaseInputs.length > 0) {
+                        const selected = nonBaseInputs[0];
+                        console.log(`[CalculationOrchestrator] ✅ Strategy 1: Selected non-base unit input: ${selected.id} = "${selected.value}" (unit: ${selected.getAttribute('data-unit')})`);
+                        return selected;
                     }
+                    
+                    // Fallback to base unit input with value
+                    if (baseInputs.length > 0) {
+                        const selected = baseInputs[0];
+                        console.log(`[CalculationOrchestrator] ⚠️ Strategy 1: Selected base unit input: ${selected.id} = "${selected.value}" (unit: ${selected.getAttribute('data-unit')})`);
+                        return selected;
+                    }
+                    
+                    // No inputs with values, return first empty input
                     const firstInput = allInputs[0];
                     console.log(`[CalculationOrchestrator] ⚠️ Strategy 1: Found input but empty: ${firstInput.id}`);
                     return firstInput;
@@ -813,26 +965,42 @@ export class CalculationOrchestrator {
                 console.log(`[CalculationOrchestrator] Strategy 3: Searching for ${variable.symbol} with units:`, alternativeUnits);
                 
                 // First try to find input with a value
+                // CRITICAL: Exclude checkboxes - only text/number inputs
                 const inputsWithValues = alternativeUnits
                     .map(unit => {
                         const sanitizedUnit = unit.replace(/[^a-zA-Z0-9]/g, '_');
                         const inputId = `var-${variable.symbol}-${sanitizedUnit}`;
                         const input = document.getElementById(inputId);
-                        if (input) {
+                        // CRITICAL: Exclude checkboxes/radios - only text/number inputs
+                        if (input && input.type !== 'checkbox' && input.type !== 'radio') {
                             console.log(`[CalculationOrchestrator] Strategy 3: Found input ${inputId}:`, {
                                 id: input.id,
                                 value: input.value,
                                 hasValue: !!input.value.trim(),
-                                unit: unit
+                                unit: unit,
+                                type: input.type
                             });
+                            return input;
                         }
-                        return input;
+                        return null;
                     })
                     .filter(inp => inp !== null);
                 
+                // CRITICAL: Prioritize non-base unit inputs
+                const baseUnit = variable.unit;
+                const nonBaseInput = inputsWithValues.find(inp => {
+                    const unit = inp.getAttribute('data-unit') || baseUnit;
+                    return inp.value && inp.value.trim() && unit !== baseUnit;
+                });
+                if (nonBaseInput) {
+                    console.log(`[CalculationOrchestrator] ✅ Strategy 3: Found non-base unit input with value: ${nonBaseInput.id} = "${nonBaseInput.value}" (unit: ${nonBaseInput.getAttribute('data-unit')})`);
+                    return nonBaseInput;
+                }
+                
+                // Fallback to base unit input with value
                 const inputWithValue = inputsWithValues.find(inp => inp.value && inp.value.trim());
                 if (inputWithValue) {
-                    console.log(`[CalculationOrchestrator] ✅ Strategy 3: Found input with value: ${inputWithValue.id} = "${inputWithValue.value}"`);
+                    console.log(`[CalculationOrchestrator] ⚠️ Strategy 3: Found base unit input with value: ${inputWithValue.id} = "${inputWithValue.value}"`);
                     return inputWithValue;
                 }
                 
@@ -848,8 +1016,10 @@ export class CalculationOrchestrator {
             },
             
             // Strategy 4: Last resort - find ANY input with matching data-symbol anywhere
+            // CRITICAL: Exclude checkboxes - only text/number inputs
             () => {
-                const inputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
+                const inputs = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
+                    .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio'); // Exclude checkboxes/radios
                 return inputs.find(inp => inp.value.trim()) || inputs[0] || null;
             }
         ];
@@ -880,11 +1050,17 @@ export class CalculationOrchestrator {
         
         const baseUnit = variable.unit;
         
+        // CRITICAL: Log which input field was selected
+        const inputId = input.id || 'unknown';
+        const inputDataUnit = input.getAttribute('data-unit') || 'not set';
         console.log(`[CalculationOrchestrator] parseInputValue for ${variable.symbol}:`, {
+            inputId,
+            inputDataUnit,
             rawValue: value,
             inputUnit,
             baseUnit,
-            needsConversion: inputUnit !== baseUnit
+            needsConversion: inputUnit !== baseUnit,
+            willConvert: inputUnit !== baseUnit && this.unitConverter
         });
         
         // Parse numeric value
@@ -900,14 +1076,34 @@ export class CalculationOrchestrator {
         if (this.unitConverter) {
             if (inputUnit !== baseUnit) {
                 // Convert from input unit to base unit
-                console.log(`[CalculationOrchestrator] Converting ${variable.symbol}: ${numericValue} ${inputUnit} → base unit (${baseUnit})`);
+                console.log(`[CalculationOrchestrator] 🔄 Converting ${variable.symbol}: ${numericValue} ${inputUnit} → base unit (${baseUnit})`);
+                console.log(`[CalculationOrchestrator] Input field ID: ${inputId}, data-unit: "${inputDataUnit}"`);
+                
                 const baseValue = this.unitConverter.convertToBase(numericValue, inputUnit, baseUnit);
+                
+                // CRITICAL: Validate conversion actually happened
                 if (!Number.isFinite(baseValue)) {
                     throw new Error(`Unit conversion failed for ${variable.symbol}: ${numericValue} ${inputUnit} → ${baseUnit}`);
                 }
+                
+                // CRITICAL: Verify conversion factor is correct
+                if (inputUnit === 'km' && baseUnit === 'm') {
+                    const expectedValue = numericValue * 1000;
+                    if (Math.abs(baseValue - expectedValue) > 0.001) {
+                        console.error(`[CalculationOrchestrator] ❌ CONVERSION ERROR: Expected ${expectedValue}, got ${baseValue}`);
+                        throw new Error(`Unit conversion error: ${numericValue} km should be ${expectedValue} m, but got ${baseValue} m`);
+                    }
+                }
+                
                 console.log(`[CalculationOrchestrator] ✅ Converted ${variable.symbol}: ${numericValue} ${inputUnit} = ${baseValue} ${baseUnit}`);
+                console.log(`[CalculationOrchestrator] ✅ Conversion verified: ${baseValue} ${baseUnit} will be used in calculation`);
                 return baseValue;
             } else {
+                // Already in base unit, but verify we're not missing a conversion
+                if (inputDataUnit !== 'not set' && inputDataUnit !== baseUnit) {
+                    console.warn(`[CalculationOrchestrator] ⚠️ WARNING: Input has data-unit="${inputDataUnit}" but inputUnit=${inputUnit} equals baseUnit=${baseUnit}`);
+                    console.warn(`[CalculationOrchestrator] ⚠️ This might indicate the wrong input field was selected!`);
+                }
                 // Already in base unit, but log for verification
                 console.log(`[CalculationOrchestrator] ${variable.symbol} already in base unit: ${numericValue} ${baseUnit}`);
             }
@@ -924,6 +1120,98 @@ export class CalculationOrchestrator {
     clearInputCache() {
         this._inputCache.clear();
     }
+    
+    /**
+     * Generate cache key for calculation results
+     * Key includes formula ID and all input values (normalized to base units)
+     */
+    _generateCalculationCacheKey(formulaId, variableValues) {
+        // Sort variable values by symbol for consistent keys
+        const sortedEntries = Object.entries(variableValues)
+            .filter(([_, v]) => v !== null && typeof v === 'number' && Number.isFinite(v))
+            .sort((a, b) => a[0].localeCompare(b[0]));
+        
+        // Create deterministic key: formulaId + sorted variable values
+        const varString = sortedEntries.map(([symbol, value]) => `${symbol}:${value}`).join('|');
+        return `${formulaId}|${varString}`;
+    }
+    
+    /**
+     * Cache calculation result with LRU eviction
+     */
+    _cacheCalculationResult(cacheKey, result) {
+        // LRU eviction: remove oldest if cache is full
+        if (this._calculationResultCache.size >= this._maxCacheSize) {
+            // Remove first (oldest) entry
+            const firstKey = this._calculationResultCache.keys().next().value;
+            if (firstKey !== undefined) {
+                this._calculationResultCache.delete(firstKey);
+                console.log(`[CalculationOrchestrator] 🗑️ Evicted oldest cache entry: ${firstKey}`);
+            }
+        }
+        
+        this._calculationResultCache.set(cacheKey, {
+            result,
+            timestamp: Date.now()
+        });
+        console.log(`[CalculationOrchestrator] 💾 Cached result for key: ${cacheKey}`);
+    }
+    
+    /**
+     * Enhance result with all unit conversions for display
+     * This ensures cached results include all unit information
+     */
+    _enhanceResultWithUnitConversions(result, formula) {
+        if (!result || result.isSymbolic || typeof result.result !== 'number' || !Number.isFinite(result.result)) {
+            return result; // Return as-is for symbolic results
+        }
+        
+        const solvedFor = result.solvedFor || result.variable;
+        if (!solvedFor || solvedFor === 'result' || !this.unitConverter) {
+            return result; // Can't enhance without variable info or unit converter
+        }
+        
+        const varDef = formula.variables.find(v => v.symbol === solvedFor);
+        if (!varDef || !varDef.unit) {
+            return result; // No unit defined for this variable
+        }
+        
+        const baseUnit = varDef.unit;
+        const baseValue = result.result;
+        
+        // Get all alternative units and create conversions
+        try {
+            const alternativeUnits = this.unitConverter.getAlternativeUnits(baseUnit);
+            const unitConversions = [];
+            
+            for (const altUnit of alternativeUnits) {
+                if (altUnit === baseUnit) continue;
+                try {
+                    const convertedValue = this.unitConverter.convert(baseValue, baseUnit, altUnit);
+                    if (convertedValue !== null && Number.isFinite(convertedValue)) {
+                        unitConversions.push({
+                            unit: altUnit,
+                            value: convertedValue
+                        });
+                    }
+                } catch (e) {
+                    // Skip failed conversions
+                }
+            }
+            
+            // Add unit conversions to result
+            return {
+                ...result,
+                unitConversions: unitConversions,
+                baseUnit: baseUnit,
+                baseValue: baseValue
+            };
+        } catch (e) {
+            console.warn('[CalculationOrchestrator] Failed to generate unit conversions:', e);
+            return result; // Return original if conversion fails
+        }
+    }
+    
     /**
      * Validate variable values
      * Improved: Cleaner, linear scan, no unnecessary vectorization

@@ -23,9 +23,9 @@ var globalConstants = {
 var formulaCategories = {
     'Orbital Mechanics': [
         'kepler_third_law', 'kepler_third_law_solar', 'orbital_velocity', 'escape_velocity',
-        'tidal_force', 'roche_limit', 'orbital_energy', 'vis_viva', 'center_of_mass',
-        'kepler_third_law_binary', 'rotational_velocity', 'hill_radius', 'synodic_period',
-        'angular_momentum_elliptical', 'tidal_locking_timescale', 'newton_gravitational_force',
+        'tidal_force', 'roche_limit', 'roche_limit_rigid', 'periapsis_from_apoapsis', 'roche_lobe_spherical', 'L1_point_approximation', 'orbital_energy', 'vis_viva', 'center_of_mass',
+        'kepler_third_law_binary', 'kepler_binary_solar_units', 'rotational_velocity', 'hill_radius', 'synodic_period',
+        'angular_momentum_elliptical', 'kepler_second_law_area_rate', 'eccentricity_from_area_rate', 'velocity_from_orbital_energy', 'perihelion_aphelion', 'aphelion_distance', 'tidal_locking_timescale', 'newton_gravitational_force',
         'weight', 'centripetal_force', 'centripetal_acceleration', 'period_circular',
         'gravitational_potential_energy', 'orbital_energy_simple', 'potential_energy_per_mass',
         'velocity_ratio_orbital', 'orbital_period_general', 'semi_latus_rectum',
@@ -38,22 +38,22 @@ var formulaCategories = {
         'white_dwarf_mass_radius', 'blackbody_radiation',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
         'equivalent_width', 'luminosity_function', 'jeans_mass', 'intensity',
-        'photon_momentum_energy', 'de_broglie_wavelength', 'apparent_magnitude_flux',
+        'photon_momentum_energy', 'de_broglie_wavelength', 'apparent_magnitude_flux', 'apparent_magnitude_from_luminosity_distance',
         'flux_ratio_magnitude', 'absolute_magnitude_luminosity', 'brightness_luminosity',
-        'magnitude_difference_flux', 'distance_from_magnitude', 'luminosity_absolute_magnitude',
+        'magnitude_difference_flux', 'magnitude_change_flux_ratio', 'distance_from_magnitude', 'distance_modulus_with_extinction', 'luminosity_absolute_magnitude',
         'absolute_magnitude_from_distance', 'flux_from_magnitude', 'luminosity_from_flux_distance',
-        'brightness_ratio_magnitude', 'bolometric_magnitude', 'color_index_ub',
+        'brightness_ratio_magnitude', 'brightness_ratio_times_brighter', 'bolometric_magnitude', 'color_index_ub',
         'interstellar_reddening', 'energy_density_radiation', 'photon_number_density',
         'momentum_transfer_radiation'
     ],
     'Telescopes & Optics': [
-        'angular_size', 'light_gathering_power', 'magnification', 'f_ratio', 'angular_resolution',
+        'angular_size', 'angular_separation_arcsec', 'linear_separation_from_angular', 'illuminated_area_phase', 'light_gathering_power', 'magnification', 'f_ratio', 'angular_resolution',
         'refractive_index', 'diffraction_limit'
     ],
     'Cosmology & Relativity': [
-        'hubble_law', 'friedmann_equation', 'critical_density', 'schwarzschild_radius',
-        'time_dilation', 'length_contraction', 'parallax_distance_radians', 'parallax_distance_arcsec',
-        'redshift_definition', 'lookback_time', 'density_parameter', 'angular_diameter_distance',
+        'hubble_law', 'hubble_time', 'friedmann_equation', 'critical_density', 'schwarzschild_radius',
+        'time_dilation', 'length_contraction', 'parallax_distance_radians', 'parallax_distance_arcsec', 'parallax_from_distance', 'parallax_to_light_years',
+        'redshift_definition', 'redshift_velocity_relativistic', 'lookback_time', 'density_parameter', 'angular_diameter_distance',
         'luminosity_distance', 'einstein_radius', 'matter_density_parameter',
         'vacuum_energy_density_parameter', 'curvature_density_parameter', 'scale_factor_redshift',
         'redshift_peculiar_velocity', 'comoving_distance', 'proper_distance_current',
@@ -66,7 +66,7 @@ var formulaCategories = {
     ],
     'Doppler & Spectroscopy': [
         'doppler_shift', 'doppler_shift_approx', 'doppler_wavelength_ratio',
-        'doppler_velocity_wavelength', 'redshift_definition', 'redshift_velocity_low',
+        'doppler_velocity_wavelength', 'redshift_definition', 'redshift_velocity_low', 'redshift_velocity_relativistic',
         'observed_wavelength_redshift', 'observed_frequency_redshift', 'wavelength_shift_redshift',
         'redshift_scale_factor', 'radial_velocity_frequency', 'radial_velocity_wavelength'
     ],
@@ -77,21 +77,21 @@ var formulaCategories = {
     ],
     'High Energy Astrophysics': [
         'max_gamma_bohm', 'cooling_break_gamma', 'cooling_break_frequency',
-        'synchrotron_cooling_timescale', 'synchrotron_power', 'magnetic_energy_density',
+        'synchrotron_cooling_timescale', 'synchrotron_power', 'magnetic_energy_density', 'magnetic_pressure_si',
         'power_law_spectrum', 'spectral_index', 'synchrotron_frequency'
     ],
     'Stellar Structure': [
         'hydrostatic_balance', 'central_pressure_approximate', 'stellar_mass_central_temperature',
         'ideal_gas_pressure', 'radiation_pressure_stellar', 'average_stellar_temperature',
         'nuclear_energy_generation', 'thermal_time', 'convection_criterion', 'opacity_general',
-        'optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial',
+        'optical_depth', 'scale_height_isothermal', 'photospheric_pressure_optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial', 'virial_temperature_gas', 'virial_velocity_dispersion', 'kelvin_helmholtz_timescale_exact', 'luminosity_infall', 'accretion_luminosity', 'temperature_from_luminosity_radius_solar',
         'radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira',
-        'period_luminosity_relation_cepheid', 'bolometric_correction', 'extinction_correction_rv',
+        'pulsation_period_scaling', 'luminosity_fractional_amplitude_pulsation', 'magnitude_variation_pulsation', 'period_luminosity_relation_cepheid', 'period_luminosity_cepheid_classical', 'bolometric_correction', 'extinction_correction_rv',
         'binary_mass_ratio_velocity', 'flux_change_magnitude_difference', 'pulsating_star_radius_change',
         'nuclear_fusion_mass_defect', 'nebula_age_expansion', 'orbital_decay_gravitational_radiation'
     ],
     'Line Radiation & Excitation': [
-        'boltzmann_equation', 'saha_equation', 'einstein_coefficient', 'extinction_relation',
+        'boltzmann_equation', 'saha_equation', 'einstein_coefficient', 'zeeman_splitting', 'extinction_relation',
         'dust_mass_approximate', 'dust_to_gas_ratio', 'thermal_energy_cloud', 'sound_speed',
         'magnetic_flux_freezing', 'bremsstrahlung_luminosity', 'stromgren_radius',
         'recombination_time', 'total_mass_cloud', 'column_density', 'gas_kinetic_temperature'
@@ -422,7 +422,28 @@ var formulas = [
             "calculate luminosity",
             "find luminosity",
             "luminosity from temperature radius",
-            "stefan boltzmann luminosity"
+            "stefan boltzmann luminosity",
+            "temperature from luminosity and radius",
+            "given radius 2.7 R sun luminosity temperature"
+        ]
+    },
+    {
+        id: "temperature_from_luminosity_radius_solar",
+        name: "Temperature from Luminosity and Radius (Solar Units)",
+        description: "Effective temperature from L and R in solar units: L/L☉ = (R/R☉)² (T/T☉)⁴ ⇒ T = T☉ (L/L☉)^(1/4) / (R/R☉)^(1/2). T☉ ≈ 5778 K.",
+        equation: "T = 5778 * (L_ratio^0.25) / (R_ratio^0.5)",
+        concepts: ["temperature", "luminosity", "radius", "stellar", "Stefan-Boltzmann", "solar units"],
+        keywords: ["temperature from luminosity radius", "given radius luminosity temperature kelvin", "2.7 R sun temperature"],
+        variables: [
+            { symbol: "T", name: "Temperature", unit: "K", description: "Effective temperature" },
+            { symbol: "L_ratio", name: "L/L☉", unit: "dimensionless", description: "Luminosity in solar units" },
+            { symbol: "R_ratio", name: "R/R☉", unit: "dimensionless", description: "Radius in solar units" }
+        ],
+        constants: { T_sun: 5778 },
+        questionPatterns: [
+            "temperature from luminosity radius solar",
+            "radius 2.7 R sun luminosity 46.8 temperature",
+            "stellar temperature from L and R"
         ]
     },
     {
@@ -453,7 +474,7 @@ var formulas = [
             }
         ],
         constants: {
-            "H₀": 70  // Approximate value in km/(s·Mpc)
+            "H₀": 69.8  // km/(s·Mpc), common in practice problems
         },
         relationships: {
             prerequisites: ["doppler_shift", "redshift_definition"],
@@ -473,7 +494,26 @@ var formulas = [
             "galaxy velocity",
             "how fast is galaxy moving",
             "hubble distance",
-            "calculate hubble distance"
+            "calculate hubble distance",
+            "velocity at which supernova appears to be receding",
+            "recessing from the observer"
+        ]
+    },
+    {
+        id: "hubble_time",
+        name: "Hubble Time",
+        description: "Rough time since recession began assuming constant expansion: t ≈ 1/H₀. With H₀ in km/s/Mpc, t_sec = 3.086×10¹⁹ / H₀ (1 Mpc = 3.086×10¹⁹ km). E.g. H₀ = 67.4 ⇒ t ≈ 4.58×10¹⁷ s ≈ 1.45×10¹⁰ yr.",
+        equation: "t_sec = 3.086e19 / H0",
+        concepts: ["hubble time", "cosmic age", "expansion", "lookback time"],
+        keywords: ["hubble time", "time since galaxy began receding", "1 over H0"],
+        variables: [
+            { symbol: "t_sec", name: "Time", unit: "seconds", description: "Hubble time (÷ 3.156e7 for years)" },
+            { symbol: "H0", name: "Hubble Constant", unit: "km/(s·Mpc)", description: "H₀" }
+        ],
+        questionPatterns: [
+            "time since galaxy began receding",
+            "estimate time constant recession",
+            "hubble time years"
         ]
     },
     {
@@ -553,7 +593,73 @@ var formulas = [
             "calculate angular size",
             "find angular size",
             "angular diameter distance",
-            "how big does it appear"
+            "how big does it appear",
+            "angular distance between two stars",
+            "angular distance RR Lyrae white dwarf",
+            "separation 0.67 AU distance parsecs angular"
+        ]
+    },
+    {
+        id: "angular_separation_arcsec",
+        name: "Angular Separation (Arcseconds)",
+        description: "Angular separation in arcseconds from linear separation and distance. θ_arcsec = 206265 × (linear / distance) with both in same units (e.g. meters). 206265 arcsec/rad. E.g. Mira A–B: 100 AU at 300 ly ⇒ θ ≈ 1.1\".",
+        equation: "theta_arcsec = 206265 * (linear / distance)",
+        concepts: ["angular separation", "arcseconds", "resolution", "binary", "linear separation", "binary separation"],
+        keywords: ["angular separation arcsec", "arcseconds from linear distance", "Mira A Mira B angular", "linear separation and distance", "binary angular separation"],
+        variables: [
+            { symbol: "theta_arcsec", name: "Angular Separation", unit: "arcsec", description: "θ in arcseconds" },
+            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (e.g. AU × 1.5e11 m/AU)" },
+            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system" }
+        ],
+        constants: { arcsec_per_rad: 206265 },
+        questionPatterns: [
+            "angular separation in arcseconds",
+            "angular separation arcsec",
+            "is this detectable ground-based",
+            "Mira A Mira B angular separation",
+            "linear separation and distance to binary",
+            "find angular separation from linear separation and distance"
+        ]
+    },
+    {
+        id: "linear_separation_from_angular",
+        name: "Linear Separation from Angular (Arcsec)",
+        description: "Physical separation from angular separation in arcseconds and distance. linear = θ_arcsec × distance / 206265 (distance in m gives linear in m). E.g. 0.052\" at 490 ly ⇒ ~7.79 AU.",
+        equation: "linear = theta_arcsec * distance / 206265",
+        concepts: ["angular size", "linear separation", "arcsec", "binary separation", "physical separation"],
+        keywords: ["linear separation from angular", "distance in AU from arcsec", "Siwarha Betelgeuse separation AU", "physical separation from angular separation"],
+        variables: [
+            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (same units as distance)" },
+            { symbol: "theta_arcsec", name: "Angular Separation", unit: "arcsec", description: "θ in arcseconds" },
+            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system" }
+        ],
+        constants: { arcsec_per_rad: 206265 },
+        questionPatterns: [
+            "corresponding distance in AU",
+            "linear separation from angular",
+            "0.052 arcsec distance AU",
+            "separation in AU from arcsec",
+            "physical separation from angular separation",
+            "physical separation in AU from angular separation"
+        ]
+    },
+    {
+        id: "brightness_ratio_times_brighter",
+        name: "Brightness Ratio (Times Brighter from Magnitudes)",
+        description: "How many times brighter object 1 is than object 2 from absolute (or apparent) magnitudes. ratio = 100^((M₂−M₁)/5) = 10^(0.4×(M₂−M₁)). E.g. Betelgeuse M=−6, Sirwarha M=3.044 ⇒ 4145× brighter.",
+        equation: "ratio = 10^(0.4 * (M_faint - M_bright))",
+        concepts: ["brightness ratio", "magnitude", "times brighter", "photometry"],
+        keywords: ["how many times brighter", "times brighter magnitude", "Betelgeuse Sirwarha brighter"],
+        variables: [
+            { symbol: "ratio", name: "Brightness Ratio", unit: "dimensionless", description: "Factor by which brighter star is brighter" },
+            { symbol: "M_faint", name: "Magnitude of Fainter", unit: "mag", description: "Absolute or apparent mag of fainter object" },
+            { symbol: "M_bright", name: "Magnitude of Brighter", unit: "mag", description: "Absolute or apparent mag of brighter object" }
+        ],
+        questionPatterns: [
+            "how many times brighter",
+            "times brighter than",
+            "Betelgeuse than Sirwarha",
+            "brightness ratio from magnitude"
         ]
     },
     {
@@ -625,7 +731,49 @@ var formulas = [
             "how far is star from parallax",
             "parallax angle to parsecs",
             "milliarcsecond parallax",
-            "parallax distance calculation"
+            "parallax distance calculation",
+            "RS Puppis parallax 0.563 mas",
+            "parallax 0.563 mas find distance",
+            "bolometric luminosity distance from parallax",
+            "parallax angle from distance",
+            "calculate parallax from distance",
+            "70 parsecs parallax",
+            "star 70 parsecs parallax arcseconds"
+        ]
+    },
+    {
+        id: "parallax_from_distance",
+        name: "Parallax from Distance",
+        description: "Parallax angle in arcseconds from distance in parsecs. p = 1/d. E.g. 70 pc ⇒ p = 1/70 = 0.0143 arcsec.",
+        equation: "p = 1 / d",
+        concepts: ["parallax", "distance", "arcseconds", "parsec"],
+        keywords: ["parallax from distance", "parallax angle arcseconds", "p equals 1 over d"],
+        variables: [
+            { symbol: "p", name: "Parallax", unit: "arcsec", description: "Parallax angle" },
+            { symbol: "d", name: "Distance", unit: "parsecs", description: "Distance to star" }
+        ],
+        questionPatterns: [
+            "parallax angle in arcseconds",
+            "calculate parallax from distance",
+            "star 70 parsecs parallax"
+        ]
+    },
+    {
+        id: "parallax_to_light_years",
+        name: "Distance from Parallax (Light Years)",
+        description: "Distance in light years from parallax in arcseconds. d_pc = 1/p, and 1 pc ≈ 3.26 ly, so d_ly = 3.26/p. E.g. p = 20 mas = 0.02 arcsec ⇒ d = 163 ly.",
+        equation: "d_ly = 3.26 / p",
+        concepts: ["parallax", "distance", "light years", "parsec"],
+        keywords: ["parallax light years", "distance in light years", "parallax to light years"],
+        variables: [
+            { symbol: "d_ly", name: "Distance", unit: "light years", description: "Distance in light years" },
+            { symbol: "p", name: "Parallax", unit: "arcseconds", description: "Parallax angle (e.g. 20 mas = 0.02)" }
+        ],
+        constants: { pc_to_ly: 3.26 },
+        questionPatterns: [
+            "distance in light years",
+            "parallax 20 milliarcseconds light years",
+            "calculate distance light years parallax"
         ]
     },
     {
@@ -802,6 +950,47 @@ var formulas = [
         ]
     },
     {
+        id: "magnetic_pressure_si",
+        name: "Magnetic Pressure (SI)",
+        description: "Magnetic pressure in SI units. In magnetostatic balance, magnetic fields contribute pressure PB = B²/(2μ0). Useful for white dwarf magnetic asymmetry and atmosphere balance problems.",
+        equation: "P_B = B^2 / (2 * mu_0)",
+        concepts: ["magnetic pressure", "magnetic field", "pressure balance", "white dwarf", "magnetism"],
+        keywords: ["magnetic pressure", "B squared over 2 mu0", "pressure from magnetic field", "delta B pressure"],
+        variables: [
+            { symbol: "P_B", name: "Magnetic Pressure", unit: "Pa", description: "Pressure contributed by magnetic field" },
+            { symbol: "B", name: "Magnetic Field Strength", unit: "Tesla", description: "Magnetic field strength" },
+            { symbol: "mu_0", name: "Vacuum Permeability", unit: "N/A²", description: "Magnetic constant μ0" }
+        ],
+        constants: {
+            mu_0: 1.25663706212e-6
+        },
+        questionPatterns: [
+            "magnetic pressure",
+            "pressure balance magnetic field",
+            "delta B from pressure difference",
+            "white dwarf magnetic asymmetry"
+        ]
+    },
+    {
+        id: "zeeman_splitting",
+        name: "Zeeman Splitting (Approximate)",
+        description: "Approximate Zeeman splitting of a spectral line in Angstroms for field strength in Gauss. Often used for hydrogen lines: Δλ ≈ 4.7×10^-13 λ₀² B. Useful for bounding magnetic fields from non-detection of line splitting.",
+        equation: "delta_lambda = 4.7e-13 * lambda_0^2 * B",
+        concepts: ["zeeman splitting", "magnetic field", "spectral line splitting", "hydrogen lines", "spectroscopy"],
+        keywords: ["zeeman splitting", "H alpha splitting", "upper bound magnetic field", "lambda squared B"],
+        variables: [
+            { symbol: "delta_lambda", name: "Line Splitting", unit: "Angstrom", description: "Observed splitting of line" },
+            { symbol: "lambda_0", name: "Rest Wavelength", unit: "Angstrom", description: "Rest wavelength of the line" },
+            { symbol: "B", name: "Magnetic Field Strength", unit: "Gauss", description: "Magnetic field in Gauss" }
+        ],
+        questionPatterns: [
+            "zeeman splitting",
+            "H alpha zeeman splitting",
+            "upper bound delta B",
+            "spectral resolution 10 angstrom"
+        ]
+    },
+    {
         id: "power_law_spectrum",
         name: "Power-Law Energy Spectrum",
         description: "Differential number of particles per unit energy as a function of energy. Describes the energy distribution of particles in a population, typically following a power-law spectrum. Essential for modeling particle populations in astrophysical sources like cosmic rays, supernova remnants, active galactic nuclei, and gamma-ray bursts. The power-law index determines the spectral shape and provides information about acceleration mechanisms, cooling processes, and source evolution. Critical for interpreting observed spectra and understanding particle acceleration physics in high-energy astrophysical environments.",
@@ -922,14 +1111,16 @@ var formulas = [
             "wien constant",
             "frequency from wavelength",
             "peak frequency",
-            "em spectrum region"
+            "em spectrum region",
+            "peak wavelength 400 nm temperature",
+            "peak wavelength nanometers temperature kelvin"
         ],
         variables: [
             {
                 symbol: "λmax",
                 name: "Peak Wavelength",
                 unit: "meters",
-                description: "Wavelength at peak emission"
+                description: "Wavelength at peak emission (400 nm = 4e-7 m)"
             },
             {
                 symbol: "T",
@@ -1031,6 +1222,25 @@ var formulas = [
         ]
     },
     {
+        id: "kepler_binary_solar_units",
+        name: "Kepler's Third Law (Binary, Solar Units)",
+        description: "For a binary system: P² = a³ / M_total when P is in years, a in AU, and M_total in solar masses. So a³ = P² × M_total, a = (P² × M_total)^(1/3). E.g. Betelgeuse–Sirwarha: P = 2170/365 yr, M = 16.6 M☉ ⇒ a ≈ 8.37 AU.",
+        equation: "a = (P^2 * M_total)^(1/3)",
+        concepts: ["kepler", "binary", "semi-major axis", "period", "solar units"],
+        keywords: ["kepler binary solar", "semi-major axis binary years AU", "P squared a cubed M"],
+        variables: [
+            { symbol: "a", name: "Semi-major Axis", unit: "AU", description: "Semi-major axis of orbit" },
+            { symbol: "P", name: "Orbital Period", unit: "years", description: "Period in years" },
+            { symbol: "M_total", name: "Total Mass", unit: "M☉", description: "Sum of masses in solar masses" }
+        ],
+        questionPatterns: [
+            "semi-major axis binary AU",
+            "P squared a cubed M total",
+            "determine semi-major axis binary",
+            "Betelgeuse Sirwarha semi-major axis"
+        ]
+    },
+    {
         id: "rotational_velocity",
         name: "Rotational Velocity",
         description: "Equatorial rotational velocity of a rotating body. The linear speed at the equator of a rotating astronomical object, calculated from the rotation period and radius. Essential for understanding stellar rotation, planetary rotation, and the effects of rotation on stellar structure and evolution. Rotation affects stellar evolution, magnetic field generation, and can lead to stellar flattening at high rotation rates. Critical for interpreting spectroscopic observations, understanding stellar activity, and modeling rotating stellar atmospheres. Related to angular momentum, rotational energy, and centrifugal effects.",
@@ -1126,6 +1336,54 @@ var formulas = [
                 unit: "meters",
                 description: "Distance to the source"
             }
+        ],
+        questionPatterns: [
+            "flux from luminosity",
+            "subsequent flux",
+            "bolometric luminosity and flux",
+            "find flux from luminosity and distance",
+            "F L 4 pi d squared"
+        ]
+    },
+    {
+        id: "magnitude_change_flux_ratio",
+        name: "Magnitude Change from Flux Ratio (Extinction)",
+        description: "Change in magnitude when flux is reduced (e.g. by extinction). Δm = -2.5 log₁₀(F/F₀). If brightness decreases 25%, F = 0.75 F₀, so Δm = -2.5 log₁₀(0.75). Used to correct distance when extinction is known.",
+        equation: "delta_m = -2.5 * log10(F / F_0)",
+        concepts: ["extinction", "magnitude", "flux ratio", "reddening", "distance correction"],
+        keywords: ["magnitude change extinction", "brightness reduced 25%", "new estimate distance extinction", "delta m flux ratio", "flux ratio into magnitude change", "brightness drops percent"],
+        variables: [
+            { symbol: "delta_m", name: "Change in Magnitude", unit: "mag", description: "Δm (positive = dimmer)" },
+            { symbol: "F", name: "Observed Flux", unit: "W/m²", description: "Flux after extinction" },
+            { symbol: "F_0", name: "Unabsorbed Flux", unit: "W/m²", description: "Flux without extinction" }
+        ],
+        questionPatterns: [
+            "brightness decreased 25%",
+            "extinction reduces brightness",
+            "new estimate distance extinction",
+            "change in magnitude flux ratio",
+            "flux ratio into a magnitude change",
+            "brightness drops to 75 percent"
+        ]
+    },
+    {
+        id: "illuminated_area_phase",
+        name: "Illuminated Area vs Orbital Phase",
+        description: "Apparent lit area of a planet (or hemisphere) as seen by observer, as function of normalized orbital phase φ (0 to 1). A = π R² cos(π φ). Phase 0 = planet between star and observer (full lit face).",
+        equation: "A = pi * R^2 * cos(pi * phi)",
+        concepts: ["phase", "illuminated area", "orbital phase", "planet", "geometry"],
+        keywords: ["illuminated area", "area lit phase", "orbital phase area", "Mr. Brightside"],
+        variables: [
+            { symbol: "A", name: "Lit Area", unit: "m²", description: "Apparent illuminated area" },
+            { symbol: "R", name: "Planet Radius", unit: "m", description: "Radius of planet" },
+            { symbol: "phi", name: "Orbital Phase", unit: "0 to 1", description: "Normalized phase (0 = between star and observer)" }
+        ],
+        constants: { pi: Math.PI },
+        questionPatterns: [
+            "area that appears lit",
+            "illuminated area orbital phase",
+            "expression for area lit phase",
+            "half lit planet area phase"
         ]
     },
     {
@@ -1482,7 +1740,7 @@ var formulas = [
     {
         id: "tidal_force",
         name: "Tidal Force",
-        description: "Tidal force between two bodies",
+        description: "Tidal force between two bodies. For Roche limit balance: tidal force (difference between star's pull at planet center vs surface) equals planet's gravity on a parcel. Tidal difference ≈ GMμ/(R−r)² − GMμ/R²; with 1/(R−r)² ≈ (1/R²)(1 + 2r/R) gives GMμ/R²(1+2r/R) − GMμ/R² = Gmμ/r² ⇒ R = r(2M/m)^(1/3).",
         equation: "F_tidal = (2GMmR) / d³",
         variables: [
             {
@@ -1554,6 +1812,119 @@ var formulas = [
         constants: {
             factor: 2
         }
+    },
+    {
+        id: "roche_limit_rigid",
+        name: "Roche Limit (Rigid Body, in Masses)",
+        description: "Minimum distance R from star (mass M) for a rigid planet (mass m, radius r) to avoid tidal disruption. Balance: tidal force = planet gravity on surface. R = r × (2M/m)^(1/3). Use when given M, m, r (e.g. GGSO Roche limit problems).",
+        equation: "R = r * (2*M/m)^(1/3)",
+        concepts: ["roche limit", "tidal disruption", "rigid body", "tidal force", "planet"],
+        keywords: ["roche limit rigid", "minimum R distance", "tidal disruption distance", "planet ripped apart"],
+        variables: [
+            { symbol: "R", name: "Roche Limit (Distance)", unit: "m", description: "Minimum distance from star center to planet center" },
+            { symbol: "r", name: "Planet Radius", unit: "m", description: "Radius of the planet" },
+            { symbol: "M", name: "Star Mass", unit: "kg", description: "Mass of the star" },
+            { symbol: "m", name: "Planet Mass", unit: "kg", description: "Mass of the planet" }
+        ],
+        questionPatterns: [
+            "minimum R distance tidal",
+            "roche limit in terms of M m r",
+            "compute minimum R within which matter pulled off",
+            "planet get ripped apart distance"
+        ]
+    },
+    {
+        id: "periapsis_from_apoapsis",
+        name: "Periapsis from Apoapsis and Eccentricity",
+        description: "Periapsis distance from apoapsis and eccentricity. r_peri = r_apo × (1−e)/(1+e). Equivalently r_apo = a(1+e), r_peri = a(1−e).",
+        equation: "r_peri = r_apo * (1 - e) / (1 + e)",
+        concepts: ["periapsis", "apoapsis", "eccentricity", "orbit", "elliptical orbit"],
+        keywords: ["periapsis from apoapsis", "apoapsis periapsis eccentricity", "r peri r apo"],
+        variables: [
+            { symbol: "r_peri", name: "Periapsis Distance", unit: "m or AU", description: "Closest distance to focus" },
+            { symbol: "r_apo", name: "Apoapsis Distance", unit: "m or AU", description: "Farthest distance from focus" },
+            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
+        ],
+        questionPatterns: [
+            "periapsis from apoapsis",
+            "apoapsis 25 AU eccentricity periapsis",
+            "periapsis in AU"
+        ]
+    },
+    {
+        id: "perihelion_aphelion",
+        name: "Perihelion and Aphelion from a and e",
+        description: "Perihelion (closest) and aphelion (farthest) distances from semi-major axis a and eccentricity e. r_peri = a(1−e), r_ap = a(1+e). Use same units for a (e.g. AU or m).",
+        equation: "r_peri = a*(1 - e)",
+        concepts: ["perihelion", "aphelion", "semi-major axis", "eccentricity", "orbit"],
+        keywords: ["perihelion aphelion", "rp ra from a e", "closest farthest distance orbit"],
+        variables: [
+            { symbol: "r_peri", name: "Perihelion Distance", unit: "m or AU", description: "Closest distance to focus" },
+            { symbol: "a", name: "Semi-major Axis", unit: "m or AU", description: "Semi-major axis" },
+            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
+        ],
+        questionPatterns: [
+            "perihelion aphelion distances",
+            "calculate perihelion aphelion meters",
+            "eccentricity 0.148 semi-major axis 3 AU"
+        ]
+    },
+    {
+        id: "aphelion_distance",
+        name: "Aphelion Distance",
+        description: "Aphelion (farthest) distance: r_ap = a(1+e).",
+        equation: "r_ap = a*(1 + e)",
+        concepts: ["aphelion", "semi-major axis", "eccentricity", "orbit"],
+        keywords: ["aphelion distance", "farthest distance orbit"],
+        variables: [
+            { symbol: "r_ap", name: "Aphelion Distance", unit: "m or AU", description: "Farthest distance" },
+            { symbol: "a", name: "Semi-major Axis", unit: "m or AU", description: "Semi-major axis" },
+            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Eccentricity" }
+        ],
+        questionPatterns: [
+            "aphelion distance",
+            "ra equals a times 1 plus e"
+        ]
+    },
+    {
+        id: "roche_lobe_spherical",
+        name: "Roche Lobe Radius (Spherical Approximation)",
+        description: "Approximate Roche lobe as sphere: r/d = max(f1, f2). f1 = 0.38 + 0.2 log₁₀(m/M), f2 = 0.46224 (m/M/(1+m/M))^(1/3). Use for mass-transfer binaries (e.g. white dwarf + red giant).",
+        equation: "r = d * max(0.38 + 0.2*log10(m/M), 0.46224*((m/M)/(1+m/M))^(1/3))",
+        concepts: ["roche lobe", "binary", "mass transfer", "Lagrangian", "accretion"],
+        keywords: ["roche lobe radius", "roche lobe spherical", "radius of roche lobe", "f1 f2"],
+        variables: [
+            { symbol: "r", name: "Roche Lobe Radius", unit: "m or AU", description: "Radius of Roche lobe (same units as d)" },
+            { symbol: "d", name: "Separation", unit: "m or AU", description: "Separation between the two bodies" },
+            { symbol: "m", name: "Mass of Secondary", unit: "kg or M☉", description: "Less massive body (e.g. white dwarf)" },
+            { symbol: "M", name: "Mass of Primary", unit: "kg or M☉", description: "More massive body (e.g. red giant)" }
+        ],
+        questionPatterns: [
+            "radius of roche lobe",
+            "roche lobe spherical",
+            "find roche lobe radius",
+            "roche lobe binary"
+        ]
+    },
+    {
+        id: "L1_point_approximation",
+        name: "L1 Lagrangian Point (M ≫ m)",
+        description: "Distance from secondary (mass m) to L1 point, for M ≫ m and d−r ≈ r. r = d ((M−m)/M)^(1/3). Teardrop Roche lobe apex.",
+        equation: "r = d * ((M - m)/M)^(1/3)",
+        concepts: ["L1", "Lagrangian point", "Roche lobe", "binary", "equilibrium"],
+        keywords: ["L1 point", "Lagrangian L1", "apex roche lobe", "L1 distance"],
+        variables: [
+            { symbol: "r", name: "L1 Distance from Secondary", unit: "m or AU", description: "Distance from mass m to L1" },
+            { symbol: "d", name: "Separation", unit: "m or AU", description: "Separation between bodies" },
+            { symbol: "M", name: "Primary Mass", unit: "kg or M☉", description: "Larger mass" },
+            { symbol: "m", name: "Secondary Mass", unit: "kg or M☉", description: "Smaller mass" }
+        ],
+        questionPatterns: [
+            "L1 Lagrangian point",
+            "apex roche lobe",
+            "find L1 point",
+            "M much greater than m L1"
+        ]
     },
     {
         id: "orbital_energy",
@@ -1643,7 +2014,32 @@ var formulas = [
             "orbital velocity elliptical",
             "velocity from distance",
             "calculate velocity orbit",
-            "find velocity orbit"
+            "find velocity orbit",
+            "orbital velocity binary km/s",
+            "orbital velocity relative to primary",
+            "Sirwarha orbital velocity"
+        ]
+    },
+    {
+        id: "velocity_from_orbital_energy",
+        name: "Velocity from Orbital Energy Conservation",
+        description: "Speed at one point in an orbit from speed and distance at another. From ½mv₁² − GMm/r₁ = ½mv₂² − GMm/r₂: v₂² = v₁² + 2GM(1/r₂ − 1/r₁). Use for comets (e.g. at perihelion vs aphelion).",
+        equation: "v2 = sqrt(v1^2 + 2*G*M*(1/r2 - 1/r1))",
+        concepts: ["orbital energy", "conservation of energy", "vis viva", "comet", "elliptical orbit"],
+        keywords: ["velocity from energy conservation", "comet speed at aphelion", "speed when distance from sun"],
+        variables: [
+            { symbol: "v2", name: "Velocity at Point 2", unit: "m/s", description: "Speed at distance r2" },
+            { symbol: "v1", name: "Velocity at Point 1", unit: "m/s", description: "Speed at distance r1" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "e.g. Sun mass" },
+            { symbol: "r2", name: "Distance at Point 2", unit: "m", description: "Distance from central body" },
+            { symbol: "r1", name: "Distance at Point 1", unit: "m", description: "Distance from central body" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "speed when 6e12 m from sun",
+            "comet elliptical orbit speed",
+            "velocity from energy conservation orbit"
         ]
     },
     {
@@ -1846,7 +2242,9 @@ var formulas = [
             "luminosity mass relation",
             "calculate luminosity from mass",
             "find luminosity from mass",
-            "main sequence luminosity"
+            "main sequence luminosity",
+            "1.6 solar masses luminosity",
+            "Sirwarha main sequence luminosity"
         ]
     },
     {
@@ -2167,11 +2565,14 @@ var formulas = [
         equation: "B_λ(T) = (2hc² / λ⁵) × (1 / (e^(hc/(λkT)) - 1))",
         primaryUseCase: "full spectrum calculation",
         specificity: 8,
+        concepts: ["blackbody radiation", "planck law", "planck distribution", "spectral radiance", "blackbody spectrum", "thermal spectrum"],
+        keywords: ["blackbody", "planck", "spectral radiance", "radiance", "spectrum", "thermal radiation"],
         questionPatterns: [
             "blackbody spectrum",
             "spectral radiance",
             "planck distribution",
-            "full spectrum from temperature"
+            "full spectrum from temperature",
+            "blackbody radiation formula for spectral radiance"
         ],
         variables: [
             {
@@ -2613,6 +3014,46 @@ var formulas = [
         }
     },
     {
+        id: "kepler_second_law_area_rate",
+        name: "Kepler's Second Law (Area Rate)",
+        description: "Equal area swept per unit time. C = dA/dt = (1/2) r v_θ constant; v_θ = r dθ/dt. Leads to conservation of angular momentum L = μ r v_θ.",
+        equation: "C = (1/2) * r * v_theta",
+        concepts: ["kepler second law", "equal area", "area rate", "angular momentum", "orbit"],
+        keywords: ["kepler second law", "sweep equal area", "area per unit time", "C r v theta"],
+        variables: [
+            { symbol: "C", name: "Area Rate Constant", unit: "m²/s", description: "dA/dt, constant along orbit" },
+            { symbol: "r", name: "Orbital Radius", unit: "m", description: "Distance from focus" },
+            { symbol: "v_theta", name: "Tangential Velocity", unit: "m/s", description: "r dθ/dt" }
+        ],
+        questionPatterns: [
+            "kepler second law",
+            "equal area per unit time",
+            "show C equals half r v theta",
+            "area rate constant orbit"
+        ]
+    },
+    {
+        id: "eccentricity_from_area_rate",
+        name: "Eccentricity from Area Rate (Kepler II)",
+        description: "Eccentricity e in terms of area rate C, central mass M, and semi-major axis a. From C = L/(2μ) and L = μ √(GM a (1−e²)).",
+        equation: "e = sqrt(1 - 4*C^2/(G*M*a))",
+        concepts: ["eccentricity", "kepler second law", "area rate", "orbital mechanics"],
+        keywords: ["e in terms of C M a", "eccentricity from C", "find e area rate"],
+        variables: [
+            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" },
+            { symbol: "C", name: "Area Rate", unit: "m²/s", description: "dA/dt" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Mass of central body" },
+            { symbol: "a", name: "Semi-major Axis", unit: "m", description: "Semi-major axis" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "find e in terms of M a and C",
+            "eccentricity from area rate",
+            "e from C Kepler"
+        ]
+    },
+    {
         id: "lookback_time",
         name: "Lookback Time (Approximate)",
         description: "Time since light was emitted",
@@ -2692,6 +3133,8 @@ var formulas = [
         name: "Luminosity Distance",
         description: "Distance from observed flux and known luminosity",
         equation: "D_L = √(L / (4πF))",
+        concepts: ["luminosity distance", "distance from luminosity and flux", "inverse square law", "observed flux", "intrinsic luminosity"],
+        keywords: ["luminosity distance", "observed flux", "known luminosity", "distance from flux", "distance from luminosity"],
         variables: [
             {
                 symbol: "D_L",
@@ -2714,7 +3157,13 @@ var formulas = [
         ],
         constants: {
             π: Math.PI
-        }
+        },
+        questionPatterns: [
+            "luminosity distance",
+            "distance from luminosity and observed flux",
+            "known luminosity observed flux distance",
+            "inverse square law distance"
+        ]
     },
     // ============================================================
     // COSMOLOGY & RELATIVISTIC GRAVITY FORMULAS (1-15)
@@ -3715,6 +4164,93 @@ var formulas = [
         ]
     },
     {
+        id: "kelvin_helmholtz_timescale_exact",
+        name: "Kelvin–Helmholtz Timescale (Exact)",
+        description: "Time for a star to radiate its gravitational binding energy at current luminosity. t = 3 G M² / (10 R L). Same as thermal time with factor 3/10 from virial (E = |U| = 3GM²/(10R)). Sun: ~9 million years.",
+        equation: "t = 3 * G * M^2 / (10 * R * L)",
+        concepts: ["kelvin-helmholtz", "gravitational contraction", "stellar evolution", "protostar", "thermal time"],
+        keywords: ["kelvin helmholtz years", "sun last gravitational contraction", "how many years gravitational contraction"],
+        variables: [
+            { symbol: "t", name: "Timescale", unit: "s", description: "KH timescale (convert to years: ÷ 3.156e7)" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Mass", unit: "kg", description: "Stellar mass" },
+            { symbol: "R", name: "Radius", unit: "m", description: "Stellar radius" },
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Luminosity" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "how many years sun last gravitational contraction",
+            "kelvin helmholtz exact",
+            "sun gravitational contraction years"
+        ]
+    },
+    {
+        id: "luminosity_infall",
+        name: "Luminosity from Infalling Matter",
+        description: "Luminosity generated by matter falling onto a star (e.g. Kelvin–Helmholtz meteor/comet theory). L = ε G M ṁ / R. From ΔU = GMm/R (d→∞), power = ε × (GMṁ/R).",
+        equation: "L = epsilon * G * M * m_dot / R",
+        concepts: ["infall", "accretion", "luminosity", "gravitational potential energy", "meteor comet"],
+        keywords: ["infalling matter luminosity", "rate of infalling matter", "L epsilon G M m dot R"],
+        variables: [
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Generated luminosity" },
+            { symbol: "epsilon", name: "Efficiency", unit: "dimensionless", description: "Fraction of GPE converted to radiation" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Mass of star" },
+            { symbol: "m_dot", name: "Mass Infall Rate", unit: "kg/s", description: "dm/dt" },
+            { symbol: "R", name: "Radius", unit: "m", description: "Radius of star" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "rate of infalling matter",
+            "luminosity from infalling matter",
+            "energy released infalling mass",
+            "generate sun luminosity infall"
+        ]
+    },
+    {
+        id: "accretion_luminosity",
+        name: "Accretion Luminosity (L = G M ṁ / R)",
+        description: "Luminosity from accretion onto a compact object. From dU/dt = −G M ṁ / R, released power L = G M ṁ / R. Used for white dwarf or neutron star accreting from companion (e.g. Mira B).",
+        equation: "L = G * M * m_dot / R",
+        concepts: ["accretion", "luminosity", "white dwarf", "accretion disk", "Mira B"],
+        keywords: ["accretion luminosity", "Mira B accretes", "dU dt G M m dot R"],
+        variables: [
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Accretion luminosity" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Accretor Mass", unit: "kg", description: "Mass of WD/NS" },
+            { symbol: "m_dot", name: "Accretion Rate", unit: "kg/s", description: "Mass accretion rate" },
+            { symbol: "R", name: "Accretor Radius", unit: "m", description: "Radius of accretor" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "accretion luminosity",
+            "apparent magnitude Mira B accretion",
+            "luminosity from accretion rate"
+        ]
+    },
+    {
+        id: "apparent_magnitude_from_luminosity_distance",
+        name: "Apparent Magnitude from Luminosity and Distance",
+        description: "Apparent magnitude from luminosity L, distance d, and solar reference. m = m_sun − 2.5 log₁₀(F/F_sun), with F = L/(4πd²). Solar constant F_sun ≈ 1400 W/m², m_sun = −26.74.",
+        equation: "m = m_sun - 2.5*log10((L/(4*pi*d^2))/F_sun)",
+        concepts: ["apparent magnitude", "luminosity", "distance", "solar constant", "flux"],
+        keywords: ["apparent magnitude from luminosity distance", "solar constant 1400", "Sirwarha apparent magnitude"],
+        variables: [
+            { symbol: "m", name: "Apparent Magnitude", unit: "mag", description: "Apparent magnitude" },
+            { symbol: "m_sun", name: "Solar Apparent Magnitude", unit: "mag", description: "Typically −26.74" },
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Stellar luminosity" },
+            { symbol: "d", name: "Distance", unit: "m", description: "Distance to star" },
+            { symbol: "F_sun", name: "Solar Constant", unit: "W/m²", description: "≈ 1400 W/m²" }
+        ],
+        constants: { pi: Math.PI, m_sun: -26.74, F_sun: 1400 },
+        questionPatterns: [
+            "apparent magnitude from luminosity distance",
+            "solar constant 1400 apparent magnitude",
+            "Sirwarha apparent magnitude",
+            "distance 490 ly apparent magnitude"
+        ]
+    },
+    {
         id: "convection_criterion",
         name: "Convection Criterion (Schwarzschild Criterion)",
         description: "Criterion for convective instability in stellar interiors. Fundamental condition determining when energy transport occurs via convection rather than radiation. Essential for stellar structure, energy transport, and stellar evolution. Convection occurs when temperature gradient exceeds adiabatic gradient.",
@@ -3832,6 +4368,50 @@ var formulas = [
             "calculate optical depth",
             "opacity along path",
             "radiative transfer optical depth"
+        ]
+    },
+    {
+        id: "scale_height_isothermal",
+        name: "Isothermal Scale Height",
+        description: "Pressure scale height in hydrostatic equilibrium for an isothermal atmosphere. Combining dP/dz = -ρg with the ideal gas law gives H = k_B T / (m g). Lighter gases have larger scale heights than heavier gases.",
+        equation: "H = k_B * T / (m * g)",
+        concepts: ["scale height", "hydrostatic equilibrium", "ideal gas", "atmosphere", "white dwarf"],
+        keywords: ["scale height", "hydrogen helium atmosphere", "hydrostatic equilibrium atmosphere", "H equals kT over mg"],
+        variables: [
+            { symbol: "H", name: "Scale Height", unit: "m", description: "Characteristic vertical pressure/density scale height" },
+            { symbol: "k_B", name: "Boltzmann Constant", unit: "J/K", description: "Boltzmann constant" },
+            { symbol: "T", name: "Temperature", unit: "K", description: "Atmospheric temperature" },
+            { symbol: "m", name: "Particle Mass", unit: "kg", description: "Mean particle mass" },
+            { symbol: "g", name: "Surface Gravity", unit: "m/s²", description: "Gravitational acceleration" }
+        ],
+        constants: {
+            k_B: 1.380649e-23
+        },
+        questionPatterns: [
+            "scale height",
+            "hydrogen helium atmosphere scale height",
+            "derive H from hydrostatic equilibrium",
+            "Janus scale height"
+        ]
+    },
+    {
+        id: "photospheric_pressure_optical_depth",
+        name: "Photospheric Gas Pressure from Optical Depth",
+        description: "Approximate gas pressure at a photosphere from hydrostatic balance and optical depth. Since dτ = κρ dz and dP/dz = -ρg, one gets dP/dτ = g/κ and therefore P ≈ gτ/κ at optical depth τ.",
+        equation: "P_gas = g * tau / kappa",
+        concepts: ["photospheric pressure", "optical depth", "opacity", "hydrostatic equilibrium", "stellar atmosphere"],
+        keywords: ["photospheric gas pressure", "dP d tau", "tau equals 2/3 pressure", "rosseland opacity pressure"],
+        variables: [
+            { symbol: "P_gas", name: "Gas Pressure", unit: "Pa", description: "Gas pressure at optical depth tau" },
+            { symbol: "g", name: "Surface Gravity", unit: "m/s²", description: "Gravitational acceleration" },
+            { symbol: "tau", name: "Optical Depth", unit: "dimensionless", description: "Optical depth, often 2/3 at photosphere" },
+            { symbol: "kappa", name: "Opacity", unit: "m²/kg", description: "Rosseland opacity or mass absorption coefficient" }
+        ],
+        questionPatterns: [
+            "photospheric gas pressure",
+            "integrate dP d tau",
+            "tau 2/3 gas pressure",
+            "rosseland opacity 0.02 1 plus X"
         ]
     },
     {
@@ -3973,6 +4553,49 @@ var formulas = [
             "virial theorem",
             "stellar total energy",
             "gravitational energy relation"
+        ]
+    },
+    {
+        id: "virial_temperature_gas",
+        name: "Virial Temperature (Gas Cloud)",
+        description: "Temperature at which a spherical gas cloud is in virial equilibrium: 2K + U = 0. U = -3GM²/(5R), K = (3/2)(M/μ)k_B T. So T_vir = G M μ / (5 k_B R). Used for star-forming clouds.",
+        equation: "T_vir = G * M * mu / (5 * k_B * R)",
+        concepts: ["virial theorem", "virial temperature", "gas cloud", "star formation", "equilibrium", "collapse"],
+        keywords: ["virial temperature", "virialized cloud", "T vir", "gas cloud equilibrium"],
+        variables: [
+            { symbol: "T_vir", name: "Virial Temperature", unit: "K", description: "Equilibrium temperature" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Cloud Mass", unit: "kg", description: "Total mass of cloud" },
+            { symbol: "mu", name: "Mean Particle Mass", unit: "kg", description: "Mean mass per particle μ" },
+            { symbol: "k_B", name: "Boltzmann Constant", unit: "J/K", description: "k_B" },
+            { symbol: "R", name: "Cloud Radius", unit: "m", description: "Radius of cloud" }
+        ],
+        constants: { G: 6.67430e-11, k_B: 1.380649e-23 },
+        questionPatterns: [
+            "virial temperature",
+            "solve for T vir",
+            "virial theorem gas cloud",
+            "2K plus U equals zero temperature"
+        ]
+    },
+    {
+        id: "virial_velocity_dispersion",
+        name: "Virial Velocity Dispersion",
+        description: "Velocity dispersion for virial equilibrium. K = (3/2) M σ², U = -3GM²/(5R), 2K + U = 0 ⇒ σ_vir = sqrt(G M / (5 R)).",
+        equation: "sigma_vir = sqrt(G * M / (5 * R))",
+        concepts: ["virial theorem", "velocity dispersion", "gas cloud", "star formation"],
+        keywords: ["virial velocity dispersion", "sigma vir", "velocity dispersion virial"],
+        variables: [
+            { symbol: "sigma_vir", name: "Virial Velocity Dispersion", unit: "m/s", description: "σ_vir" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Cloud Mass", unit: "kg", description: "Total mass" },
+            { symbol: "R", name: "Cloud Radius", unit: "m", description: "Radius" }
+        ],
+        constants: { G: 6.67430e-11 },
+        questionPatterns: [
+            "virial velocity dispersion",
+            "solve for sigma vir",
+            "velocity dispersion virial"
         ]
     },
     {
@@ -4155,6 +4778,67 @@ var formulas = [
         ]
     },
     {
+        id: "pulsation_period_scaling",
+        name: "Radial Pulsation Period Scaling",
+        description: "Dimensional scaling for radial pulsation periods. For a self-gravitating star, the dynamical timescale gives P ∝ sqrt(R^3 / (G M)), so P ∝ G^(-1/2) M^(-1/2) R^(3/2). This corresponds to fundamental radial pulsation scaling.",
+        equation: "P = sqrt(R^3 / (G * M))",
+        concepts: ["pulsation period", "mira", "radial mode", "dynamical timescale", "stellar oscillation"],
+        keywords: ["pulsation period scaling", "P proportional sqrt R cubed over GM", "Mira dimensional analysis"],
+        variables: [
+            { symbol: "P", name: "Pulsation Period", unit: "s", description: "Characteristic radial pulsation period" },
+            { symbol: "R", name: "Radius", unit: "m", description: "Stellar radius" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m^3/(kg s^2)", description: "Gravitational constant" },
+            { symbol: "M", name: "Mass", unit: "kg", description: "Stellar mass" }
+        ],
+        constants: {
+            G: 6.67430e-11
+        },
+        questionPatterns: [
+            "mira pulsation dimensional analysis",
+            "P proportional G a M b R c",
+            "radial pulsation period scaling"
+        ]
+    },
+    {
+        id: "luminosity_fractional_amplitude_pulsation",
+        name: "Fractional Luminosity Amplitude from Radius-Temperature Coupling",
+        description: "First-order luminosity amplitude for a pulsating star when ΔT/T = -γ ΔR/R. Since L ∝ R^2 T^4, one gets ΔL/L ≈ (2 - 4γ) ΔR/R to first order.",
+        equation: "L_frac = (2 - 4 * gamma) * R_frac",
+        concepts: ["luminosity amplitude", "pulsation", "mira", "fractional amplitude", "stefan-boltzmann"],
+        keywords: ["fractional luminosity amplitude", "2 minus 4 gamma", "delta L over L", "Mira luminosity amplitude"],
+        variables: [
+            { symbol: "L_frac", name: "Fractional Luminosity Amplitude", unit: "dimensionless", description: "Approximate ΔL/L amplitude" },
+            { symbol: "gamma", name: "Radius-Temperature Coupling", unit: "dimensionless", description: "γ in ΔT/T = -γ ΔR/R" },
+            { symbol: "R_frac", name: "Fractional Radius Amplitude", unit: "dimensionless", description: "ΔR/R amplitude" }
+        ],
+        questionPatterns: [
+            "fractional luminosity amplitude",
+            "delta T over T equals minus gamma delta R over R",
+            "2 minus 4 gamma R"
+        ]
+    },
+    {
+        id: "magnitude_variation_pulsation",
+        name: "Magnitude Variation for Pulsation (First Order)",
+        description: "First-order magnitude variation for a pulsating star with radius curve R(t). Using ΔM ≈ -(2.5/ln10) ΔL/L and the simplified competition convention used in some keys, ΔM is often written proportional to (4γ - 2) R cos(ωt + φ).",
+        equation: "delta_M = (4 * gamma - 2) * R_amp * cos(omega * t + phi)",
+        concepts: ["magnitude variation", "pulsation", "mira", "light curve", "phase"],
+        keywords: ["magnitude variation pulsation", "delta MK", "4 gamma minus 2", "light curve phase radius curve"],
+        variables: [
+            { symbol: "delta_M", name: "Magnitude Variation", unit: "mag", description: "First-order magnitude variation" },
+            { symbol: "gamma", name: "Radius-Temperature Coupling", unit: "dimensionless", description: "γ parameter" },
+            { symbol: "R_amp", name: "Fractional Radius Amplitude", unit: "dimensionless", description: "Amplitude R" },
+            { symbol: "omega", name: "Angular Frequency", unit: "rad/s", description: "ω = 2π/P" },
+            { symbol: "t", name: "Time", unit: "s", description: "Time" },
+            { symbol: "phi", name: "Phase", unit: "rad", description: "Phase offset" }
+        ],
+        questionPatterns: [
+            "delta MK pulsation",
+            "magnitude variation in terms of gamma omega phi",
+            "in phase or out of phase with radius curve"
+        ]
+    },
+    {
         id: "period_luminosity_relation_cepheid",
         name: "Period-Luminosity Relation (Cepheids)",
         description: "Luminosity as a function of pulsation period for classical Cepheid variable stars. Fundamental relation used as a standard candle for distance measurement. Essential for extragalactic distance measurements and cosmic distance ladder. Classical Cepheids follow a well-defined period-luminosity relation, making them excellent distance indicators. The relation is logarithmic: longer period Cepheids are more luminous.",
@@ -4189,6 +4873,23 @@ var formulas = [
             "cepheid distance",
             "standard candle cepheid",
             "calculate cepheid luminosity from period"
+        ]
+    },
+    {
+        id: "period_luminosity_cepheid_classical",
+        name: "Period-Luminosity (Classical Cepheid, M from P)",
+        description: "Absolute visual magnitude from pulsation period (days): M_V = -2.43(log₁₀(P) - 1) - 4.05. Used for RS Puppis-style problems. Solve for P: log₁₀(P) = 1 - (M_V + 4.05)/2.43.",
+        equation: "M_V = -2.43*(log10(P) - 1) - 4.05",
+        concepts: ["cepheid", "period luminosity", "RS Puppis", "pulsation period", "absolute magnitude"],
+        keywords: ["RS Puppis", "cepheid period from magnitude", "absolute magnitude -5.7 period", "classical cepheid period"],
+        variables: [
+            { symbol: "M_V", name: "Absolute Visual Magnitude", unit: "mag", description: "Absolute magnitude" },
+            { symbol: "P", name: "Pulsation Period", unit: "days", description: "Period in days" }
+        ],
+        questionPatterns: [
+            "absolute magnitude RS Puppis period",
+            "cepheid pulsation period from magnitude",
+            "what is pulsation period cepheid"
         ]
     },
     {
@@ -7094,10 +7795,10 @@ var formulas = [
     {
         id: "distance_from_magnitude",
         name: "Distance from Magnitude",
-        description: "Distance calculated from apparent and absolute magnitude. Distance modulus solved for distance. Essential for distance measurements and stellar classification. Requires knowing both apparent and absolute magnitude.",
+        description: "Distance calculated from apparent and absolute magnitude. Distance modulus solved for distance. Essential for distance measurements and stellar classification. Requires knowing both apparent and absolute magnitude. Type Ia supernovae: M ≈ −19.3 (standard candle). RR Lyrae: M ≈ +0.75.",
         equation: "d = 10^((m - M + 5) / 5)",
-        concepts: ["distance", "magnitude", "distance modulus", "distance measurement", "stellar classification"],
-        keywords: ["distance", "magnitude", "distance modulus", "parsec"],
+        concepts: ["distance", "magnitude", "distance modulus", "distance measurement", "stellar classification", "standard candle", "Type Ia", "RR Lyrae"],
+        keywords: ["distance", "magnitude", "distance modulus", "parsec", "Type Ia supernova", "RR Lyrae", "how far"],
         variables: [
             {
                 symbol: "d",
@@ -7118,6 +7819,10 @@ var formulas = [
                 description: "Intrinsic absolute magnitude"
             }
         ],
+        presets: [
+            { name: "Type Ia Supernova", description: "Standard candle M ≈ −19.3", values: { M: -19.3 } },
+            { name: "RR Lyrae", description: "RR Lyrae absolute magnitude ≈ +0.75", values: { M: 0.75 } }
+        ],
         relationships: {
             prerequisites: ["distance_modulus"],
             derivedFrom: ["distance_modulus"],
@@ -7130,7 +7835,32 @@ var formulas = [
             "distance from magnitude",
             "calculate distance magnitude",
             "distance modulus distance",
-            "parsec from magnitude"
+            "parsec from magnitude",
+            "distance to the supernova",
+            "find distance Type Ia",
+            "apparent magnitude 10 supernova",
+            "how far RR Lyrae",
+            "RR Lyrae apparent magnitude 6.7 how far"
+        ]
+    },
+    {
+        id: "distance_modulus_with_extinction",
+        name: "Distance Modulus with Extinction",
+        description: "Distance when extinction A_V is present: m − M − A_V = 5 log₁₀(d) − 5, so d = 10^((m − M − A_V + 5)/5) pc. For Mpc: d_Mpc = d_pc / 10^6. Type Ia: M_V ≈ −19.3.",
+        equation: "d = 10^((m - M - A_V + 5) / 5)",
+        concepts: ["distance modulus", "extinction", "A_V", "standard candle", "Type Ia"],
+        keywords: ["distance modulus including extinction", "extinction 0.40 distance", "distance supernova Mpc"],
+        variables: [
+            { symbol: "d", name: "Distance", unit: "parsecs", description: "Distance (divide by 1e6 for Mpc)" },
+            { symbol: "m", name: "Apparent Magnitude", unit: "mag", description: "Observed magnitude" },
+            { symbol: "M", name: "Absolute Magnitude", unit: "mag", description: "Intrinsic magnitude" },
+            { symbol: "A_V", name: "V-band Extinction", unit: "mag", description: "Total extinction in magnitudes" }
+        ],
+        questionPatterns: [
+            "distance modulus including extinction",
+            "distance to supernova Mpc",
+            "Type Ia apparent 15.4 extinction 0.40",
+            "dust extinction distance"
         ]
     },
     {
@@ -7535,7 +8265,31 @@ var formulas = [
             "velocity from redshift",
             "redshift to velocity",
             "low redshift velocity",
-            "recessional velocity redshift"
+            "recessional velocity redshift",
+            "calculate blueshift",
+            "blueshift galaxy approaching",
+            "miles per second blueshift"
+        ]
+    },
+    {
+        id: "redshift_velocity_relativistic",
+        name: "Recessional Velocity from Redshift (Relativistic)",
+        description: "Recessional velocity from redshift using special relativity. Use when z is not small (e.g. wavelength doubles). Formula: v/c = ((1+z)² − 1) / ((1+z)² + 1). Classical z = v/c gives unphysical v ≥ c for large z.",
+        equation: "v = c * (((1 + z)^2 - 1) / ((1 + z)^2 + 1))",
+        concepts: ["relativistic redshift", "recessional velocity", "special relativity", "doppler", "high redshift", "supernova"],
+        keywords: ["relativistic redshift", "velocity from redshift", "recessional velocity", "relativistic doppler", "why relativistic necessary", "wavelength redshift to velocity"],
+        variables: [
+            { symbol: "v", name: "Recessional Velocity", unit: "m/s", description: "Recessional velocity of the source" },
+            { symbol: "c", name: "Speed of Light", unit: "m/s", description: "Speed of light in vacuum" },
+            { symbol: "z", name: "Redshift", unit: "dimensionless", description: "Redshift z = (λ_obs − λ_emit) / λ_emit" }
+        ],
+        constants: { c: 2.99792458e8 },
+        questionPatterns: [
+            "recessional velocity relativistic",
+            "relativistic redshift velocity",
+            "supernova redshift 4000 8000 angstroms",
+            "velocity from wavelength shift relativistic",
+            "why relativistic corrections necessary"
         ]
     },
     {
@@ -8720,7 +9474,9 @@ var formulas = [
             "eccentricity from distances",
             "calculate eccentricity",
             "orbit eccentricity",
-            "ellipse eccentricity"
+            "ellipse eccentricity",
+            "apoapsis periapsis formula",
+            "r_a r_p eccentricity"
         ]
     },
     {
@@ -9126,6 +9882,129 @@ var formulas = [
         ]
     }
 ];
+
+// Formula confidence research metadata
+// Purpose: distinguish first-principles laws from approximations, empirical fits,
+// and rough heuristics so search ranking and UI confidence can reflect formula reliability.
+const FORMULA_CONFIDENCE_OVERRIDES = {
+    hubble_law: 82,
+    lookback_time: 74,
+    doppler_shift_approx: 82,
+    redshift_velocity_low: 82,
+    redshift_peculiar_velocity: 82,
+    distance_modulus_high_redshift: 74,
+    roche_limit: 80,
+    roche_limit_rigid: 82,
+    roche_lobe_spherical: 74,
+    L1_point_approximation: 70,
+    kepler_second_law_area_rate: 94,
+    eccentricity_from_area_rate: 90,
+    stellar_lifetime: 74,
+    solar_lifetime_efficiency: 78,
+    kelvin_helmholtz_timescale_exact: 80,
+    luminosity_infall: 80,
+    accretion_luminosity: 88,
+    virial_temperature_gas: 82,
+    virial_velocity_dispersion: 82,
+    mass_luminosity_relation: 76,
+    period_luminosity_relation_cepheid: 78,
+    period_luminosity_cepheid_classical: 78,
+    bolometric_correction: 76,
+    white_dwarf_mass_radius: 72,
+    chandrasekhar_limit: 74,
+    hr_color_index: 72,
+    stellar_activity_index: 70,
+    tully_fisher_relation: 76,
+    faber_jackson_relation: 76,
+    m_sigma_relation: 76,
+    max_gamma_bohm: 68,
+    cooling_break_gamma: 70,
+    cooling_break_frequency: 74,
+    thermal_time: 80
+};
+
+function inferFormulaConfidenceScore(formula) {
+    if (!formula) return 85;
+
+    if (Object.prototype.hasOwnProperty.call(FORMULA_CONFIDENCE_OVERRIDES, formula.id)) {
+        return FORMULA_CONFIDENCE_OVERRIDES[formula.id];
+    }
+
+    const text = [
+        formula.name || '',
+        formula.description || '',
+        formula.equation || '',
+        ...(formula.keywords || []),
+        ...(formula.concepts || [])
+    ].join(' ').toLowerCase();
+
+    const equation = String(formula.equation || '').toLowerCase();
+
+    // Heuristics:
+    // 96 = exact/definitional or first-principles relation within its stated model
+    // 84 = controlled approximation or limited-domain formula
+    // 76 = empirical/calibrated relation
+    // 68 = rough heuristic, proportionality, or order-of-magnitude estimate
+    if (
+        equation.includes('∝') ||
+        /\border[- ]of[- ]magnitude\b|\brough\b|\bheuristic\b|\bgeneral nfw form\b/.test(text)
+    ) {
+        return 68;
+    }
+
+    if (
+        /\bempirical\b|\bperiod-luminosity\b|\bmass-luminosity\b|\btully-fisher\b|\bfaber-jackson\b|\bm-sigma\b|\bbolometric correction\b|\bactivity index\b/.test(text)
+    ) {
+        return 76;
+    }
+
+    if (
+        /\bapproximate\b|\bapproximation\b|\bsimplified\b|\bsmall angle\b|\bnon-relativistic\b|\bvalid when\b|\bassuming\b|\btypical\b|\bcommon value\b|\bspherical approximation\b|\brigid body\b|\bcurrent value\b|\blow z\b|\bhigh-redshift\b/.test(text)
+    ) {
+        return 84;
+    }
+
+    return 96;
+}
+
+function inferFormulaConfidenceTier(score) {
+    if (score >= 94) return 'exact';
+    if (score >= 80) return 'approximation';
+    if (score >= 74) return 'empirical';
+    return 'heuristic';
+}
+
+function inferFormulaConfidenceRationale(tier) {
+    switch (tier) {
+        case 'exact':
+            return 'First-principles or definitional relation within the stated model.';
+        case 'approximation':
+            return 'Standard approximation with stated assumptions or limited validity range.';
+        case 'empirical':
+            return 'Calibrated from observations or model-dependent stellar relations.';
+        default:
+            return 'Heuristic, proportional, or rough-order estimate; use with caution.';
+    }
+}
+
+function computeFormulaSearchWeight(score) {
+    // Keep weighting modest so relevance still dominates query matching.
+    return Math.max(0.85, Math.min(1.10, 1 + ((score - 85) / 200)));
+}
+
+function applyFormulaConfidenceResearch(formula) {
+    const score = inferFormulaConfidenceScore(formula);
+    const tier = inferFormulaConfidenceTier(score);
+
+    formula.formulaConfidence = score;
+    formula.confidenceTier = tier;
+    formula.confidenceRationale = inferFormulaConfidenceRationale(tier);
+    formula.searchWeight = computeFormulaSearchWeight(score);
+
+    return formula;
+}
+
+formulas.forEach(applyFormulaConfidenceResearch);
 
 // Formula Relationship Infrastructure
 // Builds and maintains interconnections between formulas

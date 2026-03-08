@@ -566,6 +566,60 @@ const testQuestions = [
         expectedFormulas: ["hubble_law", "hubble_parameter"],
         category: "Natural Language",
         difficulty: "Medium"
+    },
+    {
+        question: "Type Ia supernova with extinction which distance formula should I use",
+        expectedFormulas: ["distance_modulus_with_extinction", "distance_modulus"],
+        category: "Natural Language",
+        difficulty: "Hard"
+    },
+    {
+        question: "star is 70 parsecs away find parallax angle in arcseconds",
+        expectedFormulas: ["parallax_from_distance", "parallax_distance_arcsec"],
+        category: "Natural Language",
+        difficulty: "Easy"
+    },
+    {
+        question: "linear separation and distance to binary gives angular separation in arcseconds",
+        expectedFormulas: ["angular_separation_arcsec", "angular_size"],
+        category: "Natural Language",
+        difficulty: "Medium"
+    },
+    {
+        question: "angular separation in arcseconds to physical separation in AU",
+        expectedFormulas: ["linear_separation_from_angular"],
+        category: "Natural Language",
+        difficulty: "Medium"
+    },
+    {
+        question: "virial temperature of a spherical gas cloud from mass radius mean particle mass",
+        expectedFormulas: ["virial_temperature_gas"],
+        category: "Natural Language",
+        difficulty: "Hard"
+    },
+    {
+        question: "virial velocity dispersion of gas cloud",
+        expectedFormulas: ["virial_velocity_dispersion"],
+        category: "Natural Language",
+        difficulty: "Medium"
+    },
+    {
+        question: "cepheid absolute magnitude to pulsation period",
+        expectedFormulas: ["period_luminosity_cepheid_classical"],
+        category: "Natural Language",
+        difficulty: "Medium"
+    },
+    {
+        question: "brightness drops to 75 percent what is the magnitude change",
+        expectedFormulas: ["magnitude_change_flux_ratio"],
+        category: "Natural Language",
+        difficulty: "Medium"
+    },
+    {
+        question: "peak wavelength 400 nanometers find stellar temperature",
+        expectedFormulas: ["wiens_law"],
+        category: "Natural Language",
+        difficulty: "Easy"
     }
 ];
 

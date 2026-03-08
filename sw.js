@@ -1,19 +1,23 @@
 /**
- * Service Worker for AstroCalc - FORCE REFRESH v3.0.0
+ * Service Worker for AstroCalc - NO HTML CACHE v3.0.3
  * 
- * This version DELETES ALL OLD CACHES on install before creating new cache
+ * This version:
+ * - DELETES ALL OLD CACHES on install before creating new cache
+ * - NEVER caches HTML files - always fetches fresh to avoid stale HTML
+ * - Prevents serving cached HTML with old script references
  */
 
-const CACHE_NAME = 'astrocalc-shell-v3.0.2-FORCE-REFRESH';
-const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.2-FORCE-REFRESH';
+const CACHE_NAME = 'astrocalc-shell-v3.0.3-NO-HTML-CACHE';
+const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.3-NO-HTML-CACHE';
 const MAX_RUNTIME_ENTRIES = 100;
 
 const DEV_MODE = false;
 
 // Resources to cache on install
+// NOTE: index.html is NOT cached - always fetched fresh to avoid stale HTML
 const PRECACHE_RESOURCES = [
     './',
-    './index.html',
+    // './index.html', // REMOVED: Never cache HTML - always fetch fresh
     './styles/main.css',
     './manifest.json',
 
@@ -95,7 +99,7 @@ self.addEventListener('install', (event) => {
                 // Cache with force reload
                 return Promise.allSettled(
                     PRECACHE_RESOURCES.map(url => {
-                        const fullUrl = url + (url.includes('?') ? '&' : '?') + `v=3.0.0&t=${Date.now()}`;
+                        const fullUrl = url + (url.includes('?') ? '&' : '?') + `v=3.0.3&t=${Date.now()}`;
                         return cache.add(new Request(fullUrl, { cache: 'reload' }))
                             .then(() => ({ url, status: 'success' }))
                             .catch(err => ({ url, status: 'failed', error: err.message }));
@@ -173,11 +177,36 @@ self.addEventListener('fetch', (event) => {
     }
     
     const isNavigation = event.request.mode === 'navigate' || event.request.destination === 'document';
+    const isHTML = url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/');
     const isCSS = url.pathname.endsWith('.css');
     const isJS = url.pathname.endsWith('.js');
     
-    // Network-first for HTML/navigation and CSS (always get latest)
-    if (isNavigation || isCSS) {
+    // CRITICAL: Never cache HTML files - always fetch fresh from network
+    // This prevents serving stale HTML with old script references
+    if (isNavigation || isHTML) {
+        event.respondWith(
+            fetch(event.request, { 
+                cache: 'no-store',
+                headers: {
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache'
+                }
+            })
+                .then(response => {
+                    // Don't cache HTML - always serve fresh
+                    // This ensures users always get the latest HTML without debug script references
+                    return response;
+                })
+                .catch(() => {
+                    // Only fall back to cache if network completely fails (offline)
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+    
+    // Network-first for CSS (always get latest, but cache for offline)
+    if (isCSS) {
         event.respondWith(
             fetch(event.request, { cache: 'no-store' })
                 .then(response => {

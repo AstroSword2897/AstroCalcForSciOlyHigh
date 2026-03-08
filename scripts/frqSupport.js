@@ -93,6 +93,8 @@ const CONFIDENCE_CONFIG = {
     CONCEPT_BOOST_MAX: 15,  // Maximum from concepts
     SEMANTIC_BOOST_MAX: 10, // Maximum from semantic similarity
     WEAK_MATCH_PENALTY: 15, // Penalty for no strong matches
+    FORMULA_CONFIDENCE_BASELINE: 85, // Neutral reliability anchor for formula metadata
+    FORMULA_CONFIDENCE_DIVISOR: 2,   // Higher = softer influence from formula reliability
     HISTORY_CLAMP_MIN: 0.8, // Minimum history factor
     HISTORY_CLAMP_MAX: 1.5  // Maximum history factor
 };
@@ -258,10 +260,28 @@ function calculateConfidenceScore(literalScore, maxCombinedScore, metrics = {}, 
         });
     }
     
-    // 6) CALCULATE RAW CONFIDENCE
-    let rawConfidence = baseConfidence + boosts + topicContribution + contextContribution;
+    // 6) FORMULA RELIABILITY ADJUSTMENT
+    const formulaConfidence = clamp(
+        metrics.formulaConfidence ?? CONFIDENCE_CONFIG.FORMULA_CONFIDENCE_BASELINE,
+        50,
+        99
+    );
+    const reliabilityAdjustment = Math.round(
+        (formulaConfidence - CONFIDENCE_CONFIG.FORMULA_CONFIDENCE_BASELINE) /
+        CONFIDENCE_CONFIG.FORMULA_CONFIDENCE_DIVISOR
+    );
+    if (reliabilityAdjustment !== 0 || metrics.confidenceTier) {
+        breakdown.push({
+            label: 'Formula Reliability',
+            value: reliabilityAdjustment,
+            description: `${formulaConfidence}/100 (${metrics.confidenceTier || 'unclassified'}) - ${metrics.confidenceRationale || 'Formula-specific research weighting'}`
+        });
+    }
     
-    // 7) HISTORY FACTOR
+    // 7) CALCULATE RAW CONFIDENCE
+    let rawConfidence = baseConfidence + boosts + topicContribution + contextContribution + reliabilityAdjustment;
+    
+    // 8) HISTORY FACTOR
     if (historyFactor !== 1.0) {
         const historyAdjustment = Math.round(rawConfidence * (historyFactor - 1));
         if (historyAdjustment !== 0) {
@@ -274,7 +294,7 @@ function calculateConfidenceScore(literalScore, maxCombinedScore, metrics = {}, 
         }
     }
     
-    // 8) CLAMP TO [0, 100]
+    // 9) CLAMP TO [0, 100]
     const finalConfidence = clamp(Math.round(rawConfidence), 0, 100);
     
     // Add capping note if needed
