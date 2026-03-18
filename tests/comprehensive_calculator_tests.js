@@ -22,7 +22,9 @@ const CALCULATOR_TEST_CONFIG = {
     ENABLE_DETAILED_LOGGING: true,
     BATCH_SIZE: 20,  // Process formulas in batches to prevent UI freezing
     TEST_TIMEOUT: 5000,  // 5 second timeout per test
-    PRIORITIZE_SOLVERS: true  // Test formulas with specific solvers first
+    PRIORITIZE_SOLVERS: true,  // Test formulas with specific solvers first
+    ENABLE_SYMBOLIC_CHECK: true, // Also verify symbolic solving works for every formula
+    SYMBOLIC_UNKNOWN_VARS: 2     // number of null/unknown vars to force symbolic solving
 };
 
 /**
@@ -599,6 +601,54 @@ function runCalculatorTest(testCase) {
                 testCase,
                 result
             };
+        }
+
+        // NEW: verify symbolic solving also works for this formula.
+        // Strategy: keep the same numeric solve variable unknown, and set one more variable to null
+        // so unknownVars.length > 1 and calculator returns isSymbolic === true.
+        if (CALCULATOR_TEST_CONFIG.ENABLE_SYMBOLIC_CHECK) {
+            const solveForSymbol = Object.entries(testCase.inputs).find(([k, v]) => v === null || v === undefined)?.[0];
+            const otherUnknown = formula.variables.find(v => v.symbol !== solveForSymbol);
+            if (!otherUnknown) {
+                return {
+                    passed: false,
+                    error: 'Cannot find second variable for symbolic check',
+                    testCase
+                };
+            }
+            const symbolicInputs = { ...testCase.inputs };
+            symbolicInputs[otherUnknown.symbol] = null;
+            // Ensure primary unknown stays unknown
+            symbolicInputs[solveForSymbol] = null;
+
+            const symbolicResult = calculator.solve(symbolicInputs);
+            if (!symbolicResult || symbolicResult.error) {
+                return {
+                    passed: false,
+                    error: `Symbolic solving failed: ${symbolicResult?.error || 'Unknown error'}`,
+                    testCase,
+                    result,
+                    symbolicResult
+                };
+            }
+            if (symbolicResult.isSymbolic !== true) {
+                return {
+                    passed: false,
+                    error: 'Symbolic check expected isSymbolic=true but got false',
+                    testCase,
+                    result,
+                    symbolicResult
+                };
+            }
+            if (typeof symbolicResult.result !== 'string' || symbolicResult.result.length === 0) {
+                return {
+                    passed: false,
+                    error: 'Symbolic check expected a non-empty string expression',
+                    testCase,
+                    result,
+                    symbolicResult
+                };
+            }
         }
         
         // Check if result is reasonable (not NaN, Infinity, or extremely large)

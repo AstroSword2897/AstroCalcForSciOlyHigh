@@ -4,20 +4,25 @@
  */
 export class FormattingUtils {
     /**
-     * Format number with appropriate precision
+     * Format number with appropriate precision (default Desmos-like: 15 significant figures).
      */
-    formatNumber(value, precision = 6) {
+    formatNumber(value, precision = 15) {
         if (!Number.isFinite(value)) {
             return String(value);
         }
-        if (value === 0)
-            return '0';
-        // Use scientific notation for very large/small numbers
-        if (Math.abs(value) >= 1e6 || (Math.abs(value) < 1e-3 && value !== 0)) {
-            return value.toExponential(precision - 1);
+        if (value === 0) return '0';
+        const abs = Math.abs(value);
+        // Scientific for very large or very small
+        if (abs >= 1e10 || (abs < 1e-6 && abs > 0)) {
+            const exp = value.toExponential(Math.min(precision - 1, 14));
+            return exp.replace(/(\.\d*?)0+e/, '$1e');
         }
-        // Use fixed notation for normal numbers
-        return value.toFixed(precision);
+        // Decimal: enough digits for precision, strip trailing zeros
+        const magnitude = Math.floor(Math.log10(abs)) + 1;
+        const decimals = Math.max(0, precision - magnitude);
+        let s = value.toFixed(decimals);
+        if (s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+        return s;
     }
     /**
      * Format result with unit

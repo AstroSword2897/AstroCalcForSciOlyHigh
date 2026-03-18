@@ -642,15 +642,18 @@ export class CalculationOrchestrator {
             
             // Enhance result with all unit conversions before caching
             const enhancedResult = this._enhanceResultWithUnitConversions(result, formula);
+            const given = Object.fromEntries(
+                Object.entries(variableValues).filter(([_, v]) => v != null && typeof v === 'number' && Number.isFinite(v))
+            );
+            const resultWithFlow = { ...enhancedResult, given };
             
-            // Cache the enhanced result
-            this._cacheCalculationResult(resultCacheKey, enhancedResult);
+            // Cache the enhanced result (with given for flow display on cache hit)
+            this._cacheCalculationResult(resultCacheKey, resultWithFlow);
             console.log('[CalculationOrchestrator] 💾 Result cached for immediate future returns');
             
             // Track calculation
             this.addToHistory(formula.id, enhancedResult);
-            // Display result (with all unit conversions)
-            this.displayResult(enhancedResult);
+            this.displayResult(resultWithFlow);
             console.log('[CalculationOrchestrator] ✅ Result displayed');
             
             // CRITICAL: Update all unit inputs for the solved variable with converted values
@@ -797,6 +800,40 @@ export class CalculationOrchestrator {
         
         console.log(`[CalculationOrchestrator] 🔍 Resolving input for ${variable.symbol}, checking cache first...`);
         let cachedInput = this._inputCache.get(cacheKey);
+
+        // CRITICAL: Prefer the currently focused input field if it belongs to this variable.
+        // This avoids race conditions between blur/input handlers and the user hitting "Calculate"
+        // immediately after typing into a non-base unit input.
+        try {
+            const active = document.activeElement;
+            if (
+                active &&
+                typeof active.matches === 'function' &&
+                active.matches(`input[data-symbol="${variable.symbol}"]`) &&
+                typeof active.value === 'string' &&
+                active.value.trim()
+            ) {
+                console.log(`[CalculationOrchestrator] ⭐ Using activeElement for ${variable.symbol}: ${active.id} (data-unit: ${active.getAttribute('data-unit')})`);
+                return active;
+            }
+        } catch (_) {
+            // Ignore and fall back to normal resolution strategies
+        }
+
+        // CRITICAL: Prefer the most recently edited unit field (set by VariableInputsRenderer).
+        // This prevents stale values from being used when a user types into a non-base unit
+        // and presses "Calculate" before blur handlers have cleared the other unit inputs.
+        try {
+            const userEdited = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
+                .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio')
+                .find(inp => inp.dataset.userEdited === 'true' && inp.value && inp.value.trim());
+            if (userEdited) {
+                console.log(`[CalculationOrchestrator] ⭐ Using user-edited input for ${variable.symbol}: ${userEdited.id} (data-unit: ${userEdited.getAttribute('data-unit')})`);
+                return userEdited;
+            }
+        } catch (_) {
+            // Ignore and fall back to normal resolution strategies
+        }
         
         // If cached input exists and has a value, use it
         if (cachedInput && document.contains(cachedInput) && cachedInput.value && cachedInput.value.trim()) {
@@ -892,6 +929,17 @@ export class CalculationOrchestrator {
         const cacheKey = `var-${variable.symbol}`;
         
         return [
+            // Strategy 0: Prefer inputs inside #variables-container (calculator tab) so we always read from the active formula
+            () => {
+                const container = document.getElementById('variables-container');
+                if (!container) return null;
+                const inContainer = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"], input[id="${cacheKey}"], input[id^="var-${variable.symbol}-"]`))
+                    .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
+                const withValue = inContainer.filter(inp => inp.value && inp.value.trim());
+                const chosen = (withValue.length > 0 ? withValue[0] : inContainer[0]) || null;
+                if (chosen) console.log(`[CalculationOrchestrator] Strategy 0: Found in variables-container: ${chosen.id} = "${(chosen.value || '').trim()}"`);
+                return chosen;
+            },
             // Strategy 1: Find by data-symbol attribute (most reliable - matches actual rendered inputs)
             // Search entire document first, prioritizing inputs with values AND non-base units
             // CRITICAL: Exclude checkboxes - only text/number inputs
@@ -1439,7 +1487,11 @@ export class CalculationOrchestrator {
         const graphManager = this.getGraphManager();
         if (!graphManager) return;
         
-        const graphVariableValues = this.buildGraphVariableContext(formula, variableValues, result);
+        const graphVariableValues = { ...(variableValues || {}) };
+        const solvedFor = result?.solvedFor || result?.variable;
+        if (solvedFor != null && typeof result?.result === 'number' && Number.isFinite(result.result)) {
+            graphVariableValues[solvedFor] = result.result;
+        }
         
         this.updateGraphIfEnabled(formula, graphVariableValues, {
             calculatedPoint: result.variable

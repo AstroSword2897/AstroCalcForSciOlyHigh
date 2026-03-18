@@ -6,6 +6,22 @@
  * mathematical expressions using a tokenizer and recursive descent parser.
  */
 
+class ValidationError extends Error {
+    constructor(field, message) {
+        super(message);
+        this.name = 'ValidationError';
+        this.field = field;
+    }
+}
+
+class CalculationError extends Error {
+    constructor(message, details = {}) {
+        super(message);
+        this.name = 'CalculationError';
+        this.details = details;
+    }
+}
+
 class SafeMathEvaluator {
     /**
      * Allowed operators
@@ -19,7 +35,10 @@ class SafeMathEvaluator {
             return a / b;
         },
         '^': (a, b) => Math.pow(a, b),
-        '%': (a, b) => a % b
+        '%': (a, b) => a % b,
+        '×': (a, b) => a * b,
+        '÷': (a, b) => (b === 0 ? (() => { throw new Error('Division by zero'); })() : a / b),
+        '·': (a, b) => a * b
     };
     
     /**
@@ -60,6 +79,7 @@ class SafeMathEvaluator {
      */
     static CONSTANTS = {
         'PI': Math.PI,
+        'pi': Math.PI,
         'E': Math.E,
         'π': Math.PI,
         'e': Math.E
@@ -97,10 +117,37 @@ class SafeMathEvaluator {
             // Number (including scientific notation)
             if (/\d/.test(char) || char === '.') {
                 let numStr = '';
-                while (i < expression.length && /[\d.eE+-]/.test(expression[i])) {
-                    numStr += expression[i];
-                    i++;
+                let seenDot = false;
+
+                while (i < expression.length) {
+                    const current = expression[i];
+
+                    if (/\d/.test(current)) {
+                        numStr += current;
+                        i++;
+                        continue;
+                    }
+
+                    if (current === '.' && !seenDot) {
+                        seenDot = true;
+                        numStr += current;
+                        i++;
+                        continue;
+                    }
+
+                    if ((current === 'e' || current === 'E') && /[\d.]/.test(numStr)) {
+                        numStr += current;
+                        i++;
+                        if (expression[i] === '+' || expression[i] === '-') {
+                            numStr += expression[i];
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    break;
                 }
+
                 const num = parseFloat(numStr);
                 if (isNaN(num)) {
                     throw new Error(`Invalid number: ${numStr}`);
@@ -109,7 +156,12 @@ class SafeMathEvaluator {
                 continue;
             }
             
-            // Operators
+            // Operators (including × ÷ ·)
+            if (char === '×' || char === '÷' || char === '·') {
+                tokens.push({ type: this.TOKEN_TYPES.OPERATOR, value: char });
+                i++;
+                continue;
+            }
             if (this.OPERATORS[char]) {
                 tokens.push({ type: this.TOKEN_TYPES.OPERATOR, value: char });
                 i++;
@@ -136,10 +188,10 @@ class SafeMathEvaluator {
                 continue;
             }
             
-            // Identifier (variable or function)
-            if (/[a-zA-Z_π]/.test(char)) {
+            // Identifier (variable or function; includes Greek letters)
+            if (/[a-zA-Z_π\u0370-\u03FF]/.test(char)) {
                 let ident = '';
-                while (i < expression.length && /[a-zA-Z0-9_π]/.test(expression[i])) {
+                while (i < expression.length && /[a-zA-Z0-9_π\u0370-\u03FF]/.test(expression[i])) {
                     ident += expression[i];
                     i++;
                 }
@@ -268,16 +320,27 @@ class ExpressionParser {
     }
     
     /**
-     * Parse term (multiplication, division)
+     * Parse term (multiplication, division, and implicit multiplication e.g. 3x or 2(1+a))
      */
     term() {
         let expr = this.factor();
         
-        while (this.check(SafeMathEvaluator.TOKEN_TYPES.OPERATOR) && 
-               (this.peek().value === '*' || this.peek().value === '/' || this.peek().value === '%')) {
-            const op = this.advance().value;
-            const right = this.factor();
-            expr = SafeMathEvaluator.OPERATORS[op](expr, right);
+        while (true) {
+            if (this.check(SafeMathEvaluator.TOKEN_TYPES.OPERATOR) &&
+                (this.peek().value === '*' || this.peek().value === '/' || this.peek().value === '%' ||
+                 this.peek().value === '×' || this.peek().value === '÷' || this.peek().value === '·')) {
+                const op = this.advance().value;
+                const right = this.factor();
+                expr = SafeMathEvaluator.OPERATORS[op](expr, right);
+            } else if (this.check(SafeMathEvaluator.TOKEN_TYPES.NUMBER) ||
+                       this.check(SafeMathEvaluator.TOKEN_TYPES.IDENTIFIER) ||
+                       this.check(SafeMathEvaluator.TOKEN_TYPES.LEFT_PAREN)) {
+                // Implicit multiplication: 3x, 2(1+a), xy
+                const right = this.factor();
+                expr = SafeMathEvaluator.OPERATORS['*'](expr, right);
+            } else {
+                break;
+            }
         }
         
         return expr;
@@ -383,5 +446,7 @@ class ExpressionParser {
 // Export
 if (typeof window !== 'undefined') {
     window.SafeMathEvaluator = SafeMathEvaluator;
+    window.ValidationError = ValidationError;
+    window.CalculationError = CalculationError;
 }
 

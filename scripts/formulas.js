@@ -117,6 +117,11 @@ var formulas = [
         name: "Kepler's Third Law",
         description: "Relates the orbital period to the semi-major axis of an orbit. Fundamental law of planetary motion connecting revolution time, orbital distance, and central mass. Essential for calculating orbital mechanics, binary systems, exoplanet detection, and celestial dynamics. Applies to elliptical orbits, circular orbits, and binary star systems.",
         equation: "T² = (4π²/GM) × a³",
+        solveFor: {
+            a: "a = (T^2 * G * M / (4 * pi^2))^(1/3)",
+            T: "T = sqrt((4 * pi^2 / (G * M)) * a^3)",
+            M: "M = (4 * pi^2 * a^3) / (G * T^2)"
+        },
         concepts: ["kepler", "kepler third law", "orbital period", "semi-major axis", "orbital mechanics", "planetary motion", "binary systems", "exoplanets", "celestial mechanics", "revolution", "orbit", "gravitational force", "central mass", "elliptical orbit", "circular orbit", "orbital elements", "keplerian elements"],
         keywords: ["period", "revolution", "orbit time", "orbital distance", "mass", "gravity", "planetary", "stellar", "binary", "exoplanet", "celestial", "mechanics", "dynamics"],
         variables: [
@@ -186,6 +191,10 @@ var formulas = [
         name: "Orbital Velocity",
         description: "The velocity of an object in circular orbit around a central body. Calculates the speed required for stable circular motion under gravitational influence. Essential for orbital mechanics, satellite dynamics, binary systems, and exoplanet characterization. Related to centripetal force, angular velocity, and orbital energy.",
         equation: "v = √(GM/r)",
+        solveFor: {
+            r: "r = G * M / v^2",
+            M: "M = v^2 * r / G"
+        },
         concepts: ["orbital velocity", "velocity", "circular orbit", "orbital mechanics", "gravitational motion", "centripetal force", "angular velocity", "orbital speed", "circular motion", "satellite", "binary systems", "exoplanets"],
         keywords: ["speed", "motion", "orbit", "circular", "gravitational", "centripetal", "angular", "revolution", "rotation", "satellite", "planet", "star"],
         variables: [
@@ -308,7 +317,12 @@ var formulas = [
         id: "distance_modulus",
         name: "Distance Modulus",
         description: "Relates apparent magnitude, absolute magnitude, and distance. Fundamental distance indicator in astronomy connecting observed brightness, intrinsic luminosity, and stellar distance. Essential for cosmic distance ladder, stellar classification, and extragalactic astronomy. Accounts for interstellar extinction and reddening.",
-        equation: "m - M = 5 log₁₀(d) - 5",
+        equation: "m - M = 5 log10(d) - 5",
+        solveFor: {
+            d: "d = 10^((m - M + 5) / 5)",
+            m: "m = M + 5 * log10(d) - 5",
+            M: "M = m - 5 * log10(d) + 5"
+        },
         concepts: ["distance modulus", "magnitude", "apparent magnitude", "absolute magnitude", "distance", "cosmic distance ladder", "standard candle", "stellar classification", "extinction", "reddening", "luminosity", "brightness", "photometry"],
         keywords: ["distance", "magnitude", "brightness", "luminosity", "parsec", "standard candle", "distance ladder", "extinction", "reddening", "photometry", "stellar", "galaxy"],
         variables: [
@@ -355,7 +369,10 @@ var formulas = [
             "magnitude after extinction",
             "apparent magnitude system",
             "apparent magnitude extinction",
-            "magnitude interstellar extinction"
+            "magnitude interstellar extinction",
+            "m - M = -5 + 5 log10(d)",
+            "distance in pc from apparent and absolute magnitude",
+            "Type Ia supernova distance absolute magnitude -19.3"
         ]
     },
     {
@@ -363,6 +380,10 @@ var formulas = [
         name: "Stellar Luminosity",
         description: "Relates luminosity to radius and temperature (Stefan-Boltzmann Law). Fundamental stellar physics connecting total energy output, stellar size, and surface temperature. Essential for stellar evolution, HR diagram, mass-luminosity relation, and stellar classification. Applies to blackbody radiation, stellar atmospheres, and radiative transfer.",
         equation: "L = 4πR²σT⁴",
+        solveFor: {
+            R: "R = sqrt(L / (4 * pi * σ * T^4))",
+            T: "T = (L / (4 * pi * R^2 * σ))^(1/4)"
+        },
         concepts: ["luminosity", "stellar luminosity", "stefan-boltzmann", "blackbody radiation", "stellar evolution", "hr diagram", "mass-luminosity relation", "stellar classification", "effective temperature", "surface temperature", "stellar radius", "radiative transfer", "energy output", "power"],
         keywords: ["luminosity", "brightness", "power", "energy", "star", "stellar", "temperature", "radius", "blackbody", "stefan-boltzmann", "hr diagram", "evolution", "classification"],
         variables: [
@@ -451,6 +472,10 @@ var formulas = [
         name: "Hubble's Law",
         description: "Relates recessional velocity to distance in an expanding universe. Fundamental cosmological law connecting galaxy motion, cosmic expansion, and cosmic distance. Essential for cosmology, big bang theory, dark energy, and large-scale structure. Basis for luminosity distance, lookback time, and cosmic age calculations.",
         equation: "v = H₀ × d",
+        solveFor: {
+            d: "d = v / H₀",
+            "H₀": "H₀ = v / d"
+        },
         concepts: ["hubble", "hubble law", "hubble constant", "cosmology", "cosmic expansion", "big bang", "redshift", "recessional velocity", "luminosity distance", "lookback time", "dark energy", "cosmic distance", "galaxy", "universe"],
         keywords: ["hubble", "expansion", "cosmology", "universe", "galaxy", "redshift", "velocity", "distance", "big bang", "dark energy", "cosmic", "recessional"],
         variables: [
@@ -521,6 +546,10 @@ var formulas = [
         name: "Surface Gravity",
         description: "Gravitational acceleration at the surface of a body. Fundamental planetary and stellar physics connecting mass, radius, and surface gravitational field strength. Essential for planetary science, exoplanet characterization, stellar structure, and compact object physics. Related to escape velocity, orbital velocity, and tidal forces.",
         equation: "g = GM/r²",
+        solveFor: {
+            r: "r = sqrt(G * M / g)",
+            M: "M = g * r^2 / G"
+        },
         concepts: ["surface gravity", "gravity", "gravitational acceleration", "planetary science", "exoplanets", "stellar structure", "compact objects", "escape velocity", "orbital velocity", "tidal forces", "planetary mass", "stellar mass"],
         keywords: ["gravity", "acceleration", "gravitational", "surface", "planet", "star", "exoplanet", "mass", "radius", "gravitational field"],
         variables: [
@@ -555,7 +584,10 @@ var formulas = [
             "calculate surface gravity",
             "find surface gravity",
             "gravity of planet",
-            "gravity of star"
+            "gravity of star",
+            "radius from surface gravity and mass",
+            "acceleration due to gravity g GM r squared",
+            "what is the radius given g and M"
         ]
     },
     {
@@ -563,6 +595,10 @@ var formulas = [
         name: "Angular Size",
         description: "Relates physical size, distance, and angular diameter. Fundamental geometric relationship connecting linear dimensions, angular measurements, and observer distance. Essential for telescope observations, stellar radius determination, planetary imaging, and angular resolution calculations. Applies to small angle approximation and parallax measurements.",
         equation: "θ = d / D",
+        solveFor: {
+            d: "d = θ * D",
+            D: "D = d / θ"
+        },
         concepts: ["angular size", "angular diameter", "angular resolution", "telescope", "observations", "stellar radius", "planetary imaging", "parallax", "small angle approximation", "geometry", "distance", "size"],
         keywords: ["angular", "size", "diameter", "resolution", "telescope", "observation", "distance", "geometry", "parallax", "small angle"],
         variables: [
@@ -697,7 +733,8 @@ var formulas = [
         id: "parallax_distance_arcsec",
         name: "Parallax Distance (Arcseconds)",
         description: "Calculates distance to a star using parallax angle in arcseconds (small angle approximation). The most commonly used form of the parallax distance formula, where distance in parsecs equals 1 divided by parallax in arcseconds. This formula uses the small angle approximation (tan(p) ≈ p for small angles) which is highly accurate for stellar parallaxes. Essential for measuring distances to nearby stars, determining stellar absolute magnitudes, and calibrating the cosmic distance ladder. One parsec (pc) is defined as the distance at which a star has a parallax of 1 arcsecond. This is the standard method used by space missions like Hipparcos and Gaia for precise stellar distance measurements.",
-        equation: "d ≈ 1 / p",
+        equation: "d = 1 / p",
+        solveFor: { p: "p = 1 / d" },
         variables: [
             {
                 symbol: "d",
@@ -738,7 +775,12 @@ var formulas = [
             "parallax angle from distance",
             "calculate parallax from distance",
             "70 parsecs parallax",
-            "star 70 parsecs parallax arcseconds"
+            "star 70 parsecs parallax arcseconds",
+            "distance in pc from parallax",
+            "parallax milliarcseconds to parsecs",
+            "spectroscopic parallax d = 1/p",
+            "parallax 0.412 milliarcseconds how far in pc",
+            "convert parallax to distance parsecs"
         ]
     },
     {
@@ -1084,6 +1126,7 @@ var formulas = [
         name: "Wien's Displacement Law",
         description: "Relates peak wavelength of blackbody radiation to temperature. Wien's Displacement Law states that the wavelength at which a blackbody emits the most radiation is inversely proportional to its temperature. This fundamental law allows determination of stellar temperatures from observed spectra, color indices, and peak emission wavelengths. Essential for stellar classification, blackbody radiation analysis, and understanding the relationship between temperature and spectral characteristics. The law applies to all blackbody sources including stars, planets, and laboratory sources. Critical for interpreting stellar spectra, determining effective temperatures, and understanding the connection between temperature and observed color.",
         equation: "λmax = b / T",
+        solveFor: { T: "T = b / λmax" },
         primaryUseCase: "temperature from wavelength",
         specificity: 10,
         concepts: ["temperature", "wien's law", "wien displacement", "wien", "peak wavelength", "blackbody radiation", "blackbody", "stellar temperature", "effective temperature", "surface temperature", "color temperature", "spectral classification", "stellar classification", "spectrum", "wavelength", "emission", "radiation", "thermal radiation"],
@@ -1113,7 +1156,10 @@ var formulas = [
             "peak frequency",
             "em spectrum region",
             "peak wavelength 400 nm temperature",
-            "peak wavelength nanometers temperature kelvin"
+            "peak wavelength nanometers temperature kelvin",
+            "temperature of star in K from emission spectra",
+            "identify peak wavelength temperature",
+            "lambda max T 2.898e-3"
         ],
         variables: [
             {
@@ -1317,6 +1363,10 @@ var formulas = [
         name: "Flux from Luminosity",
         description: "Observed flux based on intrinsic luminosity and distance. The inverse square law for light, relating the observed flux (power per unit area) to the intrinsic luminosity and distance. As light travels outward from a source, it spreads over an increasing area, causing flux to decrease with the square of distance. Essential for determining stellar luminosities from observed fluxes, calculating distances, and understanding how brightness relates to intrinsic properties. Fundamental to the cosmic distance ladder and stellar astronomy. Critical for interpreting observations and connecting observed brightness to physical properties of astronomical sources.",
         equation: "F = L / (4πd²)",
+        solveFor: {
+            L: "L = F * 4 * pi * d^2",
+            d: "d = sqrt(L / (4 * pi * F))"
+        },
         variables: [
             {
                 symbol: "F",
@@ -2795,7 +2845,15 @@ var formulas = [
             G: 6.67430e-11,
             k: 1.380649e-23,
             m_H: 1.6735575e-27  // Proton mass (approximate for hydrogen atom)
-        }
+        },
+        concepts: ["Jeans mass", "gravitational collapse", "molecular cloud", "minimum mass", "temperature", "density"],
+        keywords: ["Jeans mass", "minimum mass collapse", "cloud temperature density", "M_J T rho"],
+        questionPatterns: [
+            "Jeans mass temperature density",
+            "minimum mass for cloud to collapse",
+            "how does Jeans mass depend on T and rho",
+            "M_J T^(3/2) rho^(-1/2)"
+        ]
     },
     {
         id: "luminosity_function",
@@ -4327,6 +4385,15 @@ var formulas = [
         name: "Optical Depth",
         description: "Optical depth along a path through absorbing/scattering material. Fundamental quantity in radiative transfer describing how opaque a medium is. Essential for stellar atmospheres, radiative transfer, and spectroscopy. Optical depth determines whether material is optically thick or thin.",
         equation: "τ = ∫ κ ρ ds",
+        // Numeric/symbolic solving uses the common constant-coefficients approximation:
+        // ∫ κ ρ ds ≈ κ ρ s
+        // This enables solving for any of (τ, κ, ρ, s) consistently while units are handled elsewhere.
+        solveFor: {
+            "τ": "τ = κ * ρ * s",
+            "κ": "κ = τ / (ρ * s)",
+            "ρ": "ρ = τ / (κ * s)",
+            "s": "s = τ / (κ * ρ)"
+        },
         concepts: ["optical depth", "radiative transfer", "stellar atmosphere", "opacity", "absorption", "optically thick", "optically thin", "mean free path"],
         keywords: ["optical depth", "radiative transfer", "opacity", "absorption", "optically thick", "optically thin"],
         variables: [
@@ -4872,7 +4939,10 @@ var formulas = [
             "cepheid period luminosity",
             "cepheid distance",
             "standard candle cepheid",
-            "calculate cepheid luminosity from period"
+            "calculate cepheid luminosity from period",
+            "Cepheid variable light curve distance in pc",
+            "Mv = -2.2 log10(P) - 2.05",
+            "absolute magnitude from Cepheid period in days"
         ]
     },
     {
@@ -8025,7 +8095,11 @@ var formulas = [
             "luminosity from flux",
             "calculate luminosity",
             "intrinsic luminosity",
-            "power output from flux"
+            "power output from flux",
+            "inverse square law luminosity",
+            "L = F times 4 pi d squared",
+            "luminosity from energy flux and distance",
+            "supernova remnant luminosity from flux"
         ]
     },
     {

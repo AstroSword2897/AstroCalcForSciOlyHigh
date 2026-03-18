@@ -1256,7 +1256,17 @@ export class UIModuleOrchestrator {
                     return [variable.symbol, null];
                 }
                 
-                return [variable.symbol, parsedValue];
+                // CRITICAL: Convert to base unit (e.g., °F → K for temperature)
+                const baseUnit = variable.unit;
+                let finalValue = parsedValue;
+                if (this.options.UnitConverter && inputUnit && baseUnit && inputUnit !== baseUnit) {
+                    try {
+                        finalValue = this.options.UnitConverter.convertToBase(parsedValue, inputUnit, baseUnit);
+                    } catch (e) {
+                        console.warn(`[UIModuleOrchestrator] Unit conversion failed for ${variable.symbol}:`, e.message);
+                    }
+                }
+                return [variable.symbol, finalValue];
             })
         );
     }
@@ -1415,6 +1425,14 @@ export class UIModuleOrchestrator {
                                     return varInfo ? `${v} (${varInfo.name || v})` : v;
                                 }).join(', ')}</div>
                                 ${result.solveableInfo ? `<div style="font-size: 0.9em; opacity: 0.9; margin-top: 8px;">${this.formattingUtils.escapeHtml(result.solveableInfo)}</div>` : ''}
+                            </div>
+                        ` : ''}
+                        ${result.solvedForms && Object.keys(result.solvedForms).length > 0 ? `
+                            <div style="margin-top: 15px; padding: 12px; background: rgba(102,126,234,0.15); border-radius: 8px; border: 1px solid rgba(102,126,234,0.3);">
+                                <div style="font-weight: 600; margin-bottom: 10px;">Solve for each variable:</div>
+                                ${Object.entries(result.solvedForms).map(([v, form]) => `
+                                    <div style="margin-bottom: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 0.95em;">${this.formattingUtils.escapeHtml(form)}</div>
+                                `).join('')}
                             </div>
                         ` : ''}
                         ${result.knownVariables && result.knownVariables.length > 0 && result.partialEvaluation ? `

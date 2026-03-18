@@ -550,6 +550,31 @@ class UnitConverter {
     }
 
     /**
+     * Format number with Desmos-like precision (high precision, no spurious digits).
+     * Uses up to 15 significant figures; scientific notation for |x| outside [1e-6, 1e10].
+     * Strips trailing zeros after the decimal.
+     */
+    static formatNumber(value, options = {}) {
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+            return String(value);
+        }
+        const sigFigs = options.significantFigures != null ? options.significantFigures : 15;
+        if (value === 0) return '0';
+        const abs = Math.abs(value);
+        // Scientific for very large or very small
+        if (abs >= 1e10 || (abs < 1e-6 && abs > 0)) {
+            const exp = value.toExponential(sigFigs - 1);
+            return exp.replace(/(\.\d*?)0+e/, '$1e');
+        }
+        // Decimal form: enough digits for sigFigs, then strip trailing zeros
+        const magnitude = Math.floor(Math.log10(abs)) + 1;
+        const decimals = Math.max(0, sigFigs - magnitude);
+        let s = value.toFixed(decimals);
+        if (s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+        return s;
+    }
+
+    /**
      * Unified logging method
      */
     static _logWarn(message) {

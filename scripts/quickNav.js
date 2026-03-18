@@ -198,7 +198,7 @@ function setupKeyboardShortcuts() {
             } else {
                 // Number keys 1-4: Switch main tabs (Formulas, Explorer, Classification, etc.)
                 if (e.key >= '1' && e.key <= '4' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                    const tabs = ['formulas', 'explorer', 'classification', 'desmos'];
+                    const tabs = ['formulas', 'explorer', 'algebraic', 'classification'];
                     const tabIndex = parseInt(e.key) - 1;
                     if (tabs[tabIndex] && typeof switchMainTab === 'function') {
                         switchMainTab(tabs[tabIndex]);

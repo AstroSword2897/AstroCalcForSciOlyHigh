@@ -10,6 +10,9 @@
     <meta http-equiv="Expires" content="0">
     <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
     <link rel="stylesheet" href="styles/main.css?v=2.2.9&_t=1736043000" crossorigin="anonymous">
+    <!-- KaTeX for LaTeX rendering (Algebraic Solving output) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white'%3E🌌%3C/text%3E%3C/svg%3E">
     <style>
@@ -169,6 +172,7 @@
                 <div class="main-tabs">
                     <button class="main-tab-btn active" data-main-tab="formulas">Formulas</button>
                     <button class="main-tab-btn" data-main-tab="explorer">Explorer</button>
+                    <button class="main-tab-btn" data-main-tab="algebraic">Algebraic Solving</button>
                     <button class="main-tab-btn" data-main-tab="classification">Classification</button>
                 </div>
             </div>
@@ -181,6 +185,63 @@
                 </div>
                 <div id="formula-list" class="formula-list">
                     <!-- Formulas will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Algebraic Solving Tab -->
+            <div id="main-algebraic-tab" class="main-tab-content">
+                <div class="algebraic-solving-container" style="padding: 20px; max-width: 720px; margin: 0 auto;">
+                    <h3 style="margin-bottom: 12px; color: #667eea;">Algebraic Equation Solver</h3>
+                    <p style="color: #a8c7ff; margin-bottom: 16px; font-size: 0.95em;">Enter an equation with one or more variables (e.g., 2*x + 3 = 5, F = m*a). Use the tabs to solve for each variable and see steps.</p>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" id="algebraic-equation-input" class="formula-search-input" placeholder="e.g., F = m*a or 2*x + 3 = 5" style="flex: 1; padding: 12px 16px; font-size: 1em;">
+                        <button id="algebraic-solve-btn" style="background: #667eea; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;">Parse equation</button>
+                    </div>
+                    <div id="algebraic-symbol-board" class="algebraic-symbol-board" style="margin-bottom: 16px; display: block; visibility: visible;">
+                        <div class="symbol-board-label" style="font-size: 0.85em; color: #a8c7ff; margin-bottom: 6px;">Insert: Greek</div>
+                        <div class="symbol-board-row" data-group="greek">
+                            <button type="button" class="symbol-btn" data-char="α" title="alpha">α</button>
+                            <button type="button" class="symbol-btn" data-char="β" title="beta">β</button>
+                            <button type="button" class="symbol-btn" data-char="γ" title="gamma">γ</button>
+                            <button type="button" class="symbol-btn" data-char="δ" title="delta">δ</button>
+                            <button type="button" class="symbol-btn" data-char="ε" title="epsilon">ε</button>
+                            <button type="button" class="symbol-btn" data-char="θ" title="theta">θ</button>
+                            <button type="button" class="symbol-btn" data-char="λ" title="lambda">λ</button>
+                            <button type="button" class="symbol-btn" data-char="μ" title="mu">μ</button>
+                            <button type="button" class="symbol-btn" data-char="π" title="pi">π</button>
+                            <button type="button" class="symbol-btn" data-char="σ" title="sigma">σ</button>
+                            <button type="button" class="symbol-btn" data-char="φ" title="phi">φ</button>
+                            <button type="button" class="symbol-btn" data-char="ω" title="omega">ω</button>
+                        </div>
+                        <div class="symbol-board-label" style="font-size: 0.85em; color: #a8c7ff; margin: 8px 0 6px;">Uppercase</div>
+                        <div class="symbol-board-row" data-group="greek-upper">
+                            <button type="button" class="symbol-btn" data-char="Σ" title="Sigma">Σ</button>
+                            <button type="button" class="symbol-btn" data-char="Π" title="Pi">Π</button>
+                            <button type="button" class="symbol-btn" data-char="Δ" title="Delta">Δ</button>
+                            <button type="button" class="symbol-btn" data-char="Ω" title="Omega">Ω</button>
+                            <button type="button" class="symbol-btn" data-char="Λ" title="Lambda">Λ</button>
+                            <button type="button" class="symbol-btn" data-char="Θ" title="Theta">Θ</button>
+                            <button type="button" class="symbol-btn" data-char="Γ" title="Gamma">Γ</button>
+                            <button type="button" class="symbol-btn" data-char="Φ" title="Phi">Φ</button>
+                        </div>
+                        <div class="symbol-board-label" style="font-size: 0.85em; color: #a8c7ff; margin: 8px 0 6px;">Math</div>
+                        <div class="symbol-board-row" data-group="math">
+                            <button type="button" class="symbol-btn" data-char="·" title="multiply">·</button>
+                            <button type="button" class="symbol-btn" data-char="×" title="times">×</button>
+                            <button type="button" class="symbol-btn" data-char="÷" title="divide">÷</button>
+                            <button type="button" class="symbol-btn" data-char="^" title="power">^</button>
+                            <button type="button" class="symbol-btn" data-char="√" title="sqrt">√</button>
+                            <button type="button" class="symbol-btn" data-char="≤" title="less or equal">≤</button>
+                            <button type="button" class="symbol-btn" data-char="≥" title="greater or equal">≥</button>
+                            <button type="button" class="symbol-btn" data-char="≠" title="not equal">≠</button>
+                            <button type="button" class="symbol-btn" data-char="≈" title="approximately">≈</button>
+                        </div>
+                    </div>
+                    <div id="algebraic-single-result" style="min-height: 60px; padding: 16px; background: rgba(102, 126, 234, 0.15); border-radius: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 0.95em; margin-bottom: 16px;"></div>
+                    <div id="algebraic-multi-tabs" style="display: none;">
+                        <div id="algebraic-var-tabs" class="algebraic-var-tabs" style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;"></div>
+                        <div id="algebraic-var-panels" style="min-height: 120px;"></div>
+                    </div>
                 </div>
             </div>
             
@@ -547,6 +608,7 @@
     
     <!-- Core utilities -->
     <script src="scripts/safeExpressionEvaluator.js?v=2.1.5"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.5"></script>
     <script src="scripts/unitConverter.js?v=2.1.5"></script>
     <script src="scripts/unitParser.js?v=2.1.5"></script>
     <script src="scripts/expressionParser.js?v=2.1.5"></script>
@@ -570,6 +632,7 @@
     
     <!-- UI Rendering -->
     <script src="scripts/ui/rendering/VariableInputs.js?v=2.1.5"></script>
+    <script src="scripts/algebraicSolver.js?v=2.1.5"></script>
     
     <!-- UI (ES Modules) -->
     <script type="module" src="scripts/ui/ui/init.js?v=2.3.0"></script>

@@ -116,9 +116,9 @@ class UnitParser {
             'year': 'yr', 'years': 'yr', 'y': 'yr',
 
             // Temperature
-            'kelvin': 'K', 'kelvins': 'K',
-            'celsius': '°C', 'centigrade': '°C',
-            'fahrenheit': '°F',
+            'kelvin': 'K', 'kelvins': 'K', 'k': 'K',
+            'celsius': '°C', 'centigrade': '°C', 'c': '°C',
+            'fahrenheit': '°F', 'f': '°F',
 
             // Angle
             'radian': 'rad', 'radians': 'rad',

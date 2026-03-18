@@ -284,6 +284,14 @@ class VariableInputsRenderer {
                     
                     const elements = this.inputElementsBySymbol?.get(symbol);
                     if (!elements) return;
+
+                    // Remember which unit-field the user is actively editing.
+                    // This avoids using stale values from a different unit-field when the user
+                    // hits "Calculate" before blur events clear other inputs.
+                    elements.forEach(({ input: otherInput }) => {
+                        if (!otherInput) return;
+                        otherInput.dataset.userEdited = otherInput === e.target ? 'true' : 'false';
+                    });
                     
                     // CRITICAL FIX: Don't clear other inputs on input event
                     // This prevents clearing partially typed numbers

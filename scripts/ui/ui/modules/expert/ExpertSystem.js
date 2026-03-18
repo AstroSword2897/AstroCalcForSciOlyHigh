@@ -274,6 +274,33 @@ export class AstrophysicsExpertSystem {
             addBoost('magnitude_change_flux_ratio', 1800);
         }
 
+        // Practice 2026 / Section D style: temperature from spectrum, parallax, surface gravity, luminosity from flux, Jeans mass, distance modulus, Cepheid
+        if (/\bpeak wavelength\b|\btemperature from wavelength\b|\bemission spectra\b|\blambda max\b/.test(normalizedQuestion)) {
+            addBoost('wiens_law', 2000);
+        }
+        if (/\bparallax\b/.test(normalizedQuestion) && (/\bmilliarcsecond\b|\bmas\b|\bdistance in pc\b|\bd = 1\/p\b|\bparsecs\b/.test(normalizedQuestion))) {
+            addBoost('parallax_distance_arcsec', 1800);
+        }
+        if (/\bsurface gravity\b|\bacceleration due to gravity\b|\bradius from g\b|\bg = GM\/r/.test(normalizedQuestion)) {
+            addBoost('surface_gravity', 1900);
+        }
+        if (/\bluminosity from flux\b|\binverse square law\b.*\bluminosity\b|L = F.*4.*pi.*d/.test(normalizedQuestion)) {
+            addBoost('luminosity_from_flux_distance', 2000);
+        }
+        if (/\bjeans mass\b|\bM_J\b/.test(normalizedQuestion) && (/\btemperature\b|\bT\b/.test(normalizedQuestion) || /\bdensity\b|\brho\b/.test(normalizedQuestion))) {
+            addBoost('jeans_mass', 2200);
+        }
+        if (/\bdistance modulus\b|\bm - M\b|\bapparent and absolute magnitude\b/.test(normalizedQuestion)) {
+            addBoost('distance_modulus', 1800);
+        }
+        if (/\bcepheid\b/.test(normalizedQuestion) && (/\bperiod\b|\blight curve\b|\bdistance\b/.test(normalizedQuestion))) {
+            addBoost('period_luminosity_relation_cepheid', 1600);
+            addBoost('period_luminosity_cepheid_classical', 1500);
+        }
+        if (/\bluminosity of the star in W\b|\bluminosity from radius and temperature\b|\bL = 4.*pi.*R.*sigma.*T/.test(normalizedQuestion)) {
+            addBoost('luminosity', 1900);
+        }
+
         return boosts;
     }
 

@@ -7,8 +7,8 @@
  * - Prevents serving cached HTML with old script references
  */
 
-const CACHE_NAME = 'astrocalc-shell-v3.0.3-NO-HTML-CACHE';
-const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.3-NO-HTML-CACHE';
+const CACHE_NAME = 'astrocalc-shell-v3.0.7-NO-HTML-CACHE';
+const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.7-NO-HTML-CACHE';
 const MAX_RUNTIME_ENTRIES = 100;
 
 const DEV_MODE = false;
@@ -28,6 +28,7 @@ const PRECACHE_RESOURCES = [
     // Core scripts
     './scripts/formulas.js',
     './scripts/safeExpressionEvaluator.js',
+    './scripts/ui/utils/SafeMathEvaluator.js',
     './scripts/unitConverter.js',
     './scripts/unitParser.js',
     './scripts/expressionParser.js',
@@ -52,6 +53,7 @@ const PRECACHE_RESOURCES = [
     
     // UI Rendering
     './scripts/ui/rendering/VariableInputs.js',
+    './scripts/algebraicSolver.js',
 
     // UI (ES modules)
     './scripts/ui/ui/init.js',
@@ -99,7 +101,7 @@ self.addEventListener('install', (event) => {
                 // Cache with force reload
                 return Promise.allSettled(
                     PRECACHE_RESOURCES.map(url => {
-                        const fullUrl = url + (url.includes('?') ? '&' : '?') + `v=3.0.3&t=${Date.now()}`;
+                        const fullUrl = url + (url.includes('?') ? '&' : '?') + `v=3.0.4&t=${Date.now()}`;
                         return cache.add(new Request(fullUrl, { cache: 'reload' }))
                             .then(() => ({ url, status: 'success' }))
                             .catch(err => ({ url, status: 'failed', error: err.message }));

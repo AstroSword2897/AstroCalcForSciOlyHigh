@@ -91,8 +91,12 @@ class SafeExpressionEvaluator {
             .sort(([a], [b]) => b.length - a.length);
         for (const [key, value] of constantEntries) {
             const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const isAsciiIdent = /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
             replacements.push({
-                pattern: new RegExp(`\\b${escaped}\\b`, 'g'),
+                // \b doesn't work for many unicode symbols (e.g. λmax). Use unicode-aware boundaries when needed.
+                pattern: isAsciiIdent
+                    ? new RegExp(`\\b${escaped}\\b`, 'g')
+                    : new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu'),
                 replacement: String(value)
             });
         }
@@ -103,8 +107,11 @@ class SafeExpressionEvaluator {
             .sort(([a], [b]) => b.length - a.length);
         for (const [key, value] of variableEntries) {
             const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const isAsciiIdent = /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
             replacements.push({
-                pattern: new RegExp(`\\b${escaped}\\b`, 'g'),
+                pattern: isAsciiIdent
+                    ? new RegExp(`\\b${escaped}\\b`, 'g')
+                    : new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu'),
                 replacement: String(value)
             });
         }
@@ -131,7 +138,8 @@ class SafeExpressionEvaluator {
         
         // Validate: Only allow safe characters
         // Allow: numbers, operators, parentheses, Math., whitespace, decimal points
-        const safePattern = /^[0-9+\-*/().\sMath,]+$/;
+        // Also allow scientific notation markers e/E in numeric literals (e.g. 4e-7).
+        const safePattern = /^[0-9eE+\-*/().\sMath,]+$/;
         if (!safePattern.test(expr)) {
             console.warn('[SafeExpressionEvaluator] Expression contains unsafe characters:', expr);
             return null;

@@ -450,8 +450,15 @@ class FormulaCalculator {
             
             // If we couldn't solve for any unknown, generate symbolic expression
             console.log(`[FormulaCalculator] solveSymbolically: Could not solve for any unknown, generating symbolic expression`);
-            expression = this.generateMultiVariableExpression(unknownVars, knownVars);
-            
+            const multiOut = this.generateMultiVariableExpression(unknownVars, knownVars);
+            const multiText = typeof multiOut === 'object' && multiOut !== null && multiOut.text != null
+                ? multiOut.text
+                : String(multiOut);
+            const solvedForms = (typeof multiOut === 'object' && multiOut !== null && multiOut.solvedForms)
+                ? multiOut.solvedForms
+                : {};
+            expression = multiText;
+
             // CRITICAL: Format known values with their base units for display
             // This ensures "Known values" shows converted base unit values, not raw inputs
             const formatKnownValue = (symbol, value) => {
@@ -497,7 +504,7 @@ class FormulaCalculator {
                 ).length > 0
             };
             
-            // Add helpful message about what can be solved
+            // Add helpful message and per-variable solved forms
             if (result.partialEvaluation && unknownVars.length > 1) {
                 const solveableInfo = unknownVars.map(v => {
                     const varInfo = this.formula.variables.find(v2 => v2.symbol === v);
@@ -505,6 +512,9 @@ class FormulaCalculator {
                 }).join(', ');
                 result.solveableVariables = unknownVars;
                 result.solveableInfo = `To solve for a specific variable, provide values for all others. Available variables: ${solveableInfo}`;
+            }
+            if (Object.keys(solvedForms).length > 0) {
+                result.solvedForms = solvedForms;
             }
             
             // CRITICAL: Ensure result always has the required shape
@@ -556,8 +566,8 @@ class FormulaCalculator {
         console.log(`[FormulaCalculator] generateSymbolicExpression: Cannot solve ${unknownVar} numerically, using symbolic expression`);
         
         // Fallback: Generate symbolic expression with substituted values AND computed constants
-        // Start with the equation
-        let expression = this.formula.equation;
+        // Start with the equation (normalize ≈ so display and eval are consistent)
+        let expression = String(this.formula.equation).replace(/≈/g, '=');
         
         // Format values for better readability in symbolic expressions
         // Convert to appropriate units if unitConverter is available
@@ -623,9 +633,13 @@ class FormulaCalculator {
             // If evaluation fails, just return the symbolic expression
         }
         
-        // Return the expression showing the unknown variable
-        // Format: "unknownVar = expression_with_substituted_values"
-        return `${unknownVar} = ${expression}`;
+        // Return the expression showing the unknown variable (avoid duplicate LHS)
+        // If expression already starts with "unknownVar = ", use only the RHS for display
+        const lhsPrefix = `${unknownVar} = `;
+        const rhsOnly = expression.trimStart().startsWith(lhsPrefix)
+            ? expression.trimStart().slice(lhsPrefix.length).trim()
+            : expression;
+        return `${unknownVar} = ${rhsOnly}`;
     }
     /**
      * Generate expression for multiple unknown variables
@@ -717,16 +731,49 @@ class FormulaCalculator {
             // If evaluation fails, return symbolic expression
             return `${unknownVar} = ${expression}`;
         } else {
-            // Enhanced format for multiple unknowns with known values
+            // Enhanced format for multiple unknowns: show equation and solved form for EACH variable
             const knownCount = Object.keys(knownVars).filter(k => 
                 knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
             ).length;
-            
+            const solveFor = this.formula.solveFor || this.formula.solvedFor || {};
+            const solvedForms = {};
+            const formLines = [];
+            for (const v of unknownVars) {
+                let form = solveFor[v];
+
+                // Generic fallback: derive solved forms using the algebraic solver
+                // so formulas don't need to manually define `solveFor`.
+                if (!form && typeof AlgebraicSolver !== 'undefined' && AlgebraicSolver?.solveForVariable) {
+                    try {
+                        const res = AlgebraicSolver.solveForVariable(this.formula.equation, v, knownVars);
+                        if (res && typeof res.solvedForm === 'string' && res.solvedForm.trim()) {
+                            form = res.solvedForm;
+                        } else if (res && typeof res.error === 'string' && res.error.trim()) {
+                            // Keep some user-facing signal even when we can't isolate exactly.
+                            form = `${v} = (unable to derive explicit solved form: ${res.error})`;
+                        }
+                    } catch (_) {
+                        // If parsing/solving fails, we'll keep the original placeholder below
+                    }
+                }
+
+                if (!form || typeof form !== 'string' || !form.trim()) {
+                    form = `${v} = (no solved form available for this equation syntax)`;
+                }
+
+                solvedForms[v] = form;
+                formLines.push(`Solve for ${v}:\n  ${form}`);
+            }
+            // Attach for UI (result.solvedForms will be set by caller from return metadata)
+            this._lastSolvedForms = solvedForms;
+
             if (knownCount > 0) {
-                // Show partial evaluation with substituted values
-                return `${expression}\n\nRemaining variables: ${unknownVars.join(', ')}\nTo solve for any variable, provide values for all others.`;
+                const remainder = `Remaining variables: ${unknownVars.join(', ')}\nTo solve for any variable, provide values for all others.`;
+                const formsBlock = formLines.length > 0 ? '\n\n' + formLines.join('\n\n') : '';
+                return { text: `${expression}\n\n${remainder}${formsBlock}`, solvedForms };
             } else {
-                return `${expression} (solve for: ${unknownVars.join(', ')})`;
+                const formsBlock = formLines.length > 0 ? '\n\n' + formLines.join('\n\n') : '';
+                return { text: `${expression} (solve for: ${unknownVars.join(', ')})${formsBlock}`, solvedForms };
             }
         }
     }
@@ -748,9 +795,10 @@ class FormulaCalculator {
         // CRITICAL: Universal Scientific Calculator Preprocessing
         // Normalize ALL scientific functions to Math.* format for consistent evaluation
         let processedExpression = String(expression)
-            // Normalize Unicode operators
+            // Normalize Unicode operators and symbols
             .replace(/×/g, '*')
             .replace(/÷/g, '/')
+            .replace(/log₁₀/g, 'log10')
             // Normalize scientific functions to Math.* (universal scientific calculator approach)
             .replace(/\bsin\s*\(/gi, 'Math.sin(')
             .replace(/\bcos\s*\(/gi, 'Math.cos(')
@@ -1024,11 +1072,14 @@ class FormulaCalculator {
         
         // FALLBACK 1: Universal Scientific Calculator - Direct expression evaluation
         // This handles cases like "M_V = -2.76 * log10(P) - 1.4" where we can directly evaluate
-        // Uses universal scientific calculator approach (all functions normalized to Math.*)
+        // Use formula.solveFor[targetVar] when defined so we can solve for each variable genuinely
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
+            if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
+                equation = this.formula.solveFor[targetVar].replace(/×/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi');
+            }
             // Check if equation is in form "targetVar = expression"
-            const equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
             const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const assignmentPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
             const match = equation.match(assignmentPattern);
@@ -1058,7 +1109,7 @@ class FormulaCalculator {
         // This is more aggressive - try to rearrange the equation and evaluate
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
-            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
+            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
             
             // Try to substitute all known values and see if we can isolate targetVar
             // Replace known variables with their values
@@ -1125,7 +1176,7 @@ class FormulaCalculator {
         // This is a last resort - it will work if the equation can be rearranged to isolate targetVar
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
-            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/');
+            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
             
             console.log(`[FormulaCalculator] FALLBACK 3: Attempting aggressive numeric evaluation for ${targetVar}`);
             console.log(`[FormulaCalculator] Original equation: ${equation}`);
@@ -1202,10 +1253,19 @@ class FormulaCalculator {
         const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
         console.log(`[FormulaCalculator] All known values (including constants):`, allKnown);
         
-        // Get the equation and normalize Unicode operators
+        // Get the equation and normalize Unicode operators (≈ so that "d ≈ 1/p" matches assignment pattern)
+        // If formula defines an alternate equation for this variable (so we can solve for each variable genuinely), use it
         let equation = this.formula.equation
             .replace(/×/g, '*')
-            .replace(/÷/g, '/');
+            .replace(/÷/g, '/')
+            .replace(/≈/g, '=');
+        if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
+            equation = this.formula.solveFor[targetVar]
+                .replace(/×/g, '*')
+                .replace(/÷/g, '/')
+                .replace(/π/g, 'pi');
+            console.log(`[FormulaCalculator] Using formula.solveFor for "${targetVar}": ${equation}`);
+        }
         console.log(`[FormulaCalculator] Equation: ${equation}`);
         
         // Step 1: Substitute all known numeric values into the equation
