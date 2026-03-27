@@ -2183,6 +2183,15 @@ header h1 {
     margin-bottom: 6px;
 }
 
+.unit-conversion-hint {
+    font-size: 0.78em;
+    color: #5a5a6a;
+    font-weight: 500;
+    line-height: 1.35;
+    margin: -2px 0 6px 0;
+    font-family: 'Courier New', monospace;
+}
+
 .unit-symbol {
     font-family: 'Courier New', monospace;
     color: #667eea;

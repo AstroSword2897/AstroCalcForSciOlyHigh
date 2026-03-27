@@ -1,5 +1,5 @@
 /**
- * Service Worker for AstroCalc - NO HTML CACHE v3.0.3
+ * Service Worker for AstroCalc - NO HTML CACHE v3.0.8
  * 
  * This version:
  * - DELETES ALL OLD CACHES on install before creating new cache
@@ -7,8 +7,8 @@
  * - Prevents serving cached HTML with old script references
  */
 
-const CACHE_NAME = 'astrocalc-shell-v3.0.7-NO-HTML-CACHE';
-const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.7-NO-HTML-CACHE';
+const CACHE_NAME = 'astrocalc-shell-v3.0.8-NO-HTML-CACHE';
+const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.8-NO-HTML-CACHE';
 const MAX_RUNTIME_ENTRIES = 100;
 
 const DEV_MODE = false;
@@ -43,12 +43,8 @@ const PRECACHE_RESOURCES = [
 
     // Feature modules
     './scripts/classification.js',
-    './scripts/formulaExplorer.js',
     './scripts/frqSupport.js',
     './scripts/quickNav.js',
-    './scripts/formulaGraphConfig.js',
-    './scripts/enhancedOfflineGraph.js',
-    './scripts/graphManager.js',
     './force_blue_now.js',
     
     // UI Rendering

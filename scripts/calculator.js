@@ -22,8 +22,14 @@ const isNumberOrNull = (value) => {
 };
 class FormulaCalculator {
     constructor(formula, options = {}) {
-        // Performance optimization: expression cache
-        this.expressionCache = new Map();
+        // Performance optimization: shared expression cache pool across calculator instances.
+        if (!FormulaCalculator._sharedExpressionCache) {
+            FormulaCalculator._sharedExpressionCache = new Map();
+        }
+        this.expressionCache = FormulaCalculator._sharedExpressionCache;
+        this.maxExpressionCacheSize = options.maxExpressionCacheSize || 5000;
+        // Security: do not allow JS Function fallback unless explicitly opted in.
+        this.allowUnsafeEvalFallback = options.allowUnsafeEvalFallback === true;
         if (!formula) {
             throw new Error('FormulaCalculator: formula is required');
         }
@@ -497,6 +503,10 @@ class FormulaCalculator {
                 knownVariables: Object.keys(knownVars).filter(k => 
                     knownVars[k] !== null && knownVars[k] !== undefined && typeof knownVars[k] === 'number'
                 ),
+                // Provide base-unit numeric values for UI substitution displays
+                knownValuesBase: Object.fromEntries(
+                    Object.entries(knownVars).filter(([_, v]) => typeof v === 'number' && Number.isFinite(v))
+                ),
                 // Store formatted known values for display
                 knownValuesFormatted: knownValuesDisplay,
                 partialEvaluation: Object.keys(knownVars).filter(k => 
@@ -515,6 +525,29 @@ class FormulaCalculator {
             }
             if (Object.keys(solvedForms).length > 0) {
                 result.solvedForms = solvedForms;
+
+                // Also attach a substituted view of each solved form using known base-unit values.
+                // This provides “work of substitution” in the UI.
+                try {
+                    const values = result.knownValuesBase || {};
+                    const substituted = {};
+                    for (const [v, form] of Object.entries(solvedForms)) {
+                        let s = String(form);
+                        // Replace symbols with numeric values (unicode-aware boundaries)
+                        for (const [sym, val] of Object.entries(values)) {
+                            if (!Number.isFinite(val)) continue;
+                            const escaped = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const re = /^[A-Za-z_][A-Za-z0-9_]*$/.test(sym)
+                                ? new RegExp(`\\b${escaped}\\b`, 'g')
+                                : new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu');
+                            s = s.replace(re, this._formatNumber(val));
+                        }
+                        substituted[v] = s;
+                    }
+                    result.solvedFormsSubstituted = substituted;
+                } catch (_) {
+                    // ignore
+                }
             }
             
             // CRITICAL: Ensure result always has the required shape
@@ -792,14 +825,26 @@ class FormulaCalculator {
             return cached;
         }
         
-        // CRITICAL: Universal Scientific Calculator Preprocessing
-        // Normalize ALL scientific functions to Math.* format for consistent evaluation
-        let processedExpression = String(expression)
-            // Normalize Unicode operators and symbols
+        // Build TWO normalized forms:
+        // - safeExpr: compatible with SafeMathEvaluator / SafeExpressionEvaluator (no "Math.", uses "^")
+        // - jsExpr: compatible with JS fallback (uses "Math.*" and "**")
+        const raw = String(expression);
+        const normalizeOperators = (s) => String(s)
             .replace(/×/g, '*')
             .replace(/÷/g, '/')
             .replace(/log₁₀/g, 'log10')
-            // Normalize scientific functions to Math.* (universal scientific calculator approach)
+            .replace(/√\s*\(/g, 'sqrt(');
+
+        let safeExpr = normalizeOperators(raw)
+            // Normalize common function names (no Math.*)
+            .replace(/\bln\s*\(/gi, 'log(')
+            .replace(/\blog\s*\(/gi, 'log10('); // scientific-calculator default
+
+        // Expand implicit multiplication in the SAFE form while it still uses identifiers like "G", "M", "pi".
+        safeExpr = this._expandImplicitMultiplication(safeExpr, variables);
+
+        // Build JS expression from safe form
+        let jsExpr = safeExpr
             .replace(/\bsin\s*\(/gi, 'Math.sin(')
             .replace(/\bcos\s*\(/gi, 'Math.cos(')
             .replace(/\btan\s*\(/gi, 'Math.tan(')
@@ -807,12 +852,10 @@ class FormulaCalculator {
             .replace(/\bacos\s*\(/gi, 'Math.acos(')
             .replace(/\batan\s*\(/gi, 'Math.atan(')
             .replace(/\bsqrt\s*\(/gi, 'Math.sqrt(')
-            .replace(/√\s*\(/g, 'Math.sqrt(')
             .replace(/\bexp\s*\(/gi, 'Math.exp(')
-            .replace(/\bln\s*\(/gi, 'Math.log(')  // Natural log
-            .replace(/\blog10\s*\(/gi, 'Math.log10(')  // Base-10 log
-            .replace(/\blog2\s*\(/gi, 'Math.log2(')  // Base-2 log
-            .replace(/\blog\s*\(/gi, 'Math.log10(')  // Default log to log10 (scientific calculator standard)
+            .replace(/\blog10\s*\(/gi, 'Math.log10(')
+            .replace(/\blog2\s*\(/gi, 'Math.log2(')
+            .replace(/\blog\s*\(/gi, 'Math.log(') // natural log when explicitly "log("
             .replace(/\bpow\s*\(/gi, 'Math.pow(')
             .replace(/\babs\s*\(/gi, 'Math.abs(')
             .replace(/\bfloor\s*\(/gi, 'Math.floor(')
@@ -820,17 +863,16 @@ class FormulaCalculator {
             .replace(/\bround\s*\(/gi, 'Math.round(')
             .replace(/\bmin\s*\(/gi, 'Math.min(')
             .replace(/\bmax\s*\(/gi, 'Math.max(')
-            // Normalize power notation (^ to **)
-            .replace(/\^/g, '**')
-            // Normalize constants
+            // Constants
             .replace(/\bπ\b/g, 'Math.PI')
             .replace(/\bpi\b/gi, 'Math.PI')
-            .replace(/\be\b(?![\d.])/g, 'Math.E');
-        
-        // Expand implicit multiplication (e.g., 2GM -> 2*G*M)
-        processedExpression = this._expandImplicitMultiplication(processedExpression, variables);
-        console.log(`[FormulaCalculator] Original expression: ${expression}`);
-        console.log(`[FormulaCalculator] Processed expression: ${processedExpression}`);
+            .replace(/\be\b(?![\d.])/g, 'Math.E')
+            // Power for JS
+            .replace(/\^/g, '**');
+
+        console.log(`[FormulaCalculator] Original expression: ${raw}`);
+        console.log(`[FormulaCalculator] Safe expression: ${safeExpr}`);
+        console.log(`[FormulaCalculator] JS expression: ${jsExpr}`);
         
         // CRITICAL: Try multiple evaluators to ensure we get a numeric result
         let result = null;
@@ -838,14 +880,15 @@ class FormulaCalculator {
         // Try 1: Use provided mathEvaluator
         if (this.mathEvaluator?.evaluate) {
             try {
-                result = this.mathEvaluator.evaluate(processedExpression, variables);
-                console.log(`[FormulaCalculator] evaluateExpression (mathEvaluator): ${processedExpression} = ${result} (type: ${typeof result})`);
+                // Prefer safe expression for evaluators (no Math.* / **)
+                result = this.mathEvaluator.evaluate(safeExpr, variables);
+                console.log(`[FormulaCalculator] evaluateExpression (mathEvaluator): ${safeExpr} = ${result} (type: ${typeof result})`);
                 if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                    this.expressionCache.set(cacheKey, result);
+                    this._cacheExpressionResult(cacheKey, result);
                     return result;
                 }
             } catch (e) {
-                console.warn(`[FormulaCalculator] mathEvaluator failed for ${processedExpression}:`, e.message);
+                console.warn(`[FormulaCalculator] mathEvaluator failed for ${safeExpr}:`, e.message);
             }
         }
         
@@ -853,14 +896,14 @@ class FormulaCalculator {
         if (typeof SafeMathEvaluator !== 'undefined' && SafeMathEvaluator.evaluate) {
             try {
                 const allVars = { ...this.constants, ...(this.formula.constants || {}), ...variables };
-                result = SafeMathEvaluator.evaluate(processedExpression, allVars);
-                console.log(`[FormulaCalculator] evaluateExpression (SafeMathEvaluator): ${processedExpression} = ${result} (type: ${typeof result})`);
+                result = SafeMathEvaluator.evaluate(safeExpr, allVars);
+                console.log(`[FormulaCalculator] evaluateExpression (SafeMathEvaluator): ${safeExpr} = ${result} (type: ${typeof result})`);
                 if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                    this.expressionCache.set(cacheKey, result);
+                    this._cacheExpressionResult(cacheKey, result);
                     return result;
                 }
             } catch (e) {
-                console.warn(`[FormulaCalculator] SafeMathEvaluator failed for ${processedExpression}:`, e.message);
+                console.warn(`[FormulaCalculator] SafeMathEvaluator failed for ${safeExpr}:`, e.message);
             }
         }
         
@@ -868,24 +911,26 @@ class FormulaCalculator {
         if (typeof SafeExpressionEvaluator !== 'undefined' && SafeExpressionEvaluator.evaluate) {
             try {
                 const allVars = { ...this.constants, ...(this.formula.constants || {}), ...variables };
-                result = SafeExpressionEvaluator.evaluate(processedExpression, allVars);
-                console.log(`[FormulaCalculator] evaluateExpression (SafeExpressionEvaluator): ${processedExpression} = ${result} (type: ${typeof result})`);
+                result = SafeExpressionEvaluator.evaluate(safeExpr, allVars);
+                console.log(`[FormulaCalculator] evaluateExpression (SafeExpressionEvaluator): ${safeExpr} = ${result} (type: ${typeof result})`);
                 if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
-                    this.expressionCache.set(cacheKey, result);
+                    this._cacheExpressionResult(cacheKey, result);
                     return result;
                 }
             } catch (e) {
-                console.warn(`[FormulaCalculator] SafeExpressionEvaluator failed for ${processedExpression}:`, e.message);
+                console.warn(`[FormulaCalculator] SafeExpressionEvaluator failed for ${safeExpr}:`, e.message);
             }
         }
         
-        // FALLBACK 4: Universal Scientific Calculator - Direct Math evaluation
-        // This is the final fallback that uses JavaScript's Math object directly
-        // This ensures universal scientific calculator behavior
+        // FALLBACK 4: optional unsafe JS evaluation (disabled by default for security)
+        const allowUnsafe =
+            this.allowUnsafeEvalFallback ||
+            (typeof window !== 'undefined' && window.ASTROCALC_ALLOW_UNSAFE_EVAL === true);
+        if (allowUnsafe) {
         try {
             // Substitute variables into expression
             const allVars = { ...this.constants, ...(this.formula.constants || {}), ...variables };
-            let finalExpr = processedExpression;
+            let finalExpr = jsExpr;
             
             // Replace variables with their values (sorted by length to avoid partial matches)
             const sortedVars = Object.entries(allVars)
@@ -900,7 +945,9 @@ class FormulaCalculator {
             }
             
             // Validate expression only contains safe characters (numbers, operators, Math.*, parentheses)
-            const safePattern = /^[0-9+\-*/().\sMath,]+$/;
+            // Allow exponentiation (**) and commas for Math.min/max.
+            // Also allow scientific notation (e/E) because substitutions may introduce it.
+            const safePattern = /^[0-9eE+\-*/().,\sMath]+$/;
             if (safePattern.test(finalExpr)) {
                 // Use Function constructor with Math object (universal scientific calculator)
                 const func = new Function('Math', '"use strict"; return (' + finalExpr + ')');
@@ -908,16 +955,19 @@ class FormulaCalculator {
                 
                 if (typeof result === 'number' && Number.isFinite(result) && !isNaN(result)) {
                     console.log(`[FormulaCalculator] ✅ Universal Scientific Calculator evaluation succeeded: ${finalExpr} = ${result}`);
-                    this.expressionCache.set(cacheKey, result);
+                    this._cacheExpressionResult(cacheKey, result);
                     return result;
                 }
             }
         } catch (fallbackError) {
             console.warn(`[FormulaCalculator] Universal Scientific Calculator fallback failed:`, fallbackError.message);
         }
+        } else {
+            console.warn('[FormulaCalculator] Unsafe JS eval fallback disabled (secure mode)');
+        }
         
         // If all evaluators failed, throw error - we MUST have a numeric result
-        console.error(`[FormulaCalculator] ❌ evaluateExpression FAILED for: ${expression} (processed: ${processedExpression})`);
+        console.error(`[FormulaCalculator] ❌ evaluateExpression FAILED for: ${expression} (safe: ${safeExpr}) (js: ${jsExpr})`);
         console.error(`[FormulaCalculator] Variables:`, variables);
         console.error(`[FormulaCalculator] mathEvaluator available:`, !!this.mathEvaluator);
         console.error(`[FormulaCalculator] SafeMathEvaluator available:`, typeof SafeMathEvaluator !== 'undefined');
@@ -1043,6 +1093,15 @@ class FormulaCalculator {
         const sortedKeys = Object.keys(variables).sort();
         const varString = sortedKeys.map(k => `${k}:${variables[k]}`).join('|');
         return `${expression}|${varString}`;
+    }
+    _cacheExpressionResult(cacheKey, value) {
+        if (this.expressionCache.size >= this.maxExpressionCacheSize) {
+            const oldestKey = this.expressionCache.keys().next().value;
+            if (oldestKey !== undefined) {
+                this.expressionCache.delete(oldestKey);
+            }
+        }
+        this.expressionCache.set(cacheKey, value);
     }
     /**
      * Evaluates the formula equation for solving

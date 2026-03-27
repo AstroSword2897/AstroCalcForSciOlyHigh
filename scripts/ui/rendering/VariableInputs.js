@@ -8,6 +8,21 @@ class VariableInputsRenderer {
         this.helpers = typeof window !== 'undefined' && typeof window.helpers ? window.helpers : null;
         this.activeInputListeners = new Map();
     }
+    _escapeHtml(text) {
+        const value = String(text ?? '');
+        if (this.helpers && typeof this.helpers.escapeHtml === 'function') {
+            return this.helpers.escapeHtml(value);
+        }
+        if (typeof escapeHtml === 'function') {
+            return escapeHtml(value);
+        }
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
     
     /**
      * Get DOM element (with caching)
@@ -142,7 +157,7 @@ class VariableInputsRenderer {
                         : value.toString();
                 }
                 
-                constantItem.innerHTML = `<strong>${escapeHtml(displayKey)}:</strong> ${escapeHtml(String(displayValue))}`;
+                constantItem.innerHTML = `<strong>${this._escapeHtml(displayKey)}:</strong> ${this._escapeHtml(String(displayValue))}`;
                 constantsFragment.appendChild(constantItem);
                 return constantItem;
             });
@@ -213,6 +228,13 @@ class VariableInputsRenderer {
                 const unitName = typeof UnitConverter !== 'undefined'
                     ? UnitConverter.formatUnit(unit)
                     : unit;
+
+                const conversionHint = !isBase && typeof UnitConverter !== 'undefined'
+                    ? UnitConverter.getConversionHintToBase(unit, baseUnit)
+                    : '';
+                const hintHtml = conversionHint
+                    ? `<div class="unit-conversion-hint" title="How this field converts to the formula base unit">${this._escapeHtml(conversionHint)}</div>`
+                    : '';
                 
                 inputFieldsHTML += `
                     <div class="unit-input-group">
@@ -220,6 +242,7 @@ class VariableInputsRenderer {
                             <span class="unit-symbol">${unit}</span>
                             <span class="unit-name">${unitName}</span>
                         </label>
+                        ${hintHtml}
                         <input 
                             type="text" 
                             id="${inputId}" 
@@ -292,6 +315,21 @@ class VariableInputsRenderer {
                         if (!otherInput) return;
                         otherInput.dataset.userEdited = otherInput === e.target ? 'true' : 'false';
                     });
+
+                    // CRITICAL: If the user starts typing into one unit field, clear other unit fields
+                    // that were auto-filled by previous calculations. This prevents stale base-unit
+                    // values (e.g., "kg") from overriding the intended non-base input (e.g., "M☉").
+                    const currentText = (e.target.value || '').trim();
+                    if (currentText.length > 0) {
+                        elements.forEach(({ input: otherInput }) => {
+                            if (!otherInput || otherInput === e.target) return;
+                            if (otherInput.dataset.calculated === 'true' && otherInput.value && otherInput.value.trim()) {
+                                otherInput.value = '';
+                                otherInput.dataset.calculated = 'false';
+                                otherInput.dataset.userEdited = 'false';
+                            }
+                        });
+                    }
                     
                     // CRITICAL FIX: Don't clear other inputs on input event
                     // This prevents clearing partially typed numbers

@@ -134,18 +134,28 @@ export class FormulaRenderer {
     performRender(formulas, container) {
         const startTime = performance.now();
         const CHUNK_SIZE = 50; // Render 50 cards at a time for better responsiveness
+
+        const exclude = typeof window !== 'undefined' && window.EXCLUDED_FORMULA_CARD_IDS;
+        const searchActive = this.renderOptions && String(this.renderOptions.searchQuery || '').trim().length > 0;
+        let list = formulas;
+        if (exclude && exclude.size && !searchActive) {
+            list = formulas.filter(item => {
+                const f = item.formula || item;
+                return f && f.id && !exclude.has(f.id);
+            });
+        }
         
         // Clear container first
         container.innerHTML = '';
         
         // If we have many formulas, use chunked rendering
-        if (formulas.length > CHUNK_SIZE) {
-            this.performChunkedRender(formulas, container, CHUNK_SIZE);
+        if (list.length > CHUNK_SIZE) {
+            this.performChunkedRender(list, container, CHUNK_SIZE);
         } else {
             // For smaller lists, render all at once
             const fragment = document.createDocumentFragment();
             
-            formulas.forEach((item, index) => {
+            list.forEach((item, index) => {
                 const formula = item.formula || item;
                 const searchData = item.formula ? item : null;
                 const card = this.createFormulaCard(formula, index, searchData);
@@ -156,7 +166,7 @@ export class FormulaRenderer {
         }
         
         const renderTime = performance.now() - startTime;
-        console.log(`[FormulaRenderer] Rendered ${formulas.length} cards in ${renderTime.toFixed(2)}ms`);
+        console.log(`[FormulaRenderer] Rendered ${list.length} cards in ${renderTime.toFixed(2)}ms`);
     }
     
     /**
@@ -235,11 +245,11 @@ export class FormulaRenderer {
             const formula = window.formulas?.find(f => f.id === formulaId);
             if (!formula) return;
             
-            // Call handler
-            if (this.onFormulaClick) {
-                this.onFormulaClick(formula);
-            } else if (typeof window.selectFormula === 'function') {
+            // Prefer original global selection flow for maximum compatibility.
+            if (typeof window.selectFormula === 'function') {
                 window.selectFormula(formula);
+            } else if (this.onFormulaClick) {
+                this.onFormulaClick(formula);
             }
         };
         

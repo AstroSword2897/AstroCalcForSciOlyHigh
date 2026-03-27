@@ -185,9 +185,9 @@ function setupKeyboardShortcuts() {
             const isOnInputScreen = inputScreen && inputScreen.classList.contains('active');
             
             if (isOnInputScreen) {
-                // Number keys 1-3: Switch calculator sub-tabs (Calculator, Graph, Classification)
-                if (e.key >= '1' && e.key <= '3' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                    const subTabs = ['calculator', 'graph', 'classification'];
+                // Number keys 1-2: Switch calculator sub-tabs (Calculator, Classification)
+                if (e.key >= '1' && e.key <= '2' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                    const subTabs = ['calculator', 'classification'];
                     const tabIndex = parseInt(e.key) - 1;
                     if (subTabs[tabIndex] && typeof switchTab === 'function') {
                         switchTab(subTabs[tabIndex]);
@@ -196,9 +196,9 @@ function setupKeyboardShortcuts() {
                     return;
                 }
             } else {
-                // Number keys 1-4: Switch main tabs (Formulas, Explorer, Classification, etc.)
-                if (e.key >= '1' && e.key <= '4' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                    const tabs = ['formulas', 'explorer', 'algebraic', 'classification'];
+                // Number keys 1-3: Switch main tabs (Formulas, Algebraic Solving, Classification)
+                if (e.key >= '1' && e.key <= '3' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+                    const tabs = ['formulas', 'algebraic', 'classification'];
                     const tabIndex = parseInt(e.key) - 1;
                     if (tabs[tabIndex] && typeof switchMainTab === 'function') {
                         switchMainTab(tabs[tabIndex]);
@@ -576,13 +576,13 @@ function performCommandPaletteSearch(query, resultsContainer) {
         });
     }
     
-    if (queryLower.length === 0 || 'explorer'.includes(queryLower)) {
+    if (queryLower.length === 0 || 'algebraic'.includes(queryLower) || 'solver'.includes(queryLower)) {
         results.push({
             type: 'action',
-            title: 'Go to Explorer',
-            subtitle: 'Browse formulas by category',
+            title: 'Go to Algebraic Solving',
+            subtitle: 'Equation solver with symbols',
             action: () => {
-                switchMainTab('explorer');
+                switchMainTab('algebraic');
                 closeCommandPalette();
             }
         });

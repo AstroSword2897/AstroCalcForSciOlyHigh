@@ -34,7 +34,7 @@ var formulaCategories = {
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
         'stefan_boltzmann_law', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime', 'solar_lifetime_efficiency',
-        'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude', 'chandrasekhar_limit',
+        'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude',
         'white_dwarf_mass_radius', 'blackbody_radiation',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
         'equivalent_width', 'luminosity_function', 'jeans_mass', 'intensity',
@@ -10079,6 +10079,18 @@ function applyFormulaConfidenceResearch(formula) {
 }
 
 formulas.forEach(applyFormulaConfidenceResearch);
+
+// IDs hidden from the main formula card grid (still available to search/solver/tests)
+var EXCLUDED_FORMULA_CARD_IDS = new Set([
+    'chandrasekhar_limit',
+    'roche_limit',
+    'roche_limit_rigid',
+    'diffraction_limit',
+    'max_gamma_bohm'
+]);
+if (typeof window !== 'undefined') {
+    window.EXCLUDED_FORMULA_CARD_IDS = EXCLUDED_FORMULA_CARD_IDS;
+}
 
 // Formula Relationship Infrastructure
 // Builds and maintains interconnections between formulas

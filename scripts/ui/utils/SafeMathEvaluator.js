@@ -236,7 +236,7 @@ class SafeMathEvaluator {
         
         try {
             const tokens = this.tokenize(expression);
-            const parser = new ExpressionParser(tokens, variables);
+            const parser = new SafeExpressionParser(tokens, variables);
             return parser.parse();
         } catch (error) {
             if (error instanceof ValidationError || error instanceof CalculationError) {
@@ -253,7 +253,7 @@ class SafeMathEvaluator {
 /**
  * Recursive Descent Parser
  */
-class ExpressionParser {
+class SafeExpressionParser {
     constructor(tokens, variables) {
         this.tokens = tokens;
         this.variables = variables;

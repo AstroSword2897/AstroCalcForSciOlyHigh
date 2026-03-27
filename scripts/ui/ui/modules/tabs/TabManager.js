@@ -19,6 +19,9 @@ export class TabManager {
      * Switch between main page tabs with improved error handling
      */
     switchMainTab(tabName) {
+        if (tabName === 'explorer') {
+            tabName = 'formulas';
+        }
         console.log('[TabManager] Switching to main tab:', tabName);
         try {
             // Update main tab buttons
@@ -103,11 +106,11 @@ export class TabManager {
         });
     }
     activateMainTab(tabName) {
+        if (tabName === 'explorer') {
+            tabName = 'formulas';
+        }
         if (tabName === 'formulas') {
             this.activateFormulasTab();
-        }
-        else if (tabName === 'explorer') {
-            this.activateExplorerTab();
         }
         else if (tabName === 'algebraic') {
             this.activateAlgebraicSolvingTab();
@@ -124,7 +127,7 @@ export class TabManager {
             this.activateCalculatorTab();
         }
         else if (tabName === 'graph') {
-            this.activateGraphTab();
+            this.activateCalculatorTab();
         }
         else if (tabName === 'classification') {
             this.activateClassificationSubTab();
@@ -533,30 +536,6 @@ export class TabManager {
         btn.addEventListener('click', parseAndShow);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') parseAndShow(); });
         this._algebraicHandlersInit = true;
-    }
-    activateExplorerTab() {
-        const explorerTab = document.getElementById('main-explorer-tab');
-        if (explorerTab) {
-            explorerTab.classList.add('active');
-            explorerTab.style.setProperty('display', 'block', 'important');
-            explorerTab.style.setProperty('visibility', 'visible', 'important');
-            console.log('[TabManager] ✅ Explorer tab activated');
-            // Initialize Formula Explorer with retry logic
-            if (this.initFormulaExplorer) {
-                this.retryInitialization('explorer', () => {
-                    try {
-                        this.initFormulaExplorer();
-                    }
-                    catch (e) {
-                        console.error('[TabManager] Error initializing Formula Explorer:', e);
-                        throw e;
-                    }
-                });
-            }
-        }
-        else {
-            console.error('[TabManager] ❌ main-explorer-tab not found!');
-        }
     }
     activateClassificationMainTab() {
         const classificationTab = document.getElementById('main-classification-tab');

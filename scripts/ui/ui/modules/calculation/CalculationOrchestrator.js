@@ -15,9 +15,16 @@ export class CalculationOrchestrator {
         this.updateGraphIfEnabled = options.updateGraphIfEnabled;
         this.updateGraphInterpretation = options.updateGraphInterpretation;
         this.updateSolveIndicators = options.updateSolveIndicators;
-        this.unitConverter = options.unitConverter;
+        this.unitConverter = options.unitConverter || (typeof window !== 'undefined' && window.UnitConverter ? {
+            convertToBase: (value, fromUnit, baseUnit) => window.UnitConverter.convertToBase(value, fromUnit, baseUnit),
+            convert: (value, fromUnit, toUnit) => window.UnitConverter.convert(value, fromUnit, toUnit),
+            getAlternativeUnits: (baseUnit) => window.UnitConverter.getAlternativeUnits(baseUnit),
+            convertAndFormat: (value, unit, opts) => window.UnitConverter.convertAndFormat(value, unit, opts),
+            getCanonical: (unit) => window.UnitConverter.getCanonical(unit),
+            getUnitCategory: (unit) => window.UnitConverter.getUnitCategory(unit)
+        } : null);
         this.globalConstants = options.globalConstants || {};
-        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? true;
+        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? false;
         
         // Performance optimizations: caching and locking
         this._calculationInProgress = false; // Pure lock pattern (no debounce)
@@ -28,6 +35,7 @@ export class CalculationOrchestrator {
         // Calculation result cache - returns immediately if same inputs
         this._calculationResultCache = new Map(); // formulaId + input hash -> result with all unit conversions
         this._maxCacheSize = 100; // Maximum cached calculations
+        this._lastConversionMetadata = {};
         
         // Configurable error message rules (can be extended)
         this.errorMessageRules = options.errorMessageRules || this._getDefaultErrorMessageRules();
@@ -158,6 +166,7 @@ export class CalculationOrchestrator {
                 throw new Error(errorMsg);
             }
             // Collect and validate variable values (single DOM read)
+            this._lastConversionMetadata = {};
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Collecting variable values...');
             const variableValues = this.collectVariableValues(formula);
             console.log('[CalculationOrchestrator] Collected values:', variableValues);
@@ -172,6 +181,7 @@ export class CalculationOrchestrator {
                     console.log(`[CalculationOrchestrator]   ${symbol} = ${value} ${baseUnit} (should be in base unit)`);
                 }
             });
+            this._validateConversionMetadata(formula, variableValues);
             
             console.log('[CalculationOrchestrator] ⏱️ BREAKPOINT: Variable collection completed at', new Date().toISOString());
             
@@ -196,7 +206,7 @@ export class CalculationOrchestrator {
                 }
                 
                 // Update graph if enabled
-                if (this.updateGraphIfEnabled) {
+                if (this.graphUpdatesEnabled && this.updateGraphIfEnabled) {
                     this.updateGraphIfEnabled(formula, variableValues, { useCache: true });
                 }
                 
@@ -645,7 +655,11 @@ export class CalculationOrchestrator {
             const given = Object.fromEntries(
                 Object.entries(variableValues).filter(([_, v]) => v != null && typeof v === 'number' && Number.isFinite(v))
             );
-            const resultWithFlow = { ...enhancedResult, given };
+            const resultWithFlow = {
+                ...enhancedResult,
+                given,
+                conversionMetadata: this._lastConversionMetadata
+            };
             
             // Cache the enhanced result (with given for flow display on cache hit)
             this._cacheCalculationResult(resultCacheKey, resultWithFlow);
@@ -935,8 +949,23 @@ export class CalculationOrchestrator {
                 if (!container) return null;
                 const inContainer = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"], input[id="${cacheKey}"], input[id^="var-${variable.symbol}-"]`))
                     .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
+                const baseUnit = variable.unit;
                 const withValue = inContainer.filter(inp => inp.value && inp.value.trim());
-                const chosen = (withValue.length > 0 ? withValue[0] : inContainer[0]) || null;
+
+                // CRITICAL: If multiple unit fields have values, prefer:
+                // 1) the one the user last edited, then
+                // 2) any non-base unit field (so conversion happens), then
+                // 3) base unit field.
+                const rank = (inp) => {
+                    const unit = inp.getAttribute('data-unit') || baseUnit;
+                    const isNonBase = unit !== baseUnit;
+                    const userEdited = inp.dataset && inp.dataset.userEdited === 'true';
+                    return (userEdited ? 100 : 0) + (isNonBase ? 10 : 0);
+                };
+
+                const chosen = (withValue.length > 0
+                    ? withValue.sort((a, b) => rank(b) - rank(a))[0]
+                    : inContainer[0]) || null;
                 if (chosen) console.log(`[CalculationOrchestrator] Strategy 0: Found in variables-container: ${chosen.id} = "${(chosen.value || '').trim()}"`);
                 return chosen;
             },
@@ -1119,6 +1148,35 @@ export class CalculationOrchestrator {
             throw new Error(`Invalid numeric value for ${variable.symbol}: "${value}"`);
         }
         
+        // Prepare metadata used for conversion auditing and accuracy checks.
+        const symbol = variable.symbol;
+        const canonicalFrom = this.unitConverter?.getCanonical
+            ? this.unitConverter.getCanonical(inputUnit)
+            : inputUnit;
+        const canonicalBase = this.unitConverter?.getCanonical
+            ? this.unitConverter.getCanonical(baseUnit)
+            : baseUnit;
+        const categoryFrom = this.unitConverter?.getUnitCategory
+            ? this.unitConverter.getUnitCategory(canonicalFrom)
+            : null;
+        const categoryBase = this.unitConverter?.getUnitCategory
+            ? this.unitConverter.getUnitCategory(canonicalBase)
+            : null;
+        const metadata = {
+            symbol,
+            rawInput: value,
+            inputUnit,
+            baseUnit,
+            canonicalFrom,
+            canonicalBase,
+            categoryFrom,
+            categoryBase,
+            originalValue: numericValue,
+            convertedValue: numericValue,
+            converted: false,
+            factorApplied: 1
+        };
+
         // CRITICAL: Always convert to base unit if unitConverter is available
         // This ensures values are in the correct units before being used in formulas
         if (this.unitConverter) {
@@ -1134,17 +1192,27 @@ export class CalculationOrchestrator {
                     throw new Error(`Unit conversion failed for ${variable.symbol}: ${numericValue} ${inputUnit} → ${baseUnit}`);
                 }
                 
-                // CRITICAL: Verify conversion factor is correct
-                if (inputUnit === 'km' && baseUnit === 'm') {
-                    const expectedValue = numericValue * 1000;
-                    if (Math.abs(baseValue - expectedValue) > 0.001) {
-                        console.error(`[CalculationOrchestrator] ❌ CONVERSION ERROR: Expected ${expectedValue}, got ${baseValue}`);
-                        throw new Error(`Unit conversion error: ${numericValue} km should be ${expectedValue} m, but got ${baseValue} m`);
+                metadata.converted = true;
+                metadata.convertedValue = baseValue;
+                metadata.factorApplied = numericValue !== 0 ? (baseValue / numericValue) : null;
+                metadata.temperatureAffine = categoryFrom === 'temperature' || categoryBase === 'temperature';
+                if (!metadata.temperatureAffine) {
+                    const expectedFactor = this.unitConverter.convertToBase(1, inputUnit, baseUnit);
+                    metadata.expectedFactor = expectedFactor;
+                    if (Number.isFinite(expectedFactor)) {
+                        const expectedValue = numericValue * expectedFactor;
+                        const tolerance = Math.max(1e-12, Math.abs(expectedValue) * 1e-9);
+                        if (Math.abs(baseValue - expectedValue) > tolerance) {
+                            throw new Error(
+                                `Conversion mismatch for ${symbol}: expected ${expectedValue} ${baseUnit}, got ${baseValue} ${baseUnit}`
+                            );
+                        }
                     }
                 }
                 
                 console.log(`[CalculationOrchestrator] ✅ Converted ${variable.symbol}: ${numericValue} ${inputUnit} = ${baseValue} ${baseUnit}`);
                 console.log(`[CalculationOrchestrator] ✅ Conversion verified: ${baseValue} ${baseUnit} will be used in calculation`);
+                this._lastConversionMetadata[symbol] = metadata;
                 return baseValue;
             } else {
                 // Already in base unit, but verify we're not missing a conversion
@@ -1158,8 +1226,28 @@ export class CalculationOrchestrator {
         } else {
             console.warn(`[CalculationOrchestrator] ⚠️ No unitConverter available for ${variable.symbol}, using raw value`);
         }
-        
+
+        this._lastConversionMetadata[symbol] = metadata;
         return numericValue;
+    }
+
+    _validateConversionMetadata(formula, variableValues) {
+        if (!this.unitConverter) return;
+        for (const variable of (formula?.variables || [])) {
+            const symbol = variable.symbol;
+            const value = variableValues[symbol];
+            if (value === null || value === undefined || !Number.isFinite(value)) continue;
+            const meta = this._lastConversionMetadata[symbol];
+            if (!meta) continue;
+            if (meta.inputUnit !== meta.baseUnit && !meta.temperatureAffine) {
+                if (!Number.isFinite(meta.expectedFactor)) {
+                    throw new Error(`Missing conversion metadata factor for ${symbol} (${meta.inputUnit} → ${meta.baseUnit})`);
+                }
+            }
+            if (meta.categoryFrom && meta.categoryBase && meta.categoryFrom !== meta.categoryBase) {
+                throw new Error(`Unit category mismatch for ${symbol}: ${meta.categoryFrom} cannot convert to ${meta.categoryBase}`);
+            }
+        }
     }
     
     /**
@@ -1406,7 +1494,6 @@ export class CalculationOrchestrator {
      */
     updateVariableUnitInputs(symbol, baseValue, formula) {
         if (!this.unitConverter || !formula) {
-            console.warn('[CalculationOrchestrator] Cannot update unit inputs: unitConverter or formula missing');
             return;
         }
         

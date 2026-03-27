@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculator Numeric Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-result.pass {
+            background: #0a5;
+            color: #fff;
+        }
+        .test-result.fail {
+            background: #a05;
+            color: #fff;
+        }
+        .test-result.info {
+            background: #05a;
+            color: #fff;
+        }
+        button {
+            background: #667eea;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        .input-group label {
+            display: inline-block;
+            width: 150px;
+        }
+        .input-group input {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #333;
+            color: #fff;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Calculator Numeric Calculation Test</h1>
+    
+    <div class="test-container">
+        <h2>Manual Test</h2>
+        <p>Test the Period-Luminosity Relation: M_V = -2.76 × log₁₀(P) - 1.4</p>
+        
+        <div class="input-group">
+            <label>Pulsation Period (P):</label>
+            <input type="number" id="period-input" value="2" step="0.1">
+        </div>
+        
+        <button onclick="runManualTest()">Calculate M_V</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+        
+        <div id="manual-result"></div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="test-results"></div>
+    </div>
+
+    <!-- Load required scripts -->
+    <script src="scripts/formulas.js"></script>
+    <script src="scripts/calculator.js"></script>
+    <script src="scripts/unitConverter.js"></script>
+    <script src="scripts/safeExpressionEvaluator.js"></script>
+    <script src="tests/test_numeric_calculation.js"></script>
+    
+    <script>
+        function addResult(container, message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            container.appendChild(div);
+        }
+        
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('manual-result').innerHTML = '';
+        }
+        
+        async function runManualTest() {
+            clearResults();
+            const resultsDiv = document.getElementById('manual-result');
+            const period = parseFloat(document.getElementById('period-input').value);
+            
+            addResult(resultsDiv, `Testing with P = ${period}`, 'info');
+            
+            try {
+                // Find the period-luminosity formula
+                const formula = formulas.find(f => f.id === 'period_luminosity_relation_cepheid');
+                if (!formula) {
+                    addResult(resultsDiv, '❌ Formula not found', 'fail');
+                    return;
+                }
+                
+                addResult(resultsDiv, `✅ Found formula: ${formula.name}`, 'info');
+                addResult(resultsDiv, `Equation: ${formula.equation}`, 'info');
+                
+                // Create calculator
+                const calculator = new FormulaCalculator(formula, {
+                    unitConverter: UnitConverter ? new UnitConverter() : null,
+                    mathEvaluator: SafeExpressionEvaluator || null
+                });
+                
+                // Prepare inputs
+                const variableValues = {
+                    P: period,
+                    M_V: null
+                };
+                
+                addResult(resultsDiv, `Input: P = ${period}`, 'info');
+                addResult(resultsDiv, `Solving for M_V...`, 'info');
+                
+                // Solve
+                const result = calculator.solve(variableValues);
+                
+                console.log('Result:', result);
+                
+                // Check result
+                if (!result) {
+                    addResult(resultsDiv, '❌ No result returned', 'fail');
+                    return;
+                }
+                
+                if (result.isSymbolic) {
+                    addResult(resultsDiv, `❌ Result is SYMBOLIC (not numeric)`, 'fail');
+                    addResult(resultsDiv, `Result: ${result.result}`, 'fail');
+                    return;
+                }
+                
+                if (typeof result.result !== 'number') {
+                    addResult(resultsDiv, `❌ Result is not a number! Type: ${typeof result.result}`, 'fail');
+                    addResult(resultsDiv, `Result: ${result.result}`, 'fail');
+                    return;
+                }
+                
+                // Calculate expected value
+                const expected = -2.76 * Math.log10(period) - 1.4;
+                const actual = result.result;
+                const diff = Math.abs(actual - expected);
+                const tolerance = 0.01;
+                
+                addResult(resultsDiv, `Expected: ${expected.toFixed(4)}`, 'info');
+                addResult(resultsDiv, `Actual: ${actual.toFixed(4)}`, 'info');
+                addResult(resultsDiv, `Difference: ${diff.toFixed(4)}`, 'info');
+                
+                if (diff <= tolerance) {
+                    addResult(resultsDiv, `✅ PASS: Result matches expected value!`, 'pass');
+                } else {
+                    addResult(resultsDiv, `❌ FAIL: Result does not match (tolerance: ${tolerance})`, 'fail');
+                }
+                
+            } catch (error) {
+                addResult(resultsDiv, `❌ Error: ${error.message}`, 'fail');
+                console.error(error);
+            }
+        }
+        
+        function runAllTests() {
+            clearResults();
+            const resultsDiv = document.getElementById('test-results');
+            
+            if (typeof window.testNumericCalculation === 'function') {
+                addResult(resultsDiv, 'Running all tests...', 'info');
+                const testResults = window.testNumericCalculation();
+                
+                addResult(resultsDiv, `\n📊 Test Summary: ${testResults.passed} passed, ${testResults.failed} failed`, 
+                    testResults.failed === 0 ? 'pass' : 'fail');
+            } else {
+                addResult(resultsDiv, '❌ Test function not available. Make sure test_numeric_calculation.js is loaded.', 'fail');
+            }
+        }
+        
+        // Auto-run manual test on load
+        window.addEventListener('load', () => {
+            console.log('Test page loaded');
+            console.log('Formulas available:', typeof formulas !== 'undefined');
+            console.log('FormulaCalculator available:', typeof FormulaCalculator !== 'undefined');
+            
+            if (typeof formulas !== 'undefined' && typeof FormulaCalculator !== 'undefined') {
+                setTimeout(() => {
+                    addResult(document.getElementById('test-results'), '✅ Dependencies loaded. Ready to test!', 'pass');
+                }, 500);
+            } else {
+                addResult(document.getElementById('test-results'), '❌ Dependencies not loaded. Check console for errors.', 'fail');
+            }
+        });
+    </script>
+</body>
+</html>
+

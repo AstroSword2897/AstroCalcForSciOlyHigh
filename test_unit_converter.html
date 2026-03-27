@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UnitConverter Test</title>
+</head>
+<body>
+    <h1>UnitConverter Diagnostic Test</h1>
+    <div id="results"></div>
+    <script src="scripts/unitConverter.js"></script>
+    <script>
+        const results = [];
+        
+        function test(name, fn) {
+            try {
+                const result = fn();
+                results.push({ name, passed: true, result });
+                console.log(`✅ ${name}:`, result);
+            } catch (e) {
+                results.push({ name, passed: false, error: e.message });
+                console.error(`❌ ${name}:`, e.message);
+            }
+        }
+        
+        // Test 1: Basic km -> m conversion
+        test('5 km -> m', () => {
+            const result = UnitConverter.convert(5, 'km', 'm');
+            if (result !== 5000) throw new Error(`Expected 5000, got ${result}`);
+            return result;
+        });
+        
+        // Test 2: convertToBase km -> m
+        test('convertToBase(13, km, m)', () => {
+            const result = UnitConverter.convertToBase(13, 'km', 'm');
+            if (result !== 13000) throw new Error(`Expected 13000, got ${result}`);
+            return result;
+        });
+        
+        // Test 3: Canonicalization
+        test('getCanonical(KM)', () => {
+            const result = UnitConverter.getCanonical('KM');
+            if (result !== 'km') throw new Error(`Expected 'km', got '${result}'`);
+            return result;
+        });
+        
+        // Test 4: M☉ -> kg
+        test('convertToBase(2, M☉, kg)', () => {
+            const result = UnitConverter.convertToBase(2, 'M☉', 'kg');
+            const expected = 2 * 1.989e30;
+            if (Math.abs(result - expected) > 1e20) throw new Error(`Expected ~${expected}, got ${result}`);
+            return result;
+        });
+        
+        // Test 5: Temperature
+        test('convert(0, °C, K)', () => {
+            const result = UnitConverter.convert(0, '°C', 'K');
+            if (Math.abs(result - 273.15) > 0.01) throw new Error(`Expected 273.15, got ${result}`);
+            return result;
+        });
+        
+        // Test 6: Case sensitivity
+        test('convert(5, Km, m)', () => {
+            const result = UnitConverter.convert(5, 'Km', 'm');
+            if (result !== 5000) throw new Error(`Expected 5000, got ${result}`);
+            return result;
+        });
+        
+        // Test 7: getAlternativeUnits
+        test('getAlternativeUnits(m)', () => {
+            const result = UnitConverter.getAlternativeUnits('m');
+            if (!Array.isArray(result) || result.length === 0) throw new Error(`Expected array, got ${result}`);
+            return result;
+        });
+        
+        // Display results
+        const div = document.getElementById('results');
+        div.innerHTML = '<h2>Test Results:</h2><pre>' + JSON.stringify(results, null, 2) + '</pre>';
+        
+        const passed = results.filter(r => r.passed).length;
+        const total = results.length;
+        div.innerHTML += `<h2>Summary: ${passed}/${total} tests passed</h2>`;
+    </script>
+</body>
+</html>
+

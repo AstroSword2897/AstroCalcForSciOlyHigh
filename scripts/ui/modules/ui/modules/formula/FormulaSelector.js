@@ -19,7 +19,7 @@ export class FormulaSelector {
         this.cleanupGlobalState = options.cleanupGlobalState;
         this.trackUsage = options.trackUsage;
         this.getCurrentVariableValues = options.getCurrentVariableValues;
-        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? true;
+        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? false;
     }
     /**
      * Select a formula and initialize calculator

@@ -289,7 +289,32 @@
         const f0Expr = replaceTarget(fExpr, 0);
         const f1Expr = replaceTarget(fExpr, 1);
         const denomExpr = `(${f1Expr}) - (${f0Expr})`;
-        const targetExpr = `-(${f0Expr}) / (${denomExpr})`;
+
+        // If the denominator is a constant (independent of other variables),
+        // simplify the solved form substantially.
+        let denomConstant = null;
+        try {
+            if (otherVars.length === 0) {
+                const v = SafeMathEvaluator.evaluate(denomExpr, {});
+                if (Number.isFinite(v)) denomConstant = v;
+            } else {
+                const samples = [
+                    Object.fromEntries(otherVars.map(s => [s, 0])),
+                    Object.fromEntries(otherVars.map(s => [s, 1])),
+                    Object.fromEntries(otherVars.map(s => [s, -1]))
+                ];
+                const vals = samples.map(ctx => SafeMathEvaluator.evaluate(denomExpr, ctx)).filter(Number.isFinite);
+                if (vals.length === samples.length && vals.every(v => approxEqual(v, vals[0], EPS * 10))) {
+                    denomConstant = vals[0];
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
+
+        const targetExpr = (Number.isFinite(denomConstant) && Math.abs(denomConstant) > EPS)
+            ? (approxEqual(denomConstant, 1) ? `-(${f0Expr})` : (approxEqual(denomConstant, -1) ? `(${f0Expr})` : `(${f0Expr}) / ${formatNum(-denomConstant)}`))
+            : `-(${f0Expr}) / (${denomExpr})`;
 
         // Verify numerically that f is affine (linear) in targetVar:
         // f(2) == f(0) + 2*(f(1)-f(0)) for several assignments of other vars.
@@ -332,7 +357,7 @@
         // Extra check: denom shouldn't be identically zero.
         try {
             const sampleOthers = Object.fromEntries(otherVars.map(s => [s, 0]));
-            const denomVal = SafeMathEvaluator.evaluate(`(${f1Expr}) - (${f0Expr})`, { ...sampleOthers });
+            const denomVal = SafeMathEvaluator.evaluate(denomExpr, { ...sampleOthers });
             if (!Number.isFinite(denomVal) || Math.abs(denomVal) < EPS) return null;
         } catch (_) {
             // If evaluation fails, we still allow the symbolic form to be shown.

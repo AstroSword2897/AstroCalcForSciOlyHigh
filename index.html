@@ -171,7 +171,6 @@
             <div class="main-tab-container">
                 <div class="main-tabs">
                     <button class="main-tab-btn active" data-main-tab="formulas">Formulas</button>
-                    <button class="main-tab-btn" data-main-tab="explorer">Explorer</button>
                     <button class="main-tab-btn" data-main-tab="algebraic">Algebraic Solving</button>
                     <button class="main-tab-btn" data-main-tab="classification">Classification</button>
                 </div>
@@ -193,6 +192,16 @@
                 <div class="algebraic-solving-container" style="padding: 20px; max-width: 720px; margin: 0 auto;">
                     <h3 style="margin-bottom: 12px; color: #667eea;">Algebraic Equation Solver</h3>
                     <p style="color: #a8c7ff; margin-bottom: 16px; font-size: 0.95em;">Enter an equation with one or more variables (e.g., 2*x + 3 = 5, F = m*a). Use the tabs to solve for each variable and see steps.</p>
+                    <div class="algebraic-keyboard-help" style="margin-bottom: 14px; padding: 12px 14px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid rgba(102,126,234,0.35); font-size: 0.88em; color: #c8d9ff; line-height: 1.5;">
+                        <strong style="color: #e0e7ff;">Keyboard &amp; symbols</strong>
+                        <ul style="margin: 8px 0 0 18px; padding: 0;">
+                            <li><strong>Enter</strong> runs parse/solve when the equation box is focused.</li>
+                            <li><strong>Tab / Shift+Tab</strong> move between fields; inside variable inputs, Tab cycles fields then jumps to Calculate.</li>
+                            <li>Click a <strong>Greek or math</strong> button to insert at the cursor (equation box or known-value fields).</li>
+                            <li>Use <strong>*</strong> for multiplication or write implicit multiplication (e.g. <code style="background:rgba(0,0,0,.25);padding:0 .25em;border-radius:4px;">3x</code>) after Parse.</li>
+                            <li>Known values with units: type the number and unit (e.g. <code style="background:rgba(0,0,0,.25);padding:0 .25em;border-radius:4px;">23 F</code> or <code style="background:rgba(0,0,0,.25);padding:0 .25em;border-radius:4px;">400 nm</code>); values convert to base units for the solve.</li>
+                        </ul>
+                    </div>
                     <div style="display: flex; gap: 10px; margin-bottom: 10px;">
                         <input type="text" id="algebraic-equation-input" class="formula-search-input" placeholder="e.g., F = m*a or 2*x + 3 = 5" style="flex: 1; padding: 12px 16px; font-size: 1em;">
                         <button id="algebraic-solve-btn" style="background: #667eea; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600;">Parse equation</button>
@@ -242,13 +251,6 @@
                         <div id="algebraic-var-tabs" class="algebraic-var-tabs" style="display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap;"></div>
                         <div id="algebraic-var-panels" style="min-height: 120px;"></div>
                     </div>
-                </div>
-            </div>
-            
-            <!-- Formula Explorer Tab -->
-            <div id="main-explorer-tab" class="main-tab-content">
-                <div id="formula-explorer-container">
-                    <!-- Formula Explorer will be populated by JavaScript -->
                 </div>
             </div>
             
@@ -376,7 +378,6 @@
             <div class="tab-container">
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="calculator">Calculator</button>
-                    <button class="tab-btn" data-tab="graph">Graph</button>
                     <button class="tab-btn" data-tab="classification">Classification</button>
                 </div>
             </div>
@@ -418,50 +419,6 @@
                 </div>
                 <div id="related-formulas-container" class="related-formulas-container">
                     <!-- Related formulas will be populated by JavaScript -->
-                </div>
-            </div>
-            
-            <!-- Graph Tab (Offline Canvas-Based) -->
-            <div id="graph-tab" class="tab-content" role="tabpanel" aria-labelledby="graph-tab-btn" aria-hidden="true">
-                <div class="graph-container">
-                    <div class="graph-header">
-                        <h3>Formula Visualization</h3>
-                        <p class="graph-description">Graph shows how the unknown variable changes with respect to other variables. Enter values in the Calculator tab to see the graph update in real-time.</p>
-                    </div>
-                    
-                    <!-- ENHANCED: Graph Controls Panel -->
-                    <div id="graph-controls-panel" class="graph-controls-panel" style="display: none;">
-                        <div class="graph-controls-section">
-                            <h4>📊 Formula Presets</h4>
-                            <div id="graph-presets" class="graph-presets">
-                                <!-- Presets will be dynamically rendered based on selected formula -->
-                            </div>
-                        </div>
-                        <div class="graph-controls-section">
-                            <h4>🎛️ Interactive Controls</h4>
-                            <div id="graph-sliders" class="graph-sliders"></div>
-                        </div>
-                        <div class="graph-controls-section">
-                            <h4>⚙️ Options</h4>
-                            <div class="graph-options">
-                                <label><input type="checkbox" id="show-error-bands"> Show Error Bands (±5%)</label>
-                                <label><input type="checkbox" id="show-second-curve"> Compare with Second Curve</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="desmos-graph" class="desmos-graph"></div>
-                    <div class="graph-controls">
-                        <button id="toggle-graph-controls" class="toggle-controls-btn">⚙️ Show Controls</button>
-                        <p class="graph-note">💡 <strong>Tip:</strong> Leave one variable as "null" in the Calculator tab to see how it varies with the other variables.</p>
-                        <p class="graph-note">✅ <strong>Offline Mode:</strong> This graph works completely offline using HTML5 Canvas.</p>
-                    </div>
-                    <div id="graph-interpretation" class="graph-interpretation">
-                        <h4>📊 Graph Interpretation</h4>
-                        <div id="graph-interpretation-content" class="graph-interpretation-content">
-                            <p>Enter values in the Calculator tab to see graph interpretation here.</p>
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -608,7 +565,7 @@
     
     <!-- Core utilities -->
     <script src="scripts/safeExpressionEvaluator.js?v=2.1.5"></script>
-    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.5"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.6"></script>
     <script src="scripts/unitConverter.js?v=2.1.5"></script>
     <script src="scripts/unitParser.js?v=2.1.5"></script>
     <script src="scripts/expressionParser.js?v=2.1.5"></script>
@@ -620,22 +577,18 @@
     
     <!-- Feature modules -->
     <script src="scripts/classification.js?v=2.1.5"></script>
-    <script src="scripts/formulaExplorer.js?v=2.1.5"></script>
     <script src="scripts/frqSupport.js?v=2.1.5"></script>
     <script src="scripts/quickNav.js?v=2.1.5"></script>
     <script src="scripts/formulaKnowledgeGraph.js?v=3.1.2"></script>
     <!-- Expert System (deterministic question→formula) -->
     <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js?v=1.0.0"></script>
-    <script src="scripts/formulaGraphConfig.js?v=2.1.5"></script>
-    <script src="scripts/enhancedOfflineGraph.js?v=2.1.5"></script>
-    <script src="scripts/graphManager.js?v=2.1.5"></script>
     
     <!-- UI Rendering -->
-    <script src="scripts/ui/rendering/VariableInputs.js?v=2.1.5"></script>
+    <script src="scripts/ui/rendering/VariableInputs.js?v=2.1.6"></script>
     <script src="scripts/algebraicSolver.js?v=2.1.5"></script>
     
     <!-- UI (ES Modules) -->
-    <script type="module" src="scripts/ui/ui/init.js?v=2.3.0"></script>
+    <script type="module" src="scripts/ui/ui/init.js?v=2.3.1"></script>
     
     <!-- Force render fix -->
     <script src="force_render_fix.js?v=2.1.8"></script>
@@ -646,6 +599,67 @@
         // Make sure these are available as soon as script executes
         (function() {
             'use strict';
+            
+            function showDebugOverlay(title, lines) {
+                try {
+                    const existing = document.getElementById('astrocalc-debug-overlay');
+                    if (existing) existing.remove();
+                    
+                    const overlay = document.createElement('div');
+                    overlay.id = 'astrocalc-debug-overlay';
+                    overlay.style.cssText = [
+                        'position: fixed',
+                        'inset: 16px',
+                        'z-index: 999999',
+                        'background: rgba(15, 23, 42, 0.92)',
+                        'border: 1px solid rgba(148, 163, 184, 0.25)',
+                        'border-radius: 12px',
+                        'box-shadow: 0 20px 60px rgba(0,0,0,0.6)',
+                        'padding: 14px 14px 10px',
+                        'color: #e2e8f0',
+                        'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        'overflow: auto'
+                    ].join(';');
+                    
+                    const safeTitle = String(title || 'Debug').replace(/[<>]/g, '');
+                    const safeBody = (Array.isArray(lines) ? lines : [String(lines || '')])
+                        .map(s => String(s).replace(/[<>]/g, ''))
+                        .join('\n');
+                    
+                    overlay.innerHTML = `
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+                            <div style="font-weight:700;font-size:14px;color:#a8c7ff;">${safeTitle}</div>
+                            <div style="display:flex;gap:8px;">
+                                <button id="astrocalc-debug-copy" style="background:#667eea;color:white;border:0;padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:700;">Copy</button>
+                                <button id="astrocalc-debug-close" style="background:rgba(255,255,255,0.1);color:#e2e8f0;border:1px solid rgba(148,163,184,0.25);padding:6px 10px;border-radius:8px;cursor:pointer;font-weight:700;">Close</button>
+                            </div>
+                        </div>
+                        <pre style="white-space:pre-wrap;line-height:1.35;margin:0;font-size:12px;">${safeBody}</pre>
+                        <div style="margin-top:10px;opacity:0.85;font-size:11px;">
+                            Also logged to the console.
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(overlay);
+                    overlay.querySelector('#astrocalc-debug-close')?.addEventListener('click', () => overlay.remove());
+                    overlay.querySelector('#astrocalc-debug-copy')?.addEventListener('click', async () => {
+                        try {
+                            await navigator.clipboard.writeText(`${safeTitle}\n\n${safeBody}`);
+                            const btn = overlay.querySelector('#astrocalc-debug-copy');
+                            if (btn) {
+                                const old = btn.textContent;
+                                btn.textContent = 'Copied';
+                                setTimeout(() => (btn.textContent = old), 800);
+                            }
+                        } catch (_) {
+                            // ignore
+                        }
+                    });
+                } catch (_) {
+                    // If overlay fails, fall back to alert.
+                    alert(String(lines || 'Debug ran. Check console.'));
+                }
+            }
             
             window.astrocalcDiagnostics = function() {
                     console.log('=== AstroCalc Diagnostics ===');
@@ -766,23 +780,48 @@
                         console.log('✅ Auto-fix applied! Check if cards appear now.');
                     }
                     
+                    const summary = [
+                        `formulas: ${typeof formulas !== 'undefined' ? (Array.isArray(formulas) ? formulas.length : 'defined') : 'missing'}`,
+                        `uiOrchestrator: ${typeof window.uiOrchestrator !== 'undefined'}`,
+                        `renderFormulaList: ${typeof window.renderFormulaList === 'function'}`,
+                        `cards: ${document.querySelectorAll('#formula-list .formula-card').length}`
+                    ];
                     console.log('=== End Diagnostics ===');
                     console.log('💡 Run astrocalcDiagnostics() anytime to check status');
                     console.log('💡 Run forceRenderCards() to force render with visibility fixes');
+                    showDebugOverlay('AstroCalc Diagnostics', summary.concat([
+                        '',
+                        'If cards are 0 but formulas > 0, use Force Render.',
+                    ]));
             };
             
             // Add force render function
             window.forceRenderCards = function() {
                 console.log('🔧 Force rendering cards...');
-                console.log('Checking for renderFormulaList...', typeof renderFormulaList);
-                console.log('Checking for formulas...', typeof formulas);
+                console.log('Checking for renderFormulaList...', typeof window.renderFormulaList);
+                console.log('Checking for formulas...', typeof window.formulas);
+                
+                // Prefer the modular orchestrator path (current architecture)
+                if (window.uiOrchestrator && typeof window.uiOrchestrator.renderInitialFormulas === 'function') {
+                    try {
+                        window.uiOrchestrator.renderInitialFormulas();
+                        const count = document.querySelectorAll('#formula-list .formula-card').length;
+                        showDebugOverlay('Force Render', [
+                            'Used uiOrchestrator.renderInitialFormulas()',
+                            `cards now: ${count}`
+                        ]);
+                        return true;
+                    } catch (e) {
+                        console.error('[ForceRender] uiOrchestrator renderInitialFormulas failed:', e);
+                    }
+                }
                 
                 // Wait for renderFormulaList to be available
                 function tryRender(retries = 20) {
                     // Check if ui.js has loaded by checking for renderFormulaList
-                    if (typeof renderFormulaList === 'function') {
+                    if (typeof window.renderFormulaList === 'function') {
                         // renderFormulaList is available, proceed
-                        if (typeof formulas === 'undefined' || !formulas || formulas.length === 0) {
+                        if (typeof window.formulas === 'undefined' || !window.formulas || window.formulas.length === 0) {
                             console.error('❌ Formulas not loaded! Waiting...');
                             if (retries > 0) {
                                 setTimeout(() => tryRender(retries - 1), 200);
@@ -807,7 +846,7 @@
                         
                         // Render
                         console.log('✅ renderFormulaList found, rendering...');
-                        renderFormulaList();
+                        window.renderFormulaList();
                         
                         // Force visibility after render
                         setTimeout(() => {
@@ -825,6 +864,10 @@
                                 });
                                 
                                 console.log(`✅ Force render complete. ${cards.length} cards should be visible.`);
+                                showDebugOverlay('Force Render', [
+                                    'Used window.renderFormulaList()',
+                                    `cards now: ${cards.length}`
+                                ]);
                             }
                         }, 100);
                         
@@ -844,6 +887,11 @@
                             console.error('💡 This means ui.js did not load properly.');
                             console.error('💡 Check Network tab to see if scripts/ui.js loaded (should be 200 status)');
                             console.error('💡 Try: Hard refresh (Cmd+Shift+R) or clear cache');
+                            showDebugOverlay('Force Render', [
+                                'renderFormulaList is not available.',
+                                'This usually means the UI did not initialize correctly.',
+                                'Open DevTools console for errors.'
+                            ]);
                             
                             // Try to manually trigger script reload
                             const script = document.createElement('script');

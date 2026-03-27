@@ -382,6 +382,37 @@ class UnitConverter {
     }
 
     /**
+     * Short hint for UI: how a numeric value in `fromUnit` maps to `baseUnit`.
+     * Non-base fields should show the applied multiplier (not an implicit ×1).
+     */
+    static getConversionHintToBase(fromUnit, baseUnit) {
+        if (!fromUnit || !baseUnit) return '';
+        const cFrom = this.getCanonical(fromUnit);
+        const cBase = this.getCanonical(baseUnit);
+        if (!cFrom || !cBase || cFrom === cBase) return '';
+
+        const catFrom = this.getUnitCategory(cFrom);
+        const catBase = this.getUnitCategory(cBase);
+        const baseLabel = this.formatUnit(baseUnit);
+
+        if (catFrom === 'temperature' && catBase === 'temperature' && cBase === 'K') {
+            if (cFrom === '°C') return `value × 1 + 273.15 → ${baseLabel}`;
+            if (cFrom === '°F') return `(value + 459.67) × 5/9 → ${baseLabel}`;
+        }
+
+        if (!catFrom || !catBase || catFrom !== catBase) return '';
+
+        const factor = this.convertToBase(1, fromUnit, baseUnit);
+        if (typeof factor !== 'number' || !isFinite(factor)) return '';
+
+        const fmt =
+            Math.abs(factor) >= 1e8 || (Math.abs(factor) < 1e-6 && factor !== 0)
+                ? factor.toExponential(4)
+                : Number(factor.toPrecision(8)).toString();
+        return `value × ${fmt} → ${baseLabel}`;
+    }
+
+    /**
      * Get alternative units for a given base unit
      * BACKWARD COMPATIBILITY: Required by UI components
      */

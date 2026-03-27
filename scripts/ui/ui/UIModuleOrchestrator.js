@@ -3,7 +3,7 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.0';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.1';
 import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
@@ -43,9 +43,9 @@ export class UIModuleOrchestrator {
             window.expertSystem = this.expertSystem;
             window.solveQuestion = (q) => this.expertSystem.solveQuestion(q);
 
-            // Initialize GraphCoordinator
+            // Initialize GraphCoordinator (disabled in calculator card flow)
             this.graphCoordinator = new GraphCoordinator({
-                enabled: true,
+                enabled: false,
                 containerId: 'desmos-graph',
                 tabId: 'graph-tab',
                 createGraphManager: () => {
@@ -72,14 +72,7 @@ export class UIModuleOrchestrator {
                 onMainTabSwitch: (tabName) => {
                     console.log('[Orchestrator] Main tab switched:', tabName);
                 },
-                onTabSwitch: (tabName) => {
-                    if (tabName === 'graph') {
-                        const formula = this.formulaSelector?.getCurrentFormula();
-                        if (formula) {
-                            this.graphCoordinator.forceUpdateOnTabActivation(formula, () => this.getCurrentVariableValues());
-                        }
-                    }
-                },
+                onTabSwitch: (_tabName) => {},
                 initFormulaExplorer: () => {
                     if (typeof window.initFormulaExplorer === 'function') {
                         window.initFormulaExplorer();
@@ -91,31 +84,18 @@ export class UIModuleOrchestrator {
                     }
                     return null;
                 },
-                onGraphTabActivated: () => {
-                    const formula = this.formulaSelector?.getCurrentFormula();
-                    if (formula) {
-                        const values = this.getCurrentVariableValues();
-                        this.graphCoordinator.updateGraphIfEnabled(formula, values);
-                    }
-                }
+                onGraphTabActivated: () => {}
             });
             // Initialize CalculationOrchestrator
             this.calculationOrchestrator = new CalculationOrchestrator({
                 getCalculator: () => this.formulaSelector?.getCurrentCalculator() || null,
                 getFormula: () => this.formulaSelector?.getCurrentFormula() || null,
-                getGraphManager: () => this.graphCoordinator.ensureGraphManager(),
+                getGraphManager: () => null,
                 parseNumericValue: (input, unit) => this.calculationUtils.parseNumericValue(input, unit),
                 displayResult: (result) => this.displayResult(result),
                 displayError: (message) => this.displayError(message),
-                updateGraphIfEnabled: (formula, values, options) => {
-                    this.graphCoordinator.updateGraphIfEnabled(formula, values, options);
-                },
-                updateGraphInterpretation: (formula, values) => {
-                    // Handle graph interpretation if needed
-                    if (typeof window.updateGraphInterpretation === 'function') {
-                        window.updateGraphInterpretation(formula, values);
-                    }
-                },
+                updateGraphIfEnabled: () => {},
+                updateGraphInterpretation: () => {},
                 updateSolveIndicators: () => {
                     if (typeof window.updateSolveIndicators === 'function') {
                         window.updateSolveIndicators();
@@ -131,7 +111,7 @@ export class UIModuleOrchestrator {
                     getUnitCategory: (unit) => this.options.UnitConverter.getUnitCategory(unit)
                 } : null,
                 globalConstants: this.options.globalConstants,
-                graphUpdatesEnabled: true
+                graphUpdatesEnabled: false
             });
             // Initialize FormulaSelector
             this.formulaSelector = new FormulaSelector({
@@ -147,7 +127,7 @@ export class UIModuleOrchestrator {
                     }
                     return null;
                 },
-                getGraphCoordinator: () => this.graphCoordinator,
+                getGraphCoordinator: () => null,
                 renderVariableInputs: (formula) => {
                     // Use VariableInputsRenderer if available, otherwise use fallback
                     if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
@@ -168,16 +148,10 @@ export class UIModuleOrchestrator {
                         window.updateSolveIndicators();
                     }
                 },
-                updateGraphIfEnabled: (formula, values) => {
-                    this.graphCoordinator.updateGraphIfEnabled(formula, values);
-                },
-                updateGraphInterpretation: (formula, values) => {
-                    if (typeof window.updateGraphInterpretation === 'function') {
-                        window.updateGraphInterpretation(formula, values);
-                    }
-                },
+                updateGraphIfEnabled: () => {},
+                updateGraphInterpretation: () => {},
                 getCurrentVariableValues: () => this.getCurrentVariableValues(),
-                graphUpdatesEnabled: true,
+                graphUpdatesEnabled: false,
                 cleanupGlobalState: () => {
                     if (typeof window.cleanupGlobalState === 'function') {
                         window.cleanupGlobalState();

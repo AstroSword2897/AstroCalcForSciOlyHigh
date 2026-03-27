@@ -15,9 +15,16 @@ export class CalculationOrchestrator {
         this.updateGraphIfEnabled = options.updateGraphIfEnabled;
         this.updateGraphInterpretation = options.updateGraphInterpretation;
         this.updateSolveIndicators = options.updateSolveIndicators;
-        this.unitConverter = options.unitConverter;
+        this.unitConverter = options.unitConverter || (typeof window !== 'undefined' && window.UnitConverter ? {
+            convertToBase: (value, fromUnit, baseUnit) => window.UnitConverter.convertToBase(value, fromUnit, baseUnit),
+            convert: (value, fromUnit, toUnit) => window.UnitConverter.convert(value, fromUnit, toUnit),
+            getAlternativeUnits: (baseUnit) => window.UnitConverter.getAlternativeUnits(baseUnit),
+            convertAndFormat: (value, unit, opts) => window.UnitConverter.convertAndFormat(value, unit, opts),
+            getCanonical: (unit) => window.UnitConverter.getCanonical(unit),
+            getUnitCategory: (unit) => window.UnitConverter.getUnitCategory(unit)
+        } : null);
         this.globalConstants = options.globalConstants || {};
-        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? true;
+        this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? false;
     }
     /**
      * Perform calculation with improved error handling and validation

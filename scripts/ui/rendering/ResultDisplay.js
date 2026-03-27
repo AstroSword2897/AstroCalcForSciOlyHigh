@@ -208,9 +208,21 @@ class ResultDisplayRenderer {
                     ${result.solvedForms && Object.keys(result.solvedForms).length > 0 ? `
                         <div style="margin-top: 15px; padding: 12px; background: rgba(102,126,234,0.15); border-radius: 8px; border: 1px solid rgba(102,126,234,0.3);">
                             <div style="font-weight: 600; margin-bottom: 10px;">Solve for each variable:</div>
-                            ${Object.entries(result.solvedForms).map(([v, form]) => `
-                                <div style="margin-bottom: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 0.95em;">${this._escapeHtml(form)}</div>
-                            `).join('')}
+                            ${Object.entries(result.solvedForms).map(([v, form]) => {
+                                const sub = result.solvedFormsSubstituted && result.solvedFormsSubstituted[v]
+                                    ? String(result.solvedFormsSubstituted[v])
+                                    : '';
+                                return `
+                                    <div style="margin-bottom: 10px;">
+                                        <div style="font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 0.95em;">${this._escapeHtml(form)}</div>
+                                        ${sub && sub !== String(form) ? `
+                                            <div style="margin-top: 4px; opacity: 0.9; font-family: 'Courier New', monospace; white-space: pre-wrap; font-size: 0.9em;">
+                                                Substitute: ${this._escapeHtml(sub)}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
                         </div>
                     ` : ''}
                 `;
