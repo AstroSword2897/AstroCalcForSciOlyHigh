@@ -606,12 +606,16 @@ var formulas = [
     {
         id: "hubble_time",
         name: "Hubble Time",
-        description: "Rough time since recession began assuming constant expansion: t ≈ 1/H₀. With H₀ in km/s/Mpc, t_sec = 3.086×10¹⁹ / H₀ (1 Mpc = 3.086×10¹⁹ km). E.g. H₀ = 67.4 ⇒ t ≈ 4.58×10¹⁷ s ≈ 1.45×10¹⁰ yr.",
-        equation: "t_sec = 3.086e19 / H0",
+        description: "Rough time since recession began assuming constant expansion: t ≈ 1/H₀. With H₀ in km/s/Mpc, t_sec = 3.085677581×10¹⁹ / H₀ (1 Mpc = 3.085677581×10¹⁹ km per IAU). E.g. H₀ = 67.4 ⇒ t ≈ 4.578×10¹⁷ s; ÷ 3.15576×10⁷ s/Julian yr (365.25 d) ≈ 1.450×10¹⁰ yr.",
+        equation: "t_sec = 3.085677581e19 / H0",
+        solveFor: {
+            t_sec: "t_sec = 3.085677581e19 / H0",
+            H0: "H0 = 3.085677581e19 / t_sec"
+        },
         concepts: ["hubble time", "cosmic age", "expansion", "lookback time"],
         keywords: ["hubble time", "time since galaxy began receding", "1 over H0"],
         variables: [
-            { symbol: "t_sec", name: "Time", unit: "seconds", description: "Hubble time (÷ 3.156e7 for years)" },
+            { symbol: "t_sec", name: "Time", unit: "seconds", description: "Hubble time in seconds (÷ 3.15576e7 for Julian years)" },
             { symbol: "H0", name: "Hubble Constant", unit: "km/(s·Mpc)", description: "H₀" }
         ],
         questionPatterns: [
@@ -958,15 +962,19 @@ var formulas = [
     {
         id: "parallax_to_light_years",
         name: "Distance from Parallax (Light Years)",
-        description: "Distance in light years from parallax in arcseconds. d_pc = 1/p, and 1 pc ≈ 3.26 ly, so d_ly = 3.26/p. E.g. p = 20 mas = 0.02 arcsec ⇒ d = 163 ly.",
-        equation: "d_ly = 3.26 / p",
+        description: "Distance in light years from parallax in arcseconds: d_ly = (1 pc in ly)/p with 1 pc = 3.26156… ly (IAU). E.g. p = 20 mas = 0.02 arcsec ⇒ d_ly ≈ 163.1 ly.",
+        equation: "d_ly = pc_to_ly / p",
+        solveFor: {
+            d_ly: "d_ly = pc_to_ly / p",
+            p: "p = pc_to_ly / d_ly"
+        },
         concepts: ["parallax", "distance", "light years", "parsec"],
         keywords: ["parallax light years", "distance in light years", "parallax to light years"],
         variables: [
             { symbol: "d_ly", name: "Distance", unit: "light years", description: "Distance in light years" },
             { symbol: "p", name: "Parallax", unit: "arcseconds", description: "Parallax angle (e.g. 20 mas = 0.02)" }
         ],
-        constants: { pc_to_ly: 3.26 },
+        constants: { pc_to_ly: 3.2615637771679543 },
         questionPatterns: [
             "distance in light years",
             "parallax 20 milliarcseconds light years",
@@ -1068,20 +1076,20 @@ var formulas = [
     {
         id: "synchrotron_cooling_timescale",
         name: "Synchrotron Cooling Timescale",
-        description: "Characteristic time for an electron to lose energy via synchrotron radiation. The timescale over which a relativistic electron loses a significant fraction of its energy through synchrotron emission in a magnetic field. This cooling timescale determines how long high-energy electrons can maintain their energy before radiative losses become dominant. Essential for understanding the evolution of synchrotron sources, modeling time-dependent spectra, and determining the maximum energy that electrons can reach in astrophysical environments. Shorter cooling timescales indicate stronger magnetic fields or higher electron energies, leading to more rapid energy loss and spectral evolution.",
-        equation: "t_syn = (6π m_e c) / (σ_T B² γ)",
+        description: "Characteristic cooling time for a relativistic electron in SI, consistent with synchrotron_power: radiated power P = (4/3) σ_T c U_B γ² with U_B = B²/(2μ₀). Order-of-magnitude time t_syn ≈ γ m_e c² / P gives t_syn = 3 m_e c μ₀ / (2 σ_T B² γ). Use B in tesla. (Older texts often quote t = 6π m_e c/(σ_T B² γ) in Gaussian/CGS units with B in gauss — not equivalent to plugging SI B into that expression.)",
+        equation: "t_syn = (3 * m_e * c * mu_0) / (2 * σ_T * B^2 * γ)",
         variables: [
             {
                 symbol: "t_syn",
                 name: "Cooling Timescale",
                 unit: "seconds",
-                description: "Time for electron to lose most of its energy"
+                description: "Order-of-magnitude time for significant synchrotron energy loss"
             },
             {
                 symbol: "B",
                 name: "Magnetic Field Strength",
-                unit: "Gauss",
-                description: "Strength of the magnetic field (in Gauss for this formula)"
+                unit: "Tesla",
+                description: "Magnetic field strength (SI)"
             },
             {
                 symbol: "γ",
@@ -1091,9 +1099,10 @@ var formulas = [
             }
         ],
         constants: {
-            m_e: 9.1093837139e-28,  // Electron mass in grams (CGS)
-            c: 2.99792458e10,  // Speed of light in cm/s (CGS)
-            σ_T: 6.6524587321e-25  // Thomson cross-section in cm² (CGS)
+            m_e: 9.1093837139e-31,
+            c: 2.99792458e8,
+            mu_0: 1.25663706212e-6,
+            σ_T: 6.6524587321e-29
         }
     },
     {
@@ -1129,8 +1138,8 @@ var formulas = [
     {
         id: "magnetic_energy_density",
         name: "Magnetic Energy Density",
-        description: "Energy density stored in a magnetic field. The energy per unit volume contained in a magnetic field, representing the stored potential energy that can be converted to other forms. Essential for understanding magnetic field energetics in astrophysical contexts like pulsar magnetospheres, accretion disks, and interstellar medium. The magnetic energy density determines the strength of magnetic effects and plays a crucial role in magnetohydrodynamics, plasma physics, and high-energy astrophysics. Related to synchrotron radiation, particle acceleration, and magnetic field dynamics.",
-        equation: "U_B = B² / (8π)",
+        description: "Energy density stored in a magnetic field in SI: U_B = B²/(2μ₀) (J/m³). The Gaussian/CGS form B²/(8π) in erg/cm³ is equivalent when using consistent unit systems — do not mix. Pairs with synchrotron_power and magnetic_pressure_si.",
+        equation: "U_B = B^2 / (2 * mu_0)",
         variables: [
             {
                 symbol: "U_B",
@@ -1144,7 +1153,10 @@ var formulas = [
                 unit: "Tesla",
                 description: "Strength of the magnetic field"
             }
-        ]
+        ],
+        constants: {
+            mu_0: 1.25663706212e-6
+        }
     },
     {
         id: "magnetic_pressure_si",
@@ -1697,6 +1709,11 @@ var formulas = [
         name: "Doppler Shift",
         description: "Relates observed wavelength shift to velocity. The Doppler effect for light, where motion toward or away from an observer causes a shift in observed wavelength. Blueshift (shorter wavelength) indicates motion toward the observer, while redshift (longer wavelength) indicates motion away. Essential for measuring stellar radial velocities, detecting exoplanets via the radial velocity method, determining galaxy recession velocities, and understanding cosmic expansion. Critical for spectroscopy, exoplanet detection, and cosmology. The formula applies to non-relativistic velocities; for high speeds, relativistic corrections are needed.",
         equation: "(λ_obs - λ_rest) / λ_rest = v / c",
+        solveFor: {
+            v: "v = c * (λ_obs - λ_rest) / λ_rest",
+            "λ_obs": "λ_obs = λ_rest * (1 + v / c)",
+            "λ_rest": "λ_rest = λ_obs / (1 + v / c)"
+        },
         variables: [
             {
                 symbol: "λ_obs",
@@ -1718,7 +1735,7 @@ var formulas = [
             }
         ],
         constants: {
-            c: 2.998e8
+            c: 2.99792458e8
         }
     },
     {
@@ -1747,7 +1764,7 @@ var formulas = [
             }
         ],
         constants: {
-            c: 2.998e8
+            c: 2.99792458e8
         }
     },
     {
@@ -1965,8 +1982,12 @@ var formulas = [
     {
         id: "kepler_third_law_solar",
         name: "Kepler's Third Law (Solar System)",
-        description: "Simplified form for solar system objects (P in years, a in AU)",
-        equation: "P² = a³",
+        description: "Numerical form P² = a³ with P in years and a in AU (defined so GM☉ absorbs into units). For other unit systems use kepler_third_law.",
+        equation: "P^2 = a^3",
+        solveFor: {
+            P: "P = sqrt(a^3)",
+            a: "a = P^(2/3)"
+        },
         variables: [
             {
                 symbol: "P",
@@ -2168,7 +2189,7 @@ var formulas = [
     {
         id: "roche_lobe_spherical",
         name: "Roche Lobe Radius (Spherical Approximation)",
-        description: "Approximate Roche lobe as sphere: r/d = max(f1, f2). f1 = 0.38 + 0.2 log₁₀(m/M), f2 = 0.46224 (m/M/(1+m/M))^(1/3). Use for mass-transfer binaries (e.g. white dwarf + red giant).",
+        description: "Approximate Roche lobe as a sphere: r/d = max(f1, f2) with Paczyński-style f1, f2 (not Eggleton 1983). A common accurate fit is Eggleton: r_L/a = 0.49 q^(2/3) / (0.6 q^(2/3) + ln(1 + q^(1/3))), q = m/M. Use for mass-transfer binaries (e.g. white dwarf + red giant).",
         equation: "r = d * max(0.38 + 0.2*log10(m/M), 0.46224*((m/M)/(1+m/M))^(1/3))",
         concepts: ["roche lobe", "binary", "mass transfer", "Lagrangian", "accretion"],
         keywords: ["roche lobe radius", "roche lobe spherical", "radius of roche lobe", "f1 f2"],
@@ -2208,8 +2229,14 @@ var formulas = [
     {
         id: "orbital_energy",
         name: "Orbital Energy",
-        description: "Bound two-body orbit: total mechanical energy E = −GMm/(2a). Use with K = ½mv² and U = −GMm/r.",
+        description: "Bound two-body orbit: total mechanical energy E = −GMm/(2a) for semi-major axis a (ellipse or circle). For a circular orbit, a equals orbital radius; see orbital_energy_simple for the same relation written with r.",
         equation: "E = -GMm / (2a)",
+        solveFor: {
+            E: "E = -G * M * m / (2 * a)",
+            a: "a = -G * M * m / (2 * E)",
+            M: "M = -2 * E * a / (G * m)",
+            m: "m = -2 * E * a / (G * M)"
+        },
         variables: [
             {
                 symbol: "E",
@@ -2324,8 +2351,14 @@ var formulas = [
     {
         id: "center_of_mass",
         name: "Center of Mass (Binary System)",
-        description: "Center of mass position in a binary star system. Standard form: M₁r₁ = M₂r₂ (distances from the barycenter). Often used with separation a = r₁ + r₂ (semi-major axis of relative orbit).",
+        description: "Barycenter distances: M₁r₁ = M₂r₂ (each distance measured from the center of mass). If you also know separation d = r₁ + r₂, combine with r₁ = d M₂/(M₁+M₂) (not encoded here—use a second formula or solve the pair).",
         equation: "M1 * r1 = M2 * r2",
+        solveFor: {
+            M1: "M1 = M2 * r2 / r1",
+            M2: "M2 = M1 * r1 / r2",
+            r1: "r1 = M2 * r2 / M1",
+            r2: "r2 = M1 * r1 / M2"
+        },
         variables: [
             {
                 symbol: "M1",
@@ -2350,12 +2383,6 @@ var formulas = [
                 name: "Distance 2",
                 unit: "meters",
                 description: "Distance of star 2 from center of mass"
-            },
-            {
-                symbol: "a",
-                name: "Semi-major Axis",
-                unit: "meters",
-                description: "Total semi-major axis"
             }
         ],
         questionPatterns: [
@@ -2371,20 +2398,25 @@ var formulas = [
     {
         id: "stellar_lifetime",
         name: "Stellar Lifetime",
-        description: "Approximate main sequence lifetime of a star",
-        equation: "τ ≈ 10¹⁰ × (M_sun / M)^2.5",
+        description: "Approximate main sequence lifetime scaling τ ∝ M/L with L ∝ M^3.5 ⇒ τ ∝ M^(-2.5). Implemented as τ = factor×(M_sun/M)^exponent with τ in years and masses in kg (M_sun defaults to solar mass).",
+        equation: "tau = factor * (M_sun / M)^exponent",
+        solveFor: {
+            tau: "tau = factor * (M_sun / M)^exponent",
+            M: "M = M_sun / (tau / factor)^(1/exponent)",
+            M_sun: "M_sun = M * (tau / factor)^(1/exponent)"
+        },
         variables: [
             {
-                symbol: "τ",
-                name: "Lifetime",
+                symbol: "tau",
+                name: "Lifetime τ",
                 unit: "years",
-                description: "Main sequence lifetime"
+                description: "Main sequence lifetime (symbol τ)"
             },
             {
                 symbol: "M_sun",
-                name: "Solar Mass",
+                name: "Reference solar mass",
                 unit: "kg",
-                description: "Mass of the Sun"
+                description: "Usually M☉; leave default or enter for scaling"
             },
             {
                 symbol: "M",
@@ -2495,8 +2527,12 @@ var formulas = [
     {
         id: "mass_luminosity_relation",
         name: "Mass-Luminosity Relation",
-        description: "Luminosity as a function of mass for main sequence stars",
-        equation: "L ≈ M^3.5",
+        description: "Empirical main-sequence scaling L ∝ M^exponent (often exponent ≈ 3.5 for ~0.1–20 M☉). L and M are in consistent solar units (dimensionless ratio to Sun).",
+        equation: "L = M^exponent",
+        solveFor: {
+            L: "L = M^exponent",
+            M: "M = L^(1/exponent)"
+        },
         variables: [
             {
                 symbol: "L",
@@ -2682,7 +2718,7 @@ var formulas = [
         ],
         constants: {
             G: 6.67430e-11,
-            c: 2.998e8,
+            c: 2.99792458e8,
             factor: 2
         }
     },
@@ -2781,9 +2817,6 @@ var formulas = [
                 description: "Planetary albedo (0-1)"
             }
         ],
-        constants: {
-            factor: 2
-        }
     },
     {
         id: "greenhouse_effect",
@@ -3042,8 +3075,8 @@ var formulas = [
     {
         id: "jeans_mass",
         name: "Jeans Mass",
-        description: "Minimum cloud mass for gravitational collapse (approximate)",
-        equation: "M_J ≈ ((5kT) / (Gμm_H))^(3/2) / ρ^(1/2)",
+        description: "Jeans mass from isothermal Jeans length λ_J = √(π c_s²/(Gρ)) and M_J = (4π/3)ρ(λ_J/2)³, giving M_J = K_J (kT/(Gμ m_H))^(3/2) / ρ^(1/2) with K_J = π^(5/2)/6 ≈ 2.92 for ideal gas c_s² = kT/(μ m_H). Older hand-waving sometimes omits K_J (order-unity error).",
+        equation: "M_J = K_J * (k * T / (G * μ * m_H))^(3/2) / ρ^(1/2)",
         variables: [
             {
                 symbol: "M_J",
@@ -3073,7 +3106,8 @@ var formulas = [
         constants: {
             G: 6.67430e-11,
             k: 1.380649e-23,
-            m_H: 1.6735575e-27  // Proton mass (approximate for hydrogen atom)
+            m_H: 1.6735575e-27,  // Proton mass (approximate for hydrogen atom)
+            K_J: Math.pow(Math.PI, 2.5) / 6
         },
         concepts: ["Jeans mass", "gravitational collapse", "molecular cloud", "minimum mass", "temperature", "density"],
         keywords: ["Jeans mass", "minimum mass collapse", "cloud temperature density", "M_J T rho"],
@@ -3558,17 +3592,22 @@ var formulas = [
     },
     {
         id: "luminosity_distance",
-        name: "Luminosity Distance",
-        description: "Distance from observed flux and known luminosity",
-        equation: "D_L = √(L / (4πF))",
-        concepts: ["luminosity distance", "distance from luminosity and flux", "inverse square law", "observed flux", "intrinsic luminosity"],
-        keywords: ["luminosity distance", "observed flux", "known luminosity", "distance from flux", "distance from luminosity"],
+        name: "Distance from L and F (Euclidean inverse square)",
+        description: "Geometric distance from F = L/(4πd²), i.e. d = √(L/(4πF)) in flat space with no absorption. This is NOT the cosmological luminosity distance D_L = (1+z)D_M used in ΛCDM / high-z modulus—use distance_modulus_high_redshift and related cosmology entries for that.",
+        equation: "D_L = sqrt(L / (4 * pi * F))",
+        solveFor: {
+            D_L: "D_L = sqrt(L / (4 * pi * F))",
+            L: "L = 4 * pi * F * D_L^2",
+            F: "F = L / (4 * pi * D_L^2)"
+        },
+        concepts: ["luminosity distance", "distance from luminosity and flux", "inverse square law", "observed flux", "intrinsic luminosity", "euclidean distance"],
+        keywords: ["luminosity distance", "observed flux", "known luminosity", "distance from flux", "distance from luminosity", "inverse square distance", "flux luminosity distance"],
         variables: [
             {
                 symbol: "D_L",
-                name: "Luminosity Distance",
+                name: "Distance d",
                 unit: "meters",
-                description: "Distance based on luminosity and flux"
+                description: "Source distance from inverse-square law (not cosmological D_L)"
             },
             {
                 symbol: "L",
@@ -3584,13 +3623,23 @@ var formulas = [
             }
         ],
         constants: {
-            π: Math.PI
+            π: Math.PI,
+            pi: Math.PI
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: ["flux_from_luminosity"],
+            relatedTo: ["flux_from_luminosity", "distance_modulus_high_redshift", "inverse_square_law_brightness"],
+            uses: [],
+            generalizes: [],
+            specializes: []
         },
         questionPatterns: [
             "luminosity distance",
             "distance from luminosity and observed flux",
             "known luminosity observed flux distance",
-            "inverse square law distance"
+            "inverse square law distance",
+            "distance from flux and luminosity euclidean"
         ]
     },
     // ============================================================
@@ -3884,7 +3933,7 @@ var formulas = [
     {
         id: "distance_modulus_high_redshift",
         name: "Distance Modulus at High Redshift (Approximate)",
-        description: "Distance modulus formula for high-redshift objects. Relates distance to magnitude difference, accounting for cosmological effects. Essential for extragalactic distance measurements, standard candles, and cosmic distance ladder. Approximate form valid for high-redshift sources where cosmological corrections become important.",
+        description: "Distance modulus μ = 5 log₁₀(D_L/10 pc) with **cosmological** luminosity distance D_L (parsecs), not the Euclidean inverse-square distance from formula luminosity_distance. Pair with ΛCDM / comoving-distance relations for D_L(z).",
         equation: "μ = 5 log₁₀ (D_L / 10 pc)",
         concepts: ["distance modulus", "luminosity distance", "magnitude", "high redshift", "extragalactic", "standard candle", "cosmic distance ladder"],
         keywords: ["distance modulus", "luminosity distance", "magnitude", "redshift", "extragalactic", "standard candle"],
@@ -3903,9 +3952,9 @@ var formulas = [
             }
         ],
         relationships: {
-            prerequisites: ["distance_modulus", "luminosity_distance"],
+            prerequisites: ["distance_modulus"],
             derivedFrom: ["distance_modulus"],
-            relatedTo: ["distance_modulus", "luminosity_distance", "magnitude_flux_relation"],
+            relatedTo: ["distance_modulus", "luminosity_distance", "magnitude_flux_relation", "comoving_distance"],
             uses: [],
             generalizes: [],
             specializes: ["distance_modulus"]
@@ -5217,7 +5266,7 @@ var formulas = [
     {
         id: "pulsation_period_scaling",
         name: "Radial Pulsation Period Scaling",
-        description: "Dimensional scaling for radial pulsation periods. For a self-gravitating star, the dynamical timescale gives P ∝ sqrt(R^3 / (G M)), so P ∝ G^(-1/2) M^(-1/2) R^(3/2). This corresponds to fundamental radial pulsation scaling.",
+        description: "Dimensional scaling for radial pulsation periods: P ∝ √(R³/(GM)) up to factors of order unity (e.g. ~2π vs dynamical time √(3π/(2Gρ))); the true linear-adiabatic fundamental period also depends on polytropic index / structure. Use for exponents and scaling checks, not exact oscillation frequencies without a numerical prefactor.",
         equation: "P = sqrt(R^3 / (G * M))",
         concepts: ["pulsation period", "mira", "radial mode", "dynamical timescale", "stellar oscillation"],
         keywords: ["pulsation period scaling", "P proportional sqrt R cubed over GM", "Mira dimensional analysis"],
@@ -7658,9 +7707,15 @@ var formulas = [
     },
     {
         id: "orbital_energy_simple",
-        name: "Orbital Energy (Simple Form)",
-        description: "Total energy in circular orbit. Sum of kinetic and potential energy. Essential for orbital mechanics, escape velocity, and energy conservation. Negative for bound orbits.",
+        name: "Orbital Energy (Circular, radius r)",
+        description: "Same physics as orbital_energy: E = −GMm/(2a) with orbital radius r ≡ a for a circular orbit. Prefer orbital_energy when using semi-major axis on an ellipse.",
         equation: "E_orbit = -GMm / (2r)",
+        solveFor: {
+            E_orbit: "E_orbit = -G * M * m / (2 * r)",
+            r: "r = -G * M * m / (2 * E_orbit)",
+            M: "M = -2 * E_orbit * r / (G * m)",
+            m: "m = -2 * E_orbit * r / (G * M)"
+        },
         concepts: ["orbital energy", "energy", "orbital mechanics", "bound orbit", "circular orbit"],
         keywords: ["orbital energy", "energy", "orbit", "bound"],
         variables: [
@@ -9474,7 +9529,7 @@ var formulas = [
     {
         id: "photon_sphere",
         name: "Photon Sphere Radius",
-        description: "Radius of photon sphere around black hole. Circular orbit for photons. Essential for black hole physics and light paths. Photons can orbit at this radius.",
+        description: "Schwarzschild (non-rotating) black hole: unstable circular photon orbit at r = 1.5 R_s. For spinning Kerr black holes, radii depend strongly on spin a; this entry is Schwarzschild only.",
         equation: "r = 1.5 R_s",
         concepts: ["photon sphere", "black hole", "light paths", "orbits", "general relativity"],
         keywords: ["photon sphere", "black hole", "light paths", "orbits"],
@@ -9510,7 +9565,7 @@ var formulas = [
     {
         id: "isco",
         name: "Innermost Stable Circular Orbit (ISCO)",
-        description: "Innermost stable circular orbit around black hole. Closest stable orbit for massive particles. Essential for accretion disk physics and black hole observations. ISCO is at 3 Schwarzschild radii.",
+        description: "Schwarzschild black hole: ISCO for massive particles at r = 3 R_s (prograde equatorial disk). Kerr spacetime shifts ISCO inward or outward depending on black-hole spin; use this formula only for non-rotating approximation.",
         equation: "r = 3 R_s",
         concepts: ["ISCO", "innermost stable orbit", "black hole", "accretion disk", "stable orbit"],
         keywords: ["ISCO", "innermost stable", "black hole", "accretion", "stable orbit"],
@@ -9599,9 +9654,9 @@ var formulas = [
     // ============================================================
     {
         id: "transit_depth",
-        name: "Transit Depth (Fractional Drop in Flux)",
-        description: "Fractional drop in flux during planetary transit. Measures planet-to-star size ratio. Essential for exoplanet detection and characterization. Transit depth equals square of planet-to-star radius ratio.",
-        equation: "δ = (R_p / R_s)²",
+        name: "Transit Depth (Central Transit)",
+        description: "Fractional flux drop for a **central** transit (impact parameter b ≈ 0, i ≈ 90°): δ ≈ (R_p/R_s)². For grazing or inclined orbits, geometric factors reduce the observed depth; this entry does not model inclination or limb darkening.",
+        equation: "δ = (R_p / R_s)^2",
         concepts: ["transit", "transit depth", "exoplanet", "planetary transit", "flux drop", "exoplanet detection"],
         keywords: ["transit", "transit depth", "exoplanet", "planetary", "flux drop"],
         variables: [
@@ -9637,8 +9692,6 @@ var formulas = [
             "planetary transit",
             "exoplanet transit",
             "flux drop transit",
-            "transit depth inclination",
-            "inclination from transit depth",
             "exoplanet radius from transit",
             "planet radius from light curve",
             "transit light curve",
@@ -9651,19 +9704,18 @@ var formulas = [
             "exoplanet detection transit",
             "secondary transit",
             "primary transit",
-            "transit duration",
-            "eccentricity from transit",
-            "planet inclination",
-            "inclination planet",
-            "transit depth planet",
-            "simplified expression inclination"
+            "central transit depth",
+            "transit depth planet"
         ]
     },
     {
         id: "radial_velocity_amplitude",
-        name: "Radial Velocity Amplitude (Simplified)",
-        description: "Radial velocity amplitude for exoplanet detection. Measures stellar wobble from planet. Essential for exoplanet detection and mass determination. Amplitude depends on planet mass, star mass, and orbital parameters. The full equation is K = (2πG/P)^(1/3) × (M_p sin i) / (M_s^(2/3) × (M_s + M_p)^(1/3)) for circular orbits.",
-        equation: "K = (2πG/P)^(1/3) × (M_p sin i) / (M_s^(2/3) × (M_s + M_p)^(1/3))",
+        name: "Radial Velocity Semiamplitude (Circular Orbit)",
+        description: "Stellar reflex speed semiamplitude for a circular orbit: K = (2πG/P)^(1/3) M_p sin i / (M_s + M_p)^(2/3). Reduces to the common M_p ≪ M_s shortcut when (M_s+M_p)^(2/3) → M_s^(2/3). Uses orbital period P (not semi-major axis).",
+        equation: "K = (2 * pi * G / P)^(1/3) * M_p * sin(i) / (M_s + M_p)^(2/3)",
+        solveFor: {
+            K: "K = (2 * pi * G / P)^(1/3) * M_p * sin(i) / (M_s + M_p)^(2/3)"
+        },
         concepts: ["radial velocity", "exoplanet", "stellar wobble", "exoplanet detection", "planet mass", "orbital parameters", "doppler wobble", "radial velocity curve", "planet mass determination", "inclination", "orbital period"],
         keywords: ["radial velocity", "exoplanet", "stellar wobble", "detection", "planet mass", "radial velocity amplitude", "doppler wobble", "v_max", "radial velocity curve", "planet mass from radial velocity", "orbital speed from radial velocity"],
         variables: [
@@ -9686,22 +9738,26 @@ var formulas = [
                 description: "Mass of the star"
             },
             {
+                symbol: "P",
+                name: "Orbital Period",
+                unit: "seconds",
+                description: "Orbital period of planet around star"
+            },
+            {
                 symbol: "i",
                 name: "Inclination",
                 unit: "radians",
-                description: "Orbital inclination angle"
-            },
-            {
-                symbol: "a",
-                name: "Semi-major Axis",
-                unit: "meters",
-                description: "Semi-major axis of orbit"
+                description: "Orbital inclination (90° = edge-on)"
             }
         ],
+        constants: {
+            G: 6.67430e-11,
+            pi: Math.PI
+        },
         relationships: {
             prerequisites: ["kepler_third_law"],
             derivedFrom: [],
-            relatedTo: ["kepler_third_law", "doppler_shift"],
+            relatedTo: ["kepler_third_law", "kepler_third_law_binary", "doppler_shift"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -10522,18 +10578,18 @@ var formulas = [
     },
     {
         id: "bondi_accretion_rate",
-        name: "Bondi–Hoyle Accretion Rate (Order-of-Magnitude)",
-        description: "Spherical Bondi capture scaling: Ṁ ∝ G²M²ρ/c_s³ (exact prefactor depends on γ; this is the standard competition form). Use with sound_speed for c_s. Trigger: accretion onto compact object from ambient medium.",
-        equation: "Mdot = 4 * pi * G^2 * M^2 * rho / (c_s^3)",
+        name: "Bondi–Hoyle Accretion Rate (γ = 5/3)",
+        description: "Bondi (1952) spherical accretion: Ṁ = 4πλ G²M²ρ/c_s³. For an ideal monatomic gas γ = 5/3, λ = 1/4, so Ṁ = π G²M²ρ/c_s³. Isothermal (γ → 1) gives a different λ (~1.12). Use sound_speed for c_s.",
+        equation: "Mdot = pi * G^2 * M^2 * rho / (c_s^3)",
         concepts: ["bondi accretion", "accretion", "compact objects", "interstellar medium", "science olympiad astronomy"],
         keywords: ["bondi accretion", "bondi hoyle", "accretion rate ambient", "M dot bondi"],
         variables: [
-            { symbol: "Mdot", name: "Accretion Rate Ṁ", unit: "kg/s", description: "Mass accretion rate (order-of-magnitude)" },
+            { symbol: "Mdot", name: "Accretion Rate Ṁ", unit: "kg/s", description: "Mass accretion rate (γ = 5/3, λ = 1/4)" },
             { symbol: "M", name: "Point Mass", unit: "kg", description: "Accretor mass" },
             { symbol: "rho", name: "Ambient Density", unit: "kg/m³", description: "Gas density far from accretor" },
             { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Isothermal sound speed of ambient gas" }
         ],
-        constants: { G: 6.67430e-11 },
+        constants: { G: 6.67430e-11, pi: Math.PI },
         relationships: {
             prerequisites: [],
             derivedFrom: [],
@@ -10758,7 +10814,7 @@ var formulas = [
     {
         id: "type_ia_snr_peak_time_diffusion",
         name: "Type Ia Peak Time (Photon Diffusion Scaling)",
-        description: "Homologous expansion with diffusion: peak when t_diff ~ t_exp. Scaling t_peak ~ √(κM/(cv)) with κ opacity, M ejecta mass, v expansion speed. Trigger: SN Ia light curve width–luminosity context.",
+        description: "Homologous expansion with diffusion: peak when t_diff ~ t_exp. Scaling t_peak ~ √(κM/(cv)) with κ opacity, M ejecta mass, v expansion speed. Detailed models add O(1) prefactors (random-walk geometry, opacity definition); expect factor-of-order-2 variation vs. literature.",
         equation: "t_peak = sqrt(kappa * M / (c * v))",
         concepts: ["type Ia supernova", "photon diffusion", "light curve", "opacity", "science olympiad astronomy"],
         keywords: ["SN Ia peak time", "diffusion time supernova", "kappa M over c v"],
@@ -10789,9 +10845,9 @@ var formulas = [
     },
     {
         id: "stellar_gravity_dynamical_time",
-        name: "Gravity Dynamical Time (ρ scaling)",
-        description: "Order-of-magnitude timescale for self-gravity of uniform-density matter: t_dyn ~ 1/√(Gρ). Compare to diffusion, nuclear, and thermal times in Olympiad ‘which process wins?’ problems. Related to free-fall and pulsation scaling.",
-        equation: "t_dyn = 1 / sqrt(G * rho)",
+        name: "Free-Fall Time (Uniform Sphere)",
+        description: "Standard homogeneous-sphere free-fall (collapse) time t_ff = √(3π/(32Gρ)). Older rough estimate 1/√(Gρ) is the same scaling but missing √(3π/32) ≈ 0.54. Compare to pulsation_period_scaling √(R³/(GM)) — different geometry/prefactors; do not equate numerically without a model.",
+        equation: "t_dyn = sqrt(3 * pi / (32 * G * rho))",
         concepts: ["dynamical time", "stellar structure", "gravity", "collapse", "timescale", "science olympiad astronomy"],
         keywords: ["dynamical time", "one over sqrt G rho", "free fall timescale", "core collapse scale"],
         variables: [
@@ -10799,7 +10855,7 @@ var formulas = [
             { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
             { symbol: "rho", name: "Density ρ", unit: "kg/m³", description: "Typical or mean density" }
         ],
-        constants: { G: 6.67430e-11 },
+        constants: { G: 6.67430e-11, pi: Math.PI },
         relationships: {
             prerequisites: [],
             derivedFrom: [],
@@ -10954,7 +11010,10 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     kelvin_helmholtz_growth_rate: 72,
     alfven_mach_number: 90,
     type_ia_snr_peak_time_diffusion: 74,
-    stellar_gravity_dynamical_time: 72,
+    stellar_gravity_dynamical_time: 84,
+    luminosity_distance: 82,
+    transit_depth: 84,
+    radial_velocity_amplitude: 86,
     adiabatic_gradient_ideal_gas: 90,
     compact_object_keplerian_breakup_omega: 82,
     photon_diffusion_time_optical_depth: 86,
