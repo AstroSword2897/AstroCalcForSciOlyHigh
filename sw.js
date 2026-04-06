@@ -5,7 +5,7 @@
  * - Static assets: cache match with ignoreSearch, then network → runtime cache
  */
 
-const CACHE_VERSION = 'v4.0.7';
+const CACHE_VERSION = 'v4.0.9';
 const CACHE_NAME = `astrocalc-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `astrocalc-runtime-${CACHE_VERSION}`;
 
@@ -45,7 +45,9 @@ const PRECACHE_RESOURCES = [
     './scripts/ui/ui/contracts.js',
     './scripts/ui/ui/utils/debounce.js',
     './scripts/ui/ui/modules/search/SearchEngine.js',
+    './scripts/ui/ui/modules/search/quickReferenceBundle.js',
     './scripts/ui/ui/modules/search/Scorer.js',
+    './scripts/ui/ui/modules/formula/formulaValidator.js',
     './scripts/ui/ui/modules/calculation/CalculationOrchestrator.js',
     './scripts/ui/ui/modules/tabs/TabManager.js',
     './scripts/ui/ui/modules/graph/GraphCoordinator.js',

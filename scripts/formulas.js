@@ -1140,6 +1140,12 @@ var formulas = [
         name: "Magnetic Energy Density",
         description: "Energy density stored in a magnetic field in SI: U_B = B²/(2μ₀) (J/m³). The Gaussian/CGS form B²/(8π) in erg/cm³ is equivalent when using consistent unit systems — do not mix. Pairs with synchrotron_power and magnetic_pressure_si.",
         equation: "U_B = B^2 / (2 * mu_0)",
+        confidence: {
+            theoreticalBasis: 'exact',
+            domainBreadth: 'universal',
+            numericalPrecision: 'exact',
+            unitSystem: { system: 'SI', note: 'B in tesla; do not plug CGS B into SI U_B' }
+        },
         variables: [
             {
                 symbol: "U_B",
@@ -1743,6 +1749,27 @@ var formulas = [
         name: "Doppler Shift (Approximate)",
         description: "Approximate formula for Doppler shift. Simplified version of the Doppler effect for non-relativistic velocities, where the velocity is directly proportional to the fractional wavelength shift. This approximation is valid when velocities are much less than the speed of light. Essential for measuring stellar radial velocities, detecting exoplanets, and determining galaxy motions. Used extensively in spectroscopy and radial velocity measurements. For high velocities approaching the speed of light, the full relativistic Doppler formula must be used.",
         equation: "v = c × (Δλ / λ)",
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'approximate',
+            numericalPrecision: 'fewpercent',
+            unitSystem: { system: 'SI' },
+            validityConditions: [
+                {
+                    variable: 'v',
+                    condition: '|v| ≪ c (non-relativistic)',
+                    checkable: true,
+                    violationSeverity: 'warning',
+                    violationMessage: '|v| > 0.1c — prefer relativistic_doppler for better accuracy.',
+                    check: function (vars) {
+                        var c = typeof vars.c === 'number' ? vars.c : 2.99792458e8;
+                        var v = vars.v;
+                        if (v == null || !isFinite(v)) return true;
+                        return Math.abs(v) < 0.1 * c;
+                    }
+                }
+            ]
+        },
         variables: [
             {
                 symbol: "v",
@@ -2529,6 +2556,27 @@ var formulas = [
         name: "Mass-Luminosity Relation",
         description: "Empirical main-sequence scaling L ∝ M^exponent (often exponent ≈ 3.5 for ~0.1–20 M☉). L and M are in consistent solar units (dimensionless ratio to Sun).",
         equation: "L = M^exponent",
+        confidence: {
+            theoreticalBasis: 'empirical',
+            domainBreadth: 'approximate',
+            numericalPrecision: 'fewpercent',
+            unitSystem: { system: 'dimensionless', note: 'L and M in solar units' },
+            validityConditions: [
+                {
+                    variable: 'M',
+                    condition: 'Roughly main sequence (~0.1–100 M☉ in solar units)',
+                    checkable: true,
+                    violationSeverity: 'warning',
+                    violationMessage:
+                        'Mass–luminosity is empirical and only loosely valid outside roughly main-sequence masses.',
+                    check: function (vars) {
+                        var M = vars.M;
+                        if (M == null || !isFinite(M) || M <= 0) return true;
+                        return M >= 0.08 && M <= 100;
+                    }
+                }
+            ]
+        },
         solveFor: {
             L: "L = M^exponent",
             M: "M = L^(1/exponent)"
@@ -9373,8 +9421,33 @@ var formulas = [
     {
         id: "gravitational_redshift_simple",
         name: "Gravitational Redshift (Simple Form)",
-        description: "Gravitational redshift in weak field limit. Simplified form for weak gravitational fields. Essential for general relativity tests and compact objects. Valid when gravitational field is weak.",
-        equation: "z_grav = GM / (rc²)",
+        description: "Weak-field approximation z ≈ GM/(rc²) ≪ 1. Requires r ≫ R_s = 2GM/c²; breaks badly near black holes (e.g. at r ~ R_s the exact factor is (1−R_s/r)^(-1/2)−1 from gravitational_redshift). Do not use for compact-object surfaces.",
+        equation: "z_grav = G * M / (r * c^2)",
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'approximate',
+            numericalPrecision: 'fewpercent',
+            unitSystem: { system: 'SI' },
+            validityConditions: [
+                {
+                    variable: 'r',
+                    condition: 'r > 10 R_s (weak field; R_s = 2GM/c²)',
+                    checkable: true,
+                    violationSeverity: 'error',
+                    violationMessage:
+                        'Weak-field z ≈ GM/(rc²) breaks down near R_s. Use gravitational_redshift for the full expression.',
+                    check: function (vars) {
+                        var G = typeof vars.G === 'number' ? vars.G : 6.67430e-11;
+                        var c = typeof vars.c === 'number' ? vars.c : 2.99792458e8;
+                        var M = vars.M;
+                        var r = vars.r;
+                        if (M == null || r == null || !isFinite(M) || !isFinite(r) || M <= 0 || r <= 0) return true;
+                        var Rs = (2 * G * M) / (c * c);
+                        return r > 10 * Rs;
+                    }
+                }
+            ]
+        },
         concepts: ["gravitational redshift", "general relativity", "redshift", "gravity", "weak field"],
         keywords: ["gravitational redshift", "redshift", "general relativity", "gravity"],
         variables: [
@@ -9657,6 +9730,22 @@ var formulas = [
         name: "Transit Depth (Central Transit)",
         description: "Fractional flux drop for a **central** transit (impact parameter b ≈ 0, i ≈ 90°): δ ≈ (R_p/R_s)². For grazing or inclined orbits, geometric factors reduce the observed depth; this entry does not model inclination or limb darkening.",
         equation: "δ = (R_p / R_s)^2",
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'regime',
+            numericalPrecision: 'exact',
+            unitSystem: { system: 'SI' },
+            validityConditions: [
+                {
+                    variable: 'geometry',
+                    condition: 'Central transit (edge-on, b ≈ 0); no limb darkening',
+                    checkable: false,
+                    violationSeverity: 'warning',
+                    violationMessage:
+                        'This depth is the maximum for a uniform disk; inclined or grazing transits need impact-parameter geometry (not implemented here).'
+                }
+            ]
+        },
         concepts: ["transit", "transit depth", "exoplanet", "planetary transit", "flux drop", "exoplanet detection"],
         keywords: ["transit", "transit depth", "exoplanet", "planetary", "flux drop"],
         variables: [
@@ -10958,9 +11047,9 @@ var formulas = [
     }
 ];
 
-// Formula confidence research metadata
-// Purpose: distinguish first-principles laws from approximations, empirical fits,
-// and rough heuristics so search ranking and UI confidence can reflect formula reliability.
+// Formula confidence: orthogonal axes (theoretical basis, domain, numerical precision),
+// optional validityConditions with runtime checks (see scripts/ui/ui/modules/formula/formulaValidator.js),
+// and an auditable numeric score. Legacy per-id overrides feed axis defaults only.
 const FORMULA_CONFIDENCE_OVERRIDES = {
     hubble_law: 82,
     lookback_time: 74,
@@ -11020,7 +11109,10 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     supernova_luminosity_kinetic_diffusion: 70
 };
 
-function inferFormulaConfidenceScore(formula) {
+/**
+ * Legacy 20–100 heuristic (regex + optional per-id override). Used to seed axis defaults.
+ */
+function inferLegacyConfidenceScore(formula) {
     if (!formula) return 85;
 
     if (Object.prototype.hasOwnProperty.call(FORMULA_CONFIDENCE_OVERRIDES, formula.id)) {
@@ -11037,11 +11129,6 @@ function inferFormulaConfidenceScore(formula) {
 
     const equation = String(formula.equation || '').toLowerCase();
 
-    // Heuristics:
-    // 96 = exact/definitional or first-principles relation within its stated model
-    // 84 = controlled approximation or limited-domain formula
-    // 76 = empirical/calibrated relation
-    // 68 = rough heuristic, proportionality, or order-of-magnitude estimate
     if (
         equation.includes('∝') ||
         /\border[- ]of[- ]magnitude\b|\brough\b|\bheuristic\b|\bgeneral nfw form\b/.test(text)
@@ -11062,6 +11149,28 @@ function inferFormulaConfidenceScore(formula) {
     }
 
     return 96;
+}
+
+/**
+ * Map legacy numeric score to orthogonal axes (before explicit formula.confidence merges).
+ */
+function axesFromLegacyScore(score) {
+    if (score >= 94) {
+        return { theoreticalBasis: 'exact', domainBreadth: 'universal', numericalPrecision: 'exact' };
+    }
+    if (score >= 88) {
+        return { theoreticalBasis: 'derived', domainBreadth: 'regime', numericalPrecision: 'subpercent' };
+    }
+    if (score >= 82) {
+        return { theoreticalBasis: 'derived', domainBreadth: 'regime', numericalPrecision: 'fewpercent' };
+    }
+    if (score >= 76) {
+        return { theoreticalBasis: 'empirical', domainBreadth: 'approximate', numericalPrecision: 'fewpercent' };
+    }
+    if (score >= 72) {
+        return { theoreticalBasis: 'empirical', domainBreadth: 'approximate', numericalPrecision: 'orderOfMagnitude' };
+    }
+    return { theoreticalBasis: 'heuristic', domainBreadth: 'orderOfMagnitude', numericalPrecision: 'orderOfMagnitude' };
 }
 
 function inferFormulaConfidenceTier(score) {
@@ -11085,18 +11194,92 @@ function inferFormulaConfidenceRationale(tier) {
 }
 
 function computeFormulaSearchWeight(score) {
-    // Keep weighting modest so relevance still dominates query matching.
     return Math.max(0.85, Math.min(1.10, 1 + ((score - 85) / 200)));
 }
 
-function applyFormulaConfidenceResearch(formula) {
-    const score = inferFormulaConfidenceScore(formula);
-    const tier = inferFormulaConfidenceTier(score);
+/**
+ * Auditable score from orthogonal axes + structural penalties (transparent sum).
+ * @returns {{ score: number, breakdown: object }}
+ */
+function computeAuditableConfidenceParts(confidence, formula) {
+    const basisMap = { exact: 40, derived: 35, empirical: 25, heuristic: 15 };
+    const breadthMap = { universal: 30, regime: 25, approximate: 15, orderOfMagnitude: 5 };
+    const precMap = { exact: 30, subpercent: 25, fewpercent: 15, orderOfMagnitude: 5 };
 
-    formula.formulaConfidence = score;
-    formula.confidenceTier = tier;
-    formula.confidenceRationale = inferFormulaConfidenceRationale(tier);
-    formula.searchWeight = computeFormulaSearchWeight(score);
+    const tb = basisMap[confidence.theoreticalBasis] ?? 25;
+    const db = breadthMap[confidence.domainBreadth] ?? 15;
+    const np = precMap[confidence.numericalPrecision] ?? 15;
+
+    const hasSolveFor =
+        formula.solveFor && typeof formula.solveFor === 'object' && Object.keys(formula.solveFor).length > 0;
+    const solvePenalty = hasSolveFor ? 0 : -2;
+
+    const weakAxis =
+        confidence.domainBreadth === 'approximate' ||
+        confidence.domainBreadth === 'orderOfMagnitude' ||
+        confidence.theoreticalBasis === 'empirical' ||
+        confidence.theoreticalBasis === 'heuristic';
+    const hasConditions = Array.isArray(confidence.validityConditions) && confidence.validityConditions.length > 0;
+    const conditionPenalty = weakAxis && !hasConditions ? -3 : 0;
+
+    const unitSys = confidence.unitSystem && confidence.unitSystem.system;
+    const unitPenalty = unitSys === 'mixed' ? -5 : 0;
+
+    const raw = tb + db + np + solvePenalty + conditionPenalty + unitPenalty;
+    const score = Math.min(100, Math.max(12, Math.round(raw)));
+
+    return {
+        score,
+        breakdown: {
+            theoreticalBasisPoints: tb,
+            domainBreadthPoints: db,
+            numericalPrecisionPoints: np,
+            solvePenalty,
+            conditionPenalty,
+            unitPenalty,
+            hasSolveFor,
+            hasValidityConditions: hasConditions,
+            weakAxisExpectedConditions: weakAxis
+        }
+    };
+}
+
+function buildConfidenceRationale(confidence, parts, legacyScore) {
+    const b = confidence.theoreticalBasis;
+    const d = confidence.domainBreadth;
+    const n = confidence.numericalPrecision;
+    const partsStr = `basis +${parts.breakdown.theoreticalBasisPoints}, domain +${parts.breakdown.domainBreadthPoints}, precision +${parts.breakdown.numericalPrecisionPoints}`;
+    const pen = [];
+    if (parts.breakdown.solvePenalty) pen.push(`solveFor ${parts.breakdown.solvePenalty}`);
+    if (parts.breakdown.conditionPenalty) pen.push(`conditions ${parts.breakdown.conditionPenalty}`);
+    if (parts.breakdown.unitPenalty) pen.push(`units ${parts.breakdown.unitPenalty}`);
+    const penStr = pen.length ? `; penalties: ${pen.join(', ')}` : '';
+    return `${b} / ${d} / ${n}. Auditable score ${parts.score} (${partsStr}${penStr}). Legacy seed ${legacyScore}.`;
+}
+
+function applyFormulaConfidenceResearch(formula) {
+    const legacyScore = inferLegacyConfidenceScore(formula);
+    const baseAxes = axesFromLegacyScore(legacyScore);
+    const existing = formula.confidence && typeof formula.confidence === 'object' ? formula.confidence : {};
+
+    const confidence = {
+        theoreticalBasis: existing.theoreticalBasis || baseAxes.theoreticalBasis,
+        domainBreadth: existing.domainBreadth || baseAxes.domainBreadth,
+        numericalPrecision: existing.numericalPrecision || baseAxes.numericalPrecision,
+        validityConditions: Array.isArray(existing.validityConditions) ? existing.validityConditions : [],
+        unitSystem:
+            existing.unitSystem && typeof existing.unitSystem === 'object' ? existing.unitSystem : undefined
+    };
+
+    const parts = computeAuditableConfidenceParts(confidence, formula);
+    formula.confidence = confidence;
+    formula.confidenceAuditableScore = parts.score;
+    formula.confidenceScoreBreakdown = parts.breakdown;
+
+    formula.formulaConfidence = parts.score;
+    formula.confidenceTier = inferFormulaConfidenceTier(formula.formulaConfidence);
+    formula.confidenceRationale = buildConfidenceRationale(confidence, parts, legacyScore);
+    formula.searchWeight = computeFormulaSearchWeight(formula.formulaConfidence);
 
     return formula;
 }

@@ -2,6 +2,9 @@
  * FormulaScorer - Pure scoring logic, no side effects
  * Version 2.1.0 - Rebalanced weights for improved concept/variable relevance
  */
+import { matchesQuickReferenceQuery, QUICK_REFERENCE_FORMULA_IDS } from './quickReferenceBundle.js';
+import { validateFormulaInputs } from '../formula/formulaValidator.js';
+
 export class FormulaScorer {
     constructor(formulaCategories, config = null) {
         this.formulaCategories = formulaCategories;
@@ -55,8 +58,9 @@ export class FormulaScorer {
     
     /**
      * Score a formula against a search query
+     * @param {Record<string, number|null|undefined>} [inputVars] optional current calculator inputs (base units) for validity-aware ranking
      */
-    score(formula, query, words) {
+    score(formula, query, words, inputVars) {
         const queryLower = query.toLowerCase();
         const metrics = this.createEmptyMetrics();
         metrics.formulaConfidence = formula.formulaConfidence || 85;
@@ -90,14 +94,35 @@ export class FormulaScorer {
         metrics.componentScores = scores;
         
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-        const weightedScore = totalScore > 0
-            ? Math.round(totalScore * (formula.searchWeight || 1))
-            : 0;
+        const gc =
+            typeof globalThis !== 'undefined' && globalThis.globalConstants && typeof globalThis.globalConstants === 'object'
+                ? globalThis.globalConstants
+                : {};
+        let validityMul = 1;
+        if (inputVars && typeof inputVars === 'object') {
+            const hasNumeric = Object.values(inputVars).some((v) => typeof v === 'number' && Number.isFinite(v));
+            if (hasNumeric) {
+                const vr = validateFormulaInputs(formula, inputVars, gc);
+                validityMul = vr.validitySearchMultiplier;
+                metrics.validitySearchMultiplier = validityMul;
+                if (vr.errors.length) metrics.validityErrors = vr.errors;
+                if (vr.warnings.length) metrics.validityWarnings = vr.warnings;
+            }
+        }
+        const weightedScore =
+            totalScore > 0 ? Math.round(totalScore * (formula.searchWeight || 1) * validityMul) : 0;
         metrics.componentScores.reliabilityAdjustment = weightedScore - totalScore;
+
+        let quickRefBoost = 0;
+        if (matchesQuickReferenceQuery(queryLower) && QUICK_REFERENCE_FORMULA_IDS.has(formula.id)) {
+            quickRefBoost = 450;
+            metrics.questionPatternMatch = true;
+        }
+        metrics.componentScores.quickReferenceBoost = quickRefBoost;
 
         return {
             formula,
-            score: Math.max(0, weightedScore),
+            score: Math.max(0, weightedScore + quickRefBoost),
             metrics,
             topicRelevanceScore: 0,
             contextScore: 0

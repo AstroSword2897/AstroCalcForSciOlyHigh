@@ -381,9 +381,43 @@ class ResultDisplayRenderer {
             </div>`;
         }
         
+        let validityHTML = '';
+        const fv = result.formulaValidation;
+        if (fv && (fv.errors?.length || fv.warnings?.length || fv.unchecked?.length)) {
+            const errRows =
+                (fv.errors || [])
+                    .map(
+                        (e) =>
+                            `<li style="color:#fca5a5;">${this._escapeHtml(e.message || '')}</li>`
+                    )
+                    .join('') || '';
+            const warnRows =
+                (fv.warnings || [])
+                    .map(
+                        (w) =>
+                            `<li style="color:#fcd34d;">${this._escapeHtml(w.message || '')}</li>`
+                    )
+                    .join('') || '';
+            const unchkRows =
+                (fv.unchecked || [])
+                    .map(
+                        (u) =>
+                            `<li style="color:#94a3b8;">${this._escapeHtml(u.message || '')}</li>`
+                    )
+                    .join('') || '';
+            validityHTML = `
+            <div class="formula-validity-notes" style="margin-bottom:1rem;padding:0.75rem 1rem;background:rgba(15,23,42,0.75);border-radius:8px;border-left:4px solid ${fv.errors?.length ? '#f87171' : '#fbbf24'};">
+                <div style="font-weight:600;margin-bottom:0.5rem;color:#e2e8f0;">Validity</div>
+                ${errRows ? `<ul style="margin:0.25rem 0;padding-left:1.25rem;">${errRows}</ul>` : ''}
+                ${warnRows ? `<ul style="margin:0.25rem 0;padding-left:1.25rem;">${warnRows}</ul>` : ''}
+                ${unchkRows ? `<div style="font-size:0.85em;opacity:0.9;margin-top:0.35rem;">Assumptions (not auto-checked):</div><ul style="margin:0.25rem 0;padding-left:1.25rem;">${unchkRows}</ul>` : ''}
+            </div>`;
+        }
+
         // Build result HTML (work + main result + unit conversions)
         let resultHTML = `
             <h3>Result</h3>
+            ${validityHTML}
             ${workHTML}
             <div class="result-value" style="font-size: 1.25em; font-weight: 600;">${formattedValue}</div>
             <div class="result-unit">${varInfo ? varInfo.name : solvedVarDisplay} (${result.unit || ''})</div>

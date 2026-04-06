@@ -3,6 +3,7 @@
  * Separated concerns: scoring, caching, filtering
  */
 import { FormulaScorer } from './Scorer.js';
+import { matchesQuickReferenceQuery, QUICK_REFERENCE_FORMULA_IDS } from './quickReferenceBundle.js';
 export class SearchEngine {
     constructor(options) {
         this.formulas = options.formulas;
@@ -11,7 +12,7 @@ export class SearchEngine {
         this.performanceOptimizer = options.performanceOptimizer;
         this.semanticSearchSystem = options.semanticSearchSystem;
         // Version for cache key invalidation
-        this.version = options.version || 'v2.2.0';
+        this.version = options.version || 'v2.3.0';
     }
 
     normalizeQuery(searchTerm) {
@@ -29,7 +30,7 @@ export class SearchEngine {
     /**
      * Search formulas with caching and filtering
      */
-    search(searchTerm) {
+    search(searchTerm, options) {
         // Input validation
         const normalizedSearchTerm = this.normalizeQuery(searchTerm);
         if (!normalizedSearchTerm) {
@@ -38,18 +39,19 @@ export class SearchEngine {
         if (!this.formulas?.length) {
             return [];
         }
+        const opts = options && typeof options === 'object' ? options : {};
         try {
             // 1. Check cache
-            const cached = this.getCachedResults(normalizedSearchTerm);
+            const cached = this.getCachedResults(normalizedSearchTerm, opts);
             if (cached) {
                 return cached;
             }
             // 2. Fast filter (early exit for performance)
             const candidates = this.fastFilter(normalizedSearchTerm);
             // 3. Score candidates
-            const results = this.performSearch(candidates, normalizedSearchTerm);
+            const results = this.performSearch(candidates, normalizedSearchTerm, opts);
             // 4. Cache results
-            this.cacheResults(normalizedSearchTerm, results);
+            this.cacheResults(normalizedSearchTerm, results, opts);
             return results;
         }
         catch (error) {
@@ -64,6 +66,9 @@ export class SearchEngine {
     fastFilter(query) {
         const queryLower = this.normalizeQuery(query).toLowerCase();
         const words = queryLower.split(/\s+/).filter(w => w.length > 0);
+        if (matchesQuickReferenceQuery(queryLower)) {
+            return this.formulas.filter((f) => QUICK_REFERENCE_FORMULA_IDS.has(f.id));
+        }
         return this.formulas.filter(f => {
             const nameLower = f.name.toLowerCase();
             
@@ -122,12 +127,13 @@ export class SearchEngine {
     /**
      * Perform search - pure search logic, no caching
      */
-    performSearch(candidates, searchTerm) {
+    performSearch(candidates, searchTerm, options) {
+        const opts = options && typeof options === 'object' ? options : {};
         const queryLower = this.normalizeQuery(searchTerm).toLowerCase();
         const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
         // Score all candidates
         const scored = candidates.map(formula => {
-            const result = this.scorer.score(formula, queryLower, searchWords);
+            const result = this.scorer.score(formula, queryLower, searchWords, opts.inputVars);
             // Add semantic matching if available (capped at 400 to prevent overpowering)
             if (this.semanticSearchSystem) {
                 try {
@@ -235,14 +241,24 @@ export class SearchEngine {
      * Generate cache key with version/formula count for invalidation
      * v2.1.0: Prevents stale cache when weights/formulas change
      */
-    getCacheKey(searchTerm) {
+    getCacheKey(searchTerm, options) {
         const baseKey = this.normalizeQuery(searchTerm).toLowerCase();
         const formulaCount = this.formulas?.length || 0;
-        return `${baseKey}::${this.version}::${formulaCount}`;
+        let iv = '';
+        const ivs = options && options.inputVars && typeof options.inputVars === 'object' ? options.inputVars : null;
+        if (ivs) {
+            const keys = Object.keys(ivs)
+                .filter((k) => typeof ivs[k] === 'number' && Number.isFinite(ivs[k]))
+                .sort();
+            if (keys.length) {
+                iv = '::iv:' + keys.map((k) => `${k}=${ivs[k]}`).join('|');
+            }
+        }
+        return `${baseKey}::${this.version}::${formulaCount}${iv}`;
     }
     
-    getCachedResults(searchTerm) {
-        const key = this.getCacheKey(searchTerm);
+    getCachedResults(searchTerm, options) {
+        const key = this.getCacheKey(searchTerm, options);
         if (this.cache) {
             const cached = this.cache.get(key);
             if (cached)
@@ -256,8 +272,8 @@ export class SearchEngine {
         return null;
     }
     
-    cacheResults(searchTerm, results) {
-        const key = this.getCacheKey(searchTerm);
+    cacheResults(searchTerm, results, options) {
+        const key = this.getCacheKey(searchTerm, options);
         if (this.cache) {
             this.cache.set(key, results);
         }

@@ -2,6 +2,8 @@
  * CalculationOrchestrator - IMPROVED VERSION
  * Better error handling, validation, and user feedback
  */
+import { validateFormulaInputs } from '../formula/formulaValidator.js';
+
 export class CalculationOrchestrator {
     constructor(options) {
         this.calculationHistory = [];
@@ -727,10 +729,18 @@ export class CalculationOrchestrator {
             const given = Object.fromEntries(
                 Object.entries(variableValues).filter(([_, v]) => v != null && typeof v === 'number' && Number.isFinite(v))
             );
+            const gc =
+                this.globalConstants && Object.keys(this.globalConstants).length
+                    ? this.globalConstants
+                    : typeof globalThis !== 'undefined' && globalThis.globalConstants
+                      ? globalThis.globalConstants
+                      : {};
+            const formulaValidation = validateFormulaInputs(formula, given, gc);
             const resultWithFlow = {
                 ...enhancedResult,
                 given,
-                conversionMetadata: this._lastConversionMetadata
+                conversionMetadata: this._lastConversionMetadata,
+                formulaValidation
             };
             
             // Cache the enhanced result (with given for flow display on cache hit)

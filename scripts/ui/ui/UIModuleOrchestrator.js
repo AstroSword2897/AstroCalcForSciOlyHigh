@@ -65,7 +65,7 @@ export class UIModuleOrchestrator {
                 cache: this.options.searchCache,
                 performanceOptimizer: this.options.performanceOptimizer,
                 semanticSearchSystem: this.options.semanticSearchSystem,
-                version: 'v2.2.0' // For cache key invalidation
+                version: 'v2.3.0' // For cache key invalidation
             });
             // Initialize Expert System (question -> formula)
             this.expertSystem = new AstrophysicsExpertSystem(
@@ -880,7 +880,9 @@ export class UIModuleOrchestrator {
         }
         
         // Normal search flow
-        const results = this.searchEngine.search(query);
+        const results = this.searchEngine.search(query, {
+            inputVars: this.getCurrentVariableValues()
+        });
         
         // Hide command palette dropdown - user wants clean search experience
         this.hideCommandPaletteResults();
@@ -1199,7 +1201,9 @@ export class UIModuleOrchestrator {
      * Search formulas
      */
     searchFormulas(query) {
-        return this.searchEngine.search(query);
+        return this.searchEngine.search(query, {
+            inputVars: this.getCurrentVariableValues()
+        });
     }
     _unitConverterReady() {
         const uc = this._resolveLiveUnitConverter();
