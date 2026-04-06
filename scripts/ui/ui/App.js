@@ -259,9 +259,20 @@ export class App {
         const formula = this.state.get('currentFormula');
         if (!formula)
             return values;
+        const UC =
+            (this.options && this.options.UnitConverter) ||
+            (typeof globalThis !== 'undefined' && globalThis.UnitConverter) ||
+            (typeof window !== 'undefined' && window.UnitConverter) ||
+            null;
+        if (!UC || typeof UC.getAlternativeUnits !== 'function') {
+            formula.variables.forEach((variable) => {
+                values[variable.symbol] = null;
+            });
+            return values;
+        }
         formula.variables.forEach(variable => {
-            const baseUnit = variable.unit;
-            const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(baseUnit);
+            const baseUnit = UC.normalizeFormulaUnit ? UC.normalizeFormulaUnit(variable.unit) || variable.unit : variable.unit;
+            const alternativeUnits = UC.getAlternativeUnits(baseUnit);
             let foundValue = null;
             let foundUnit = null;
             for (let i = 0; i < alternativeUnits.length; i++) {
@@ -284,7 +295,7 @@ export class App {
                 const parsed = this.calculationUtils.parseNumericValue(foundValue, foundUnit);
                 if (parsed !== null) {
                     try {
-                        values[variable.symbol] = this.options.UnitConverter.convertToBase(parsed, foundUnit, baseUnit);
+                        values[variable.symbol] = UC.convertToBase(parsed, foundUnit, baseUnit);
                     }
                     catch (e) {
                         values[variable.symbol] = null;

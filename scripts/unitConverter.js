@@ -1,9 +1,29 @@
 /**
  * UnitConverter: robust, category-aware unit conversion utility.
  * Handles canonicalization, category validation, temperature offsets, and context-aware conversions.
- * 
- * FIXED: Single source of truth, proper temperature handling, unified conversion system
+ *
+ * Physical constants: SI (c, eV), IAU 2012 (AU), parsec = AU / (1″ in radians), Julian light-year.
  */
+
+/** IAU 2012 astronomical unit (exact definition, meters). */
+const AU_METERS = 149597870700;
+/** 1 pc: distance at which 1 AU subtends 1″ — AU × (180×3600/π) = AU × (648000/π). */
+const PARSEC_METERS = AU_METERS * (648000 / Math.PI);
+/** 1 megaparsec in metres (Hubble-law conversions). */
+const MEGAPARSEC_METERS = 1e6 * PARSEC_METERS;
+/** 1 km/(s·Mpc) → s⁻¹ (Hubble parameter unit). */
+const KM_S_MPC_TO_INV_S = 1000 / MEGAPARSEC_METERS;
+/** Julian light-year: c × 365.25 d (common astrophysics convention). */
+const LIGHT_YEAR_METERS = 299792458 * 365.25 * 86400;
+/** Julian year in seconds (365.25 × 86400). */
+const JULIAN_YEAR_SECONDS = 365.25 * 86400;
+
+/** IAU 2015 nominal solar mass (kg) — same as M☉ conversion; used for globalConstants / formulas. */
+const NOMINAL_SOLAR_MASS_KG = 1.988409870440e30;
+/** Nominal solar luminosity (W) — IAU working value, matches globalConstants L_sun. */
+const NOMINAL_SOLAR_LUMINOSITY_W = 3.828e26;
+/** IAU 2015 nominal solar radius (m) — same as R☉ conversion. */
+const NOMINAL_SOLAR_RADIUS_M = 695700000;
 
 class UnitConverter {
     // Canonical mapping: all aliases map to one canonical unit
@@ -18,6 +38,8 @@ class UnitConverter {
         'AU': 'AU', 'astronomical unit': 'AU', 'astronomical units': 'AU', 'au': 'AU',
         'pc': 'pc', 'parsec': 'pc', 'parsecs': 'pc',
         'ly': 'ly', 'light-year': 'ly', 'light-years': 'ly', 'lightyear': 'ly', 'lightyears': 'ly',
+        'R☉': 'R☉', 'R_☉': 'R☉', 'R_sun': 'R☉', 'r_sun': 'R☉', 'RSun': 'R☉',
+        'Solar Radii': 'R☉', 'solar radii': 'R☉', 'solar radius': 'R☉', 'Solar radius': 'R☉',
         
         // Mass
         'kg': 'kg', 'kilogram': 'kg', 'kilograms': 'kg', 'kilogramme': 'kg', 'kilogrammes': 'kg',
@@ -41,12 +63,18 @@ class UnitConverter {
         'm/s': 'm/s', 'meters per second': 'm/s',
         'km/s': 'km/s', 'kilometers per second': 'km/s',
         'km/h': 'km/h', 'kilometers per hour': 'km/h',
+        'rad/s': 'rad/s', 'radians per second': 'rad/s', 'radian per second': 'rad/s',
+        'deg/s': 'deg/s', 'degrees per second': 'deg/s',
         
         // Energy/Power
         'W': 'W', 'Watts': 'W', 'watt': 'W',
         'J': 'J', 'Joule': 'J', 'Joules': 'J',
         'erg': 'erg', 'ergs': 'erg',
         'eV': 'eV', 'electronvolt': 'eV', 'electron-volt': 'eV', 'electron-volts': 'eV',
+        // Angular momentum / action (same dimensions: kg·m²/s ≡ J·s)
+        'J·s': 'J·s', 'J s': 'J·s', 'J*s': 'J·s',
+        'kg·m²/s': 'J·s', 'kg m^2/s': 'J·s', 'kg·m2/s': 'J·s',
+        'erg·s': 'erg·s', 'erg s': 'erg·s',
         'L☉': 'L☉', 'L_☉': 'L☉', 'L_sun': 'L☉', 'Solar Luminosities': 'L☉',
         'erg/s': 'erg/s', 'ergs per second': 'erg/s',
         
@@ -60,20 +88,68 @@ class UnitConverter {
         'MHz': 'MHz', 'megahertz': 'MHz',
         'GHz': 'GHz', 'gigahertz': 'GHz',
         
+        // Acceleration
+        'm/s²': 'm/s²', 'm/s2': 'm/s²', 'm s^-2': 'm/s²',
+        'cm/s²': 'cm/s²', 'cm/s2': 'cm/s²',
+        
         // Density
         'kg/m³': 'kg/m³', 'kilograms per cubic meter': 'kg/m³',
         'g/cm³': 'g/cm³', 'grams per cubic centimeter': 'g/cm³',
         
         // Angles
         'rad': 'rad', 'radian': 'rad', 'radians': 'rad',
-        'deg': 'deg', 'degree': 'deg', 'degrees': 'deg', '°': 'deg'
+        'deg': 'deg', 'degree': 'deg', 'degrees': 'deg', '°': 'deg',
+        'arcmin': 'arcmin', 'arcminute': 'arcmin', 'arcminutes': 'arcmin',
+        'arcsec': 'arcsec', 'arcsecond': 'arcsec', 'arcseconds': 'arcsec',
+        'Å': 'Å', 'Angstrom': 'Å', 'angstrom': 'Å', 'ångström': 'Å', 'Angstroms': 'Å',
+        'Mpc': 'Mpc', 'megaparsec': 'Mpc', 'megaparsecs': 'Mpc',
+        // Hubble constant style (dimension 1/time; convertible with Hz)
+        'km/(s·Mpc)': 'km/(s·Mpc)',
+        'km/s/Mpc': 'km/(s·Mpc)',
+        'km s^-1 Mpc^-1': 'km/(s·Mpc)',
+        // Area
+        'm²': 'm²',
+        'm^2': 'm²',
+        'km²': 'km²',
+        'km^2': 'km²',
+        'cm²': 'cm²',
+        'cm^2': 'cm²',
+        // Force / pressure / energy density / B-field
+        'N': 'N',
+        'Newton': 'N',
+        'newton': 'N',
+        'dyn': 'dyn',
+        'dyne': 'dyn',
+        'Pa': 'Pa',
+        'pascal': 'Pa',
+        'Pascal': 'Pa',
+        'J/m³': 'J/m³',
+        'J/m^3': 'J/m³',
+        'T': 'T',
+        'Tesla': 'T',
+        'tesla': 'T',
+        'G': 'G',
+        'Gauss': 'G',
+        'gauss': 'G',
+        // Gravitational constant G in SI-derived form
+        'm³/(kg·s²)': 'm³/(kg·s²)',
+        'm^3/(kg*s^2)': 'm³/(kg·s²)',
+        'm³/kg/s²': 'm³/(kg·s²)',
+        // Stefan–Boltzmann coefficient (σ) unit
+        'W/(m²·K⁴)': 'W/(m²·K⁴)',
+        'W/(m^2*K^4)': 'W/(m²·K⁴)',
+        'W/(m^2 K^4)': 'W/(m²·K⁴)',
+        'dimensionless': 'dimensionless',
+        'mag': 'mag',
+        'magnitude': 'mag'
     };
 
     // Category for each canonical unit
     static unitCategory = {
         // Distance
-        'm': 'distance', 'km': 'distance', 'cm': 'distance', 'mm': 'distance', 
+        'm': 'distance', 'km': 'distance', 'cm': 'distance', 'mm': 'distance',
         'μm': 'distance', 'nm': 'distance', 'AU': 'distance', 'pc': 'distance', 'ly': 'distance',
+        'Mpc': 'distance', 'Å': 'distance', 'R☉': 'distance',
         
         // Mass
         'kg': 'mass', 'g': 'mass', 'M☉': 'mass', 'M_earth': 'mass',
@@ -87,6 +163,15 @@ class UnitConverter {
         // Velocity
         'm/s': 'velocity', 'km/s': 'velocity', 'km/h': 'velocity',
         
+        // Angular speed (ω = dθ/dt)
+        'rad/s': 'angular_speed', 'deg/s': 'angular_speed',
+        
+        // Angular momentum / action
+        'J·s': 'angular_momentum', 'erg·s': 'angular_momentum',
+        
+        // Acceleration
+        'm/s²': 'acceleration', 'cm/s²': 'acceleration',
+        
         // Energy/Power
         'W': 'power', 'J': 'energy', 'erg': 'energy', 'eV': 'energy',
         'L☉': 'power', 'erg/s': 'power',
@@ -94,14 +179,43 @@ class UnitConverter {
         // Flux
         'W/m²': 'flux', 'erg/(s·cm²)': 'flux',
         
-        // Frequency
-        'Hz': 'frequency', 'kHz': 'frequency', 'MHz': 'frequency', 'GHz': 'frequency',
+        // Frequency / inverse time (Hubble H₀ in km/s/Mpc shares dimensions with Hz)
+        'Hz': 'frequency',
+        'kHz': 'frequency',
+        'MHz': 'frequency',
+        'GHz': 'frequency',
+        'km/(s·Mpc)': 'frequency',
+        
+        // Area
+        'm²': 'area',
+        'km²': 'area',
+        'cm²': 'area',
+        
+        // Force
+        'N': 'force',
+        'dyn': 'force',
+        
+        // Pressure / volumetric energy density (same SI dimensions as Pa)
+        'Pa': 'pressure',
+        'J/m³': 'pressure',
+        
+        // Magnetic flux density
+        'T': 'magnetic_B',
+        'G': 'magnetic_B',
+        
+        // Gravitational constant G (SI unit of G)
+        'm³/(kg·s²)': 'grav_G',
+        
+        // Stefan–Boltzmann coefficient σ
+        'W/(m²·K⁴)': 'sigma_sb',
         
         // Density
         'kg/m³': 'density', 'g/cm³': 'density',
         
         // Angles
-        'rad': 'angle', 'deg': 'angle'
+        'rad': 'angle', 'deg': 'angle', 'arcmin': 'angle', 'arcsec': 'angle',
+        'dimensionless': 'dimensionless',
+        'mag': 'dimensionless'
     };
 
     // Base unit per category
@@ -111,62 +225,104 @@ class UnitConverter {
         'time': 's',
         'temperature': 'K',
         'velocity': 'm/s',
+        'angular_speed': 'rad/s',
+        'angular_momentum': 'J·s',
+        'acceleration': 'm/s²',
         'power': 'W',
         'energy': 'J',
         'flux': 'W/m²',
         'frequency': 'Hz',
         'density': 'kg/m³',
-        'angle': 'rad'
+        'angle': 'rad',
+        'area': 'm²',
+        'force': 'N',
+        'pressure': 'Pa',
+        'magnetic_B': 'T',
+        'grav_G': 'm³/(kg·s²)',
+        'sigma_sb': 'W/(m²·K⁴)',
+        'dimensionless': 'dimensionless'
     };
 
-    // Conversion factors to base units (linear) - SINGLE SOURCE OF TRUTH
+    // Conversion factors to category SI bases (linear). Non-SI units → multiply by factor to get base.
     static conversionFactors = {
-        // Distance to meters
+        // Distance → meters
         'km': 1e3,
         'cm': 0.01,
         'mm': 0.001,
         'μm': 1e-6,
         'nm': 1e-9,
-        'AU': 1.496e11,
-        'pc': 3.085677581e16,
-        'ly': 9.461e15,
+        'AU': AU_METERS,
+        'pc': PARSEC_METERS,
+        'Mpc': 1e6 * PARSEC_METERS,
+        'ly': LIGHT_YEAR_METERS,
+        'Å': 1e-10,
+        'R☉': NOMINAL_SOLAR_RADIUS_M,
         
-        // Mass to kg
+        // Mass → kg
         'g': 0.001,
-        'M☉': 1.989e30,
-        'M_earth': 5.972e24,
+        'M☉': NOMINAL_SOLAR_MASS_KG,
+        'M_earth': 5.9721684356e24,
         
-        // Time to seconds
+        // Time → seconds
         'min': 60,
         'h': 3600,
         'day': 86400,
-        'yr': 3.156e7,
+        'yr': JULIAN_YEAR_SECONDS,
         
-        // Velocity to m/s
+        // Velocity → m/s
         'km/s': 1000,
-        'km/h': 0.277778,
+        'km/h': 1000 / 3600,
         
-        // Energy to Joules (base unit)
-        'erg': 1e-7,        // 1 erg = 1e-7 J
-        'eV': 1.602176634e-19,  // 1 eV = 1.602176634e-19 J
+        // Angular speed → rad/s
+        'deg/s': Math.PI / 180,
         
-        // Power to Watts
-        'L☉': 3.828e26,
+        // Angular momentum → J·s (= kg·m²/s)
+        'erg·s': 1e-7,
+        
+        // Acceleration → m/s²
+        'cm/s²': 0.01,
+        
+        // Energy → J
+        'erg': 1e-7,
+        'eV': 1.602176634e-19,
+        
+        // Power → W
+        'L☉': NOMINAL_SOLAR_LUMINOSITY_W,
         'erg/s': 1e-7,
         
         // Flux to W/m²
         'erg/(s·cm²)': 0.001,
         
-        // Frequency to Hz
+        // Frequency to Hz (including Hubble-law form)
+        'km/(s·Mpc)': KM_S_MPC_TO_INV_S,
         'kHz': 1e3,
         'MHz': 1e6,
         'GHz': 1e9,
+        
+        // Area → m²
+        'km²': 1e6,
+        'cm²': 1e-4,
+        
+        // Force → N
+        'dyn': 1e-5,
+        
+        // Pressure / energy density → Pa
+        'J/m³': 1,
+        
+        // Magnetic field → T
+        'G': 1e-4,
         
         // Density to kg/m³
         'g/cm³': 1000,
         
         // Angles to radians
-        'deg': Math.PI / 180
+        'deg': Math.PI / 180,
+        'arcmin': Math.PI / (180 * 60),
+        'arcsec': Math.PI / (180 * 3600),
+
+        // Dimensionless / magnitude (no scaling)
+        'dimensionless': 1,
+        'mag': 1
     };
 
     /**
@@ -178,8 +334,8 @@ class UnitConverter {
         const normalized = unit.trim();
         
         // First, try exact match (handles special characters like M☉, °C)
-        if (this.canonicalUnits[normalized]) {
-            return this.canonicalUnits[normalized];
+        if (UnitConverter.canonicalUnits[normalized]) {
+            return UnitConverter.canonicalUnits[normalized];
         }
         
         // For case-insensitive matching, only lowercase if no special characters
@@ -189,11 +345,11 @@ class UnitConverter {
         if (!hasSpecialChars) {
             const lower = normalized.toLowerCase();
             // Try lowercase match
-            if (this.canonicalUnits[lower]) {
-                return this.canonicalUnits[lower];
+            if (UnitConverter.canonicalUnits[lower]) {
+                return UnitConverter.canonicalUnits[lower];
             }
             // Try case-insensitive search
-            for (const [alias, canonical] of Object.entries(this.canonicalUnits)) {
+            for (const [alias, canonical] of Object.entries(UnitConverter.canonicalUnits)) {
                 if (alias.toLowerCase() === lower) {
                     return canonical;
                 }
@@ -206,22 +362,190 @@ class UnitConverter {
     
     // Backward compatibility alias
     static getCanonicalUnit(unit) {
-        return this.getCanonical(unit);
+        return UnitConverter.getCanonical(unit);
+    }
+
+    /**
+     * Map formula-database spellings (e.g. "parsecs", "years", "meters") to canonical symbols
+     * so each formula’s intended base unit matches UnitConverter (not confused with SI labels only).
+     */
+    static normalizeFormulaUnit(unit) {
+        if (unit == null) {
+            return '';
+        }
+        const raw = String(unit).trim();
+        if (!raw) {
+            return '';
+        }
+        const lower = raw.toLowerCase();
+        const spaced = lower.replace(/\s+/g, ' ').trim();
+        const alias = {
+            parsecs: 'pc',
+            parsec: 'pc',
+            years: 'yr',
+            year: 'yr',
+            seconds: 's',
+            second: 's',
+            meters: 'm',
+            meter: 'm',
+            metres: 'm',
+            metre: 'm',
+            kilograms: 'kg',
+            kilogram: 'kg',
+            radians: 'rad',
+            radian: 'rad',
+            kelvin: 'K',
+            magnitude: 'mag',
+            angstrom: 'Å',
+            ångström: 'Å',
+            arcseconds: 'arcsec',
+            arcsecond: 'arcsec',
+            arcminutes: 'arcmin',
+            arcminute: 'arcmin',
+            megaparsecs: 'Mpc',
+            megaparsec: 'Mpc',
+            'light years': 'ly',
+            'light-years': 'ly',
+            lightyears: 'ly',
+            'light year': 'ly',
+            'm or au': 'm',
+            'm or AU': 'm',
+            'kg or m☉': 'kg',
+            'kg or msun': 'kg',
+            'solar radii': 'R☉',
+            'solar radius': 'R☉',
+            'solar radii (r☉)': 'R☉',
+            'particles/energy': 'dimensionless',
+            varies: 'dimensionless',
+            'energy units': 'J',
+            'n/a²': 'dimensionless',
+            'n/a^2': 'dimensionless',
+            '0 to 1': 'dimensionless',
+            angstroms: 'Å',
+            tesla: 'T',
+            pascal: 'Pa',
+            newton: 'N',
+            gauss: 'G',
+            hertz: 'Hz',
+            'km/s/mpc': 'km/(s·Mpc)',
+            'km/s /mpc': 'km/(s·Mpc)'
+        };
+        if (alias[spaced]) {
+            return alias[spaced];
+        }
+        if (alias[lower]) {
+            return alias[lower];
+        }
+        const c = UnitConverter.getCanonical(raw);
+        return c || raw;
     }
 
     /**
      * Get category for a unit
      */
     static getUnitCategory(unit) {
-        const canonical = this.getCanonical(unit);
-        return this.unitCategory[canonical] || null;
+        const canonical = UnitConverter.getCanonical(unit);
+        return UnitConverter.unitCategory[canonical] || null;
     }
 
     /**
      * Get base unit for a category
      */
     static getBaseUnitForCategory(category) {
-        return this.baseUnit[category] || null;
+        return UnitConverter.baseUnit[category] || null;
+    }
+
+    /**
+     * One-line note: formula units vs SI. Conversions in this app use SI-derived definitions
+     * (e.g. time → seconds, length → metres) even when the formula states yr, AU, pc, etc.
+     */
+    static getSiBaseContextForUnit(unit) {
+        const c = UnitConverter.getCanonical(unit);
+        const cat = UnitConverter.getUnitCategory(c);
+        if (!cat) {
+            return '';
+        }
+        const si = UnitConverter.baseUnit[cat];
+        if (cat === 'time') {
+            return (
+                `Formula unit for this variable: ${c} (yr, s, …). Internally, time converts through seconds ` +
+                `(Julian yr = 365.25×86400 s = ${JULIAN_YEAR_SECONDS} s).`
+            );
+        }
+        if (cat === 'distance') {
+            return (
+                `This variable’s formula unit is ${c} (e.g. pc, AU, ly, m). Per-field hints (value × … → …) convert ` +
+                `into that formula unit, not “into metres” unless this card uses m. AU, pc, ly, and m are linked ` +
+                `via fixed SI lengths (IAU AU; parsec definition; ly = c×Julian yr).`
+            );
+        }
+        if (cat === 'temperature') {
+            return (
+                `Kelvin (K) is an SI base unit (thermodynamic temperature). °C/°F convert through K. ` +
+                `K is not a “time scale”; it does not relate to years or AU except in separate formulas.`
+            );
+        }
+        if (cat === 'mass') {
+            return `SI mass base: kilogram (kg). M☉ and M⊕ convert from fixed kg values.`;
+        }
+        if (cat === 'velocity') {
+            return `SI velocity combines m and s: m/s. km/s and km/h convert through metres and seconds.`;
+        }
+        if (cat === 'energy') {
+            return `SI energy base: joule (J). eV and erg convert to J.`;
+        }
+        if (cat === 'power') {
+            return `SI power base: watt (W). L☉ and erg/s convert to W.`;
+        }
+        if (cat === 'frequency') {
+            return (
+                `SI frequency base: hertz (Hz) = 1/s. Astrophysical Hubble units km/(s·Mpc) share this ` +
+                `dimension and convert using a fixed megaparsec length in metres.`
+            );
+        }
+        if (cat === 'area') {
+            return `Area base: m². km² and cm² convert by powers of ten.`;
+        }
+        if (cat === 'force') {
+            return `Force base: newton (N). dyn (cgs) converts via 1 dyn = 10⁻⁵ N.`;
+        }
+        if (cat === 'pressure') {
+            return `Pressure base: pascal (Pa). J/m³ has the same dimensions as Pa (energy density).`;
+        }
+        if (cat === 'magnetic_B') {
+            return `Magnetic field base: tesla (T). Gauss: 1 G = 10⁻⁴ T.`;
+        }
+        if (cat === 'grav_G') {
+            return `This is the SI-derived unit of Newton’s constant G (m³·kg⁻¹·s⁻²).`;
+        }
+        if (cat === 'sigma_sb') {
+            return `Stefan–Boltzmann constant σ carries units W·m⁻²·K⁻⁴.`;
+        }
+        if (cat === 'angle') {
+            return `SI plane angle base: radian (rad). Degrees, arcminutes, and arcseconds convert via π/180 and factors of 60.`;
+        }
+        if (cat === 'angular_speed') {
+            return `Angular speed base: rad/s. deg/s converts via π/180.`;
+        }
+        if (cat === 'angular_momentum') {
+            return `Angular momentum uses J·s (same dimensions as kg·m²/s). erg·s converts via 10⁻⁷ J/erg.`;
+        }
+        if (cat === 'acceleration') {
+            return `Acceleration base: m/s². cm/s² converts via 0.01.`;
+        }
+        if (cat === 'density') {
+            return `SI mass/volume uses kg and m³.`;
+        }
+        if (cat === 'flux') {
+            return `Radiative flux here converts to W/m² (SI).`;
+        }
+        if (cat === 'dimensionless') {
+            return (
+                `This variable is dimensionless (ratios, magnitudes, etc.). It is not length, time, or temperature—` +
+                `do not mix with metres, seconds, or kelvins unless the formula explicitly combines them.`
+            );
+        }
+        return `SI base for this category: ${si}.`;
     }
 
     /**
@@ -230,7 +554,7 @@ class UnitConverter {
      */
     static convert(value, fromUnit, toUnit) {
         if (typeof value !== 'number' || !isFinite(value)) {
-            this._logWarn(`convert: Invalid value ${value}, expected finite number`);
+            UnitConverter._logWarn(`convert: Invalid value ${value}, expected finite number`);
             return null;
         }
         
@@ -238,13 +562,13 @@ class UnitConverter {
             return value;
         }
         
-        const from = this.getCanonical(fromUnit);
-        const to = this.getCanonical(toUnit);
+        const from = UnitConverter.getCanonical(fromUnit);
+        const to = UnitConverter.getCanonical(toUnit);
         
         if (from === to) return value;
 
-        const catFrom = this.unitCategory[from];
-        const catTo = this.unitCategory[to];
+        const catFrom = UnitConverter.unitCategory[from];
+        const catTo = UnitConverter.unitCategory[to];
 
         // Must be same category (or compatible)
         if (!catFrom || !catTo || catFrom !== catTo) {
@@ -253,28 +577,28 @@ class UnitConverter {
                 // Allow conversion between energy and power (they're dimensionally related)
                 // This is a special case - normally we'd use dimensional analysis
             } else {
-                this._logWarn(`Cannot convert ${from} (${catFrom}) to ${to} (${catTo}) - incompatible categories`);
+                UnitConverter._logWarn(`Cannot convert ${from} (${catFrom}) to ${to} (${catTo}) - incompatible categories`);
                 return null;
             }
         }
 
         // Temperature special handling (offset-based, cannot use linear chaining)
         if (catFrom === 'temperature') {
-            return this._convertTemperature(value, from, to);
+            return UnitConverter._convertTemperature(value, from, to);
         }
 
         // Linear conversion via base unit
-        const base = this.baseUnit[catFrom];
+        const base = UnitConverter.baseUnit[catFrom];
         if (!base) {
-            this._logWarn(`No base unit defined for category: ${catFrom}`);
+            UnitConverter._logWarn(`No base unit defined for category: ${catFrom}`);
             return null;
         }
         
         // Convert from -> base
-        const valueInBase = from === base ? value : value * (this.conversionFactors[from] || 1);
+        const valueInBase = from === base ? value : value * (UnitConverter.conversionFactors[from] || 1);
         
         // Convert base -> to
-        const factorTo = to === base ? 1 : 1 / (this.conversionFactors[to] || 1);
+        const factorTo = to === base ? 1 : 1 / (UnitConverter.conversionFactors[to] || 1);
         
         return valueInBase * factorTo;
     }
@@ -294,7 +618,7 @@ class UnitConverter {
         } else if (from === '°F' || from === '°f') {
             kelvin = (value + 459.67) * 5/9;
         } else {
-            this._logWarn(`Unknown temperature unit: ${from}`);
+            UnitConverter._logWarn(`Unknown temperature unit: ${from}`);
             return value;
         }
 
@@ -306,7 +630,7 @@ class UnitConverter {
         } else if (to === '°F' || to === '°f') {
             return kelvin * 9/5 - 459.67;
         } else {
-            this._logWarn(`Unknown temperature unit: ${to}`);
+            UnitConverter._logWarn(`Unknown temperature unit: ${to}`);
             return kelvin;
         }
     }
@@ -317,7 +641,7 @@ class UnitConverter {
      */
     static convertToBase(value, fromUnit, baseUnit) {
         if (typeof value !== 'number' || !isFinite(value)) {
-            this._logWarn(`convertToBase: Invalid value ${value}`);
+            UnitConverter._logWarn(`convertToBase: Invalid value ${value}`);
             return value;
         }
         
@@ -325,8 +649,8 @@ class UnitConverter {
             return value;
         }
         
-        const canonicalFrom = this.getCanonical(fromUnit);
-        const canonicalBase = this.getCanonical(baseUnit);
+        const canonicalFrom = UnitConverter.getCanonical(fromUnit);
+        const canonicalBase = UnitConverter.getCanonical(baseUnit);
         
         // CRITICAL: Sanity check - units should NOT be collapsed
         if (canonicalFrom === canonicalBase && value !== 0 && fromUnit !== baseUnit) {
@@ -345,40 +669,29 @@ class UnitConverter {
         }
 
         // Get categories
-        const catFrom = this.getUnitCategory(canonicalFrom);
-        const catBase = this.getUnitCategory(canonicalBase);
+        const catFrom = UnitConverter.getUnitCategory(canonicalFrom);
+        const catBase = UnitConverter.getUnitCategory(canonicalBase);
         
         // Temperature requires special handling
         if (catFrom === 'temperature' || catBase === 'temperature') {
-            return this._convertTemperature(value, canonicalFrom, canonicalBase);
+            return UnitConverter._convertTemperature(value, canonicalFrom, canonicalBase);
         }
         
         // Must be same category
         if (!catFrom || !catBase || catFrom !== catBase) {
-            this._logWarn(`convertToBase: Incompatible categories: ${catFrom} → ${catBase}`);
+            UnitConverter._logWarn(`convertToBase: Incompatible categories: ${catFrom} → ${catBase}`);
             return value;
         }
-        
-        // Linear conversion
-        // Check if fromUnit is the base unit (shouldn't happen, but handle it)
-        if (canonicalFrom === this.baseUnit[catFrom]) {
-            // We're converting FROM the base unit TO the base unit? This shouldn't happen
-            // But if it does, return as-is
-            this._logWarn(`convertToBase: fromUnit ${fromUnit} is already the base unit for category ${catFrom}`);
+
+        // Delegate to convert() so the formula "base" unit can be any canonical unit in the
+        // category (e.g. pc, ly, AU), not only the SI category base (m). Previously this
+        // only multiplied by factors to meters, which broke pc-based formulas and wrong UI hints.
+        const converted = UnitConverter.convert(value, fromUnit, baseUnit);
+        if (converted === null || !isFinite(converted)) {
+            UnitConverter._logWarn(`convertToBase: convert() failed for ${fromUnit} → ${baseUnit}`);
             return value;
         }
-        
-        const factor = this.conversionFactors[canonicalFrom];
-        if (factor === undefined) {
-            this._logWarn(`No conversion factor found for ${canonicalFrom} → ${canonicalBase}. Available factors: ${Object.keys(this.conversionFactors).join(', ')}`);
-            return value;
-        }
-        
-        // Factor represents: 1 canonicalFrom = factor * baseUnit
-        // So to convert value * canonicalFrom to baseUnit: value * factor
-        const convertedValue = value * factor;
-        console.log(`[UnitConverter] ✅ convertToBase: ${value} ${fromUnit} (${canonicalFrom}) → ${convertedValue} ${baseUnit} (factor: ${factor})`);
-        return convertedValue;
+        return converted;
     }
 
     /**
@@ -387,29 +700,31 @@ class UnitConverter {
      */
     static getConversionHintToBase(fromUnit, baseUnit) {
         if (!fromUnit || !baseUnit) return '';
-        const cFrom = this.getCanonical(fromUnit);
-        const cBase = this.getCanonical(baseUnit);
+        const cFrom = UnitConverter.getCanonical(fromUnit);
+        const cBase = UnitConverter.getCanonical(baseUnit);
         if (!cFrom || !cBase || cFrom === cBase) return '';
 
-        const catFrom = this.getUnitCategory(cFrom);
-        const catBase = this.getUnitCategory(cBase);
-        const baseLabel = this.formatUnit(baseUnit);
+        const catFrom = UnitConverter.getUnitCategory(cFrom);
+        const catBase = UnitConverter.getUnitCategory(cBase);
+        const baseLabel = UnitConverter.formatUnit(baseUnit);
+        const targetPhrase =
+            baseLabel && baseLabel !== cBase ? `${cBase} (${baseLabel})` : cBase;
 
         if (catFrom === 'temperature' && catBase === 'temperature' && cBase === 'K') {
-            if (cFrom === '°C') return `value × 1 + 273.15 → ${baseLabel}`;
-            if (cFrom === '°F') return `(value + 459.67) × 5/9 → ${baseLabel}`;
+            if (cFrom === '°C') return `value × 1 + 273.15 → ${targetPhrase}`;
+            if (cFrom === '°F') return `(value + 459.67) × 5/9 → ${targetPhrase}`;
         }
 
         if (!catFrom || !catBase || catFrom !== catBase) return '';
 
-        const factor = this.convertToBase(1, fromUnit, baseUnit);
+        const factor = UnitConverter.convert(1, fromUnit, baseUnit);
         if (typeof factor !== 'number' || !isFinite(factor)) return '';
 
         const fmt =
             Math.abs(factor) >= 1e8 || (Math.abs(factor) < 1e-6 && factor !== 0)
-                ? factor.toExponential(4)
-                : Number(factor.toPrecision(8)).toString();
-        return `value × ${fmt} → ${baseLabel}`;
+                ? factor.toExponential(6)
+                : Number(factor.toPrecision(12)).toString();
+        return `value × ${fmt} → ${targetPhrase}`;
     }
 
     /**
@@ -417,54 +732,89 @@ class UnitConverter {
      * BACKWARD COMPATIBILITY: Required by UI components
      */
     static getAlternativeUnits(baseUnit) {
-        const canonical = this.getCanonical(baseUnit);
-        const category = this.unitCategory[canonical];
-        
+        if (baseUnit == null || String(baseUnit).trim() === '') {
+            return [];
+        }
+        const raw = String(baseUnit).trim();
+        const normalized =
+            typeof UnitConverter.normalizeFormulaUnit === 'function' ? UnitConverter.normalizeFormulaUnit(raw) : raw;
+        const canonical = UnitConverter.getCanonical(normalized || raw);
+        const category = UnitConverter.unitCategory[canonical];
+
         if (!category) {
             return [canonical];
         }
-        
-        // Get all units in the same category
-        const alternatives = Object.entries(this.unitCategory)
-            .filter(([unit, cat]) => cat === category)
+
+        const alternatives = Object.entries(UnitConverter.unitCategory)
+            .filter(([, cat]) => cat === category)
             .map(([unit]) => unit);
-        
-        // Ensure canonical unit is first
-        const result = [canonical, ...alternatives.filter(u => u !== canonical)];
+
+        const result = [canonical, ...alternatives.filter((u) => u !== canonical)];
         return [...new Set(result)];
     }
 
     /**
-     * Convert and format a value with its unit
-     * BACKWARD COMPATIBILITY: Required by some UI components
-     * Automatically selects the best unit for display based on the value's magnitude
+     * Convert and format a value with its unit.
+     * By default may pick a friendlier unit in the same category (e.g. m → km).
+     * For formula-defined quantities, pass `{ formulaUnit: true }` so the declared
+     * unit from the formula is kept (pc, M☉, yr, …), not the universal SI base.
+     *
+     * @param {*} value
+     * @param {string} unit - Declared unit the value is expressed in (formula base for that variable)
+     * @param {object|string} [options] - If string, treated as legacy: convert `value` from `unit` to this target unit
+     * @param {boolean} [options.formulaUnit] - Keep display in `unit` (no auto pick)
+     * @param {boolean} [options.lockDeclaredUnit] - Same as formulaUnit
      */
     static convertAndFormat(value, unit, options = {}) {
-        const canonical = this.getCanonical(unit);
-        const category = this.getUnitCategory(canonical);
-        
-        if (!category) {
-            return { value: value, unit: canonical };
+        if (typeof options === 'string') {
+            const toUnit = options;
+            const c = UnitConverter.convert(value, unit, toUnit);
+            if (c !== null && Number.isFinite(c)) {
+                return {
+                    value: c,
+                    unit: UnitConverter.getCanonical(toUnit),
+                    original: { value, unit }
+                };
+            }
+            return { value, unit: UnitConverter.getCanonical(unit), original: { value, unit } };
         }
-        
-        // Get all alternative units
-        const alternatives = this.getAlternativeUnits(canonical);
-        
-        // Find the best unit for display (closest to 1-1000 range)
+
+        const opts = options && typeof options === 'object' ? options : {};
+        const keepDeclared =
+            opts.formulaUnit === true ||
+            opts.lockDeclaredUnit === true ||
+            opts.skipAutoUnitSelection === true;
+
+        const canonical = UnitConverter.getCanonical(unit);
+        const category = UnitConverter.getUnitCategory(canonical);
+
+        if (!category) {
+            return { value, unit: canonical, original: { value, unit } };
+        }
+
+        if (keepDeclared) {
+            return {
+                value,
+                unit: canonical,
+                original: { value, unit }
+            };
+        }
+
+        const alternatives = UnitConverter.getAlternativeUnits(canonical);
+
         let bestUnit = canonical;
         let bestValue = value;
-        
+
         for (const altUnit of alternatives) {
             if (altUnit === canonical) continue;
-            
-            const converted = this.convert(value, canonical, altUnit);
+
+            const converted = UnitConverter.convert(value, canonical, altUnit);
             if (converted !== null && isFinite(converted)) {
                 const absConverted = Math.abs(converted);
                 const absBest = Math.abs(bestValue);
-                
-                // Prefer values in 0.1 to 1000 range
+
                 if (absConverted >= 0.1 && absConverted <= 1000) {
-                    if (absBest < 0.1 || absBest > 1000 || 
+                    if (absBest < 0.1 || absBest > 1000 ||
                         (absConverted >= 0.1 && absConverted < absBest)) {
                         bestUnit = altUnit;
                         bestValue = converted;
@@ -472,11 +822,11 @@ class UnitConverter {
                 }
             }
         }
-        
+
         return {
             value: bestValue,
             unit: bestUnit,
-            original: { value: value, unit: unit }
+            original: { value, unit }
         };
     }
 
@@ -484,12 +834,13 @@ class UnitConverter {
      * Format unit nicely
      */
     static formatUnit(unit) {
-        const canonical = this.getCanonical(unit);
+        const canonical = UnitConverter.getCanonical(unit);
         const names = {
             // Distance
             'm': 'meters', 'km': 'kilometers', 'cm': 'centimeters', 'mm': 'millimeters',
             'μm': 'micrometers', 'nm': 'nanometers',
-            'AU': 'Astronomical Units', 'pc': 'parsecs', 'ly': 'light-years',
+            'AU': 'Astronomical Units', 'pc': 'parsecs', 'ly': 'light-years', 'Mpc': 'megaparsecs',
+            'Å': 'ångströms', 'R☉': 'Solar Radii',
             
             // Mass
             'kg': 'kilograms', 'g': 'grams', 'M☉': 'Solar Masses', 'M_earth': 'Earth Masses',
@@ -502,22 +853,48 @@ class UnitConverter {
             
             // Velocity
             'm/s': 'meters per second', 'km/s': 'kilometers per second', 'km/h': 'kilometers per hour',
+            'rad/s': 'radians per second', 'deg/s': 'degrees per second',
             
             // Energy/Power
-            'W': 'Watts', 'J': 'Joules', 'erg': 'ergs', 'eV': 'electron-volts',
+            'W': 'Watts', 'J': 'Joules', 'J·s': 'joule-seconds (angular momentum)', 'erg': 'ergs', 'erg·s': 'erg-seconds',
+            'eV': 'electron-volts',
             'L☉': 'Solar Luminosities', 'erg/s': 'ergs per second',
             
             // Flux
             'W/m²': 'Watts per square meter', 'erg/(s·cm²)': 'ergs per second per cm²',
             
-            // Frequency
-            'Hz': 'Hertz', 'kHz': 'kilohertz', 'MHz': 'megahertz', 'GHz': 'gigahertz',
+            // Frequency / Hubble
+            'Hz': 'Hertz',
+            'kHz': 'kilohertz',
+            'MHz': 'megahertz',
+            'GHz': 'gigahertz',
+            'km/(s·Mpc)': 'km per second per megaparsec (Hubble unit)',
+            
+            // Area / mechanics / EM / constants
+            'm²': 'square meters',
+            'km²': 'square kilometers',
+            'cm²': 'square centimeters',
+            'N': 'Newtons',
+            'dyn': 'dynes',
+            'Pa': 'Pascals',
+            'J/m³': 'joules per cubic meter',
+            'T': 'Tesla',
+            'G': 'Gauss',
+            'm³/(kg·s²)': 'SI unit of gravitational constant G',
+            'W/(m²·K⁴)': 'Stefan–Boltzmann σ coefficient unit',
             
             // Density
             'kg/m³': 'kg/m³', 'g/cm³': 'g/cm³',
             
+            // Acceleration
+            'm/s²': 'meters per second squared', 'cm/s²': 'centimeters per second squared',
+            
             // Angles
-            'rad': 'radians', 'deg': 'degrees'
+            'rad': 'radians', 'deg': 'degrees', 'arcmin': 'arcminutes', 'arcsec': 'arcseconds',
+            
+            // Other
+            'mag': 'magnitudes',
+            'dimensionless': 'dimensionless (pure number)'
         };
         
         return names[canonical] || canonical;
@@ -530,7 +907,7 @@ class UnitConverter {
     static listUnitsByCategory(category = null) {
         if (!category) {
             const categoryMap = {};
-            for (const [unit, cat] of Object.entries(this.unitCategory)) {
+            for (const [unit, cat] of Object.entries(UnitConverter.unitCategory)) {
                 if (!categoryMap[cat]) {
                     categoryMap[cat] = [];
                 }
@@ -539,7 +916,7 @@ class UnitConverter {
             return categoryMap;
         }
         
-        return Object.entries(this.unitCategory)
+        return Object.entries(UnitConverter.unitCategory)
             .filter(([unit, cat]) => cat === category)
             .map(([unit]) => unit);
     }
@@ -550,15 +927,15 @@ class UnitConverter {
      * DERIVED from conversionFactors (single source of truth)
      */
     static getConversions(unit, context = undefined) {
-        const canonical = this.getCanonical(unit);
-        const category = this.getUnitCategory(canonical);
+        const canonical = UnitConverter.getCanonical(unit);
+        const category = UnitConverter.getUnitCategory(canonical);
         
         if (!category) {
             return null;
         }
         
-        const base = this.baseUnit[category];
-        const alternatives = this.getAlternativeUnits(canonical);
+        const base = UnitConverter.baseUnit[category];
+        const alternatives = UnitConverter.getAlternativeUnits(canonical);
         
         // Generate conversion list from conversionFactors
         const conversions = [];
@@ -566,7 +943,7 @@ class UnitConverter {
             if (altUnit === canonical) continue;
             
             // Calculate factor: canonical -> altUnit
-            const factor = this.convert(1, canonical, altUnit);
+            const factor = UnitConverter.convert(1, canonical, altUnit);
             if (factor !== null && isFinite(factor)) {
                 conversions.push({
                     unit: altUnit,
@@ -615,4 +992,60 @@ class UnitConverter {
             console.warn(`[UnitConverter] ${message}`);
         }
     }
+
+    /**
+     * Instance delegates (FormulaCalculator and shims may use `new UnitConverter()`).
+     * Static methods stay the source of truth; instances forward so `.getCanonical` etc. never appear missing.
+     */
+    getCanonical(unit) {
+        return UnitConverter.getCanonical(unit);
+    }
+
+    convert(value, fromUnit, toUnit) {
+        return UnitConverter.convert(value, fromUnit, toUnit);
+    }
+
+    convertToBase(value, fromUnit, baseUnit) {
+        return UnitConverter.convertToBase(value, fromUnit, baseUnit);
+    }
+
+    getAlternativeUnits(baseUnit) {
+        return UnitConverter.getAlternativeUnits(baseUnit);
+    }
+
+    getUnitCategory(unit) {
+        return UnitConverter.getUnitCategory(unit);
+    }
+
+    formatUnit(unit) {
+        return UnitConverter.formatUnit(unit);
+    }
+
+    formatNumber(value, options) {
+        return UnitConverter.formatNumber(value, options);
+    }
+
+    getConversionHintToBase(fromUnit, baseUnit) {
+        return UnitConverter.getConversionHintToBase(fromUnit, baseUnit);
+    }
+
+    convertAndFormat(value, unit, options) {
+        return UnitConverter.convertAndFormat(value, unit, options);
+    }
+
+    getSiBaseContextForUnit(unit) {
+        return UnitConverter.getSiBaseContextForUnit(unit);
+    }
+
+    normalizeFormulaUnit(unit) {
+        return UnitConverter.normalizeFormulaUnit(unit);
+    }
+}
+
+// Ensure ES-module / embedded runtimes see the same global as classic `<script>` tags.
+if (typeof globalThis !== 'undefined') {
+    globalThis.UnitConverter = UnitConverter;
+}
+if (typeof window !== 'undefined') {
+    window.UnitConverter = UnitConverter;
 }

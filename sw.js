@@ -1,64 +1,51 @@
 /**
- * Service Worker for AstroCalc - NO HTML CACHE v3.0.8
- * 
- * This version:
- * - DELETES ALL OLD CACHES on install before creating new cache
- * - NEVER caches HTML files - always fetches fresh to avoid stale HTML
- * - Prevents serving cached HTML with old script references
+ * AstroCalc service worker — offline-first (v4)
+ * - Precaches shell + scripts + KaTeX + MathJax entry without cache-busting queries
+ * - Navigation: cache-first (refresh works offline); updates cache when online
+ * - Static assets: cache match with ignoreSearch, then network → runtime cache
  */
 
-const CACHE_NAME = 'astrocalc-shell-v3.0.8-NO-HTML-CACHE';
-const RUNTIME_CACHE = 'astrocalc-runtime-v3.0.8-NO-HTML-CACHE';
-const MAX_RUNTIME_ENTRIES = 100;
+const CACHE_VERSION = 'v4.0.7';
+const CACHE_NAME = `astrocalc-shell-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `astrocalc-runtime-${CACHE_VERSION}`;
 
-const DEV_MODE = false;
-
-// Resources to cache on install
-// NOTE: index.html is NOT cached - always fetched fresh to avoid stale HTML
 const PRECACHE_RESOURCES = [
     './',
-    // './index.html', // REMOVED: Never cache HTML - always fetch fresh
-    './styles/main.css',
+    './index.html',
     './manifest.json',
+    './styles/main.css',
+    './force_blue_now.js',
+    './force_render_fix.js',
 
-    // Images
-    './assets/images/hr-diagram.svg',
-    './assets/images/henyey-hayashi-zams-track.svg',
-
-    // Core scripts
+    './scripts/concepts.js',
     './scripts/formulas.js',
     './scripts/safeExpressionEvaluator.js',
     './scripts/ui/utils/SafeMathEvaluator.js',
     './scripts/unitConverter.js',
     './scripts/unitParser.js',
     './scripts/expressionParser.js',
+    './scripts/variableValueParsing.js',
+    './scripts/formulaDisplayUtils.js',
     './scripts/precisionCalculator.js',
     './scripts/performanceOptimizer.js',
     './scripts/calculator.js',
-    
-    // Performance optimizers
-    './scripts/calculatorOptimizer.js',
-    './scripts/mathjaxOptimizer.js',
-    './scripts/moduleLazyLoader.js',
-
-    // Feature modules
     './scripts/classification.js',
     './scripts/frqSupport.js',
     './scripts/quickNav.js',
-    './force_blue_now.js',
-    
-    // UI Rendering
+    './scripts/formulaKnowledgeGraph.js',
+    './scripts/formulaExplorer.js',
+    './scripts/enhancedOfflineGraph.js',
+    './scripts/graphManager.js',
     './scripts/ui/rendering/VariableInputs.js',
+    './scripts/ui/rendering/ResultDisplay.js',
     './scripts/algebraicSolver.js',
 
-    // UI (ES modules)
     './scripts/ui/ui/init.js',
     './scripts/ui/ui/UIModuleOrchestrator.js',
     './scripts/ui/ui/contracts.js',
     './scripts/ui/ui/utils/debounce.js',
     './scripts/ui/ui/modules/search/SearchEngine.js',
     './scripts/ui/ui/modules/search/Scorer.js',
-    './scripts/ui/ui/modules/search/interfaces.js',
     './scripts/ui/ui/modules/calculation/CalculationOrchestrator.js',
     './scripts/ui/ui/modules/tabs/TabManager.js',
     './scripts/ui/ui/modules/graph/GraphCoordinator.js',
@@ -67,180 +54,263 @@ const PRECACHE_RESOURCES = [
     './scripts/ui/ui/modules/utils/CalculationUtils.js',
     './scripts/ui/ui/modules/utils/FormattingUtils.js',
     './scripts/ui/ui/modules/rendering/FormulaRenderer.js',
+    './scripts/ui/ui/modules/expert/ExpertSystem.js',
 
-    // Libraries
-    './libs/mathjax/es5/tex-mml-chtml.js'
+    './libs/katex/katex.min.css',
+    './libs/katex/katex.min.js',
+    './libs/mathjax/es5/tex-mml-chtml.js',
+
+    './assets/images/hr-diagram.svg',
+    './assets/images/henyey-hayashi-zams-track.svg',
+
+    // KaTeX fonts (offline typesetting)
+    './libs/katex/fonts/KaTeX_AMS-Regular.woff2',
+    './libs/katex/fonts/KaTeX_AMS-Regular.woff',
+    './libs/katex/fonts/KaTeX_Caligraphic-Bold.woff2',
+    './libs/katex/fonts/KaTeX_Caligraphic-Bold.woff',
+    './libs/katex/fonts/KaTeX_Caligraphic-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Caligraphic-Regular.woff',
+    './libs/katex/fonts/KaTeX_Fraktur-Bold.woff2',
+    './libs/katex/fonts/KaTeX_Fraktur-Bold.woff',
+    './libs/katex/fonts/KaTeX_Fraktur-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Fraktur-Regular.woff',
+    './libs/katex/fonts/KaTeX_Main-Bold.woff2',
+    './libs/katex/fonts/KaTeX_Main-Bold.woff',
+    './libs/katex/fonts/KaTeX_Main-BoldItalic.woff2',
+    './libs/katex/fonts/KaTeX_Main-BoldItalic.woff',
+    './libs/katex/fonts/KaTeX_Main-Italic.woff2',
+    './libs/katex/fonts/KaTeX_Main-Italic.woff',
+    './libs/katex/fonts/KaTeX_Main-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Main-Regular.woff',
+    './libs/katex/fonts/KaTeX_Math-BoldItalic.woff2',
+    './libs/katex/fonts/KaTeX_Math-BoldItalic.woff',
+    './libs/katex/fonts/KaTeX_Math-Italic.woff2',
+    './libs/katex/fonts/KaTeX_Math-Italic.woff',
+    './libs/katex/fonts/KaTeX_SansSerif-Bold.woff2',
+    './libs/katex/fonts/KaTeX_SansSerif-Bold.woff',
+    './libs/katex/fonts/KaTeX_SansSerif-Italic.woff2',
+    './libs/katex/fonts/KaTeX_SansSerif-Italic.woff',
+    './libs/katex/fonts/KaTeX_SansSerif-Regular.woff2',
+    './libs/katex/fonts/KaTeX_SansSerif-Regular.woff',
+    './libs/katex/fonts/KaTeX_Script-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Script-Regular.woff',
+    './libs/katex/fonts/KaTeX_Size1-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Size1-Regular.woff',
+    './libs/katex/fonts/KaTeX_Size2-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Size2-Regular.woff',
+    './libs/katex/fonts/KaTeX_Size3-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Size3-Regular.woff',
+    './libs/katex/fonts/KaTeX_Size4-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Size4-Regular.woff',
+    './libs/katex/fonts/KaTeX_Typewriter-Regular.woff2',
+    './libs/katex/fonts/KaTeX_Typewriter-Regular.woff',
+
+    './libs/katex/fonts/KaTeX_AMS-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Caligraphic-Bold.ttf',
+    './libs/katex/fonts/KaTeX_Caligraphic-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Fraktur-Bold.ttf',
+    './libs/katex/fonts/KaTeX_Fraktur-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Main-Bold.ttf',
+    './libs/katex/fonts/KaTeX_Main-BoldItalic.ttf',
+    './libs/katex/fonts/KaTeX_Main-Italic.ttf',
+    './libs/katex/fonts/KaTeX_Main-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Math-BoldItalic.ttf',
+    './libs/katex/fonts/KaTeX_Math-Italic.ttf',
+    './libs/katex/fonts/KaTeX_SansSerif-Bold.ttf',
+    './libs/katex/fonts/KaTeX_SansSerif-Italic.ttf',
+    './libs/katex/fonts/KaTeX_SansSerif-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Script-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Size1-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Size2-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Size3-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Size4-Regular.ttf',
+    './libs/katex/fonts/KaTeX_Typewriter-Regular.ttf'
 ];
 
-// Install event - DELETE ALL OLD CACHES FIRST
+function resolveUrl(path) {
+    return new URL(path, self.location).href;
+}
+
+async function cacheShellResources(cache) {
+    const results = await Promise.allSettled(
+        PRECACHE_RESOURCES.map((path) =>
+            cache
+                .add(new Request(resolveUrl(path), { cache: 'reload' }))
+                .then(() => ({ path, ok: true }))
+                .catch((err) => ({ path, ok: false, err: err.message }))
+        )
+    );
+    const failed = results
+        .filter((r) => r.status === 'rejected' || (r.value && !r.value.ok))
+        .map((r) => (r.status === 'fulfilled' ? r.value : r.reason));
+    if (failed.length) {
+        console.warn('[SW] Precache partial failures:', failed);
+    }
+}
+
 self.addEventListener('install', (event) => {
-    console.log('[SW v3.0.0] ✨ INSTALL - Deleting ALL old caches and installing fresh...');
-    self.skipWaiting(); // Activate immediately
-    
+    self.skipWaiting();
     event.waitUntil(
-        caches.keys()
-            .then(cacheNames => {
-                console.log(`[SW v3.0.0] Found ${cacheNames.length} old caches to delete:`, cacheNames);
-                return Promise.all(
-                    cacheNames.map(name => {
-                        console.log(`[SW v3.0.0] 🗑️ Deleting old cache: ${name}`);
-                        return caches.delete(name);
-                    })
-                );
-            })
-            .then(() => {
-                console.log('[SW v3.0.0] ✅ All old caches deleted. Creating fresh cache...');
-                return caches.open(CACHE_NAME);
-            })
-            .then(cache => {
-                console.log('[SW v3.0.0] Caching resources...');
-                // Cache with force reload
-                return Promise.allSettled(
-                    PRECACHE_RESOURCES.map(url => {
-                        const fullUrl = url + (url.includes('?') ? '&' : '?') + `v=3.0.4&t=${Date.now()}`;
-                        return cache.add(new Request(fullUrl, { cache: 'reload' }))
-                            .then(() => ({ url, status: 'success' }))
-                            .catch(err => ({ url, status: 'failed', error: err.message }));
-                    })
-                );
-            })
-            .then(results => {
-                const success = results.filter(r => r.status === 'fulfilled' && r.value?.status === 'success').length;
-                const failed = results.length - success;
-                console.log(`[SW v3.0.0] ✅ Cached ${success}/${results.length} resources (${failed} failed)`);
-                if (failed > 0) {
-                    const failures = results.filter(r => r.status === 'rejected' || r.value?.status === 'failed');
-                    console.warn('[SW v3.0.0] Failed resources:', failures);
-                }
-            })
-            .catch(err => {
-                console.error('[SW v3.0.0] ❌ Install error:', err);
-                throw err;
-            })
+        caches
+            .open(CACHE_NAME)
+            .then((cache) => cacheShellResources(cache))
+            .catch((err) => console.error('[SW] Install precache error:', err))
     );
 });
 
-// Activate event - claim clients and force reload
 self.addEventListener('activate', (event) => {
-    console.log('[SW v3.0.0] ✨ ACTIVATE - Taking control of all clients...');
     event.waitUntil(
-        caches.keys()
-            .then(cacheNames => {
-                // Delete any caches that don't match current version
-                return Promise.all(
-                    cacheNames
-                        .filter(name => name !== CACHE_NAME && name !== RUNTIME_CACHE)
-                        .map(name => {
-                            console.log(`[SW v3.0.0] 🗑️ Deleting old cache in activate: ${name}`);
+        caches
+            .keys()
+            .then((keys) =>
+                Promise.all(
+                    keys
+                        .filter((name) => name !== CACHE_NAME && name !== RUNTIME_CACHE)
+                        .map((name) => {
+                            console.log('[SW] Deleting old cache:', name);
                             return caches.delete(name);
                         })
-                );
-            })
-            .then(() => {
-                console.log('[SW v3.0.0] ✅ Claiming all clients...');
-                return self.clients.claim();
-            })
-            .then(() => {
-                return self.clients.matchAll({ type: 'window' });
-            })
-            .then(clients => {
-                console.log(`[SW v3.0.0] Found ${clients.length} clients to reload`);
-                clients.forEach(client => {
-                    console.log('[SW v3.0.0] 📤 Sending reload message to:', client.url);
-                    client.postMessage({
-                        type: 'SW_UPDATED',
-                        version: '3.0.0-FORCE-REFRESH',
-                        action: 'reload'
-                    });
-                });
-            })
+                )
+            )
+            .then(() => self.clients.claim())
     );
 });
 
-// Fetch event - network-first for HTML, cache-first for assets
+async function matchAsset(request) {
+    const cache = await caches.open(CACHE_NAME);
+    let hit = await cache.match(request, { ignoreSearch: true });
+    if (hit) return hit;
+    hit = await cache.match(request);
+    if (hit) return hit;
+    const runtime = await caches.open(RUNTIME_CACHE);
+    hit = await runtime.match(request, { ignoreSearch: true });
+    if (hit) return hit;
+    return runtime.match(request);
+}
+
+async function matchNavigation(request) {
+    const cache = await caches.open(CACHE_NAME);
+    let hit = await cache.match(request);
+    if (hit) return hit;
+    const url = new URL(request.url);
+    const origin = url.origin;
+    const paths = [
+        `${origin}/index.html`,
+        `${origin}/`,
+        resolveUrl('./index.html'),
+        resolveUrl('./')
+    ];
+    for (const p of paths) {
+        hit = await cache.match(p);
+        if (hit) return hit;
+    }
+    return null;
+}
+
+async function putRuntime(request, response) {
+    if (!response || response.status !== 200 || response.type === 'opaque') return;
+    const copy = response.clone();
+    const cache = await caches.open(RUNTIME_CACHE);
+    await cache.put(request, copy);
+}
+
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
-    
-    // Bypass SW for debug pages
-    if (url.pathname.includes('clear_everything') || 
+
+    if (
+        url.pathname.includes('clear_everything') ||
         url.pathname.includes('unregister_sw') ||
         url.pathname.includes('debug') ||
-        url.pathname.includes('test_')) {
+        url.pathname.includes('test_')
+    ) {
         return;
     }
-    
-    // Only handle same-origin requests
-    if (!url.origin.startsWith(self.location.origin)) {
+
+    if (url.origin !== self.location.origin) {
         return;
     }
-    
-    const isNavigation = event.request.mode === 'navigate' || event.request.destination === 'document';
-    const isHTML = url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/');
-    const isCSS = url.pathname.endsWith('.css');
-    const isJS = url.pathname.endsWith('.js');
-    
-    // CRITICAL: Never cache HTML files - always fetch fresh from network
-    // This prevents serving stale HTML with old script references
-    if (isNavigation || isHTML) {
+
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    const isNavigation =
+        event.request.mode === 'navigate' || event.request.destination === 'document';
+    const path = url.pathname;
+    const isHtmlDoc =
+        isNavigation ||
+        path.endsWith('.html') ||
+        path === '/' ||
+        (path.endsWith('/') && !path.endsWith('.js'));
+
+    if (isHtmlDoc) {
         event.respondWith(
-            fetch(event.request, { 
-                cache: 'no-store',
-                headers: {
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache'
-                }
-            })
-                .then(response => {
-                    // Don't cache HTML - always serve fresh
-                    // This ensures users always get the latest HTML without debug script references
-                    return response;
-                })
-                .catch(() => {
-                    // Only fall back to cache if network completely fails (offline)
-                    return caches.match(event.request);
-                })
-        );
-        return;
-    }
-    
-    // Network-first for CSS (always get latest, but cache for offline)
-    if (isCSS) {
-        event.respondWith(
-            fetch(event.request, { cache: 'no-store' })
-                .then(response => {
-                    if (response && response.status === 200) {
-                        const responseClone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(event.request, responseClone);
-                        });
-                    }
-                    return response;
-                })
-                .catch(() => {
-                    return caches.match(event.request);
-                })
-        );
-        return;
-    }
-    
-    // Cache-first for everything else (JS, images, etc.)
-    event.respondWith(
-        caches.match(event.request)
-            .then(cached => {
+            (async () => {
+                const cached = await matchNavigation(event.request);
+                const networkFetch = fetch(event.request)
+                    .then(async (response) => {
+                        if (response && response.status === 200) {
+                            const shell = await caches.open(CACHE_NAME);
+                            const pathname = new URL(event.request.url).pathname;
+                            const c1 = response.clone();
+                            await shell.put(event.request, c1);
+                            if (pathname === '/' || pathname === '' || pathname === '/index.html') {
+                                await shell.put(resolveUrl('./index.html'), response.clone());
+                            }
+                        }
+                        return response;
+                    })
+                    .catch(() => null);
+
                 if (cached) {
+                    event.waitUntil(networkFetch);
                     return cached;
                 }
-                return fetch(event.request).then(response => {
-                    if (response && response.status === 200) {
-                        const responseClone = response.clone();
-                        caches.open(RUNTIME_CACHE).then(cache => {
-                            cache.put(event.request, responseClone);
-                        });
-                    }
-                    return response;
-                });
-            })
+                const live = await networkFetch;
+                if (live) return live;
+                return new Response(
+                    '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body><p>Open AstroCalc once while online to install offline data, then try again.</p></body></html>',
+                    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+                );
+            })()
+        );
+        return;
+    }
+
+    event.respondWith(
+        (async () => {
+            const cached = await matchAsset(event.request);
+            if (cached) {
+                event.waitUntil(
+                    fetch(event.request)
+                        .then((response) => {
+                            if (response && response.status === 200) {
+                                return caches.open(CACHE_NAME).then((c) => c.put(event.request, response.clone()));
+                            }
+                        })
+                        .catch(() => {})
+                );
+                return cached;
+            }
+            try {
+                const response = await fetch(event.request);
+                if (response && response.status === 200) {
+                    await putRuntime(event.request, response);
+                }
+                return response;
+            } catch (e) {
+                const again = await matchAsset(event.request);
+                if (again) return again;
+                throw e;
+            }
+        })()
     );
 });
 
-console.log('[SW v3.0.0] Service Worker script loaded');
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
+console.log('[SW] AstroCalc offline-first', CACHE_VERSION, 'loaded');

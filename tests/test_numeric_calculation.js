@@ -69,9 +69,9 @@ const TEST_CASES = [
         name: 'Kepler\'s Third Law (Simple)',
         description: 'P² = (4π²/GM) * a³, solve for P',
         formulaId: 'kepler_third_law',
-        inputs: { M: 1.989e30, a: 1.496e11 },
+        inputs: { M: 1.988409870440e30, a: 149597870700 },
         expectedUnknown: 'P',
-        expectedValue: Math.sqrt((4 * Math.PI * Math.PI / (6.67430e-11 * 1.989e30)) * Math.pow(1.496e11, 3)),
+        expectedValue: Math.sqrt((4 * Math.PI * Math.PI / (6.67430e-11 * 1.988409870440e30)) * Math.pow(149597870700, 3)),
         tolerance: 1000 // Seconds - large tolerance for orbital period
     }
 ];

@@ -2,7 +2,7 @@
  * UI Initialization - Wires all modules together and initializes the application
  * This replaces the monolithic initialization in ui.js
  */
-import { UIModuleOrchestrator } from './UIModuleOrchestrator.js?v=2.3.1';
+import { UIModuleOrchestrator } from './UIModuleOrchestrator.js?v=2.3.16';
 
 let retryCount = 0;
 const MAX_RETRIES = 50;
@@ -32,6 +32,12 @@ export function initializeUI() {
         
         if (typeof window.FormulaCalculator === 'undefined') {
             console.warn(`[UI Init] FormulaCalculator not loaded yet, retrying... (${retryCount}/${MAX_RETRIES})`);
+            setTimeout(() => initializeUI(), 200);
+            return null;
+        }
+
+        if (typeof window.UnitConverter === 'undefined' || window.UnitConverter == null) {
+            console.warn(`[UI Init] UnitConverter not loaded yet, retrying... (${retryCount}/${MAX_RETRIES})`);
             setTimeout(() => initializeUI(), 200);
             return null;
         }

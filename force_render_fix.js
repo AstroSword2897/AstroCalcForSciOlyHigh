@@ -58,8 +58,8 @@
         
         // Force render
         try {
-            window.uiOrchestrator.renderInitialFormulas();
-            console.log('✅ Formulas rendered successfully');
+            window.uiOrchestrator.renderInitialFormulas({ force: true });
+            console.log('✅ Formulas rendered successfully (engine path, force)');
             
             // Verify cards appeared
             setTimeout(() => {

@@ -55,30 +55,40 @@ class ExpressionParser {
         if (typeof UnitParser !== 'undefined') {
             const parsed = UnitParser.parse(value);
             if (parsed.hasUnit && parsed.value !== null) {
-                // Unit was found - convert if needed
-                if (unit && parsed.unit && parsed.unit !== unit) {
-                    // Try to convert unit
-                    if (typeof UnitConverter !== 'undefined') {
-                        const converted = UnitConverter.convert(parsed.value, parsed.unit, unit);
-                        if (converted !== null) {
+                const uHint = unit != null && String(unit).trim() ? String(unit).trim() : '';
+                // Use canonical units so "g" vs "kg" always converts; never silently drop units.
+                const GlobUC =
+                    (typeof globalThis !== 'undefined' && globalThis.UnitConverter) ||
+                    (typeof window !== 'undefined' && window.UnitConverter) ||
+                    null;
+                if (
+                    uHint &&
+                    parsed.unit &&
+                    GlobUC != null &&
+                    typeof GlobUC.getCanonical === 'function'
+                ) {
+                    const fromC = GlobUC.getCanonical(parsed.unit);
+                    const toC = GlobUC.getCanonical(uHint);
+                    if (fromC && toC && fromC !== toC) {
+                        const converted = GlobUC.convert(parsed.value, parsed.unit, uHint);
+                        if (converted !== null && Number.isFinite(converted)) {
                             return converted;
                         }
+                        throw new Error(
+                            `Cannot convert ${parsed.value} from ${parsed.unit} to ${uHint} (formula base unit)`
+                        );
                     }
-                    // If conversion fails, warn but continue with parsed value
-                    if (typeof logger !== 'undefined') {
-                        logger.warn(`Unit mismatch: input has ${parsed.unit}, expected ${unit}. Using ${parsed.value} ${parsed.unit} without conversion.`);
-                    } else {
-                        console.warn(`Unit mismatch: input has ${parsed.unit}, expected ${unit}. Using ${parsed.value} ${parsed.unit} without conversion.`);
-                    }
+                } else if (!uHint && parsed.unit) {
+                    console.warn(
+                        `[ExpressionParser] Value includes unit "${parsed.unit}" but no formula base unit was provided; using magnitude only.`
+                    );
                 }
-                // Validate dimensions if expected unit provided
-                if (unit && typeof DimensionalAnalysis !== 'undefined') {
-                    const validation = DimensionalAnalysis.validateDimensions(parsed.value, parsed.unit, unit);
+                if (uHint && typeof DimensionalAnalysis !== 'undefined') {
+                    const validation = DimensionalAnalysis.validateDimensions(parsed.value, parsed.unit, uHint);
                     if (!validation.valid) {
                         throw new Error(validation.error);
                     }
                 }
-                // Return the parsed value (unit conversion handled separately)
                 return parsed.value;
             }
             // If UnitParser found a value but no unit, use that value
@@ -107,10 +117,20 @@ class ExpressionParser {
             }
         }
 
-        // Try direct number parsing first
+        // Try direct number parsing first (including 1e23 / 1E+23; parseFloat toString can differ from input)
+        const nw = valueWithoutUnit.trim();
+        const sciOrPlain = /^[+-]?(?:\d+\.?\d*|\d*\.\d+)(?:[eE][+-]?\d+)?$/.test(nw);
+        if (sciOrPlain) {
+            const n = Number(nw);
+            if (Number.isFinite(n)) {
+                if (isDegrees) {
+                    return n * Math.PI / 180;
+                }
+                return n;
+            }
+        }
         const directNumber = parseFloat(valueWithoutUnit);
-        if (!isNaN(directNumber) && valueWithoutUnit === directNumber.toString()) {
-            // Convert degrees to radians if needed
+        if (!isNaN(directNumber) && valueWithoutUnit.trim() === directNumber.toString()) {
             if (isDegrees) {
                 return directNumber * Math.PI / 180;
             }

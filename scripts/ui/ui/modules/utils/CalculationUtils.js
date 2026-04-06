@@ -39,9 +39,12 @@ export class CalculationUtils {
                 // Fall through to parseFloat
             }
         }
-        // Fallback to parseFloat
-        const parsed = parseFloat(normalized);
-        if (!isNaN(parsed) && Number.isFinite(parsed)) {
+        // Fallback: parseFloat then Number (accepts 1e23, 1E+23, etc.)
+        let parsed = parseFloat(normalized);
+        if (!Number.isFinite(parsed)) {
+            parsed = Number(normalized);
+        }
+        if (Number.isFinite(parsed)) {
             return parsed;
         }
         return null;

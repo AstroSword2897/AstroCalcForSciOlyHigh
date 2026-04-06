@@ -33,6 +33,34 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+function explorerFormulaDisplayUtils() {
+    return typeof globalThis !== 'undefined' && globalThis.formulaDisplayUtils
+        ? globalThis.formulaDisplayUtils
+        : null;
+}
+
+function explorerVariableDisplayLabel(v) {
+    const u = explorerFormulaDisplayUtils();
+    if (u && typeof u.getVariableDisplayLabel === 'function') return u.getVariableDisplayLabel(v);
+    return v.symbol;
+}
+
+function explorerEquationDisplay(formula) {
+    const u = explorerFormulaDisplayUtils();
+    if (u && typeof u.formatEquationForDisplay === 'function') {
+        return u.formatEquationForDisplay(formula.equation, formula);
+    }
+    return formula.equation;
+}
+
+function explorerSolvedDisplay(formula, solved) {
+    const u = explorerFormulaDisplayUtils();
+    if (u && formula && solved && typeof u.displaySymbolForSolved === 'function') {
+        return u.displaySymbolForSolved(formula, solved);
+    }
+    return solved || 'Unknown';
+}
+
 /**
  * Initialize the Formula Explorer
  */
@@ -195,7 +223,10 @@ function handleExplorerCalculate() {
             throw new Error('ExpressionParser not available');
         }
         
-        if (typeof UnitConverter === 'undefined') {
+        const _UC =
+            (typeof globalThis !== 'undefined' && globalThis.UnitConverter) ||
+            (typeof window !== 'undefined' && window.UnitConverter);
+        if (!_UC) {
             throw new Error('UnitConverter not available');
         }
         
@@ -230,17 +261,14 @@ function handleExplorerCalculate() {
                 String(rawValue).toLowerCase() === 'idk') {
                 parsedVariableValues[symbol] = null;
             } else {
-                // Parse the value as a mathematical expression
                 try {
-                    // Parse the value (ExpressionParser handles expressions like "2*pi", "1e10", "45°", etc.)
-                    const parsedValue = ExpressionParser.parse(String(rawValue), baseUnit);
-                    
+                    const parsedValue =
+                        typeof parseVariableRawToFormulaBase === 'function'
+                            ? parseVariableRawToFormulaBase(String(rawValue), variable)
+                            : ExpressionParser.parse(String(rawValue), baseUnit);
                     if (parsedValue === null) {
                         parsedVariableValues[symbol] = null;
                     } else if (typeof parsedValue === 'number' && !isNaN(parsedValue) && isFinite(parsedValue)) {
-                        // Value is already in base unit (ExpressionParser handles unit conversion for angles)
-                        // But we need to check if UnitConverter is needed for other units
-                        // For now, assume ExpressionParser returns values in the correct unit
                         parsedVariableValues[symbol] = parsedValue;
                     } else {
                         throw new Error(`Could not parse "${rawValue}" as a number`);
@@ -647,10 +675,11 @@ function renderExplorerCalculatorInputs() {
                 ${userVariables.map(variable => {
                     const currentValue = variableValues[variable.symbol] || '';
                     const inputId = `explorer-${escapeHtml(variable.symbol)}`;
+                    const symDisp = explorerVariableDisplayLabel(variable);
                     return `
                         <div class="explorer-input-group">
                             <label class="explorer-input-label" for="${inputId}">
-                                ${escapeHtml(variable.symbol)} (${escapeHtml(variable.unit)})
+                                ${escapeHtml(symDisp)} (${escapeHtml(variable.unit)})
                             </label>
                             <input
                                 type="text"
@@ -659,7 +688,7 @@ function renderExplorerCalculatorInputs() {
                                 name="${inputId}"
                                 class="explorer-variable-input"
                                 data-variable-symbol="${escapeHtml(variable.symbol)}"
-                                placeholder="Enter ${escapeHtml(variable.name)}"
+                                placeholder="Number, expression, or with unit (e.g. 5 g) → ${escapeHtml(variable.unit || 'base')}"
                                 value="${escapeHtml(currentValue)}"
                                 autocomplete="off"
                                 spellcheck="false"
@@ -691,7 +720,7 @@ function renderExplorerFormulaItem(formula) {
             data-formula-id="${escapeHtml(formula.id)}"
         >
             <div class="explorer-formula-name">${escapeHtml(formula.name)}</div>
-            <div class="explorer-formula-equation">${escapeHtml(formula.equation)}</div>
+            <div class="explorer-formula-equation">${escapeHtml(explorerEquationDisplay(formula))}</div>
         </div>
     `;
 }
@@ -716,7 +745,7 @@ function renderExplorerFormulaDetails(formula) {
             
             <div class="explorer-equation-box">
                 <div class="explorer-equation-label">Equation:</div>
-                <div class="explorer-equation-text">${escapeHtml(formula.equation)}</div>
+                <div class="explorer-equation-text">${escapeHtml(explorerEquationDisplay(formula))}</div>
             </div>
 
             ${formula.concepts && formula.concepts.length > 0 ? `
@@ -740,7 +769,7 @@ function renderExplorerFormulaDetails(formula) {
                         ${formula.variables.map(v => `
                             <div class="explorer-variable-item">
                                 <div class="explorer-variable-header">
-                                    <span class="explorer-variable-symbol">${escapeHtml(v.symbol)}</span>
+                                    <span class="explorer-variable-symbol">${escapeHtml(explorerVariableDisplayLabel(v))}</span>
                                     <span class="explorer-variable-unit">${escapeHtml(v.unit)}</span>
                                 </div>
                                 <div class="explorer-variable-name">${escapeHtml(v.name)}</div>
@@ -784,7 +813,7 @@ function renderExplorerFormulaDetails(formula) {
                             <div class="explorer-result-success">
                                 <div class="explorer-result-label">Result:</div>
                                 <div class="explorer-result-value">
-                                    ${escapeHtml(formulaExplorerState.calculationResult.solvedFor || formulaExplorerState.calculationResult.variable || 'Unknown')} = 
+                                    ${escapeHtml(explorerSolvedDisplay(formula, formulaExplorerState.calculationResult.solvedFor || formulaExplorerState.calculationResult.variable))} = 
                                     ${typeof (formulaExplorerState.calculationResult.result) === 'number' ? 
                                         formulaExplorerState.calculationResult.result.toExponential(4) : 
                                         (formulaExplorerState.calculationResult.value ? 

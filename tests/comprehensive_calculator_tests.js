@@ -93,13 +93,13 @@ let calculatorTestResults = {
 const PHYSICAL_CONSTANTS = {
     G: 6.67430e-11,
     c: 2.99792458e8,
-    sigma: 5.670374419e-8,
+    sigma: 5.6703744191844294e-8,
     h: 6.62607015e-34,
     k: 1.380649e-23,
-    M_sun: 1.989e30,
+    M_sun: 1.988409870440e30,
     L_sun: 3.828e26,
-    R_sun: 6.96e8,
-    AU: 1.496e11,
+    R_sun: 695700000,
+    AU: 149597870700,
     pc: 3.085677581e16,
     ly: 9.461e15
 };
@@ -170,18 +170,18 @@ function generateStandardTestCase(formula) {
     } else if (formulaId === 'orbital_energy') {
         // Orbital energy: E = -GMm/(2a) for bound orbits (E < 0)
         vars.E = -1e30; // Negative for bound orbit
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.m = 5.972e24;
-        vars.a = 1.496e11;
+        vars.a = 149597870700;
     } else if (formulaId === 'hydrostatic_balance') {
         // Hydrostatic: dP/dr = -GMρ/r² (dP/dr is negative)
         vars.dP_dr = -1000; // Negative
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.ρ = 1400; // Density
         vars.r = 6.96e8;
     } else if (formulaId === 'white_dwarf_mass_radius') {
         // White dwarf: R = R_ref * (M/M_ref)^(-1/3)
-        vars.M = 0.6 * 1.989e30; // 0.6 solar masses
+        vars.M = 0.6 * 1.988409870440e30; // 0.6 solar masses
         vars.R = 0.01 * 6.96e8; // 0.01 solar radii
     } else {
         // Generic test values - ensure all values are valid for their types
@@ -197,7 +197,7 @@ function generateStandardTestCase(formula) {
             
             if (isMagnitude) {
                 vars[v.symbol] = 0; // Magnitudes can be any real number, 0 is valid
-            } else if (varName.includes('eccentricity') || symbol === 'e' && varName.includes('eccentricity')) {
+            } else if (varName.includes('eccentricity') || symbol === 'ecc' || (symbol === 'e' && varName.includes('eccentricity'))) {
                 vars[v.symbol] = 0.5; // must be < 1 for elliptical orbits
             } else if (varName.includes('albedo')) {
                 vars[v.symbol] = 0.3; // [0,1]
@@ -208,12 +208,12 @@ function generateStandardTestCase(formula) {
             } else if (unit.includes('m_☉') || unit.includes('m_sun')) {
                 vars[v.symbol] = 1.0; // solar mass units
             } else if (symbol.includes('mass') || (symbol === 'm' && !isMagnitude) || varName.includes('mass')) {
-                vars[v.symbol] = symbol.includes('sun') ? 1.989e30 : 1e30;
+                vars[v.symbol] = symbol.includes('sun') ? 1.988409870440e30 : 1e30;
             } else if (symbol.includes('radius') || symbol === 'r') {
                 vars[v.symbol] = symbol.includes('sun') ? 6.96e8 : 1e8;
             } else if (symbol.includes('distance') || symbol === 'd' ||
                       (symbol === 'a' && (varName.includes('semi-major') || varName.includes('axis') || varName.includes('distance') || varName.includes('separation')))) {
-                vars[v.symbol] = 1.496e11; // 1 AU
+                vars[v.symbol] = 149597870700; // 1 AU
             } else if (symbol.includes('period') || varName.includes('period') ||
                       (symbol === 'p' && varName.includes('period')) ||
                       (symbol === 't' && !varName.includes('temperature'))) {
@@ -314,16 +314,16 @@ function generateEdgeTestCase(formula) {
         vars.F2 = 100;
     } else if (formulaId === 'orbital_energy') {
         vars.E = -5e29; // Negative, smaller magnitude
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.m = 5.972e24;
-        vars.a = 1.496e11;
+        vars.a = 149597870700;
     } else if (formulaId === 'hydrostatic_balance') {
         vars.dP_dr = -500; // Negative, smaller magnitude
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.ρ = 1400;
         vars.r = 6.96e8;
     } else if (formulaId === 'white_dwarf_mass_radius') {
-        vars.M = 0.5 * 1.989e30; // Smaller mass
+        vars.M = 0.5 * 1.988409870440e30; // Smaller mass
         vars.R = 0.01 * 6.96e8;
     } else {
         // Generic edge values - ensure all values are valid
@@ -339,7 +339,7 @@ function generateEdgeTestCase(formula) {
 
             if (isMagnitude) {
                 vars[v.symbol] = -1;
-            } else if (varName.includes('eccentricity') || (symbol === 'e' && varName.includes('eccentricity'))) {
+            } else if (varName.includes('eccentricity') || symbol === 'ecc' || (symbol === 'e' && varName.includes('eccentricity'))) {
                 vars[v.symbol] = 0.2;
             } else if (varName.includes('albedo')) {
                 vars[v.symbol] = 0.6;
@@ -435,16 +435,16 @@ function generateAlternateSolveTestCase(formula) {
         vars.F2 = 50;
     } else if (formulaId === 'orbital_energy') {
         vars.E = -1e30;
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.m = 5.972e24;
-        vars.a = 1.496e11;
+        vars.a = 149597870700;
     } else if (formulaId === 'hydrostatic_balance') {
         vars.dP_dr = -1000;
-        vars.M = 1.989e30;
+        vars.M = 1.988409870440e30;
         vars.ρ = 1400;
         vars.r = 6.96e8;
     } else if (formulaId === 'white_dwarf_mass_radius') {
-        vars.M = 0.6 * 1.989e30;
+        vars.M = 0.6 * 1.988409870440e30;
         vars.R = 0.01 * 6.96e8;
     } else {
         // Generic values - ensure all values are valid
@@ -460,7 +460,7 @@ function generateAlternateSolveTestCase(formula) {
             
             if (isMagnitude) {
                 vars[v.symbol] = 0; // Magnitudes can be any real number
-            } else if (varName.includes('eccentricity') || (symbol === 'e' && varName.includes('eccentricity'))) {
+            } else if (varName.includes('eccentricity') || symbol === 'ecc' || (symbol === 'e' && varName.includes('eccentricity'))) {
                 vars[v.symbol] = 0.5;
             } else if (varName.includes('albedo')) {
                 vars[v.symbol] = 0.3;
@@ -474,7 +474,7 @@ function generateAlternateSolveTestCase(formula) {
                 vars[v.symbol] = 1e30;
             } else if (symbol.includes('distance') || symbol === 'd' ||
                       (symbol === 'a' && (varName.includes('semi-major') || varName.includes('axis') || varName.includes('distance') || varName.includes('separation')))) {
-                vars[v.symbol] = 1.496e11;
+                vars[v.symbol] = 149597870700;
             } else if (symbol.includes('period') || varName.includes('period') ||
                       (symbol === 'p' && varName.includes('period')) ||
                       (symbol === 't' && !varName.includes('temperature'))) {

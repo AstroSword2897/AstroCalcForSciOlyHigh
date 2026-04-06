@@ -15,7 +15,7 @@
 (function () {
   'use strict';
 
-  const VERSION = 'concepts-v1.1.0';
+  const VERSION = 'concepts-v1.1.4';
 
   // High-level taxonomy roots (keeps the graph connected)
   const ROOTS = [
@@ -54,7 +54,17 @@
     // galactic / cosmology
     'hubble law', 'expansion of the universe', 'cosmological redshift', 'dark matter',
     // misc
-    'angular size', 'small angle formula', 'unit conversion', 'dimensional analysis'
+    'angular size', 'small angle formula', 'unit conversion', 'dimensional analysis',
+    'science olympiad astronomy', 'MIT invitational astronomy', 'bondi accretion', 'alfven speed',
+    'rayleigh jeans', 'mass continuity', 'gravitational wave luminosity', 'thermal line broadening',
+    'spectral radiance', 'quadrupole radiation',
+    'neutron star', 'tidal disruption', 'spaghettification', 'light cylinder', 'polar cap pulsar',
+    'rayleigh taylor instability', 'kelvin helmholtz instability', 'type Ia supernova', 'photon diffusion',
+    'alfven mach number', 'radiation pressure', 'electron degeneracy',
+    'olympiad toolkit', 'mathematical toolkit astronomy', 'problem triggers', 'sqrt 2 orbital escape',
+    'kepler solar years AU', 'brightness ratio magnitude',     'flux luminosity distance',
+    'hydrostatic equilibrium', 'mass continuity star', 'radiative diffusion', 'adiabatic gradient',
+    'neutron star breakup spin', 'core collapse supernova', 'white dwarf degeneracy'
   ];
 
   const PREFIXES = [

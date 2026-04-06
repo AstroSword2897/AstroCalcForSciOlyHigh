@@ -115,6 +115,9 @@ export class TabManager {
         else if (tabName === 'algebraic') {
             this.activateAlgebraicSolvingTab();
         }
+        else if (tabName === 'unit-converter') {
+            this.activateUnitConverterTab();
+        }
         else if (tabName === 'classification') {
             this.activateClassificationMainTab();
         }
@@ -559,6 +562,22 @@ export class TabManager {
         }
         else {
             console.error('[TabManager] ❌ main-classification-tab not found!');
+        }
+    }
+    activateUnitConverterTab() {
+        const ucTab = document.getElementById('main-unit-converter-tab');
+        if (ucTab) {
+            ucTab.classList.add('active');
+            ucTab.style.setProperty('display', 'block', 'important');
+            ucTab.style.setProperty('visibility', 'visible', 'important');
+            console.log('[TabManager] ✅ Unit Converter tab activated');
+            // Initialize the unit converter UI
+            if (typeof window !== 'undefined' && typeof window.initUnitConverter === 'function') {
+                window.initUnitConverter();
+            }
+        }
+        else {
+            console.error('[TabManager] ❌ main-unit-converter-tab not found!');
         }
     }
     activateCalculatorTab() {

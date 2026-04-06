@@ -10,9 +10,9 @@
     <meta http-equiv="Expires" content="0">
     <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
     <link rel="stylesheet" href="styles/main.css?v=2.2.9&_t=1736043000" crossorigin="anonymous">
-    <!-- KaTeX for LaTeX rendering (Algebraic Solving output) -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+    <!-- KaTeX (bundled under libs/katex — works fully offline) -->
+    <link rel="stylesheet" href="libs/katex/katex.min.css" crossorigin="anonymous">
+    <script defer src="libs/katex/katex.min.js" crossorigin="anonymous"></script>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white'%3E🌌%3C/text%3E%3C/svg%3E">
     <style>
@@ -125,24 +125,6 @@
         })();
     </script>
 
-    <!-- Service Worker Registration & Auto-Reload -->
-    <script>
-        // Service Worker handling - unregister old ones and handle errors gracefully
-        if ('serviceWorker' in navigator) {
-            // Unregister any existing service workers first to avoid conflicts
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                for (const reg of registrations) {
-                    console.log('[CLIENT] Unregistering old SW:', reg.scope);
-                    reg.unregister().catch(err => {
-                        console.warn('[CLIENT] Failed to unregister SW:', err);
-                    });
-                }
-            }).catch(err => {
-                console.warn('[CLIENT] Error getting SW registrations:', err);
-            });
-        }
-    </script>
-    
     <!-- FORCE BLUE STYLES - Load immediately -->
     <script src="force_blue_now.js"></script>
 </head>
@@ -172,6 +154,7 @@
                 <div class="main-tabs">
                     <button class="main-tab-btn active" data-main-tab="formulas">Formulas</button>
                     <button class="main-tab-btn" data-main-tab="algebraic">Algebraic Solving</button>
+                    <button class="main-tab-btn" data-main-tab="unit-converter">Unit Converter</button>
                     <button class="main-tab-btn" data-main-tab="classification">Classification</button>
                 </div>
             </div>
@@ -182,6 +165,12 @@
                     <input type="text" id="formula-search" class="formula-search-input" placeholder="🔍 Search formulas or ask a question (e.g., 'how to calculate escape velocity', 'what is the distance to a star')...">
                     <button id="clear-search" class="clear-search-btn" style="display: none;">✕</button>
                 </div>
+                <details class="usage-instructions-container">
+                    <summary>Search &amp; calculate tips</summary>
+                    <div class="usage-steps">
+                        <p style="color: #e0e0e0; line-height: 1.55; margin: 0;">Search by formula name or type a question. Select a card, enter known values in SI (or use the unit picker), leave one variable empty to solve for it, then <strong>Calculate</strong>. For ratios and solar-unit forms, check the related formulas linked on each card.</p>
+                    </div>
+                </details>
                 <div id="formula-list" class="formula-list">
                     <!-- Formulas will be populated by JavaScript -->
                 </div>
@@ -254,6 +243,60 @@
                 </div>
             </div>
             
+            <!-- Unit Converter Tab -->
+            <div id="main-unit-converter-tab" class="main-tab-content">
+                <div class="uc-container">
+                    <h3>Unit Converter</h3>
+                    <p class="uc-subtitle">Convert between all astrophysics units — distance, mass, time, temperature, velocity, energy, angles, and more. Fully available offline.</p>
+
+                    <div class="uc-panel">
+                        <!-- Category -->
+                        <div class="uc-row">
+                            <label class="uc-label" for="uc-category">Category</label>
+                            <select id="uc-category" class="uc-select"></select>
+                        </div>
+
+                        <!-- Value + From -->
+                        <div class="uc-convert-row">
+                            <div class="uc-row" style="flex:1;">
+                                <label class="uc-label" for="uc-value">Value</label>
+                                <input id="uc-value" type="text" class="uc-input" placeholder="e.g. 1" autocomplete="off" spellcheck="false" inputmode="decimal">
+                            </div>
+                            <div class="uc-row">
+                                <label class="uc-label" for="uc-from">From</label>
+                                <select id="uc-from" class="uc-select"></select>
+                            </div>
+                        </div>
+
+                        <div class="uc-arrow">↓</div>
+
+                        <!-- Result + To -->
+                        <div class="uc-convert-row">
+                            <div class="uc-row" style="flex:1;">
+                                <label class="uc-label">Result</label>
+                                <div id="uc-result" class="uc-result-display">—</div>
+                            </div>
+                            <div class="uc-row">
+                                <label class="uc-label" for="uc-to">To</label>
+                                <select id="uc-to" class="uc-select"></select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All conversions -->
+                    <div style="margin-top:22px;">
+                        <p class="uc-all-label">All conversions for this value:</p>
+                        <div id="uc-table" class="uc-table"></div>
+                    </div>
+
+                    <!-- Conversion factors reference -->
+                    <details class="uc-factors-summary">
+                        <summary>📋 Conversion factors (1 unit → base unit)</summary>
+                        <div id="uc-factors-table" class="uc-factors-table"></div>
+                    </details>
+                </div>
+            </div>
+
             <!-- Classification Tab (Main Page) -->
             <div id="main-classification-tab" class="main-tab-content">
                 <div class="classification-container">
@@ -391,13 +434,13 @@
                     <details>
                         <summary>📐 Global Constants (automatically applied to all formulas)</summary>
                         <div class="constants-grid">
-                            <div class="constant-item-global"><strong>G:</strong> 6.67430×10⁻¹¹ m³/(kg·s²)</div>
-                            <div class="constant-item-global"><strong>c:</strong> 2.998×10⁸ m/s</div>
-                            <div class="constant-item-global"><strong>σ:</strong> 5.670×10⁻⁸ W/(m²·K⁴)</div>
-                            <div class="constant-item-global"><strong>M☉:</strong> 1.989×10³⁰ kg</div>
-                            <div class="constant-item-global"><strong>L☉:</strong> 3.828×10²⁶ W</div>
-                            <div class="constant-item-global"><strong>R☉:</strong> 6.96×10⁸ m</div>
-                            <div class="constant-item-global"><strong>AU:</strong> 1.496×10¹¹ m</div>
+                            <div class="constant-item-global"><strong>G:</strong> 6.67430×10⁻¹¹ m³/(kg·s²) (CODATA 2022)</div>
+                            <div class="constant-item-global"><strong>c:</strong> 299792458 m/s (SI exact)</div>
+                            <div class="constant-item-global"><strong>σ:</strong> 5.670374419…×10⁻⁸ W/(m²·K⁴) (SI exact)</div>
+                            <div class="constant-item-global"><strong>M☉:</strong> 1.988409870440×10³⁰ kg (IAU nominal, matches calculations)</div>
+                            <div class="constant-item-global"><strong>L☉:</strong> 3.828×10²⁶ W (nominal; matches calculations)</div>
+                            <div class="constant-item-global"><strong>R☉:</strong> 6.957×10⁸ m (IAU 2015 nominal; matches calculations)</div>
+                            <div class="constant-item-global"><strong>AU:</strong> 149597870700 m (IAU 2012 exact)</div>
                             <div class="constant-item-global"><strong>π:</strong> 3.14159...</div>
                         </div>
                     </details>
@@ -560,20 +603,22 @@
     </script>
     <!-- Scripts loaded in dependency order (OFFLINE-FIRST: all local, production-safe) -->
     <!-- Core data -->
-    <script src="scripts/concepts.js?v=3.1.1"></script>
-    <script src="scripts/formulas.js?v=2.1.5"></script>
+    <script src="scripts/concepts.js?v=3.1.5"></script>
+    <script src="scripts/formulas.js?v=2.2.2"></script>
     
     <!-- Core utilities -->
     <script src="scripts/safeExpressionEvaluator.js?v=2.1.5"></script>
     <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.6"></script>
-    <script src="scripts/unitConverter.js?v=2.1.5"></script>
+    <script src="scripts/unitConverter.js?v=2.3.0"></script>
     <script src="scripts/unitParser.js?v=2.1.5"></script>
-    <script src="scripts/expressionParser.js?v=2.1.5"></script>
+    <script src="scripts/expressionParser.js?v=2.1.6"></script>
+    <script src="scripts/variableValueParsing.js?v=1.0.1"></script>
+    <script src="scripts/formulaDisplayUtils.js?v=1.0.0"></script>
     <script src="scripts/precisionCalculator.js?v=2.1.5"></script>
     <script src="scripts/performanceOptimizer.js?v=2.1.5"></script>
     
     <!-- Core calculation engine -->
-    <script src="scripts/calculator.js?v=2.9.0"></script>
+    <script src="scripts/calculator.js?v=2.9.3"></script>
     
     <!-- Feature modules -->
     <script src="scripts/classification.js?v=2.1.5"></script>
@@ -584,11 +629,12 @@
     <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js?v=1.0.0"></script>
     
     <!-- UI Rendering -->
-    <script src="scripts/ui/rendering/VariableInputs.js?v=2.1.6"></script>
+    <script src="scripts/ui/rendering/VariableInputs.js?v=2.3.1"></script>
+    <script src="scripts/ui/rendering/ResultDisplay.js?v=2.3.1"></script>
     <script src="scripts/algebraicSolver.js?v=2.1.5"></script>
     
     <!-- UI (ES Modules) -->
-    <script type="module" src="scripts/ui/ui/init.js?v=2.3.1"></script>
+    <script type="module" src="scripts/ui/ui/init.js?v=2.3.16"></script>
     
     <!-- Force render fix -->
     <script src="force_render_fix.js?v=2.1.8"></script>
@@ -804,12 +850,34 @@
                 // Prefer the modular orchestrator path (current architecture)
                 if (window.uiOrchestrator && typeof window.uiOrchestrator.renderInitialFormulas === 'function') {
                     try {
-                        window.uiOrchestrator.renderInitialFormulas();
-                        const count = document.querySelectorAll('#formula-list .formula-card').length;
-                        showDebugOverlay('Force Render', [
-                            'Used uiOrchestrator.renderInitialFormulas()',
-                            `cards now: ${count}`
-                        ]);
+                        const engineN = Array.isArray(window.formulas) ? window.formulas.length : 0;
+                        const ex = window.EXCLUDED_FORMULA_CARD_IDS;
+                        const excludedN = (ex && ex.size && Array.isArray(window.formulas))
+                            ? window.formulas.filter(function(f) { return f && f.id && ex.has(f.id); }).length
+                            : 0;
+                        const expectedGrid = Math.max(0, engineN - excludedN);
+
+                        window.uiOrchestrator.renderInitialFormulas({ force: true });
+
+                        function measureAfterPaint() {
+                            const listEl = document.getElementById('formula-list');
+                            const domN = listEl ? listEl.querySelectorAll('.formula-card').length : 0;
+                            const lines = [
+                                'Used uiOrchestrator.renderInitialFormulas({ force: true })',
+                                'Source: window.formulas (synced into orchestrator)',
+                                'Engine formulas: ' + engineN,
+                                'Excluded from default grid (by id): ' + excludedN,
+                                'Expected cards (engine − excluded): ' + expectedGrid,
+                                'DOM #formula-list .formula-card (after paint): ' + domN
+                            ];
+                            showDebugOverlay('Force Render', lines);
+                            console.log('[ForceRender]', lines.join('\n'));
+                        }
+                        requestAnimationFrame(function() {
+                            requestAnimationFrame(function() {
+                                setTimeout(measureAfterPaint, 500);
+                            });
+                        });
                         return true;
                     } catch (e) {
                         console.error('[ForceRender] uiOrchestrator renderInitialFormulas failed:', e);
@@ -1084,23 +1152,19 @@
     
     <!-- Service Worker Registration for Offline Support -->
     <script>
-        // Register service worker for offline support
-        // FIXED: Removed version parameter - let file contents trigger updates, not URL params
-        // FIXED: Only register when online to prevent update failures during offline transitions
+        // Register service worker for offline-first use (cache survives refresh; no unregister-on-load)
         if ('serviceWorker' in navigator) {
             // Function to register service worker
             const registerServiceWorker = () => {
+                // Register even when offline so an already-installed worker keeps controlling the page.
                 if (!navigator.onLine) {
-                    console.log('[Service Worker] Offline - skipping registration until online');
-                    return;
+                    console.log('[Service Worker] Offline — registering from browser cache if available');
                 }
-                
+
                 // Wait a bit for any unregistration to complete
                 setTimeout(() => {
-                    // Register service worker WITHOUT version parameter
-                    // File contents will trigger updates naturally (browser checks file hash)
                     console.log('[Service Worker] Registering service worker...');
-                    navigator.serviceWorker.register('./sw.js')
+                    navigator.serviceWorker.register('./sw.js?v=4.0.0')
                         .then((registration) => {
                             console.log('[Service Worker] Registered successfully:', registration.scope);
                             
@@ -1161,10 +1225,8 @@
                 }, 1000); // Delay to ensure unregistration completes
             };
             
-            // Register on load if online
-            if (navigator.onLine) {
-                window.addEventListener('load', registerServiceWorker);
-            }
+            // Always register on load (offline: uses cached sw.js if the app was opened online before)
+            window.addEventListener('load', registerServiceWorker);
             
             // Also register when coming back online (if not already registered)
             window.addEventListener('online', () => {
@@ -1216,133 +1278,227 @@
         });
     </script>
     
-    <!-- Service Worker Registration (old code - replaced above) -->
+    <!-- Unit Converter Tab Logic -->
     <script>
-        // OLD CODE - Keeping for reference but not executing
-        if (false && 'serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                setTimeout(() => {
-                    navigator.serviceWorker.register('./sw.js')
-                        .then((registration) => {
-                            console.log('[Service Worker] Registered successfully:', registration.scope);
-                            
-                            // If an update is already waiting, activate it now.
-                            if (registration.waiting) {
-                                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                            }
+    (function () {
+        'use strict';
 
-                            // When a new SW is found, activate it as soon as it installs.
-                            registration.addEventListener('updatefound', () => {
-                                const newWorker = registration.installing;
-                                if (!newWorker) return;
-                                
-                                newWorker.addEventListener('statechange', () => {
-                                    if (newWorker.state === 'installed' && registration.waiting) {
-                                        console.log('[Service Worker] Update installed, activating...');
-                                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                                    }
-                                });
-                            });
+        var CATEGORY_LABELS = {
+            distance: 'Distance',
+            mass: 'Mass',
+            time: 'Time',
+            temperature: 'Temperature',
+            velocity: 'Velocity',
+            energy: 'Energy',
+            power: 'Power / Luminosity',
+            flux: 'Flux (W/m²)',
+            frequency: 'Frequency',
+            angle: 'Angle',
+            acceleration: 'Acceleration',
+            density: 'Density',
+            magnetic_B: 'Magnetic Field (B)',
+            area: 'Area',
+            force: 'Force',
+            pressure: 'Pressure / Energy Density',
+            angular_speed: 'Angular Speed (ω)',
+            angular_momentum: 'Angular Momentum',
+            dimensionless: 'Dimensionless / Magnitude'
+        };
 
-                            // DISABLED: Auto-reload on controller change (was causing refresh loops)
-                            // Only reload if explicitly needed via sessionStorage flag
-                            let reloaded = false;
-                            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                                if (reloaded) return;
-                                // Only reload if explicitly requested (not on tunnel access)
-                                const shouldReload = sessionStorage.getItem('sw_force_reload') === 'true';
-                                if (!shouldReload) {
-                                    console.log('[Service Worker] Controller changed, but skipping auto-reload to prevent refresh loop');
-                                    return;
-                                }
-                                reloaded = true;
-                                console.log('[Service Worker] Controller changed, reloading for latest UI...');
-                                sessionStorage.removeItem('sw_force_reload');
-                                window.location.reload();
-                            });
+        var CATEGORY_ORDER = [
+            'distance', 'mass', 'time', 'temperature', 'velocity',
+            'energy', 'power', 'flux', 'frequency', 'angle',
+            'acceleration', 'density', 'magnetic_B', 'area', 'force',
+            'pressure', 'angular_speed', 'angular_momentum', 'dimensionless'
+        ];
 
-                            // DISABLED: Periodic update checks (was causing refresh loops via tunnel)
-                            // Service worker updates are now manual only
-                            // setInterval(() => {
-                            //     if (navigator.onLine) {
-                            //         registration.update().catch(err => {
-                            //             // Silently handle update errors (common in development)
-                            //             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                            //                 // Suppress update errors in development - they're usually harmless cache issues
-                            //                 // Don't log anything to avoid console noise
-                            //             }
-                            //         });
-                            //     }
-                            // }, 60000); // Check every minute
-                        })
-                        .catch((error) => {
-                            // Handle registration errors gracefully
-                            // In development, SW errors are common and non-critical
-                            // The "Failed to update ServiceWorker" error is often harmless
-                            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                                // Suppress ALL service worker errors in development - they're usually cache/update issues
-                                // These errors don't affect functionality and are common when SW files change
-                                // User can hard refresh (Cmd+Shift+R) if needed
-                            } else {
-                                console.error('[Service Worker] Registration failed:', error);
-                            }
-                        });
-                        
-                }, 1000); // Delay to ensure unregistration completes
-            });
-            
-            // Register when coming back online (if not already registered)
-            window.addEventListener('online', () => {
-                console.log('[App] Online - connection restored');
-                if (typeof logger !== 'undefined') {
-                    logger.info('Connection restored');
-                }
-                // Register SW if not already registered
-                navigator.serviceWorker.getRegistration().then(registration => {
-                    if (!registration) {
-                        console.log('[Service Worker] Registering after coming online...');
-                        setTimeout(() => {
-                            navigator.serviceWorker.register('./sw.js').catch(() => {
-                                // Silently ignore registration errors in dev
-                                if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-                                    console.warn('[Service Worker] Failed to register after coming online');
-                                }
-                            });
-                        }, 500);
-                    }
-                });
-            });
-            
-            window.addEventListener('offline', () => {
-                console.log('[App] Offline - working in offline mode');
-                if (typeof logger !== 'undefined') {
-                    logger.info('Working offline - all features available except Desmos graphs');
-                }
-            });
-        } else if ('serviceWorker' in navigator && !navigator.onLine) {
-            // If offline, wait until online to register
-            window.addEventListener('online', () => {
-                console.log('[Service Worker] Coming online, will register service worker...');
-                setTimeout(() => {
-                    navigator.serviceWorker.register('./sw.js').catch(() => {
-                        // Silently ignore in dev
-                    });
-                }, 500);
-            });
-        } else {
-            console.warn('[Service Worker] Not supported in this browser');
+        var ucInited = false;
+
+        function getUC() {
+            return (typeof globalThis !== 'undefined' && globalThis.UnitConverter) ||
+                (typeof window !== 'undefined' && window.UnitConverter);
         }
-        
-        // Check if we're offline on page load
-        if (!navigator.onLine) {
-            console.log('App started offline - using offline mode');
-            window.desmosUnavailable = true;
-            if (typeof window !== 'undefined') {
-                window.dispatchEvent(new Event('desmosUnavailable'));
+
+        function getUnitsForCategory(UC, category) {
+            var units = [];
+            var cat = UC.unitCategory || {};
+            var base = (UC.baseUnit || {})[category];
+            Object.keys(cat).forEach(function (u) {
+                if (cat[u] === category) units.push(u);
+            });
+            // Sort: base first, then alphabetical
+            units.sort(function (a, b) {
+                if (a === base) return -1;
+                if (b === base) return 1;
+                return a < b ? -1 : a > b ? 1 : 0;
+            });
+            return units;
+        }
+
+        function fmtNum(n) {
+            if (!isFinite(n)) return '—';
+            if (n === 0) return '0';
+            var abs = Math.abs(n);
+            if (abs >= 1e13 || (abs > 0 && abs < 1e-9)) {
+                return n.toExponential(8).replace(/\.?0+e/, 'e');
             }
+            if (abs >= 1e10) {
+                return n.toExponential(6).replace(/\.?0+e/, 'e');
+            }
+            // smart decimal places
+            var decimals = Math.max(0, 10 - Math.floor(Math.log10(abs)));
+            var s = n.toFixed(Math.min(decimals, 14));
+            if (s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+            return s;
         }
+
+        function initUnitConverter() {
+            if (ucInited) { triggerRefresh(); return; }
+
+            var UC = getUC();
+            if (!UC) { setTimeout(initUnitConverter, 400); return; }
+
+            var catSel = document.getElementById('uc-category');
+            var fromSel = document.getElementById('uc-from');
+            var toSel = document.getElementById('uc-to');
+            var valueIn = document.getElementById('uc-value');
+            var resultEl = document.getElementById('uc-result');
+            var tableEl = document.getElementById('uc-table');
+            var factorsEl = document.getElementById('uc-factors-table');
+
+            if (!catSel || !fromSel || !toSel || !valueIn) return;
+
+            // Populate category dropdown
+            catSel.innerHTML = '';
+            CATEGORY_ORDER.forEach(function (cat) {
+                if (!CATEGORY_LABELS[cat]) return;
+                var o = document.createElement('option');
+                o.value = cat;
+                o.textContent = CATEGORY_LABELS[cat];
+                catSel.appendChild(o);
+            });
+
+            function populateUnits(category) {
+                var units = getUnitsForCategory(UC, category);
+                var prevFrom = fromSel.value;
+                var prevTo = toSel.value;
+                fromSel.innerHTML = '';
+                toSel.innerHTML = '';
+                units.forEach(function (u) {
+                    fromSel.appendChild(new Option(u, u));
+                    toSel.appendChild(new Option(u, u));
+                });
+                // Restore previous selections if possible
+                if (prevFrom && units.indexOf(prevFrom) !== -1) fromSel.value = prevFrom;
+                if (prevTo && units.indexOf(prevTo) !== -1) {
+                    toSel.value = prevTo;
+                } else {
+                    // Pick a different unit than "from" for "to"
+                    var fromVal = fromSel.value;
+                    var other = units.filter(function (u) { return u !== fromVal; })[0];
+                    if (other) toSel.value = other;
+                }
+                refreshFactors(category, units);
+                refreshResult();
+            }
+
+            function refreshResult() {
+                var raw = valueIn.value.trim();
+                var from = fromSel.value;
+                var to = toSel.value;
+                var category = catSel.value;
+
+                if (!raw) {
+                    if (resultEl) resultEl.textContent = '—';
+                    renderAllConversions(null, from, category);
+                    return;
+                }
+
+                var num = parseFloat(raw.replace(/,/g, ''));
+                if (!isFinite(num)) {
+                    if (resultEl) resultEl.textContent = '(invalid input)';
+                    return;
+                }
+
+                var result = null;
+                try { result = UC.convert(num, from, to); } catch (e) { result = null; }
+
+                if (resultEl) {
+                    resultEl.textContent = (result !== null && isFinite(result))
+                        ? fmtNum(result) + ' ' + to
+                        : '(cannot convert)';
+                }
+
+                renderAllConversions(num, from, category);
+            }
+
+            function renderAllConversions(value, fromUnit, category) {
+                if (!tableEl) return;
+                var units = getUnitsForCategory(UC, category);
+                tableEl.innerHTML = '';
+                units.forEach(function (u) {
+                    var converted = null;
+                    if (value !== null && isFinite(value)) {
+                        try { converted = UC.convert(value, fromUnit, u); } catch (e) { }
+                    }
+                    var isActive = (u === fromUnit);
+                    var row = document.createElement('div');
+                    row.className = 'uc-table-row' + (isActive ? ' uc-table-row--active' : '');
+                    row.innerHTML =
+                        '<span class="uc-unit-name">' + escHtml(u) + '</span>' +
+                        '<span class="uc-unit-val">' + (converted !== null && isFinite(converted) ? fmtNum(converted) : '—') + '</span>';
+                    tableEl.appendChild(row);
+                });
+            }
+
+            function refreshFactors(category, units) {
+                if (!factorsEl) return;
+                var base = (UC.baseUnit || {})[category] || (units[0] || '');
+                var rows = units.map(function (u) {
+                    var factor = null;
+                    try { factor = UC.convert(1, u, base); } catch (e) { }
+                    return '<tr>' +
+                        '<td>' + escHtml(u) + '</td>' +
+                        '<td style="text-align:right;padding:4px 12px;">× ' + (factor !== null && isFinite(factor) ? fmtNum(factor) : '—') + '</td>' +
+                        '<td>→ ' + escHtml(base) + '</td>' +
+                        '</tr>';
+                }).join('');
+                factorsEl.innerHTML = '<table><tbody>' + rows + '</tbody></table>';
+            }
+
+            function escHtml(s) {
+                return String(s)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
+            catSel.addEventListener('change', function () { populateUnits(catSel.value); });
+            fromSel.addEventListener('change', refreshResult);
+            toSel.addEventListener('change', refreshResult);
+            valueIn.addEventListener('input', refreshResult);
+
+            // Default: distance, 1 AU
+            catSel.value = 'distance';
+            populateUnits('distance');
+            // Set from=AU, to=m by default for a nice demo
+            if (fromSel.querySelector('option[value="AU"]')) fromSel.value = 'AU';
+            if (toSel.querySelector('option[value="m"]')) toSel.value = 'm';
+            valueIn.value = '1';
+            refreshResult();
+
+            ucInited = true;
+        }
+
+        function triggerRefresh() {
+            var el = document.getElementById('uc-value');
+            if (el) el.dispatchEvent(new Event('input'));
+        }
+
+        window.initUnitConverter = initUnitConverter;
+    })();
     </script>
-    
+
     <!-- NOTE: Test runner scripts are intentionally NOT loaded in production UI -->
     
     <!-- Debug scripts removed - files don't exist and cause connection errors -->

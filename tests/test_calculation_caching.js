@@ -38,7 +38,7 @@ class MockUnitConverter {
     constructor() {
         this.conversions = {
             'm': { 'km': 0.001, 'cm': 100, 'mm': 1000 },
-            'kg': { 'g': 1000, 'M☉': 1 / 1.989e30 },
+            'kg': { 'g': 1000, 'M☉': 1 / 1.988409870440e30 },
             's': { 'min': 1/60, 'h': 1/3600, 'day': 1/86400 }
         };
     }

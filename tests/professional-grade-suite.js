@@ -16,10 +16,10 @@ const c = 2.99792458e8;
 const h = 6.62607015e-34;
 const k = 1.380649e-23;
 const sigma = 5.670374419e-8;
-const M_sun = 1.989e30;
+const M_sun = 1.988409870440e30;
 const L_sun = 3.828e26;
 const R_sun = 6.96e8;
-const AU = 1.496e11;
+const AU = 149597870700; // IAU 2012 exact (m)
 
 let totalTests = 0;
 let passedTests = 0;

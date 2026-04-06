@@ -36,30 +36,41 @@ function loadFormulas() {
     return sandbox.formulas;
 }
 
-// Load calculator
-function loadCalculator() {
-    const calculatorPath = path.resolve(__dirname, '../../scripts/calculator.js');
-    const code = fs.readFileSync(calculatorPath, 'utf8');
-    const sandbox = { 
-        window: { FormulaCalculator: undefined }, 
-        console, 
-        FormulaCalculator: undefined,
+/**
+ * Same load order as index.html (evaluators before calculator) so FormulaCalculator
+ * matches the in-app execution path (UIModuleOrchestrator passes SafeMathEvaluator).
+ */
+function loadCalculatorStack() {
+    const root = path.resolve(__dirname, '../../scripts');
+    const files = [
+        'safeExpressionEvaluator.js',
+        path.join('ui', 'utils', 'SafeMathEvaluator.js'),
+        'calculator.js'
+    ];
+    const sandbox = {
+        window: {},
+        console,
         module: { exports: {} },
         exports: {},
         require: () => ({}),
-        Math: Math,
+        Math,
         performance: { now: () => Date.now() }
     };
     vm.createContext(sandbox);
-    vm.runInContext(code, sandbox, { timeout: 15000 });
-    
-    // Check both window.FormulaCalculator and direct FormulaCalculator
+    for (const rel of files) {
+        const filePath = path.join(root, rel);
+        const code = fs.readFileSync(filePath, 'utf8');
+        vm.runInContext(code, sandbox, { timeout: 30000 });
+    }
     const FormulaCalculator = sandbox.window?.FormulaCalculator || sandbox.FormulaCalculator;
-    
+    const SafeMathEvaluator = sandbox.SafeMathEvaluator || sandbox.window?.SafeMathEvaluator;
     if (!FormulaCalculator) {
         throw new Error('Failed to load FormulaCalculator from calculator.js');
     }
-    return FormulaCalculator;
+    if (!SafeMathEvaluator || typeof SafeMathEvaluator.evaluate !== 'function') {
+        throw new Error('Failed to load SafeMathEvaluator (required for same path as browser)');
+    }
+    return { FormulaCalculator, SafeMathEvaluator };
 }
 
 // Generate test inputs for a formula
@@ -74,10 +85,10 @@ function generateTestInputs(formula) {
         'L': 3.828e26, 'F': 1361, 'd': 1.5e11, 'D': 1.5e11,
         'λ': 500e-9, 'f': 5e14, 'ν': 5e14, 'E': 1e-19,
         't': 3600, 'θ': 0.1, 'α': 0.3, 'T_surf': 5778,
-        'n': 1e6, 'V': 1e9, 'σ': 5.670374e-8, 'b': 2.897771e-3,
-        'z': 0.1, 'H0': 70e3, 'M_sun': 1.989e30, 'R_sun': 6.96e8,
-        'M_earth': 5.97e24, 'R_earth': 6.37e6, 'AU': 1.496e11,
-        'm1': 1.989e30, 'm2': 5.97e24, 'r1': 1.5e11, 'r2': 1.5e11,
+        'n': 1e6, 'V': 1e9, 'σ': 5.6703744191844294e-8, 'b': 2.897771955e-3,
+        'z': 0.1, 'H0': 70e3, 'M_sun': 1.988409870440e30, 'R_sun': 695700000,
+        'M_earth': 5.97e24, 'R_earth': 6.37e6, 'AU': 149597870700,
+        'm1': 1.988409870440e30, 'm2': 5.97e24, 'r1': 1.5e11, 'r2': 1.5e11,
         'A': 0.3, 'T_eq': 255, 'T_eff': 5778, 'L_sun': 3.828e26,
         'f': 0.1, 'D': 0.1, 'θ_min': 1e-6, 'M': 5, 'm': 10,
         'B': 1e-5, 'I': 1e-6, 'N': 1e23, 'ρ': 1e3, 'p': 1e5,
@@ -110,14 +121,11 @@ function generateTestInputs(formula) {
         }
     }
     
-    // If all variables filled and we have more than 1, remove one to test solving
+    // If all variables filled and we have more than 1, remove one to test solving.
+    // formulas.js often omits `required`; do not rely on v.required (would be empty and skip this).
     if (filledCount === variables.length && variables.length > 1) {
-        // Find a required variable to remove (for solving)
-        const requiredVars = variables.filter(v => v.required);
-        if (requiredVars.length > 1) {
-            const lastVar = requiredVars[requiredVars.length - 1];
-            delete inputs[lastVar.symbol];
-        }
+        const lastVar = variables[variables.length - 1];
+        delete inputs[lastVar.symbol];
     }
     
     return inputs;
@@ -129,15 +137,16 @@ async function testAllFormulas() {
     
     let formulas;
     let FormulaCalculator;
+    let SafeMathEvaluator;
     
     try {
         console.log('📦 Loading formulas...');
         formulas = loadFormulas();
         console.log(`✅ Loaded ${formulas.length} formulas\n`);
         
-        console.log('📦 Loading FormulaCalculator...');
-        FormulaCalculator = loadCalculator();
-        console.log('✅ FormulaCalculator loaded\n');
+        console.log('📦 Loading FormulaCalculator + evaluators (browser order)...');
+        ({ FormulaCalculator, SafeMathEvaluator } = loadCalculatorStack());
+        console.log('✅ FormulaCalculator + SafeMathEvaluator loaded\n');
     } catch (error) {
         console.error('❌ Failed to load dependencies:', error.message);
         process.exit(1);
@@ -156,15 +165,15 @@ async function testAllFormulas() {
         c: 2.99792458e8,
         h: 6.62607015e-34,
         k: 1.380649e-23,
-        σ: 5.670374e-8,
-        sigma: 5.670374e-8,
-        b: 2.897771e-3,
-        M_sun: 1.989e30,
-        R_sun: 6.96e8,
+        σ: 5.6703744191844294e-8,
+        sigma: 5.6703744191844294e-8,
+        b: 2.897771955e-3,
+        M_sun: 1.988409870440e30,
+        R_sun: 695700000,
         M_earth: 5.97e24,
         R_earth: 6.37e6,
         L_sun: 3.828e26,
-        AU: 1.496e11,
+        AU: 149597870700,
         pi: Math.PI,
         π: Math.PI
     };
@@ -189,8 +198,11 @@ async function testAllFormulas() {
         }
         
         try {
-            // Create calculator instance
-            const calculator = new FormulaCalculator(formula, { constants });
+            // Same options shape as UIModuleOrchestrator FormulaSelector.createCalculator
+            const calculator = new FormulaCalculator(formula, {
+                constants,
+                mathEvaluator: SafeMathEvaluator
+            });
             
             // Generate test inputs
             const testInputs = generateTestInputs(formula);

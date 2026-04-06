@@ -9,11 +9,12 @@ const testCases = [
     { name: '5 km → m', value: 5, from: 'km', to: 'm', expected: 5000 },
     { name: '13 km → m', value: 13, from: 'km', to: 'm', expected: 13000 },
     { name: '100 cm → m', value: 100, from: 'cm', to: 'm', expected: 1 },
-    { name: '1 AU → m', value: 1, from: 'AU', to: 'm', expected: 1.496e11 },
+    { name: '1 AU → m', value: 1, from: 'AU', to: 'm', expected: 149597870700 },
+    { name: '1 km → pc', value: 1, from: 'km', to: 'pc', expected: 1000 / (149597870700 * (648000 / Math.PI)) },
     
     // Mass conversions
-    { name: '2 M☉ → kg', value: 2, from: 'M☉', to: 'kg', expected: 2 * 1.989e30 },
-    { name: '1 M_earth → kg', value: 1, from: 'M_earth', to: 'kg', expected: 5.972e24 },
+    { name: '2 M☉ → kg', value: 2, from: 'M☉', to: 'kg', expected: 2 * 1.988409870440e30 },
+    { name: '1 M_earth → kg', value: 1, from: 'M_earth', to: 'kg', expected: 5.9721684356e24 },
     { name: '1000 g → kg', value: 1000, from: 'g', to: 'kg', expected: 1 },
     
     // Temperature conversions
@@ -34,8 +35,15 @@ const testCases = [
 // Test convertToBase specifically
 const convertToBaseTests = [
     { name: 'convertToBase(13, km, m)', value: 13, from: 'km', to: 'm', expected: 13000 },
-    { name: 'convertToBase(2, M☉, kg)', value: 2, from: 'M☉', to: 'kg', expected: 2 * 1.989e30 },
+    { name: 'convertToBase(2, M☉, kg)', value: 2, from: 'M☉', to: 'kg', expected: 2 * 1.988409870440e30 },
     { name: 'convertToBase(100, cm, m)', value: 100, from: 'cm', to: 'm', expected: 1 },
+    {
+        name: 'convertToBase(1, km, pc)',
+        value: 1,
+        from: 'km',
+        to: 'pc',
+        expected: 1000 / (149597870700 * (648000 / Math.PI))
+    },
 ];
 
 function runTests() {

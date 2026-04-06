@@ -8,6 +8,30 @@ class VariableInputsRenderer {
         this.helpers = typeof window !== 'undefined' && typeof window.helpers ? window.helpers : null;
         this.activeInputListeners = new Map();
     }
+
+    /** Avoid undefined.getCanonical when globals load late or options.UnitConverter is missing. */
+    _resolveUnitConverter() {
+        try {
+            if (
+                typeof globalThis !== 'undefined' &&
+                globalThis.UnitConverter &&
+                typeof globalThis.UnitConverter.getCanonical === 'function'
+            ) {
+                return globalThis.UnitConverter;
+            }
+        } catch (_) {
+            /* ignore */
+        }
+        if (
+            typeof window !== 'undefined' &&
+            window.UnitConverter &&
+            typeof window.UnitConverter.getCanonical === 'function'
+        ) {
+            return window.UnitConverter;
+        }
+        return null;
+    }
+
     _escapeHtml(text) {
         const value = String(text ?? '');
         if (this.helpers && typeof this.helpers.escapeHtml === 'function') {
@@ -23,13 +47,143 @@ class VariableInputsRenderer {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
+
+    /** Shown label for a variable (displaySymbol ?? symbol); internal symbol stays on data-symbol. */
+    _getVariableDisplayLabel(variable) {
+        const u = typeof globalThis !== 'undefined' && globalThis.formulaDisplayUtils;
+        if (u && typeof u.getVariableDisplayLabel === 'function') {
+            return u.getVariableDisplayLabel(variable);
+        }
+        return variable.symbol;
+    }
+
+    /** Prefer full definition from window.formulas when variables are missing (wrapped/stale objects). */
+    _resolveFormula(formula) {
+        if (!formula) return formula;
+        let f = formula;
+        if (f.formula && typeof f.formula === 'object' && f.formula.id) {
+            f = f.formula;
+        }
+        const vars = f.variables;
+        if ((!Array.isArray(vars) || vars.length === 0) && f.id && typeof window !== 'undefined' && Array.isArray(window.formulas)) {
+            const canon = window.formulas.find((x) => x.id === f.id);
+            if (canon) {
+                f = canon;
+            }
+        }
+        const UC = this._resolveUnitConverter();
+        if (UC && typeof UC.normalizeFormulaUnit === 'function' && Array.isArray(f.variables)) {
+            return {
+                ...f,
+                variables: f.variables.map((v) => ({
+                    ...v,
+                    unit: UC.normalizeFormulaUnit(v.unit) || v.unit
+                }))
+            };
+        }
+        return f;
+    }
+
+    /**
+     * Stable, readable order for multi-unit cards; formula base unit stays first.
+     */
+    _orderAlternativeUnits(baseUnit, units) {
+        const UC = this._resolveUnitConverter();
+        if (!UC || typeof UC.getCanonical !== 'function' || !units || units.length < 2) {
+            return units;
+        }
+        const baseC = UC.getCanonical(baseUnit);
+        const cat = UC.getUnitCategory(baseC);
+        const list = [...units];
+        if (cat === 'distance') {
+            const order = ['pc', 'ly', 'AU', 'R☉', 'm', 'km', 'cm', 'mm', 'μm', 'nm'];
+            list.sort((a, b) => {
+                const ia = order.indexOf(UC.getCanonical(a));
+                const ib = order.indexOf(UC.getCanonical(b));
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+        } else if (cat === 'mass') {
+            const order = ['kg', 'g', 'M☉', 'M_earth'];
+            list.sort((a, b) => {
+                const ia = order.indexOf(UC.getCanonical(a));
+                const ib = order.indexOf(UC.getCanonical(b));
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+        } else if (cat === 'time') {
+            const order = ['s', 'min', 'h', 'day', 'yr'];
+            list.sort((a, b) => {
+                const ia = order.indexOf(UC.getCanonical(a));
+                const ib = order.indexOf(UC.getCanonical(b));
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+        } else if (cat === 'power') {
+            const order = ['W', 'L☉', 'erg/s'];
+            list.sort((a, b) => {
+                const ia = order.indexOf(UC.getCanonical(a));
+                const ib = order.indexOf(UC.getCanonical(b));
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+        } else if (cat === 'frequency') {
+            const order = ['Hz', 'kHz', 'MHz', 'GHz', 'km/(s·Mpc)'];
+            list.sort((a, b) => {
+                const ia = order.indexOf(UC.getCanonical(a));
+                const ib = order.indexOf(UC.getCanonical(b));
+                return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+            });
+        }
+        const bi = list.findIndex((u) => UC.getCanonical(u) === baseC);
+        if (bi > 0) {
+            const [row] = list.splice(bi, 1);
+            list.unshift(row);
+        }
+        return list;
+    }
+
+    /**
+     * Stellar radius / size: offer R☉ when the variable is clearly a radius, not e.g. generic separation.
+     */
+    _shouldOfferSolarRadius(variable) {
+        const sym = String(variable.symbol || '').trim();
+        const n = (variable.name || '').toLowerCase();
+        const d = (variable.description || '').toLowerCase();
+        const t = `${n} ${d}`;
+        if (/\bradius|radii|stellar|photosphere|solar|subtend|angular diameter|limb|disk|size of|extent/i.test(t)) {
+            return true;
+        }
+        if (/^r$/i.test(sym) || /^R$/i.test(sym)) return true;
+        if (/^r_|^R_/i.test(sym) && /radius|star|sun|☉|orbit/i.test(sym + t)) return true;
+        return false;
+    }
+
+    /**
+     * Ensure solar mass (M☉), luminosity (L☉), or radius (R☉) appears alongside SI so conversions use the same nominal solar values as the engine.
+     */
+    _ensureSolarUnitsForVariable(variable, baseUnit, units) {
+        const UC = this._resolveUnitConverter();
+        if (!units || !UC) return units;
+        const norm = UC.normalizeFormulaUnit ? UC.normalizeFormulaUnit(baseUnit) || baseUnit : baseUnit;
+        const c = UC.getCanonical(norm);
+        const cat = UC.getUnitCategory(c);
+        const set = new Set(units);
+        if (cat === 'mass') {
+            set.add('M☉');
+        } else if (cat === 'power') {
+            set.add('L☉');
+        } else if (cat === 'distance' && this._shouldOfferSolarRadius(variable)) {
+            set.add('R☉');
+        }
+        return [...set];
+    }
     
     /**
      * Get DOM element (with caching)
      */
     getElement(id) {
-        if (this.helpers) {
-            return this.helpers.getElement(id);
+        if (this.helpers && typeof this.helpers.getElement === 'function') {
+            const el = this.helpers.getElement(id);
+            if (el) {
+                return el;
+            }
         }
         return document.getElementById(id);
     }
@@ -88,7 +242,10 @@ class VariableInputsRenderer {
     render(formula) {
         // Cleanup previous inputs
         this.cleanup();
-        
+
+        formula = this._resolveFormula(formula);
+        const UC = this._resolveUnitConverter();
+
         const container = this.getElement('variables-container');
         if (!container) {
             console.error('[VariableInputsRenderer] ❌ variables-container element not found!');
@@ -140,10 +297,10 @@ class VariableInputsRenderer {
                 const constantFormats = {
                     'pi': { key: 'π', value: '3.14159...' },
                     'π': { key: 'π', value: '3.14159...' },
-                    'G': { key: 'G', value: '6.67430 × 10⁻¹¹ N·m²/kg²' },
-                    'c': { key: 'c', value: '2.998 × 10⁸ m/s' },
-                    'σ': { key: 'σ', value: '5.670 × 10⁻⁸ W/(m²·K⁴)' },
-                    'sigma': { key: 'σ', value: '5.670 × 10⁻⁸ W/(m²·K⁴)' }
+                    'G': { key: 'G', value: '6.67430 × 10⁻¹¹ N·m²/kg² (CODATA 2022)' },
+                    'c': { key: 'c', value: '299792458 m/s (SI exact)' },
+                    'σ': { key: 'σ', value: '5.670374419… × 10⁻⁸ W/(m²·K⁴) (SI exact)' },
+                    'sigma': { key: 'σ', value: '5.670374419… × 10⁻⁸ W/(m²·K⁴) (SI exact)' }
                 };
                 
                 const format = constantFormats[key] || {};
@@ -172,31 +329,33 @@ class VariableInputsRenderer {
             const inputDiv = document.createElement('div');
             inputDiv.className = 'variable-input';
             
-            const baseUnit = variable.unit;
-            const fullUnitName = typeof UnitConverter !== 'undefined' 
-                ? UnitConverter.formatUnit(baseUnit)
-                : baseUnit;
-            
+            const baseUnit =
+                UC && typeof UC.normalizeFormulaUnit === 'function'
+                    ? UC.normalizeFormulaUnit(variable.unit) || variable.unit
+                    : variable.unit;
+            const fullUnitName = UC ? UC.formatUnit(baseUnit) : baseUnit;
+
             // Get alternative units
-            let alternativeUnits = typeof UnitConverter !== 'undefined'
-                ? UnitConverter.getAlternativeUnits(baseUnit)
-                : [baseUnit];
+            let alternativeUnits = UC ? UC.getAlternativeUnits(baseUnit) : [baseUnit];
+            alternativeUnits = this._ensureSolarUnitsForVariable(variable, baseUnit, alternativeUnits);
             
-            // Detect wavelength variables for unit filtering
+            // Wavelength-style variables: keep a compact set of length units for the card grid.
             const isWavelengthVar = variable.symbol.toLowerCase().includes('lambda') || 
                                     variable.symbol.toLowerCase().includes('λ') ||
                                     variable.symbol.toLowerCase().includes('wavelength') ||
                                     variable.name.toLowerCase().includes('wavelength') ||
                                     baseUnit === 'nm' || baseUnit === 'μm' || baseUnit === 'mm' || baseUnit === 'cm';
             
-            if ((baseUnit === 'meters' || baseUnit === 'm') && !isWavelengthVar) {
-                alternativeUnits = alternativeUnits.filter(u => 
-                    !['nm', 'μm', 'mm', 'cm'].includes(u) || u === baseUnit
-                );
-            } else if (isWavelengthVar && (baseUnit === 'meters' || baseUnit === 'm')) {
+            let skipGlobalUnitOrder = false;
+            if (isWavelengthVar && (baseUnit === 'meters' || baseUnit === 'm')) {
                 alternativeUnits = ['m', 'nm', 'μm', 'mm', 'cm'].filter(u => 
                     alternativeUnits.includes(u) || u === baseUnit
                 );
+                skipGlobalUnitOrder = true;
+            }
+
+            if (!skipGlobalUnitOrder) {
+                alternativeUnits = this._orderAlternativeUnits(baseUnit, alternativeUnits);
             }
             
             // Get example value for placeholder
@@ -209,11 +368,19 @@ class VariableInputsRenderer {
                 console.warn(`[VariableInputsRenderer] Symbol lookup failed for ${variable.symbol}:`, error);
             }
             
+            const colUnit = (u) =>
+                u != null && String(u).trim() !== '' ? String(u).trim() : String(baseUnit);
+
+            const displaySym = this._getVariableDisplayLabel(variable);
+
             // Create input fields HTML
             let inputFieldsHTML = '';
             alternativeUnits.forEach((unit, index) => {
-                const isBase = unit === baseUnit || unit.toLowerCase() === baseUnit.toLowerCase();
-                const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                const safeUnit = colUnit(unit);
+                const isBase = UC
+                    ? UC.getCanonical(safeUnit) === UC.getCanonical(baseUnit)
+                    : safeUnit === baseUnit || safeUnit.toLowerCase() === baseUnit.toLowerCase();
+                const inputId = `var-${variable.symbol}-${safeUnit.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 let placeholder;
                 if (isBase) {
                     if (exampleValue) {
@@ -222,16 +389,12 @@ class VariableInputsRenderer {
                         placeholder = `Enter ${variable.name.toLowerCase()}`;
                     }
                 } else {
-                    placeholder = `Or enter in ${unit}`;
+                    placeholder = `Or enter in ${safeUnit}`;
                 }
                 
-                const unitName = typeof UnitConverter !== 'undefined'
-                    ? UnitConverter.formatUnit(unit)
-                    : unit;
+                const unitName = UC ? UC.formatUnit(safeUnit) : safeUnit;
 
-                const conversionHint = !isBase && typeof UnitConverter !== 'undefined'
-                    ? UnitConverter.getConversionHintToBase(unit, baseUnit)
-                    : '';
+                const conversionHint = !isBase && UC ? UC.getConversionHintToBase(safeUnit, baseUnit) : '';
                 const hintHtml = conversionHint
                     ? `<div class="unit-conversion-hint" title="How this field converts to the formula base unit">${this._escapeHtml(conversionHint)}</div>`
                     : '';
@@ -239,7 +402,7 @@ class VariableInputsRenderer {
                 inputFieldsHTML += `
                     <div class="unit-input-group">
                         <label class="unit-input-label" for="${inputId}">
-                            <span class="unit-symbol">${unit}</span>
+                            <span class="unit-symbol">${safeUnit}</span>
                             <span class="unit-name">${unitName}</span>
                         </label>
                         ${hintHtml}
@@ -250,10 +413,10 @@ class VariableInputsRenderer {
                             class="unit-input-field"
                             placeholder="${placeholder}"
                             data-symbol="${variable.symbol}"
-                            data-unit="${unit}"
+                            data-unit="${safeUnit}"
                             data-unit-index="${index}"
                             data-base-unit="${baseUnit}"
-                            aria-label="${variable.name} in ${unit}"
+                            aria-label="${variable.name} in ${safeUnit}"
                             autocomplete="off"
                             spellcheck="false"
                             inputmode="decimal"
@@ -270,25 +433,38 @@ class VariableInputsRenderer {
             
             // Verify the firstInputId matches an actual input ID in the HTML
             // This ensures the label's 'for' attribute correctly references the first input
+            const multiUnitNote = alternativeUnits.length > 1
+                ? `<div class="unit-options-note" role="note">Enter any unit below; values sync with Calculate. <strong>Formula unit</strong> for <code>${this._escapeHtml(displaySym)}</code>: <strong>${this._escapeHtml(fullUnitName)}</strong> (${this._escapeHtml(baseUnit)}).</div>`
+                : '';
+
+            const siContext =
+                UC && typeof UC.getSiBaseContextForUnit === 'function' ? UC.getSiBaseContextForUnit(baseUnit) : '';
+            const siContextHtml = siContext
+                ? `<div class="unit-si-context" role="note" title="How this dimension relates to SI">${this._escapeHtml(siContext)}</div>`
+                : '';
+
             inputDiv.innerHTML = `
                 <label class="variable-main-label" for="${firstInputId}">
-                    <span class="symbol">${variable.symbol}</span>
+                    <span class="symbol">${this._escapeHtml(displaySym)}</span>
                     <span class="variable-name">${variable.name}</span>
                     <span class="solve-hint" data-symbol="${variable.symbol}">Leave empty to calculate this</span>
                 </label>
+                ${multiUnitNote}
+                ${siContextHtml}
                 <div class="unit-inputs-container">
                     ${inputFieldsHTML}
                 </div>
-                <div class="var-description">${variable.description}</div>
+                <div class="var-description">${this._escapeHtml(variable.description || '')}</div>
             `;
             
             variablesFragment.appendChild(inputDiv);
             
             // Store input elements for this variable (for unit synchronization)
             const inputElements = alternativeUnits.map((unit, currentIndex) => {
-                const inputId = `var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                const safeUnit = colUnit(unit);
+                const inputId = `var-${variable.symbol}-${safeUnit.replace(/[^a-zA-Z0-9]/g, '_')}`;
                 const input = document.getElementById(inputId);
-                return { input, unit, currentIndex, symbol: variable.symbol };
+                return { input, unit: safeUnit, currentIndex, symbol: variable.symbol };
             }).filter(item => item.input !== null);
             
             // Store for event delegation (more efficient than individual listeners)
@@ -357,7 +533,7 @@ class VariableInputsRenderer {
                 
                 container.addEventListener('input', this.delegatedInputHandler, true);
                 
-                // Add blur handler to clear other unit inputs when a valid value is entered
+                // Blur: mirror the value into other unit fields via UnitConverter (same chain as engine)
                 if (!this.delegatedBlurHandler) {
                     this.delegatedBlurHandler = (e) => {
                         if (!e.target.classList.contains('unit-input-field')) return;
@@ -371,23 +547,55 @@ class VariableInputsRenderer {
                         const currentValue = e.target.value.trim();
                         const currentIndex = elements.findIndex(el => el.input === e.target);
                         
-                        // Only clear other inputs if we have a valid number
-                        if (currentValue && currentValue.toLowerCase() !== 'null') {
-                            const numericValue = parseFloat(currentValue);
-                            const isValidNumber = !isNaN(numericValue) && isFinite(numericValue);
-                            
-                            if (isValidNumber) {
-                                // Clear the "calculated" flag since user is manually entering a value
-                                e.target.dataset.calculated = 'false';
-                                
-                                // Clear other unit inputs for the same variable
-                                elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
-                                    if (otherIndex !== currentIndex && otherInput) {
-                                        otherInput.value = '';
-                                        otherInput.dataset.calculated = 'false';
-                                    }
-                                });
-                            }
+                        if (!currentValue || currentValue.toLowerCase() === 'null') {
+                            elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                                if (otherIndex !== currentIndex && otherInput) {
+                                    otherInput.value = '';
+                                    otherInput.dataset.calculated = 'false';
+                                }
+                            });
+                            return;
+                        }
+                        
+                        const numericValue = parseFloat(currentValue);
+                        const isValidNumber = !isNaN(numericValue) && isFinite(numericValue);
+                        
+                        if (!isValidNumber) {
+                            elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                                if (otherIndex !== currentIndex && otherInput) {
+                                    otherInput.value = '';
+                                    otherInput.dataset.calculated = 'false';
+                                }
+                            });
+                            return;
+                        }
+                        
+                        e.target.dataset.calculated = 'false';
+                        e.target.dataset.userEdited = 'true';
+                        
+                        const UCb = this._resolveUnitConverter();
+                        if (UCb) {
+                            const fromUnit = e.target.getAttribute('data-unit');
+                            if (!fromUnit) return;
+                            elements.forEach(({ input: otherInput, unit: otherUnit, currentIndex: otherIndex }) => {
+                                if (otherIndex === currentIndex || !otherInput) return;
+                                const c = UCb.convert(numericValue, fromUnit, otherUnit);
+                                if (c !== null && Number.isFinite(c)) {
+                                    otherInput.value = UCb.formatNumber(c);
+                                    otherInput.dataset.calculated = 'true';
+                                    otherInput.dataset.userEdited = 'false';
+                                } else {
+                                    otherInput.value = '';
+                                    otherInput.dataset.calculated = 'false';
+                                }
+                            });
+                        } else {
+                            elements.forEach(({ input: otherInput, currentIndex: otherIndex }) => {
+                                if (otherIndex !== currentIndex && otherInput) {
+                                    otherInput.value = '';
+                                    otherInput.dataset.calculated = 'false';
+                                }
+                            });
                         }
                     };
                     

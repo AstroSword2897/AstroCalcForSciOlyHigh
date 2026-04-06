@@ -158,7 +158,7 @@ async function runPerformanceTests() {
         const testFormula = formulas[0];
         const calculator = new FormulaCalculator(testFormula);
         const start = performance.now();
-        calculator.solve({ M: 1.989e30, a: 1.496e11, P: null });
+        calculator.solve({ M: 1.988409870440e30, a: 149597870700, P: null });
         const latency = performance.now() - start;
         results.totalTests++;
         if (latency < 100) {

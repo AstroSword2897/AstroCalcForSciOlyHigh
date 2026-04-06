@@ -11,20 +11,20 @@
 // ============================================================================
 
 const TEST_CONSTANTS = {
-    // Fundamental constants
-    G: 6.67430e-11,              // Gravitational constant (m³/(kg·s²))
-    c: 2.99792458e8,              // Speed of light (m/s)
-    sigma: 5.670374419e-8,        // Stefan-Boltzmann constant (W/(m²·K⁴))
-    h: 6.62607015e-34,            // Planck constant (J·s)
-    k: 1.380649e-23,              // Boltzmann constant (J/K)
+    // Fundamental constants — CODATA 2022 / SI 2019 (aligned with scripts/formulas.js)
+    G: 6.67430e-11,              // CODATA 2022 (m³/(kg·s²))
+    c: 2.99792458e8,              // SI exact (m/s)
+    sigma: 5.6703744191844294e-8, // SI exact Stefan-Boltzmann (W/(m²·K⁴))
+    h: 6.62607015e-34,            // SI exact (J·s)
+    k: 1.380649e-23,              // SI exact (J/K)
     
     // Solar system constants
-    M_sun: 1.989e30,              // Solar mass (kg)
+    M_sun: 1.988409870440e30,     // IAU nominal solar mass (kg); matches M☉ conversions
     L_sun: 3.828e26,              // Solar luminosity (W)
-    R_sun: 6.96e8,                // Solar radius (m)
+    R_sun: 695700000,             // IAU nominal solar radius (m); matches R☉
     
     // Astronomical units (consistent precision)
-    AU: 1.496e11,                 // Astronomical Unit (m) - consistent with formulas.js
+    AU: 149597870700,             // IAU 2012 exact astronomical unit (m)
     pc: 3.085677581e16,           // Parsec (m) - consistent precision
     ly: 9.461e15,                 // Light-year (m)
     

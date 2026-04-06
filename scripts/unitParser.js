@@ -107,6 +107,7 @@ class UnitParser {
             'solar mass': 'M☉', 'solar masses': 'M☉', 'msun': 'M☉', 'm_sun': 'M☉',
             'm☉': 'M☉', 'm_☉': 'M☉', 'M_☉': 'M☉',  // Normalize all solar mass variants to M☉
             'earth mass': 'M⊕', 'earth masses': 'M⊕', 'mearth': 'M⊕', 'm_earth': 'M⊕',
+            'solar radius': 'R☉', 'solar radii': 'R☉', 'rsun': 'R☉', 'r_sun': 'R☉', 'R_sun': 'R☉',
 
             // Time
             'second': 's', 'seconds': 's', 'sec': 's', 'secs': 's',

@@ -3,14 +3,14 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.1';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.16';
 import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
 import { EventCoordinator } from './modules/events/EventCoordinator.js?v=2.1.9';
 import { CalculationUtils } from './modules/utils/CalculationUtils.js';
 import { FormattingUtils } from './modules/utils/FormattingUtils.js';
-import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js?v=2.1.7';
+import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js?v=2.1.9';
 import { debounceSearch } from './utils/debounce.js';
 import { validateCalculator, validateFormula } from './contracts.js';
 import { AstrophysicsExpertSystem } from './modules/expert/ExpertSystem.js';
@@ -23,6 +23,39 @@ export class UIModuleOrchestrator {
         this.initializeModules();
         this.wireModules();
     }
+
+    /**
+     * Prefer options.UnitConverter; fall back to global UnitConverter so delegated calls
+     * never do undefined.getCanonical (e.g. options cleared or desynced from window).
+     */
+    _resolveLiveUnitConverter() {
+        const o = this.options && this.options.UnitConverter;
+        if (
+            o != null &&
+            typeof o.convertToBase === 'function' &&
+            typeof o.getCanonical === 'function'
+        ) {
+            return o;
+        }
+        if (
+            typeof globalThis !== 'undefined' &&
+            globalThis.UnitConverter != null &&
+            typeof globalThis.UnitConverter.convertToBase === 'function' &&
+            typeof globalThis.UnitConverter.getCanonical === 'function'
+        ) {
+            return globalThis.UnitConverter;
+        }
+        if (
+            typeof window !== 'undefined' &&
+            window.UnitConverter != null &&
+            typeof window.UnitConverter.convertToBase === 'function' &&
+            typeof window.UnitConverter.getCanonical === 'function'
+        ) {
+            return window.UnitConverter;
+        }
+        return null;
+    }
+
     initializeModules() {
         try {
             // Initialize SearchEngine
@@ -87,6 +120,7 @@ export class UIModuleOrchestrator {
                 onGraphTabActivated: () => {}
             });
             // Initialize CalculationOrchestrator
+            const self = this;
             this.calculationOrchestrator = new CalculationOrchestrator({
                 getCalculator: () => this.formulaSelector?.getCurrentCalculator() || null,
                 getFormula: () => this.formulaSelector?.getCurrentFormula() || null,
@@ -101,15 +135,32 @@ export class UIModuleOrchestrator {
                         window.updateSolveIndicators();
                     }
                 },
-                unitConverter: this.options.UnitConverter ? {
-                    // Wrapper to convert static methods to instance methods
-                    convertToBase: (value, fromUnit, baseUnit) => this.options.UnitConverter.convertToBase(value, fromUnit, baseUnit),
-                    convert: (value, fromUnit, toUnit) => this.options.UnitConverter.convert(value, fromUnit, toUnit),
-                    getAlternativeUnits: (baseUnit) => this.options.UnitConverter.getAlternativeUnits(baseUnit),
-                    convertAndFormat: (value, unit, options) => this.options.UnitConverter.convertAndFormat(value, unit, options),
-                    getCanonical: (unit) => this.options.UnitConverter.getCanonical(unit),
-                    getUnitCategory: (unit) => this.options.UnitConverter.getUnitCategory(unit)
-                } : null,
+                unitConverter: {
+                    convertToBase: (value, fromUnit, baseUnit) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC ? UC.convertToBase(value, fromUnit, baseUnit) : value;
+                    },
+                    convert: (value, fromUnit, toUnit) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC ? UC.convert(value, fromUnit, toUnit) : null;
+                    },
+                    getAlternativeUnits: (baseUnit) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC ? UC.getAlternativeUnits(baseUnit) : [baseUnit];
+                    },
+                    convertAndFormat: (value, unit, options) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC ? UC.convertAndFormat(value, unit, options) : { value, unit };
+                    },
+                    getCanonical: (unit) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC ? UC.getCanonical(unit) : String(unit || '').trim();
+                    },
+                    getUnitCategory: (unit) => {
+                        const UC = self._resolveLiveUnitConverter();
+                        return UC && typeof UC.getUnitCategory === 'function' ? UC.getUnitCategory(unit) : null;
+                    }
+                },
                 globalConstants: this.options.globalConstants,
                 graphUpdatesEnabled: false
             });
@@ -120,7 +171,9 @@ export class UIModuleOrchestrator {
                         // CRITICAL: Pass mathEvaluator so expressions are actually evaluated!
                         return new this.options.FormulaCalculatorClass(formula, {
                             mathEvaluator: this.options.SafeMathEvaluator || window.SafeMathEvaluator,
-                            unitConverter: this.options.UnitConverter ? new this.options.UnitConverter() : undefined,
+                            unitConverter: (typeof window !== 'undefined' && window.UnitConverter)
+                                ? new window.UnitConverter()
+                                : undefined,
                             precisionCalculator: window.precisionCalculator,
                             errorPropagator: window.errorPropagator
                         });
@@ -128,13 +181,11 @@ export class UIModuleOrchestrator {
                     return null;
                 },
                 getGraphCoordinator: () => null,
+                // Always go through renderCalculatorInputs: it clears input cache, tries VariableInputsRenderer
+                // inside try/catch, and falls back to DOM build if the advanced renderer throws mid-way
+                // (otherwise users can see constants-only with no fields).
                 renderVariableInputs: (formula) => {
-                    // Use VariableInputsRenderer if available, otherwise use fallback
-                    if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
-                        window.variableInputsRenderer.render(formula);
-                    } else {
-                        this.renderCalculatorInputs(formula);
-                    }
+                    this.renderCalculatorInputs(formula);
                 },
                 renderFormulaPresets: (formula) => {
                     if (typeof window.renderFormulaPresets === 'function') {
@@ -162,6 +213,7 @@ export class UIModuleOrchestrator {
                         this.options.semanticSearchSystem.trackUsage(term);
                     }
                 },
+                resolveFormulaForInputs: (f) => this.resolveFormulaForInputs(f),
                 displayRelatedFormulas: (formula) => {
                     if (typeof window.displayRelatedFormulas === 'function') {
                         window.displayRelatedFormulas(formula);
@@ -1091,9 +1143,10 @@ export class UIModuleOrchestrator {
     /**
      * Render initial formula cards
      */
-    renderInitialFormulas() {
-        // Prevent duplicate renders
-        if (this._isRenderingFormulas) {
+    renderInitialFormulas(opts = {}) {
+        const force = opts && opts.force === true;
+        // Prevent duplicate renders (allow explicit force to bypass)
+        if (this._isRenderingFormulas && !force) {
             console.log('[UIModuleOrchestrator] ⏭️ Already rendering formulas, skipping');
             return;
         }
@@ -1110,21 +1163,28 @@ export class UIModuleOrchestrator {
             return;
         }
         
-        if (!this.options?.formulas || this.options.formulas.length === 0) {
+        const source = Array.isArray(window.formulas) && window.formulas.length > 0
+            ? window.formulas
+            : this.options?.formulas;
+        if (!source || source.length === 0) {
             console.error('[UIModuleOrchestrator] ❌ No formulas available!');
             return;
         }
+        if (Array.isArray(window.formulas) && window.formulas.length > 0 && source === window.formulas) {
+            this.options.formulas = window.formulas;
+        }
         
         this._isRenderingFormulas = true;
-        formulaList.innerHTML = '';
+        // Do not clear here: FormulaRenderer.performRender clears on paint; early clear caused empty list + wrong debug counts before rAF.
         
         // Render without confidence/topic data (initial view) - optimized with chunked rendering
         this.formulaRenderer.renderFormulaCards(
-            this.options.formulas,
+            source,
             formulaList,
             {
                 showConfidence: false,
-                showTopicScope: false
+                showTopicScope: false,
+                force
             }
         );
         
@@ -1133,7 +1193,7 @@ export class UIModuleOrchestrator {
             this._isRenderingFormulas = false;
         }, 100);
         
-        console.log(`[UIModuleOrchestrator] ✅ Rendering ${this.options.formulas.length} formulas (optimized)`);
+        console.log(`[UIModuleOrchestrator] ✅ Rendering ${source.length} formulas (optimized)`);
     }
     /**
      * Search formulas
@@ -1141,6 +1201,171 @@ export class UIModuleOrchestrator {
     searchFormulas(query) {
         return this.searchEngine.search(query);
     }
+    _unitConverterReady() {
+        const uc = this._resolveLiveUnitConverter();
+        return !!(
+            uc &&
+            typeof uc.getCanonical === 'function' &&
+            typeof uc.convertToBase === 'function' &&
+            typeof uc.getAlternativeUnits === 'function'
+        );
+    }
+
+    _unitsCanonicallyEqualOrchestrator(a, b) {
+        if (!this._unitConverterReady()) {
+            return String(a || '') === String(b || '');
+        }
+        try {
+            const uc = this._resolveLiveUnitConverter();
+            if (!uc) return String(a || '') === String(b || '');
+            return uc.getCanonical(a) === uc.getCanonical(b);
+        } catch (_) {
+            return String(a || '') === String(b || '');
+        }
+    }
+
+    /**
+     * Same rules as CalculationOrchestrator._effectiveInputUnit (local copy so this path works if modules desync).
+     */
+    _effectiveInputUnitForVariable(input, variable) {
+        if (!input) {
+            return variable.unit || '';
+        }
+        let u = input.getAttribute('data-unit');
+        if (u != null && String(u).trim() !== '') {
+            return String(u).trim();
+        }
+        // Do not fall back to data-base-unit (shared per variable); see CalculationOrchestrator._effectiveInputUnit.
+        const id = input.id || '';
+        const prefix = `var-${variable.symbol}-`;
+        if (id.startsWith(prefix) && this._unitConverterReady()) {
+            const suffix = id.slice(prefix.length);
+            try {
+                const uc = this._resolveLiveUnitConverter();
+                const alts = uc ? uc.getAlternativeUnits(variable.unit) : [];
+                const found = alts.find((unit) => unit.replace(/[^a-zA-Z0-9]/g, '_') === suffix);
+                if (found) {
+                    return found;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+        return variable.unit || '';
+    }
+
+    /**
+     * Ranked pick inside #variables-container when CalculationOrchestrator helper is unavailable.
+     */
+    _pickVariableInputFallback(variable) {
+        const container = document.getElementById('variables-container');
+        if (!container) {
+            return null;
+        }
+        const sym = variable.symbol;
+        const cacheKey = `var-${sym}`;
+        const baseUnit = variable.unit;
+        const list = Array.from(
+            container.querySelectorAll(`input[data-symbol="${sym}"], input[id="${cacheKey}"], input[id^="var-${sym}-"]`)
+        ).filter((inp) => inp.type !== 'checkbox' && inp.type !== 'radio');
+        if (list.length === 0) {
+            return null;
+        }
+        const withVal = list.filter((inp) => inp.value && inp.value.trim());
+        if (withVal.length === 0) {
+            return list[0];
+        }
+        const rank = (inp) => {
+            const unit = this._effectiveInputUnitForVariable(inp, variable);
+            const isNonBase = !this._unitsCanonicallyEqualOrchestrator(unit, baseUnit);
+            const userEdited = inp.dataset && inp.dataset.userEdited === 'true';
+            return (userEdited ? 1000 : 0) + (isNonBase ? 100 : 0);
+        };
+        return [...withVal].sort((a, b) => rank(b) - rank(a))[0];
+    }
+
+    _resolveVariableInputElement(variable) {
+        if (this.calculationOrchestrator && typeof this.calculationOrchestrator._pickBestVariableInputFromContainer === 'function') {
+            const picked = this.calculationOrchestrator._pickBestVariableInputFromContainer(variable);
+            if (picked) {
+                return picked;
+            }
+        }
+        const fallback = this._pickVariableInputFallback(variable);
+        if (fallback) {
+            return fallback;
+        }
+        let input = document.getElementById(`var-${variable.symbol}`);
+        if (this._unitConverterReady()) {
+            const uc = this._resolveLiveUnitConverter();
+            const alts = uc ? uc.getAlternativeUnits(variable.unit) : [];
+            const withValue = alts
+                .map((unit) => document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`))
+                .find((el) => el && el.value && el.value.trim());
+            if (withValue) {
+                return withValue;
+            }
+            const any = alts
+                .map((unit) => document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`))
+                .find((el) => el !== null);
+            if (any) {
+                input = any;
+            }
+        }
+        if (!input) {
+            input = document.querySelector(`input[data-symbol="${variable.symbol}"]`);
+        }
+        if (!input) {
+            input = document.querySelector(`input[name="var-${variable.symbol}"]`);
+        }
+        return input || null;
+    }
+
+    /**
+     * Parse raw string and convert to formula base unit. If conversion is required and fails, returns null (never silently keep e.g. 6 km as 6 m).
+     */
+    _parseToBaseUnit(variable, raw, input) {
+        const inputUnit = this.calculationOrchestrator &&
+            typeof this.calculationOrchestrator._effectiveInputUnit === 'function'
+            ? this.calculationOrchestrator._effectiveInputUnit(input, variable)
+            : this._effectiveInputUnitForVariable(input, variable);
+        const baseUnit = variable.unit || '';
+        const parsed = this.calculationUtils.parseNumericValue(raw, inputUnit);
+        if (parsed === null || typeof parsed !== 'number' || !Number.isFinite(parsed)) {
+            return null;
+        }
+        if (!this._unitConverterReady() || !baseUnit) {
+            return parsed;
+        }
+        let cIn;
+        let cBase;
+        const ucParse = this._resolveLiveUnitConverter();
+        try {
+            cIn = ucParse ? ucParse.getCanonical(inputUnit) : inputUnit;
+            cBase = ucParse ? ucParse.getCanonical(baseUnit) : baseUnit;
+        } catch (_) {
+            return parsed;
+        }
+        if (cIn === cBase) {
+            return parsed;
+        }
+        try {
+            const converted = ucParse ? ucParse.convertToBase(parsed, inputUnit, baseUnit) : parsed;
+            if (typeof converted !== 'number' || !Number.isFinite(converted)) {
+                console.warn(`[UIModuleOrchestrator] convertToBase returned non-finite for ${variable.symbol}`, {
+                    parsed,
+                    inputUnit,
+                    baseUnit
+                });
+                return null;
+            }
+            return converted;
+        } catch (e) {
+            console.warn(`[UIModuleOrchestrator] convertToBase failed for ${variable.symbol}:`, e.message);
+            return null;
+        }
+    }
+
     /**
      * Get current variable values from DOM
      */
@@ -1150,95 +1375,24 @@ export class UIModuleOrchestrator {
             return {};
         }
 
-        // Vectorized: Use map + Object.fromEntries for better performance
-        return Object.fromEntries(
-            formula.variables.map(variable => {
-                // Helper function to find input using multiple patterns
-                const findInput = () => {
-                    // Pattern 1: Simple ID (var-symbol) - used by fallback renderer
-                    let input = document.getElementById(`var-${variable.symbol}`);
-                    
-                    // Pattern 2: With unit suffix (var-symbol-unit) - used by VariableInputsRenderer
-                    // Check if simple input doesn't exist OR doesn't have a value
-                    if ((!input || !input.value.trim()) && this.options.UnitConverter) {
-                        const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(variable.unit);
-                        // Vectorized: Use find() instead of for loop
-                        // First try to find input with a value, then any input
-                        let unitInput = alternativeUnits
-                            .map(unit => ({
-                                unit,
-                                input: document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`)
-                            }))
-                            .find(({ input: inp }) => inp !== null && inp.value.trim())?.input;
-                        
-                        // If no input with value found, get any input (for empty fields)
-                        if (!unitInput) {
-                            unitInput = alternativeUnits
-                                .map(unit => document.getElementById(`var-${variable.symbol}-${unit.replace(/[^a-zA-Z0-9]/g, '_')}`))
-                                .find(inp => inp !== null);
-                        }
-                        
-                        if (unitInput) input = unitInput;
-                    }
-                    
-                    // Pattern 3: Use data attributes as fallback
-                    if (!input) {
-                        input = document.querySelector(`input[data-symbol="${variable.symbol}"]`);
-                    }
-                    
-                    // Pattern 4: Try querySelector with name attribute
-                    if (!input) {
-                        input = document.querySelector(`input[name="var-${variable.symbol}"]`);
-                    }
-                    
-                    // Pattern 5: Last resort - find in variables-container
-                    if (!input) {
-                        const container = document.getElementById('variables-container');
-                        if (container) {
-                            const inputs = Array.from(container.querySelectorAll(`input[data-symbol="${variable.symbol}"]`));
-                            // Vectorized: Use find() instead of for loop
-                            input = inputs.find(inp => inp.value.trim()) || inputs[0];
-                        }
-                    }
-                    
-                    return input;
-                };
+        if (!this._unitConverterReady()) {
+            console.warn('[UIModuleOrchestrator] UnitConverter missing getCanonical/convertToBase/getAlternativeUnits — unit conversion may be wrong or skipped');
+        }
 
-                const input = findInput();
-                
+        return Object.fromEntries(
+            formula.variables.map((variable) => {
+                const input = this._resolveVariableInputElement(variable);
                 if (!input) {
-                    console.warn(`[UIModuleOrchestrator] ❌ Could not find input for ${variable.symbol} after trying all patterns`);
+                    console.warn(`[UIModuleOrchestrator] No input element for ${variable.symbol}`);
                     return [variable.symbol, null];
                 }
-
                 const value = input.value.trim();
-                
-                // Return null if empty (empty means unknown, will show symbolic result)
                 if (!value || this.isNAValue(value)) {
                     return [variable.symbol, null];
                 }
-                
-                // Get the unit from the input if available
-                const inputUnit = input.getAttribute('data-unit') || 
-                                input.getAttribute('data-base-unit') || 
-                                variable.unit;
-                
-                // Parse and convert (using the input's unit or variable's base unit)
-                const parsedValue = this.calculationUtils.parseNumericValue(value, inputUnit);
-                if (parsedValue === null) {
-                    console.warn(`[UIModuleOrchestrator] Invalid value for ${variable.symbol}: "${value}"`);
-                    return [variable.symbol, null];
-                }
-                
-                // CRITICAL: Convert to base unit (e.g., °F → K for temperature)
-                const baseUnit = variable.unit;
-                let finalValue = parsedValue;
-                if (this.options.UnitConverter && inputUnit && baseUnit && inputUnit !== baseUnit) {
-                    try {
-                        finalValue = this.options.UnitConverter.convertToBase(parsedValue, inputUnit, baseUnit);
-                    } catch (e) {
-                        console.warn(`[UIModuleOrchestrator] Unit conversion failed for ${variable.symbol}:`, e.message);
-                    }
+                const finalValue = this._parseToBaseUnit(variable, value, input);
+                if (finalValue === null && value) {
+                    console.warn(`[UIModuleOrchestrator] Could not parse/convert ${variable.symbol}: "${value}"`);
                 }
                 return [variable.symbol, finalValue];
             })
@@ -1253,60 +1407,104 @@ export class UIModuleOrchestrator {
         return naValues.includes(value.toLowerCase());
     }
     /**
+     * Use canonical formula from window.formulas when the passed object is a wrapper or missing variables.
+     */
+    resolveFormulaForInputs(formula) {
+        if (!formula) return formula;
+        let f = formula;
+        if (f.formula && typeof f.formula === 'object' && f.formula.id) {
+            f = f.formula;
+        }
+        const vars = f.variables;
+        if ((!Array.isArray(vars) || vars.length === 0) && f.id && Array.isArray(window.formulas)) {
+            const canon = window.formulas.find((x) => x.id === f.id);
+            if (canon) {
+                f = canon;
+            }
+        }
+        const UC = this._resolveLiveUnitConverter();
+        if (UC && typeof UC.normalizeFormulaUnit === 'function' && Array.isArray(f.variables)) {
+            return {
+                ...f,
+                variables: f.variables.map((v) => ({
+                    ...v,
+                    unit: UC.normalizeFormulaUnit(v.unit) || v.unit
+                }))
+            };
+        }
+        return f;
+    }
+
+    /**
      * Render calculator inputs for a formula
      * Uses VariableInputsRenderer if available, otherwise falls back to simple rendering
      */
     renderCalculatorInputs(formula) {
+        formula = this.resolveFormulaForInputs(formula);
+        if (!formula || !Array.isArray(formula.variables) || formula.variables.length === 0) {
+            console.error('[UIModuleOrchestrator] Cannot render inputs: formula missing variables array', formula?.id);
+            return;
+        }
+
         // Clear calculation input cache when inputs are re-rendered
         if (this.calculationOrchestrator && typeof this.calculationOrchestrator.clearInputCache === 'function') {
             this.calculationOrchestrator.clearInputCache();
         }
         
-        // Try to use the proper VariableInputsRenderer first
-        if (window.variableInputsRenderer && typeof window.variableInputsRenderer.render === 'function') {
-            try {
-                window.variableInputsRenderer.render(formula);
-                console.log('[UIModuleOrchestrator] ✅ Used VariableInputsRenderer for inputs');
-                return;
-            } catch (error) {
-                console.warn('[UIModuleOrchestrator] VariableInputsRenderer failed, using fallback:', error);
+        const renderWithVariableInputs = (renderer, label) => {
+            if (!renderer || typeof renderer.render !== 'function') {
+                return false;
             }
+            try {
+                renderer.render(formula);
+                console.log(`[UIModuleOrchestrator] ✅ ${label}`);
+                return true;
+            } catch (err) {
+                console.warn(`[UIModuleOrchestrator] ${label} failed:`, err);
+                return false;
+            }
+        };
+
+        // Multi-unit "flashcard" UI: prefer singleton, then a fresh instance (singleton can be wedged after errors)
+        if (renderWithVariableInputs(window.variableInputsRenderer, 'VariableInputsRenderer (singleton)')) {
+            return;
         }
-        
-        // Fallback: Use variables-container (correct container)
+        const VIR = typeof window !== 'undefined' ? window.VariableInputsRenderer : undefined;
+        if (typeof VIR === 'function' &&
+            renderWithVariableInputs(new VIR(), 'VariableInputsRenderer (new instance)')) {
+            return;
+        }
+
+        // Last resort: one field per variable — use .variable-input so the same flashcard CSS applies
         const container = document.getElementById('variables-container');
         if (!container) {
             console.error('[UIModuleOrchestrator] ❌ variables-container not found!');
             return;
         }
 
-        // Clear existing content
         container.innerHTML = '';
+        container.style.display = 'grid';
+        container.style.visibility = 'visible';
+        container.style.opacity = '1';
+        container.classList.remove('hidden');
 
-        // Create input grid
-        const grid = document.createElement('div');
-        grid.className = 'variable-input-grid';
-
-        // Vectorized: Filter out constants using Set operations
         const constantSymbols = new Set([
             ...(formula.constants ? Object.keys(formula.constants) : []),
             ...(window.globalConstants ? Object.keys(window.globalConstants) : [])
         ]);
-        
+
         const userVariables = formula.variables.filter(v => !constantSymbols.has(v.symbol));
 
-        // Vectorized: Use map + DocumentFragment for batch DOM operations
         const fragment = document.createDocumentFragment();
         userVariables.map(variable => {
             const inputDiv = document.createElement('div');
-            inputDiv.className = 'variable-input-group';
+            inputDiv.className = 'variable-input';
 
-            // Input field (create first to get ID for label)
             const inputId = `var-${variable.symbol}`;
             const input = document.createElement('input');
-            input.type = 'number';
+            input.type = 'text';
             input.id = inputId;
-            input.className = 'variable-input';
+            input.className = 'unit-input-field';
             
             // Variable label with symbol and name (with correct for attribute)
             const label = document.createElement('label');
@@ -1319,7 +1517,10 @@ export class UIModuleOrchestrator {
             `;
             input.placeholder = `Enter ${variable.name || variable.symbol} (${variable.unit || ''})`;
             input.setAttribute('data-symbol', variable.symbol);
-            input.step = 'any';
+            input.setAttribute('data-unit', variable.unit || '');
+            input.setAttribute('data-base-unit', variable.unit || '');
+            input.setAttribute('inputmode', 'decimal');
+            input.setAttribute('autocomplete', 'off');
 
             // Unit display
             const unitSpan = document.createElement('span');
@@ -1342,7 +1543,7 @@ export class UIModuleOrchestrator {
         // Single DOM update for all inputs
         container.appendChild(fragment);
 
-        console.log('[UIModuleOrchestrator] ✅ Rendered calculator inputs using fallback method');
+        console.warn('[UIModuleOrchestrator] Rendered calculator inputs using simple fallback (no multi-unit flashcards — check VariableInputsRenderer errors above)');
     }
     
     /**
@@ -1411,7 +1612,7 @@ export class UIModuleOrchestrator {
                         ` : ''}
                         ${result.knownVariables && result.knownVariables.length > 0 && result.partialEvaluation ? `
                             <div style="margin-top: 15px; padding: 12px; background: rgba(0,255,0,0.1); border-radius: 8px;">
-                                <div style="font-weight: 600; margin-bottom: 8px;">Known Values (in base units):</div>
+                                <div style="font-weight: 600; margin-bottom: 8px;">Known values (each variable’s formula unit):</div>
                                 <div>${result.knownValuesFormatted || result.knownVariables.map(v => {
                                     // Fallback: format with base unit if knownValuesFormatted not available
                                     const varInfo = this.formulaSelector?.getCurrentFormula()?.variables?.find(v2 => v2.symbol === v);
@@ -1446,7 +1647,7 @@ export class UIModuleOrchestrator {
                         const conversions = result.unitConversions.map(conv => ({
                             unit: conv.unit,
                             value: conv.value,
-                            formatted: this.options.UnitConverter?.convertAndFormat(conv.value, baseUnit, conv.unit) || `${conv.value} ${conv.unit}`
+                            formatted: this._resolveLiveUnitConverter()?.convertAndFormat(conv.value, baseUnit, conv.unit) || `${conv.value} ${conv.unit}`
                         }));
                         
                         unitConversionsHTML = `
@@ -1461,16 +1662,17 @@ export class UIModuleOrchestrator {
                                 </div>
                             </div>
                         `;
-                    } else if (this.options.UnitConverter && baseUnit && solvedFor !== 'result') {
+                    } else if (this._resolveLiveUnitConverter() && baseUnit && solvedFor !== 'result') {
                         // Generate unit conversions on the fly
                         try {
-                            const alternativeUnits = this.options.UnitConverter.getAlternativeUnits(baseUnit);
+                            const UCdisp = this._resolveLiveUnitConverter();
+                            const alternativeUnits = UCdisp.getAlternativeUnits(baseUnit);
                             const conversions = [];
                             
                             for (const altUnit of alternativeUnits) {
                                 if (altUnit === baseUnit) continue; // Skip base unit (already shown)
                                 try {
-                                    const convertedValue = this.options.UnitConverter.convert(resultValue, baseUnit, altUnit);
+                                    const convertedValue = UCdisp.convert(resultValue, baseUnit, altUnit);
                                     if (convertedValue !== null && Number.isFinite(convertedValue)) {
                                         const formattedValue = this.formattingUtils.formatResult(convertedValue, altUnit);
                                         conversions.push({ unit: altUnit, value: convertedValue, formatted: formattedValue });
@@ -1514,7 +1716,11 @@ export class UIModuleOrchestrator {
                         </div>
                         ${result.unit ? `<div class="result-unit" style="opacity: 0.8; margin-top: 8px;">${this.formattingUtils.escapeHtml(result.unit)}</div>` : ''}
                         ${unitConversionsHTML}
+                        ${typeof window.buildResultUnitPickerHTML === 'function' ? window.buildResultUnitPickerHTML(baseUnit) : ''}
                     `;
+                    if (typeof window.attachResultUnitPicker === 'function') {
+                        window.attachResultUnitPicker(resultDisplay, resultValue, baseUnit);
+                    }
                     console.log('[UIModuleOrchestrator] ✅ Numeric result displayed in fallback');
                 }
             } else {

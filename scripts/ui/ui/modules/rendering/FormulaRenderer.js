@@ -74,9 +74,17 @@ export class FormulaRenderer {
             return;
         }
 
+        if (options.force) {
+            this._lastRenderHash = null;
+            this.renderScheduled = false;
+            this.pendingFormulas = null;
+            this._isRendering = false;
+            this._rebuildFormulaIndex();
+        }
+
         // Prevent duplicate renders: check if already rendering same content
         const renderHash = this._createRenderHash(formulas, options);
-        if (this._isRendering && renderHash === this._lastRenderHash) {
+        if (!options.force && this._isRendering && renderHash === this._lastRenderHash) {
             console.log('[FormulaRenderer] ⏭️ Skipping duplicate render');
             return;
         }
@@ -96,7 +104,7 @@ export class FormulaRenderer {
         };
         
         // Use requestAnimationFrame for smooth rendering
-        if (this.renderScheduled) {
+        if (this.renderScheduled && !options.force) {
             this.pendingFormulas = formulas;
             return;
         }
@@ -123,7 +131,8 @@ export class FormulaRenderer {
         const optionsStr = JSON.stringify({
             showConfidence: options.showConfidence,
             showTopicScope: options.showTopicScope,
-            maxScore: options.maxScore
+            maxScore: options.maxScore,
+            force: !!options.force
         });
         return `${formulaIds}|${optionsStr}`;
     }
@@ -310,14 +319,17 @@ export class FormulaRenderer {
                 const rawValue = input.value.trim();
                 inputCount++;
                 
-                // Handle scientific notation and regular numbers
-                // Allow 0 as a valid value (e.g., initial conditions)
                 if (rawValue === '') {
                     variableValues[symbol] = null;
                     hasAllInputs = false;
                 } else {
-                    const value = Number(rawValue);
-                    if (!isNaN(value)) {
+                    const varDef = formula.variables.find((v) => v.symbol === symbol);
+                    const parseFn =
+                        typeof window !== 'undefined' && typeof window.parseVariableRawToFormulaBase === 'function'
+                            ? window.parseVariableRawToFormulaBase
+                            : null;
+                    const value = varDef && parseFn ? parseFn(rawValue, varDef) : Number(rawValue);
+                    if (typeof value === 'number' && Number.isFinite(value)) {
                         variableValues[symbol] = value;
                     } else {
                         variableValues[symbol] = null;
@@ -520,6 +532,12 @@ export class FormulaRenderer {
         
         return scope;
     }
+
+    _formulaDisplayUtils() {
+        return typeof globalThis !== 'undefined' && globalThis.formulaDisplayUtils
+            ? globalThis.formulaDisplayUtils
+            : null;
+    }
     
     /**
      * Generate card HTML with confidence and topic details
@@ -539,9 +557,11 @@ export class FormulaRenderer {
      * Generate card header (title, equation, description)
      */
     generateCardHeader(formula) {
+        const u = this._formulaDisplayUtils();
+        const eq = u ? u.formatEquationForDisplay(formula.equation, formula) : formula.equation;
         return `
             <h3 class="formula-card-title">${this.escapeHtml(formula.name)}</h3>
-            <div class="formula-card-equation">${this.escapeHtml(formula.equation)}</div>
+            <div class="formula-card-equation">${this.escapeHtml(eq)}</div>
             <p class="formula-card-description">${this.escapeHtml(formula.description || 'Click to use this formula')}</p>
         `;
     }
@@ -565,24 +585,35 @@ export class FormulaRenderer {
             return '';
         }
         
+        const fd = this._formulaDisplayUtils();
+        const resultVarLabel = fd && resultVariable
+            ? fd.displaySymbolForSolved(formula, resultVariable)
+            : resultVariable;
+        
         let html = '<div class="formula-card-quick-calc">';
-        html += `<div class="quick-calc-header">⚡ Quick Calculate → ${resultVariable || 'Result'}:</div>`;
+        html += `<div class="quick-calc-header">⚡ Quick Calculate → ${resultVarLabel || 'Result'}:</div>`;
         html += '<div class="quick-calc-inputs">';
         
         inputVariables.slice(0, 4).forEach((variable) => {
             const inputId = `quick-calc-${formula.id}-${variable.symbol}`;
+            const u = variable.unit ? this.escapeHtml(variable.unit) : '—';
+            const ph = variable.unit ? `e.g. 1.5e6 or 5 g (${u})` : 'e.g. 1.5e6';
+            const symLabel = fd ? fd.getVariableDisplayLabel(variable) : variable.symbol;
             html += `
                 <div class="quick-calc-input-group">
-                    <label for="${inputId}" class="quick-calc-label">${this.escapeHtml(variable.symbol)}</label>
+                    <label for="${inputId}" class="quick-calc-label">${this.escapeHtml(symLabel)} <span class="quick-calc-unit">(${u})</span></label>
                     <input 
-                        type="number" 
+                        type="text"
+                        inputmode="decimal"
                         id="${inputId}"
                         data-formula-id="${formula.id}"
                         data-variable-symbol="${this.escapeHtml(variable.symbol)}"
                         data-result-variable="${resultVariable || ''}"
                         class="quick-calc-input"
-                        placeholder="0"
-                        step="any"
+                        placeholder="${ph}"
+                        autocomplete="off"
+                        spellcheck="false"
+                        title="Value is converted to this formula’s base unit (${u}). You may include a unit (e.g. 5 g, 1 AU)."
                     >
                 </div>
             `;
@@ -590,7 +621,7 @@ export class FormulaRenderer {
         
         html += '</div>';
         html += '<div class="quick-calc-actions">';
-        html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" data-result-variable="${resultVariable || ''}">Calculate → ${resultVariable || 'Result'}</button>`;
+        html += `<button class="quick-calc-btn" data-formula-id="${formula.id}" data-result-variable="${resultVariable || ''}">Calculate → ${resultVarLabel || 'Result'}</button>`;
         html += `<div class="quick-calc-result" data-formula-id="${formula.id}"></div>`;
         html += '</div>';
         html += '</div>';

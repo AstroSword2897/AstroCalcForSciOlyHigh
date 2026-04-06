@@ -26,7 +26,10 @@ class ResultDisplayRenderer {
     }
 
     _looksLikeMath(text) {
-        return /[=^*/÷×·]|sqrt\(|\bpi\b|π|[_]|\\pi/.test(String(text ?? ''));
+        const s = String(text ?? '');
+        // Scientific notation (1e23, 1.2e-4) so _toLatex can render ×10^n
+        if (/[eE][+-]?\d/.test(s)) return true;
+        return /[=^*/÷×·]|sqrt\(|\bpi\b|π|[_]|\\pi/.test(s);
     }
 
     _toLatex(raw) {
@@ -151,6 +154,14 @@ class ResultDisplayRenderer {
         resultDisplay.setAttribute('data-result', 'true');
         
         const solvedVar = result.solvedFor || result.variable;
+        const fd =
+            typeof globalThis !== 'undefined' && globalThis.formulaDisplayUtils
+                ? globalThis.formulaDisplayUtils
+                : null;
+        const solvedVarDisplay =
+            fd && currentFormula && solvedVar
+                ? fd.displaySymbolForSolved(currentFormula, solvedVar)
+                : solvedVar;
         const varInfo = currentFormula && currentFormula.variables 
             ? currentFormula.variables.find(v => v.symbol === solvedVar)
             : null;
@@ -267,10 +278,12 @@ class ResultDisplayRenderer {
             return;
         }
         
+        const UCrd = resolveResultDisplayUnitConverter();
+
         // High-precision formatting (Desmos-like) for all displayed numbers
         const formatNum = (val) => {
-            if (typeof UnitConverter !== 'undefined' && typeof UnitConverter.formatNumber === 'function') {
-                return UnitConverter.formatNumber(val);
+            if (UCrd && typeof UCrd.formatNumber === 'function') {
+                return UCrd.formatNumber(val);
             }
             if (typeof val !== 'number' || !Number.isFinite(val)) return String(val);
             if (val === 0) return '0';
@@ -283,9 +296,7 @@ class ResultDisplayRenderer {
         };
 
         let formattedValue = formatNum(numericValue);
-        const unitName = typeof UnitConverter !== 'undefined'
-            ? UnitConverter.formatUnit(result.unit)
-            : result.unit || '';
+        const unitName = UCrd && typeof UCrd.formatUnit === 'function' ? UCrd.formatUnit(result.unit) : result.unit || '';
         
         // Format with error if available (overrides display)
         if (result.errorInfo && typeof ErrorPropagator !== 'undefined') {
@@ -301,7 +312,13 @@ class ResultDisplayRenderer {
         // ---- Calculation flow: Given → Formula → Substitute → (Evaluate) → Result ----
         let equation = (currentFormula && currentFormula.equation) ? String(currentFormula.equation) : (result.equation || '');
         equation = equation.replace(/≈/g, '=');
-        const formulaExpression = result.formulaExpression || '';
+        if (fd && currentFormula) {
+            equation = fd.formatEquationForDisplay(equation, currentFormula);
+        }
+        let formulaExpression = result.formulaExpression || '';
+        if (fd && currentFormula && formulaExpression) {
+            formulaExpression = fd.formatMathDisplayString(formulaExpression, currentFormula);
+        }
         const workSteps = [];
         
         // 1. Given (known inputs)
@@ -311,7 +328,9 @@ class ResultDisplayRenderer {
             const varList = givenEntries.map(([sym, val]) => {
                 const vDef = currentFormula && currentFormula.variables ? currentFormula.variables.find(v => v.symbol === sym) : null;
                 const u = (vDef && vDef.unit) ? vDef.unit : '';
-                return `${sym} = ${formatNum(val)}${u ? ' ' + u : ''}`;
+                const symDisp =
+                    fd && currentFormula ? fd.displaySymbolForSolved(currentFormula, sym) : sym;
+                return `${symDisp} = ${formatNum(val)}${u ? ' ' + u : ''}`;
             }).join(', ');
             workSteps.push({ label: 'Given', expr: varList });
         }
@@ -324,18 +343,22 @@ class ResultDisplayRenderer {
             const lastEq = formulaExpression.lastIndexOf('=');
             const leftOfLast = formulaExpression.slice(0, lastEq).trim();
             const rightOfLast = formulaExpression.slice(lastEq + 1).trim();
-            const rightIsNumber = /^[\d.eE+-]+$/.test(rightOfLast);
+            const rt = rightOfLast.trim();
+            const rightIsNumber =
+                rt !== '' &&
+                Number.isFinite(Number(rt)) &&
+                /^[+-]?(?:\d+\.?\d*|\d*\.\d+)(?:[eE][+-]?\d+)?$/.test(rt);
             if (rightIsNumber && leftOfLast) {
                 workSteps.push({ label: 'Substitute', expr: leftOfLast });
                 const exprPart = leftOfLast.includes('=') ? (leftOfLast.split('=').pop() || leftOfLast).trim() : leftOfLast;
-                workSteps.push({ label: 'Evaluate', expr: `${exprPart} = ${formatNum(parseFloat(rightOfLast))}` });
+                workSteps.push({ label: 'Evaluate', expr: `${exprPart} = ${formatNum(Number(rt))}` });
             } else {
                 workSteps.push({ label: 'Substitute', expr: formulaExpression.trim() });
             }
         }
         
         // 5. Result
-        workSteps.push({ label: 'Result', expr: `${solvedVar} = ${formatNum(numericValue)} ${(result.unit || '').trim()}`.trim() });
+        workSteps.push({ label: 'Result', expr: `${solvedVarDisplay} = ${formatNum(numericValue)} ${(result.unit || '').trim()}`.trim() });
         
         let workHTML = '';
         if (workSteps.length > 0) {
@@ -363,7 +386,7 @@ class ResultDisplayRenderer {
             <h3>Result</h3>
             ${workHTML}
             <div class="result-value" style="font-size: 1.25em; font-weight: 600;">${formattedValue}</div>
-            <div class="result-unit">${varInfo ? varInfo.name : solvedVar} (${result.unit || ''})</div>
+            <div class="result-unit">${varInfo ? varInfo.name : solvedVarDisplay} (${result.unit || ''})</div>
             <div class="result-unit-full">${unitName}</div>
         `;
         
@@ -410,14 +433,13 @@ class ResultDisplayRenderer {
         const baseUnit = result.baseUnit || result.unit;
         const conversions = result.unitConversions || [];
         if (conversions.length > 0 && baseUnit) {
-            const unitNames = typeof UnitConverter !== 'undefined' ? UnitConverter.formatUnit : (u) => u;
+            const unitNames = UCrd && typeof UCrd.formatUnit === 'function' ? UCrd.formatUnit : (u) => u;
             resultHTML += `
                 <div class="result-unit-conversions" style="margin-top: 1rem; padding: 1rem; background: rgba(102,126,234,0.08); border-radius: 8px;">
                     <div style="font-weight: 600; margin-bottom: 0.5rem; color: #a5b4fc;">In other units</div>
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.5rem;">
                         ${conversions.map(c => {
-                            const fmt = typeof UnitConverter !== 'undefined' && typeof UnitConverter.formatNumber === 'function'
-                                ? UnitConverter.formatNumber(c.value) : formatNum(c.value);
+                            const fmt = UCrd && typeof UCrd.formatNumber === 'function' ? UCrd.formatNumber(c.value) : formatNum(c.value);
                             const name = typeof unitNames === 'function' ? unitNames(c.unit) : c.unit;
                             return `<div style="padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;">
                                 <span class="converted-value" style="font-weight: 600;">${fmt}</span>
@@ -429,15 +451,12 @@ class ResultDisplayRenderer {
                 </div>`;
         } else {
             // Fallback: single best conversion when unitConversions not precomputed
-            const conversion = typeof UnitConverter !== 'undefined'
-                ? UnitConverter.convertAndFormat(numericValue, result.unit)
-                : null;
+            const conversion = UCrd ? UCrd.convertAndFormat(numericValue, result.unit, { formulaUnit: true }) : null;
             if (conversion && conversion.unit && conversion.unit !== result.unit && conversion.value !== numericValue) {
-                const convertedFormatted = typeof UnitConverter !== 'undefined' && typeof UnitConverter.formatNumber === 'function'
-                    ? UnitConverter.formatNumber(conversion.value) : formatNum(conversion.value);
-                const convertedUnitName = typeof UnitConverter !== 'undefined'
-                    ? UnitConverter.formatUnit(conversion.unit)
-                    : conversion.unit;
+                const convertedFormatted = UCrd && typeof UCrd.formatNumber === 'function'
+                    ? UCrd.formatNumber(conversion.value)
+                    : formatNum(conversion.value);
+                const convertedUnitName = UCrd && typeof UCrd.formatUnit === 'function' ? UCrd.formatUnit(conversion.unit) : conversion.unit;
                 resultHTML += `
                     <div class="result-converted" style="margin-top: 0.75rem;">
                         <div class="converted-label" style="opacity: 0.9;">Also:</div>
@@ -461,9 +480,17 @@ class ResultDisplayRenderer {
             }
         }
         
+        resultHTML += typeof buildResultUnitPickerHTML === 'function'
+            ? buildResultUnitPickerHTML(result.unit)
+            : '';
+        
         resultDisplay.innerHTML = resultHTML;
         resultDisplay.classList.add('show', 'result', 'calculation-result');
         resultDisplay.setAttribute('data-result', 'true');
+
+        if (typeof attachResultUnitPicker === 'function') {
+            attachResultUnitPicker(resultDisplay, numericValue, result.unit);
+        }
 
         // Render pretty math in the work steps (KaTeX if available, otherwise unicode fallback)
         this._renderKatexIn(resultDisplay);
@@ -499,10 +526,129 @@ class ResultDisplayRenderer {
     }
 }
 
+function resolveResultDisplayUnitConverter() {
+    try {
+        if (
+            typeof globalThis !== 'undefined' &&
+            globalThis.UnitConverter &&
+            typeof globalThis.UnitConverter.getCanonical === 'function'
+        ) {
+            return globalThis.UnitConverter;
+        }
+    } catch (_) {
+        /* ignore */
+    }
+    if (typeof window !== 'undefined' && window.UnitConverter && typeof window.UnitConverter.getCanonical === 'function') {
+        return window.UnitConverter;
+    }
+    return null;
+}
+
+/**
+ * Build optional HTML for choosing an alternate display unit (same dimension as result.unit).
+ * @param {string} resultUnit - Unit the numeric result is expressed in
+ * @returns {string}
+ */
+function buildResultUnitPickerHTML(resultUnit) {
+    try {
+        const UC = resolveResultDisplayUnitConverter();
+        if (!UC || typeof UC.getCanonical !== 'function' || !resultUnit || String(resultUnit).trim() === '') return '';
+
+        const trimmed = String(resultUnit).trim();
+        const raw = UC.normalizeFormulaUnit ? UC.normalizeFormulaUnit(trimmed) || trimmed : trimmed;
+        const canonicalFrom = UC.getCanonical(raw);
+        if (!canonicalFrom) return '';
+
+        const alts = UC.getAlternativeUnits(canonicalFrom);
+        if (!alts || alts.length <= 1) return '';
+
+        const escapeHtml = (t) => {
+            const div = document.createElement('div');
+            div.textContent = String(t);
+            return div.innerHTML;
+        };
+        const escapeAttr = (v) => String(v)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        const options = alts.map((u) => {
+            const selected = UC.getCanonical(u) === canonicalFrom ? ' selected' : '';
+            const name = typeof UC.formatUnit === 'function' ? UC.formatUnit(u) : u;
+            return `<option value="${escapeAttr(u)}"${selected}>${escapeHtml(u)} — ${escapeHtml(name)}</option>`;
+        }).join('');
+
+        return `
+        <div class="result-unit-picker" style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(99,102,241,0.12); border-radius: 8px; border: 1px solid rgba(99,102,241,0.25);">
+            <label for="result-display-unit-select" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: #a5b4fc;">Show value in another unit</label>
+            <select id="result-display-unit-select" aria-label="Convert result to unit" style="max-width: 100%; padding: 0.4rem 0.6rem; border-radius: 6px; background: #1e293b; color: #e2e8f0; border: 1px solid #475569;">
+                ${options}
+            </select>
+            <div id="result-display-unit-output" style="margin-top: 0.6rem; font-size: 1.05em; font-weight: 600; color: #e2e8f0;"></div>
+        </div>`;
+    } catch (err) {
+        console.warn('[ResultDisplay] buildResultUnitPickerHTML:', err);
+        return '';
+    }
+}
+
+/**
+ * Wire #result-display-unit-select after numeric result HTML is injected.
+ * @param {HTMLElement} container
+ * @param {number} numericValue - Value in baseUnit
+ * @param {string} baseUnit - Unit of numericValue
+ */
+function attachResultUnitPicker(container, numericValue, baseUnit) {
+    try {
+        const UC = resolveResultDisplayUnitConverter();
+        if (!UC || typeof UC.getCanonical !== 'function' || !container || typeof numericValue !== 'number' || !Number.isFinite(numericValue)) return;
+        if (!baseUnit || String(baseUnit).trim() === '') return;
+
+        const trimmed = String(baseUnit).trim();
+        const raw = UC.normalizeFormulaUnit ? UC.normalizeFormulaUnit(trimmed) || trimmed : trimmed;
+        const canonicalFrom = UC.getCanonical(raw);
+        if (!canonicalFrom) return;
+
+        const alts = UC.getAlternativeUnits(canonicalFrom);
+        if (!alts || alts.length <= 1) return;
+
+        const sel = container.querySelector('#result-display-unit-select');
+        const out = container.querySelector('#result-display-unit-output');
+        if (!sel || !out) return;
+
+        const escapeHtml = (t) => {
+            const div = document.createElement('div');
+            div.textContent = String(t);
+            return div.innerHTML;
+        };
+
+        const update = () => {
+            const to = sel.value;
+            const c = UC.convert(numericValue, canonicalFrom, to);
+            if (c === null || !Number.isFinite(c)) {
+                out.innerHTML = '<span style="opacity:0.85">—</span>';
+                return;
+            }
+            const fmt = typeof UC.formatNumber === 'function' ? UC.formatNumber(c) : String(c);
+            const sym = typeof UC.formatUnit === 'function' ? UC.formatUnit(to) : to;
+            out.innerHTML = `${escapeHtml(fmt)} <span style="margin-left:0.25rem">${escapeHtml(to)}</span> <span style="opacity:0.85;font-size:0.9em">(${escapeHtml(sym)})</span>`;
+        };
+
+        sel.addEventListener('change', update);
+        update();
+    } catch (err) {
+        console.warn('[ResultDisplay] attachResultUnitPicker:', err);
+    }
+}
+
 // Export
 if (typeof window !== 'undefined') {
     window.ResultDisplayRenderer = ResultDisplayRenderer;
     // Create singleton instance
     window.resultDisplayRenderer = new ResultDisplayRenderer();
+    window.buildResultUnitPickerHTML = buildResultUnitPickerHTML;
+    window.attachResultUnitPicker = attachResultUnitPicker;
 }
 

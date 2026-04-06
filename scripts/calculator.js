@@ -2,12 +2,20 @@
  * FormulaCalculator - Core calculation engine
  * TypeScript implementation with proper types and dependency injection
  */
-// Default constants if not provided
+// Default constants if not provided (CODATA 2022 / SI 2019 — same as scripts/formulas.js globalConstants)
 const DEFAULT_CONSTANTS = {
-    G: 6.67430e-11, // Gravitational constant
-    c: 2.99792458e8, // Speed of light
-    h: 6.62607015e-34, // Planck's constant
-    // Add other constants as needed
+    G: 6.67430e-11, // CODATA 2022
+    c: 2.99792458e8, // SI exact
+    h: 6.62607015e-34, // SI exact
+    k: 1.380649e-23, // SI exact — Boltzmann
+    e: 1.602176634e-19, // SI exact — elementary charge
+    σ: 5.6703744191844294e-8, // SI exact — Stefan-Boltzmann
+    sigma: 5.6703744191844294e-8,
+    m_e: 9.1093837139e-31, // CODATA 2022
+    σ_T: 6.6524587321e-29, // CODATA 2022 — Thomson cross-section (m²)
+    M_sun: 1.988409870440e30, // Nominal solar mass (kg); matches M☉ / formulas globalConstants
+    L_sun: 3.828e26, // Nominal solar luminosity (W); matches L☉
+    R_sun: 695700000 // Nominal solar radius (m); matches R☉
 };
 // Default solver options
 const DEFAULT_SOLVER_OPTIONS = {
@@ -38,8 +46,12 @@ class FormulaCalculator {
         this.errorPropagator = options.errorPropagator;
         this.unitConverter = options.unitConverter;
         this.mathEvaluator = options.mathEvaluator;
-        // Merge default constants, formula-specific constants, and options constants
-        this.constants = { ...DEFAULT_CONSTANTS, ...(formula.constants || {}), ...options.constants };
+        // Omit default physical constants whose symbols are formula variables (e.g. e = eccentricity vs e = elementary charge).
+        const formulaVarSymbols = new Set((formula.variables || []).map((v) => v.symbol));
+        const defaultsFiltered = Object.fromEntries(
+            Object.entries(DEFAULT_CONSTANTS).filter(([k]) => !formulaVarSymbols.has(k))
+        );
+        this.constants = { ...defaultsFiltered, ...(formula.constants || {}), ...options.constants };
         this.solver = options.solver;
         
         // Performance: Cache merged constants and known values
@@ -48,6 +60,89 @@ class FormulaCalculator {
         this._cachedKnownValues = null;
         this._lastKnownValuesHash = null;
     }
+
+    /** Regex-escape a variable or symbol used inside RegExp constructors. */
+    _escapeRegex(s) {
+        return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * True if `symbol` appears as an identifier in `expression`.
+     * Avoids treating the `e` in `1e10` as the variable `e` (digit before `e`).
+     */
+    _expressionUsesSymbol(expression, symbol) {
+        const sym = String(symbol);
+        const escaped = this._escapeRegex(sym);
+        try {
+            return new RegExp(`(?:^|[^A-Za-z0-9_])${escaped}(?![A-Za-z0-9_])`).test(String(expression));
+        } catch (_) {
+            return String(expression).includes(sym);
+        }
+    }
+
+    /**
+     * Policy: never evaluate numerically if a formula variable appears in the expression
+     * but has no finite numeric value in scope (constants + passed variables).
+     * Prevents silent misuse (e.g. Euler vs eccentricity) and half-substituted solver fallbacks.
+     */
+    _ensureFiniteFormulaVariablesInExpression(expression, variables) {
+        const vars = variables || {};
+        const merged = { ...this.constants, ...(this.formula.constants || {}), ...vars };
+        for (const v of this.formula.variables || []) {
+            const sym = v.symbol;
+            if (!this._expressionUsesSymbol(expression, sym)) continue;
+            const val = merged[sym];
+            if (typeof val === 'number' && Number.isFinite(val)) continue;
+            throw new Error(
+                `Cannot evaluate: "${sym}" appears in the expression but has no numeric value. ` +
+                    `Enter ${v.name || sym} or leave exactly one variable empty to solve for it.`
+            );
+        }
+    }
+
+    /** Normalize Unicode operators to ASCII for parsing. */
+    _normalizeEquationString(s) {
+        return String(s).replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
+    }
+
+    /**
+     * Substitute known numeric values (longest keys first). Use wrapInParens in algebraic paths
+     * so negative values stay grouped; plain string for aggressive UI fallbacks.
+     */
+    _substituteKnownNumericInEquation(equation, allKnown, excludeVar, wrapInParens) {
+        let out = String(equation);
+        const sortedKnown = Object.entries(allKnown)
+            .filter(([k, v]) => k !== excludeVar && typeof v === 'number' && Number.isFinite(v))
+            .sort((a, b) => b[0].length - a[0].length);
+        for (const [varName, varValue] of sortedKnown) {
+            const escaped = this._escapeRegex(varName);
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            out = out.replace(regex, wrapInParens ? `(${varValue})` : String(varValue));
+        }
+        return out;
+    }
+
+    /** x^(1/n) for n = 2, 3, or positive real (algebraic isolation). */
+    _nthRootFromPower(rhs, actualPower) {
+        if (typeof rhs !== 'number' || !Number.isFinite(rhs) || isNaN(rhs)) {
+            throw new Error(`Invalid RHS for root: ${rhs}`);
+        }
+        if (actualPower === 2) {
+            const r = Math.sqrt(rhs);
+            if (typeof r !== 'number' || !Number.isFinite(r) || isNaN(r)) {
+                throw new Error(`sqrt invalid: ${r}`);
+            }
+            return r;
+        }
+        if (actualPower === 3) {
+            return Math.cbrt(rhs);
+        }
+        if (actualPower > 0) {
+            return Math.pow(rhs, 1 / actualPower);
+        }
+        throw new Error(`Invalid power: ${actualPower}`);
+    }
+
     /**
      * Validates the input values against the formula's variables
      * @throws {Error} If validation fails
@@ -232,7 +327,7 @@ class FormulaCalculator {
                     formulaExpression = expr;
                 } else if (unknownVars.length === 0) {
                     // For evaluation, show the equation with values substituted AND constants computed
-                    let expr = this.formula.equation;
+                    let expr = this._expandForDisplay(this.formula.equation, knownVars);
                     const sortedKnown = Object.entries(knownVars)
                         .filter(([k, v]) => typeof v === 'number')
                         .sort((a, b) => b[0].length - a[0].length);
@@ -249,7 +344,7 @@ class FormulaCalculator {
                             const varDef = this.formula.variables.find(v => v.symbol === symbol);
                             if (varDef && varDef.unit) {
                                 try {
-                                    const converted = this.unitConverter.convertAndFormat(value, varDef.unit);
+                                    const converted = this.unitConverter.convertAndFormat(value, varDef.unit, { formulaUnit: true });
                                     if (converted && converted.value !== null && Number.isFinite(converted.value)) {
                                         displayValue = converted.value;
                                         displayUnit = converted.unit || varDef.unit;
@@ -573,6 +668,34 @@ class FormulaCalculator {
         }
     }
     /**
+     * After substituting knowns into e.g. v_esc = √(2GM/r), the string may be
+     * "5 m/s = √(2*G*M/8 m)". Prepending "M = " would yield the bogus "M = 5 m/s = …".
+     * If the equation already has "=" and the unknown appears inside it, return it as-is.
+     */
+    _formatSymbolicSingleUnknownDisplay(unknownVar, expression) {
+        const trimmed = String(expression ?? '').trim();
+        if (!trimmed) return `${unknownVar} =`;
+        const lhsPrefix = `${unknownVar} = `;
+        if (trimmed.startsWith(lhsPrefix) || trimmed.startsWith(`${unknownVar}=`)) {
+            return trimmed;
+        }
+        const esc = String(unknownVar).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const varRe = new RegExp(`\\b${esc}\\b`);
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx === -1) {
+            return `${unknownVar} = ${trimmed}`;
+        }
+        const lhs = trimmed.slice(0, eqIdx).trim();
+        const rhs = trimmed.slice(eqIdx + 1).trim();
+        const unkInLhs = varRe.test(lhs);
+        const unkInRhs = varRe.test(rhs);
+        if (unkInLhs || unkInRhs) {
+            return trimmed;
+        }
+        return `${unknownVar} = ${trimmed}`;
+    }
+
+    /**
      * Generate symbolic expression for a single unknown variable
      * CRITICAL: If all values are known, actually compute the numeric result!
      */
@@ -601,6 +724,8 @@ class FormulaCalculator {
         // Fallback: Generate symbolic expression with substituted values AND computed constants
         // Start with the equation (normalize ≈ so display and eval are consistent)
         let expression = String(this.formula.equation).replace(/≈/g, '=');
+        // GM, kT, etc.: \bG\b does not match G inside "GM" — expand implicit * first
+        expression = this._expandForDisplay(expression, knownVars);
         
         // Format values for better readability in symbolic expressions
         // Convert to appropriate units if unitConverter is available
@@ -610,7 +735,7 @@ class FormulaCalculator {
                 const varDef = this.formula.variables.find(v => v.symbol === symbol);
                 if (varDef && varDef.unit) {
                     try {
-                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit);
+                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit, { formulaUnit: true });
                         if (converted && converted.value !== null && Number.isFinite(converted.value)) {
                             const formatted = this._formatNumber(converted.value);
                             return `${formatted} ${converted.unit}`;
@@ -666,13 +791,7 @@ class FormulaCalculator {
             // If evaluation fails, just return the symbolic expression
         }
         
-        // Return the expression showing the unknown variable (avoid duplicate LHS)
-        // If expression already starts with "unknownVar = ", use only the RHS for display
-        const lhsPrefix = `${unknownVar} = `;
-        const rhsOnly = expression.trimStart().startsWith(lhsPrefix)
-            ? expression.trimStart().slice(lhsPrefix.length).trim()
-            : expression;
-        return `${unknownVar} = ${rhsOnly}`;
+        return this._formatSymbolicSingleUnknownDisplay(unknownVar, expression);
     }
     /**
      * Generate expression for multiple unknown variables
@@ -702,6 +821,7 @@ class FormulaCalculator {
         
         // Fallback: Generate symbolic expression with substituted values AND computed constants
         let expression = this.formula.equation;
+        expression = this._expandForDisplay(expression, knownVars);
         
         // Format values for better readability with unit conversion
         const formatValue = (val, symbol) => {
@@ -710,7 +830,7 @@ class FormulaCalculator {
                 const varDef = this.formula.variables.find(v => v.symbol === symbol);
                 if (varDef && varDef.unit) {
                     try {
-                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit);
+                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit, { formulaUnit: true });
                         if (converted && converted.value !== null && Number.isFinite(converted.value)) {
                             const formatted = this._formatNumber(converted.value);
                             return `${formatted} ${converted.unit}`;
@@ -761,8 +881,7 @@ class FormulaCalculator {
             if (numericResult !== null && typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
                 return `${unknownVar} = ${numericResult}`;
             }
-            // If evaluation fails, return symbolic expression
-            return `${unknownVar} = ${expression}`;
+            return this._formatSymbolicSingleUnknownDisplay(unknownVar, expression);
         } else {
             // Enhanced format for multiple unknowns: show equation and solved form for EACH variable
             const knownCount = Object.keys(knownVars).filter(k => 
@@ -794,6 +913,11 @@ class FormulaCalculator {
                     form = `${v} = (no solved form available for this equation syntax)`;
                 }
 
+                try {
+                    form = this._substituteNumericConstantsAfterExpand(form, knownVars);
+                } catch (_) {
+                    // keep unprocessed form
+                }
                 solvedForms[v] = form;
                 formLines.push(`Solve for ${v}:\n  ${form}`);
             }
@@ -840,10 +964,24 @@ class FormulaCalculator {
             .replace(/\bln\s*\(/gi, 'log(')
             .replace(/\blog\s*\(/gi, 'log10('); // scientific-calculator default
 
-        // Expand implicit multiplication in the SAFE form while it still uses identifiers like "G", "M", "pi".
-        safeExpr = this._expandImplicitMultiplication(safeExpr, variables);
+        // Include all formula symbols so GM → G*M even if `variables` only has constants + knowns.
+        const expandNameSource = { ...(variables || {}) };
+        for (const vdef of this.formula.variables || []) {
+            if (!(vdef.symbol in expandNameSource)) {
+                expandNameSource[vdef.symbol] = true;
+            }
+        }
+        safeExpr = this._expandImplicitMultiplication(safeExpr, expandNameSource);
+
+        try {
+            this._ensureFiniteFormulaVariablesInExpression(safeExpr, variables);
+        } catch (policyErr) {
+            console.warn('[FormulaCalculator] evaluateExpression:', policyErr.message);
+            throw policyErr;
+        }
 
         // Build JS expression from safe form
+        const skipEulerEForJs = (this.formula?.variables || []).some((v) => v.symbol === 'e');
         let jsExpr = safeExpr
             .replace(/\bsin\s*\(/gi, 'Math.sin(')
             .replace(/\bcos\s*\(/gi, 'Math.cos(')
@@ -866,7 +1004,8 @@ class FormulaCalculator {
             // Constants
             .replace(/\bπ\b/g, 'Math.PI')
             .replace(/\bpi\b/gi, 'Math.PI')
-            .replace(/\be\b(?![\d.])/g, 'Math.E')
+            // Do not map e → Math.E when e is eccentricity (or any variable named e).
+            .replace(/\be\b(?![\d.])/g, () => (skipEulerEForJs ? 'e' : 'Math.E'))
             // Power for JS
             .replace(/\^/g, '**');
 
@@ -987,15 +1126,21 @@ class FormulaCalculator {
      * Converts patterns like "2GM" to "2*G*M", "4π²" to "4*π*π", etc.
      * CRITICAL: This enables evaluation of expressions like "2GM/r"
      */
-    _expandImplicitMultiplication(expression, variables) {
+    /**
+     * @param {string} expression
+     * @param {Record<string, unknown>} variables
+     * @param {boolean} [forEval=true] If false, keep √( for human-readable display (do not emit Math.sqrt).
+     */
+    _expandImplicitMultiplication(expression, variables, forEval = true) {
         // CRITICAL: Normalize Unicode operators first (before any processing)
         // Replace × with *, ÷ with /, etc.
         let result = String(expression)
             .replace(/×/g, '*')
             .replace(/÷/g, '/');
         
-        // Get all known variable and constant names
+        // Get all known variable and constant names (include formula symbols so ecc, r_apo, etc. are known)
         const allNames = new Set([
+            ...(this.formula?.variables || []).map((v) => v.symbol).filter(Boolean),
             ...Object.keys(this.constants || {}),
             ...Object.keys(this.formula?.constants || {}),
             ...Object.keys(variables || {})
@@ -1003,6 +1148,21 @@ class FormulaCalculator {
         
         // Sort by length (longest first) to avoid partial matches
         const sortedNames = Array.from(allNames).sort((a, b) => b.length - a.length);
+
+        // Mask multi-character formula symbols before single-char implicit-multiply (otherwise "ecc" → "e*c*c")
+        const multiCharFormulaSymbols = [
+            ...new Set((this.formula?.variables || []).map((v) => v.symbol).filter((s) => s && s.length > 1))
+        ].sort((a, b) => b.length - a.length);
+        const maskRestore = [];
+        let maskSeq = 0;
+        for (const sym of multiCharFormulaSymbols) {
+            const esc = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const re = new RegExp(`\\b${esc}\\b`, 'g');
+            const before = result;
+            const token = `\uE000FM${maskSeq++}\uE000`;
+            result = result.replace(re, token);
+            if (result !== before) maskRestore.push([token, sym]);
+        }
         
         // Pattern 1: Handle number followed by variable(s) - e.g., "2GM" -> "2*G*M"
         // Match: digit(s), then variable name, then optionally another variable
@@ -1073,11 +1233,65 @@ class FormulaCalculator {
         if (allNames.has('pi') || allNames.has('π')) {
             result = result.replace(/π/g, 'pi');
         }
-        // Replace √( with Math.sqrt( for evaluation
-        result = result.replace(/√\s*\(/g, 'Math.sqrt(');
+        // Replace √( with Math.sqrt( only when building eval-safe expressions
+        if (forEval) {
+            result = result.replace(/√\s*\(/g, 'Math.sqrt(');
+        }
+
+        for (const [token, sym] of maskRestore) {
+            result = result.split(token).join(sym);
+        }
         
         console.log(`[FormulaCalculator] _expandImplicitMultiplication: "${expression}" -> "${result}"`);
         return result;
+    }
+
+    /**
+     * Expand implicit multiplication for display/evaluation strings (e.g. GM → G*M).
+     * Includes all formula variable symbols so pairs like GM are split even when M is still unknown.
+     * @param {string} expression
+     * @param {Record<string, unknown>} knownVars
+     * @returns {string}
+     */
+    _expandForDisplay(expression, knownVars) {
+        const formulaVarKeys = Object.fromEntries(
+            (this.formula.variables || []).map(v => [v.symbol, true])
+        );
+        const nameSource = {
+            ...this.constants,
+            ...(this.formula.constants || {}),
+            ...formulaVarKeys,
+            ...Object.fromEntries(
+                Object.entries(knownVars || {}).filter(
+                    ([_, v]) => typeof v === 'number' && Number.isFinite(v)
+                )
+            )
+        };
+        return this._expandImplicitMultiplication(
+            String(expression).replace(/≈/g, '='),
+            nameSource,
+            false
+        );
+    }
+
+    /**
+     * Expand implicit multiplication, then replace numeric constants (for solved-form lines, etc.).
+     * @param {string} expression
+     * @param {Record<string, unknown>} knownVars
+     * @returns {string}
+     */
+    _substituteNumericConstantsAfterExpand(expression, knownVars) {
+        let e = this._expandForDisplay(expression, knownVars);
+        const allConstants = { ...this.constants, ...(this.formula.constants || {}) };
+        const sortedConstants = Object.entries(allConstants)
+            .filter(([k, v]) => typeof v === 'number' && !(k in (knownVars || {})))
+            .sort((a, b) => b[0].length - a[0].length);
+        for (const [constName, constValue] of sortedConstants) {
+            const escaped = constName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
+            e = e.replace(regex, this._formatNumber(constValue));
+        }
+        return e;
     }
     
     /**
@@ -1111,10 +1325,18 @@ class FormulaCalculator {
         if (!this._mergedConstants) {
             this._mergedConstants = { ...this.constants };
         }
-        
-        // Optimized: Only merge if variables changed (shallow comparison)
+
         const allValues = { ...this._mergedConstants, ...variables };
-        return this.evaluateExpression(this.formula.equation, allValues);
+        const eq = this._normalizeEquationString(this.formula.equation).trim();
+        // Equations are stored as "LHS = RHS". Evaluators do not parse '=' — evaluate RHS (same as user expectation when all variables are filled).
+        if (eq.includes('=')) {
+            const idx = eq.indexOf('=');
+            const rhs = eq.slice(idx + 1).trim();
+            if (rhs.length > 0) {
+                return this.evaluateExpression(rhs, allValues);
+            }
+        }
+        return this.evaluateExpression(eq, allValues);
     }
     solveForVariable(targetVar, knownVars) {
         // CRITICAL: Always try algebraic solver first - it's more reliable for simple equations
@@ -1134,12 +1356,12 @@ class FormulaCalculator {
         // Use formula.solveFor[targetVar] when defined so we can solve for each variable genuinely
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
-            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
+            let equation = this._normalizeEquationString(this.formula.equation);
             if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
                 equation = this.formula.solveFor[targetVar].replace(/×/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi');
             }
             // Check if equation is in form "targetVar = expression"
-            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedTargetVar = this._escapeRegex(targetVar);
             const assignmentPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
             const match = equation.match(assignmentPattern);
             
@@ -1168,25 +1390,14 @@ class FormulaCalculator {
         // This is more aggressive - try to rearrange the equation and evaluate
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
-            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
-            
-            // Try to substitute all known values and see if we can isolate targetVar
-            // Replace known variables with their values
-            const sortedKnown = Object.entries(allKnown)
-                .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && k !== targetVar)
-                .sort((a, b) => b[0].length - a[0].length);
-            
-            for (const [varName, varValue] of sortedKnown) {
-                const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-                equation = equation.replace(regex, String(varValue));
-            }
-            
+            let equation = this._normalizeEquationString(this.formula.equation);
+            equation = this._substituteKnownNumericInEquation(equation, allKnown, targetVar, false);
+
             console.log(`[FormulaCalculator] After substitution, equation: ${equation}`);
-            
+
             // Try to evaluate the entire equation as an expression
             // If it's in form "targetVar = expression", evaluate the expression
-            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedTargetVar = this._escapeRegex(targetVar);
             const isolatedPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
             const isolatedMatch = equation.match(isolatedPattern);
             
@@ -1235,29 +1446,19 @@ class FormulaCalculator {
         // This is a last resort - it will work if the equation can be rearranged to isolate targetVar
         try {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
-            let equation = this.formula.equation.replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
-            
+            let equation = this._normalizeEquationString(this.formula.equation);
+
             console.log(`[FormulaCalculator] FALLBACK 3: Attempting aggressive numeric evaluation for ${targetVar}`);
             console.log(`[FormulaCalculator] Original equation: ${equation}`);
             console.log(`[FormulaCalculator] Known values:`, allKnown);
-            
-            // Substitute all known variables with their numeric values
-            const sortedKnown = Object.entries(allKnown)
-                .filter(([k, v]) => typeof v === 'number' && Number.isFinite(v) && k !== targetVar)
-                .sort((a, b) => b[0].length - a[0].length);
-            
-            let substitutedEquation = equation;
-            for (const [varName, varValue] of sortedKnown) {
-                const escaped = varName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-                substitutedEquation = substitutedEquation.replace(regex, String(varValue));
-            }
-            
+
+            let substitutedEquation = this._substituteKnownNumericInEquation(equation, allKnown, targetVar, false);
+
             console.log(`[FormulaCalculator] After substitution: ${substitutedEquation}`);
-            
+
             // Try to isolate targetVar by solving the equation
             // Pattern: targetVar = expression (already isolated)
-            const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const escapedTargetVar = this._escapeRegex(targetVar);
             const isolatedPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
             const isolatedMatch = substitutedEquation.match(isolatedPattern);
             
@@ -1314,10 +1515,7 @@ class FormulaCalculator {
         
         // Get the equation and normalize Unicode operators (≈ so that "d ≈ 1/p" matches assignment pattern)
         // If formula defines an alternate equation for this variable (so we can solve for each variable genuinely), use it
-        let equation = this.formula.equation
-            .replace(/×/g, '*')
-            .replace(/÷/g, '/')
-            .replace(/≈/g, '=');
+        let equation = this._normalizeEquationString(this.formula.equation);
         if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
             equation = this.formula.solveFor[targetVar]
                 .replace(/×/g, '*')
@@ -1326,19 +1524,12 @@ class FormulaCalculator {
             console.log(`[FormulaCalculator] Using formula.solveFor for "${targetVar}": ${equation}`);
         }
         console.log(`[FormulaCalculator] Equation: ${equation}`);
-        
-        // Step 1: Substitute all known numeric values into the equation
-        let substituted = equation;
-        const sortedKnown = Object.entries(allKnown)
-            .filter(([k, v]) => k !== targetVar && typeof v === 'number' && Number.isFinite(v))
-            .sort((a, b) => b[0].length - a[0].length); // longest first to avoid partial matches
-        
-        for (const [symbol, value] of sortedKnown) {
-            const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(`\\b${escaped}\\b`, 'g');
-            substituted = substituted.replace(regex, `(${value})`);
-        }
-        
+
+        const escapedTargetVar = this._escapeRegex(targetVar);
+
+        // Step 1: Substitute all known numeric values into the equation (parentheses preserve unary minus)
+        const substituted = this._substituteKnownNumericInEquation(equation, allKnown, targetVar, true);
+
         console.log(`[FormulaCalculator] After substitution: ${substituted}`);
         
         // Declare match variable
@@ -1347,8 +1538,6 @@ class FormulaCalculator {
         // Try to isolate the target variable algebraically
         // Pattern 1: targetVar = √(expression) or targetVar = sqrt(expression)
         // Handle both Unicode √ and ASCII sqrt
-        // CRITICAL: Escape underscores in targetVar (e.g., v_esc)
-        const escapedTargetVar = targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const sqrtPatterns = [
             // Unicode square root: v_esc = √(2GM/r) - no space between √ and (
             new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*[√]\\s*\\((.+)\\)$`),
@@ -1373,15 +1562,10 @@ class FormulaCalculator {
                     if (typeof value !== 'number' || !Number.isFinite(value) || isNaN(value)) {
                         throw new Error(`Expression evaluated to invalid number: ${value} (type: ${typeof value}). Unit conversion cannot proceed.`);
                     }
-                    
-                    const result = Math.sqrt(value);
+
+                    const result = this._nthRootFromPower(value, 2);
                     console.log(`[FormulaCalculator] ✅ Square root result: √(${value}) = ${result}`);
-                    
-                    // Double-check result is numeric
-                    if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
-                        throw new Error(`Square root calculation returned invalid number: ${result}`);
-                    }
-                    
+
                     return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate expression inside sqrt:`, e);
@@ -1392,7 +1576,7 @@ class FormulaCalculator {
         
         // Pattern 1c: targetVar = expression (already isolated)
         // This handles cases where the variable is already on the left side
-        const directPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
+        const directPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
         match = equation.match(directPattern);
         if (match) {
             // Evaluate the right side
@@ -1415,7 +1599,7 @@ class FormulaCalculator {
         }
         
         // Pattern 2: expression = targetVar (reverse)
-        const reversePattern = new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+        const reversePattern = new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*$`);
         match = equation.match(reversePattern);
         if (match) {
             // Evaluate the left side
@@ -1440,13 +1624,13 @@ class FormulaCalculator {
         // Pattern 3: targetVar^n = expression (power isolation)
         // Handle both explicit power notation (^2, ^3) and Unicode (², ³)
         const powerPatterns = [
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*=\\s*(.+)$`), power: 2 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*=\\s*(.+)$`), power: 2 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*=\\s*(.+)$`), power: 3 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*=\\s*(.+)$`), power: 3 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`), power: null } // dynamic power
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*2\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*²\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*3\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*³\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`), power: null } // dynamic power
         ];
-        
+
         for (const { pattern, power } of powerPatterns) {
             match = equation.match(pattern);
             if (match) {
@@ -1456,29 +1640,18 @@ class FormulaCalculator {
                 try {
                     const rightSide = this.evaluateExpression(expression, allKnown);
                     console.log(`[FormulaCalculator] Evaluated right side: ${expression} = ${rightSide} (type: ${typeof rightSide})`);
-                    
-                    // CRITICAL: Validate numeric result before using it
+
                     if (typeof rightSide !== 'number' || !Number.isFinite(rightSide) || isNaN(rightSide)) {
                         throw new Error(`Expression evaluated to invalid number: ${rightSide} (type: ${typeof rightSide}). Unit conversion cannot proceed.`);
                     }
-                    
-                    let result;
-                    if (actualPower === 2) {
-                        result = Math.sqrt(rightSide);
-                    } else if (actualPower === 3) {
-                        result = Math.cbrt(rightSide);
-                    } else if (actualPower > 0) {
-                        result = Math.pow(rightSide, 1 / actualPower);
-                    } else {
-                        throw new Error(`Invalid power: ${actualPower}`);
-                    }
+
+                    const result = this._nthRootFromPower(rightSide, actualPower);
                     console.log(`[FormulaCalculator] ✅ Power isolation result: ${result}`);
-                    
-                    // Double-check result is numeric
+
                     if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
                         throw new Error(`Power isolation returned invalid number: ${result}`);
                     }
-                    
+
                     return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate power pattern:`, e);
@@ -1489,13 +1662,13 @@ class FormulaCalculator {
         
         // Pattern 4: expression = targetVar^n (reverse power)
         const reversePowerPatterns = [
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*$`), power: 2 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*$`), power: 2 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*$`), power: 3 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*$`), power: 3 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`), power: null }
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*2\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*²\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*3\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*³\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`), power: null }
         ];
-        
+
         for (const { pattern, power } of reversePowerPatterns) {
             match = equation.match(pattern);
             if (match) {
@@ -1505,29 +1678,18 @@ class FormulaCalculator {
                 try {
                     const leftSide = this.evaluateExpression(expression, allKnown);
                     console.log(`[FormulaCalculator] Evaluated left side: ${expression} = ${leftSide} (type: ${typeof leftSide})`);
-                    
-                    // CRITICAL: Validate numeric result before using it
+
                     if (typeof leftSide !== 'number' || !Number.isFinite(leftSide) || isNaN(leftSide)) {
                         throw new Error(`Expression evaluated to invalid number: ${leftSide} (type: ${typeof leftSide}). Unit conversion cannot proceed.`);
                     }
-                    
-                    let result;
-                    if (actualPower === 2) {
-                        result = Math.sqrt(leftSide);
-                    } else if (actualPower === 3) {
-                        result = Math.cbrt(leftSide);
-                    } else if (actualPower > 0) {
-                        result = Math.pow(leftSide, 1 / actualPower);
-                    } else {
-                        throw new Error(`Invalid power: ${actualPower}`);
-                    }
+
+                    const result = this._nthRootFromPower(leftSide, actualPower);
                     console.log(`[FormulaCalculator] ✅ Reverse power isolation result: ${result}`);
-                    
-                    // Double-check result is numeric
+
                     if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
                         throw new Error(`Reverse power isolation returned invalid number: ${result}`);
                     }
-                    
+
                     return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate reverse power pattern:`, e);
@@ -1540,13 +1702,13 @@ class FormulaCalculator {
         // Pattern 5a: targetVar^n = expression (after substitution)
         // Handle both explicit power notation (^2, ^3) and Unicode (², ³)
         const powerNotation = [
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*=\\s*(.+)$`), power: 2 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*=\\s*(.+)$`), power: 2 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*=\\s*(.+)$`), power: 3 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*=\\s*(.+)$`), power: 3 },
-            { pattern: new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`), power: null } // dynamic power
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*2\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*²\\s*=\\s*(.+)$`), power: 2 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*3\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*³\\s*=\\s*(.+)$`), power: 3 },
+            { pattern: new RegExp(`^\\s*${escapedTargetVar}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*=\\s*(.+)$`), power: null } // dynamic power
         ];
-        
+
         for (const { pattern, power } of powerNotation) {
             match = substituted.match(pattern);
             if (match) {
@@ -1554,23 +1716,12 @@ class FormulaCalculator {
                 const rightExpr = match[power !== null ? 1 : 2].trim();
                 try {
                     const rightValue = this.evaluateExpression(rightExpr, {});
-                    
-                    // CRITICAL: Validate numeric result before using it
+
                     if (typeof rightValue !== 'number' || !Number.isFinite(rightValue) || isNaN(rightValue)) {
                         throw new Error(`Expression evaluated to invalid number: ${rightValue} (type: ${typeof rightValue}). Unit conversion cannot proceed.`);
                     }
-                    
-                    if (actualPower === 2) {
-                        const result = Math.sqrt(rightValue);
-                        if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
-                            throw new Error(`Square root returned invalid number: ${result}`);
-                        }
-                        return result;
-                    } else if (actualPower === 3) {
-                        return Math.cbrt(rightValue);
-                    } else if (actualPower > 0) {
-                        return Math.pow(rightValue, 1 / actualPower);
-                    }
+
+                    return this._nthRootFromPower(rightValue, actualPower);
                 } catch (e) {
                     // Continue to next pattern
                 }
@@ -1579,13 +1730,13 @@ class FormulaCalculator {
         
         // Pattern 5b: expression = targetVar^n (reverse, after substitution)
         const reversePowerNotation = [
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*2\\s*$`), power: 2 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*²\\s*$`), power: 2 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*3\\s*$`), power: 3 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*³\\s*$`), power: 3 },
-            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`), power: null }
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*2\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*²\\s*$`), power: 2 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*3\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*³\\s*$`), power: 3 },
+            { pattern: new RegExp(`^\\s*(.+)\\s*=\\s*${escapedTargetVar}\\s*\\^\\s*(\\d+(?:\\.\\d+)?)\\s*$`), power: null }
         ];
-        
+
         for (const { pattern, power } of reversePowerNotation) {
             match = substituted.match(pattern);
             if (match) {
@@ -1593,23 +1744,12 @@ class FormulaCalculator {
                 const leftExpr = match[1].trim();
                 try {
                     const leftValue = this.evaluateExpression(leftExpr, {});
-                    
-                    // CRITICAL: Validate numeric result before using it
+
                     if (typeof leftValue !== 'number' || !Number.isFinite(leftValue) || isNaN(leftValue)) {
                         throw new Error(`Expression evaluated to invalid number: ${leftValue} (type: ${typeof leftValue}). Unit conversion cannot proceed.`);
                     }
-                    
-                    if (actualPower === 2) {
-                        const result = Math.sqrt(leftValue);
-                        if (typeof result !== 'number' || !Number.isFinite(result) || isNaN(result)) {
-                            throw new Error(`Square root returned invalid number: ${result}`);
-                        }
-                        return result;
-                    } else if (actualPower === 3) {
-                        return Math.cbrt(leftValue);
-                    } else if (actualPower > 0) {
-                        return Math.pow(leftValue, 1 / actualPower);
-                    }
+
+                    return this._nthRootFromPower(leftValue, actualPower);
                 } catch (e) {
                     // Continue to next pattern
                 }
@@ -1620,7 +1760,7 @@ class FormulaCalculator {
         // For T² = (4π²/GM) × a³, if solving for M:
         // After substitution: T² = (4π²/G × M) × a³ → M = 4π²a³/(GT²)
         // Try to extract targetVar from multiplication/division expressions
-        const multiplicationPattern = new RegExp(`([^=]+)\\s*=\\s*([^${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]+)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^=]*)$`);
+        const multiplicationPattern = new RegExp(`([^=]+)\\s*=\\s*([^${escapedTargetVar}]+)\\s*[×*]\\s*${escapedTargetVar}([^=]*)$`);
         match = substituted.match(multiplicationPattern);
         if (match) {
             try {
@@ -1651,7 +1791,7 @@ class FormulaCalculator {
         }
         
         // Pattern 5d: Handle division patterns: expression = something / targetVar
-        const divisionPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^=]*)$`);
+        const divisionPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*${escapedTargetVar}([^=]*)$`);
         match = substituted.match(divisionPattern);
         if (match) {
             try {
@@ -1683,7 +1823,7 @@ class FormulaCalculator {
         // Pattern 5e: Handle division patterns: expression = something / (G × targetVar)
         // For T² = (4π²/GM) × a³, after substitution: 2² = (4π²/G × M) × 15³
         // We need: M = 4π²a³/(GT²)
-        const divisionWithCoeffPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*\\(([^)]*)\\s*[×*]\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)([^=]*)$`);
+        const divisionWithCoeffPattern = new RegExp(`([^=]+)\\s*=\\s*([^/]+)\\s*/\\s*\\(([^)]*)\\s*[×*]\\s*${escapedTargetVar}\\)([^=]*)$`);
         match = substituted.match(divisionWithCoeffPattern);
         if (match) {
             try {
@@ -1767,7 +1907,7 @@ class FormulaCalculator {
         
         // Pattern 5g: Handle pattern: left = (numerator / targetVar) × multiplier
         // After substitution, rearrange: targetVar = (numerator × multiplier) / left
-        const simpleDivisionMultPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)\\s*[×*]\\s*([^=]+)$`);
+        const simpleDivisionMultPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*${escapedTargetVar}\\)\\s*[×*]\\s*([^=]+)$`);
         match = substituted.match(simpleDivisionMultPattern);
         if (match) {
             try {
@@ -1810,7 +1950,7 @@ class FormulaCalculator {
         // We need to extract M from GM: M = 4π²a³/(GT²)
         // Look for pattern: left = (numerator / (coeff × targetVar)) × multiplier
         // But also handle: left = (numerator / (coefftargetVar)) × multiplier
-        const compoundVarPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*([^)]*)\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^)]*)\\)\\s*[×*]\\s*([^=]+)$`);
+        const compoundVarPattern = new RegExp(`([^=]+)\\s*=\\s*\\(([^/]+)\\s*/\\s*([^)]*)\\s*${escapedTargetVar}([^)]*)\\)\\s*[×*]\\s*([^=]+)$`);
         match = substituted.match(compoundVarPattern);
         if (match) {
             try {
@@ -1881,7 +2021,7 @@ class FormulaCalculator {
         }
         
         // Step 5: Final attempt - evaluate isolated targetVar if equation is like targetVar = expression
-        const isolatedPattern = new RegExp(`^\\s*${targetVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*(.+)$`);
+        const isolatedPattern = new RegExp(`^\\s*${escapedTargetVar}\\s*=\\s*(.+)$`);
         match = substituted.match(isolatedPattern);
         if (match) {
             const expression = match[1].trim();

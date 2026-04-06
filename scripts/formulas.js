@@ -1,20 +1,21 @@
-// Formula Database for Science Olympiad Astronomy
+// Formula database for astronomy calculations
 
-// Global physical constants (used across all formulas)
+// Global physical constants — CODATA 2022 recommended (NIST) where applicable;
+// SI 2019 exact values for c, h, k, e, σ; G from CODATA 2022; AU = IAU 2012 exact definition (m).
 var globalConstants = {
-    G: 6.67430e-11,           // Gravitational constant in m³/(kg·s²)
-    c: 2.99792458e8,          // Speed of light in m/s
-    σ: 5.670374419e-8,       // Stefan-Boltzmann constant in W/(m²·K⁴)
-    sigma: 5.670374419e-8,    // Alternative name for Stefan-Boltzmann constant
-    h: 6.62607015e-34,        // Planck constant in J·s
-    k: 1.380649e-23,          // Boltzmann constant in J/K
-    e: 1.602176634e-19,       // Elementary charge in C
-    m_e: 9.1093837015e-31,   // Electron mass in kg
-    σ_T: 6.6524587158e-29,    // Thomson cross-section in m²
-    L_sun: 3.828e26,          // Solar luminosity in W
-    M_sun: 1.989e30,          // Solar mass in kg
-    R_sun: 6.96e8,            // Solar radius in m
-    AU: 1.496e11,             // Astronomical Unit in m
+    G: 6.67430e-11,           // CODATA 2022 — gravitational constant (m³/(kg·s²))
+    c: 2.99792458e8,          // SI exact — speed of light (m/s)
+    σ: 5.6703744191844294e-8, // SI exact — Stefan-Boltzmann constant (W/(m²·K⁴))
+    sigma: 5.6703744191844294e-8,
+    h: 6.62607015e-34,        // SI exact — Planck constant (J·s)
+    k: 1.380649e-23,          // SI exact — Boltzmann constant (J/K)
+    e: 1.602176634e-19,       // SI exact — elementary charge (C)
+    m_e: 9.1093837139e-31,   // CODATA 2022 — electron mass (kg)
+    σ_T: 6.6524587321e-29,    // CODATA 2022 — Thomson cross-section (m²); 0.66524587321 barn
+    L_sun: 3.828e26,          // Nominal solar luminosity (W); same as L☉ in unitConverter
+    M_sun: 1.988409870440e30, // Nominal solar mass (kg); same as M☉ in unitConverter (IAU)
+    R_sun: 695700000,         // Nominal solar radius (m); same as R☉ in unitConverter (IAU 2015)
+    AU: 149597870700,         // IAU 2012 exact astronomical unit (m)
     pi: Math.PI,              // Pi
     π: Math.PI                // Pi (Greek letter)
 };
@@ -22,18 +23,23 @@ var globalConstants = {
 // Formula categories mapping
 var formulaCategories = {
     'Orbital Mechanics': [
-        'kepler_third_law', 'kepler_third_law_solar', 'orbital_velocity', 'escape_velocity',
+        'kepler_third_law', 'kepler_third_law_solar', 'orbital_velocity', 'escape_velocity', 'escape_orbital_velocity_ratio',
         'tidal_force', 'roche_limit', 'roche_limit_rigid', 'periapsis_from_apoapsis', 'roche_lobe_spherical', 'L1_point_approximation', 'orbital_energy', 'vis_viva', 'center_of_mass',
         'kepler_third_law_binary', 'kepler_binary_solar_units', 'rotational_velocity', 'hill_radius', 'synodic_period',
         'angular_momentum_elliptical', 'kepler_second_law_area_rate', 'eccentricity_from_area_rate', 'velocity_from_orbital_energy', 'perihelion_aphelion', 'aphelion_distance', 'tidal_locking_timescale', 'newton_gravitational_force',
         'weight', 'centripetal_force', 'centripetal_acceleration', 'period_circular',
         'gravitational_potential_energy', 'orbital_energy_simple', 'potential_energy_per_mass',
         'velocity_ratio_orbital', 'orbital_period_general', 'semi_latus_rectum',
-        'eccentricity_apoapsis_periapsis', 'orbital_energy_eccentricity'
+        'eccentricity_apoapsis_periapsis', 'orbital_energy_eccentricity',
+        'angular_momentum_circular', 'apsidal_momentum_conservation', 'orbital_speed_circular', 'angular_velocity_orbit',
+        'tidal_acceleration_differential', 'gravitational_wave_frequency_binary_approx', 'light_travel_time',
+        'kinetic_energy_translational',
+        'tidal_disruption_radius_scaling'
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
-        'stefan_boltzmann_law', 'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime', 'solar_lifetime_efficiency',
+        'stefan_boltzmann_law', 'stefan_boltzmann_luminosity_ratio', 'planck_blackbody_nu_frequency', 'rayleigh_jeans_B_nu',
+        'distance_modulus', 'magnitude_flux_relation', 'stellar_lifetime', 'solar_lifetime_efficiency',
         'mass_luminosity_relation', 'hr_color_index', 'hr_absolute_magnitude',
         'white_dwarf_mass_radius', 'blackbody_radiation',
         'white_dwarf_orbital_decay', 'white_dwarf_merger_timescale', 'planck_relation',
@@ -44,11 +50,13 @@ var formulaCategories = {
         'absolute_magnitude_from_distance', 'flux_from_magnitude', 'luminosity_from_flux_distance',
         'brightness_ratio_magnitude', 'brightness_ratio_times_brighter', 'bolometric_magnitude', 'color_index_ub',
         'interstellar_reddening', 'energy_density_radiation', 'photon_number_density',
-        'momentum_transfer_radiation'
+        'momentum_transfer_radiation',
+        'thermal_doppler_broadening'
     ],
     'Telescopes & Optics': [
-        'angular_size', 'angular_separation_arcsec', 'linear_separation_from_angular', 'illuminated_area_phase', 'light_gathering_power', 'magnification', 'f_ratio', 'angular_resolution',
-        'refractive_index', 'diffraction_limit'
+        'angular_size', 'angular_separation_arcsec', 'linear_separation_from_angular', 'radian_arcsecond_conversion',
+        'degree_to_arcminute', 'arcminute_to_arcsecond', 'illuminated_area_phase', 'light_gathering_power', 'magnification', 'f_ratio', 'angular_resolution',
+        'refractive_index', 'diffraction_limit', 'diffraction_limit_rayleigh'
     ],
     'Cosmology & Relativity': [
         'hubble_law', 'hubble_time', 'friedmann_equation', 'critical_density', 'schwarzschild_radius',
@@ -78,7 +86,10 @@ var formulaCategories = {
     'High Energy Astrophysics': [
         'max_gamma_bohm', 'cooling_break_gamma', 'cooling_break_frequency',
         'synchrotron_cooling_timescale', 'synchrotron_power', 'magnetic_energy_density', 'magnetic_pressure_si',
-        'power_law_spectrum', 'spectral_index', 'synchrotron_frequency'
+        'power_law_spectrum', 'spectral_index', 'synchrotron_frequency',
+        'cyclotron_frequency', 'alfven_speed', 'gravitational_wave_quadrupole_luminosity',
+        'pulsar_light_cylinder', 'pulsar_polar_cap_angle', 'radiation_force_thomson_luminosity',
+        'alfven_mach_number'
     ],
     'Stellar Structure': [
         'hydrostatic_balance', 'central_pressure_approximate', 'stellar_mass_central_temperature',
@@ -88,7 +99,11 @@ var formulaCategories = {
         'radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira',
         'pulsation_period_scaling', 'luminosity_fractional_amplitude_pulsation', 'magnitude_variation_pulsation', 'period_luminosity_relation_cepheid', 'period_luminosity_cepheid_classical', 'bolometric_correction', 'extinction_correction_rv',
         'binary_mass_ratio_velocity', 'flux_change_magnitude_difference', 'pulsating_star_radius_change',
-        'nuclear_fusion_mass_defect', 'nebula_age_expansion', 'orbital_decay_gravitational_radiation'
+        'nuclear_fusion_mass_defect', 'nebula_age_expansion', 'orbital_decay_gravitational_radiation',
+        'stellar_mass_continuity', 'stellar_luminosity_shell', 'bondi_accretion_rate',
+        'rayleigh_taylor_growth_rate', 'kelvin_helmholtz_growth_rate', 'type_ia_snr_peak_time_diffusion',
+        'stellar_gravity_dynamical_time', 'adiabatic_gradient_ideal_gas', 'compact_object_keplerian_breakup_omega',
+        'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion'
     ],
     'Line Radiation & Excitation': [
         'boltzmann_equation', 'saha_equation', 'einstein_coefficient', 'zeeman_splitting', 'extinction_relation',
@@ -101,10 +116,13 @@ var formulaCategories = {
         'globular_cluster_mass', 'dark_matter_density', 'dark_matter_mass_fraction',
         'velocity_dispersion', 'two_body_relaxation', 'crossing_time', 'm_sigma_relation',
         'schwarzschild_radius_smbh', 'tully_fisher_relation', 'faber_jackson_relation',
-        'jeans_length', 'gravitational_potential_general', 'toomre_q_criterion'
+        'jeans_length', 'gravitational_potential_general', 'toomre_q_criterion',
+        'alfven_speed', 'bondi_accretion_rate'
     ],
     'Binary Systems & Exoplanets': [
-        'mass_function', 'binary_total_mass', 'stellar_activity_index'
+        'mass_function', 'binary_total_mass', 'stellar_activity_index',
+        'light_travel_time', 'center_of_mass', 'kepler_third_law_binary', 'orbital_speed_circular',
+        'doppler_wavelength_ratio', 'doppler_velocity_wavelength'
     ],
     'Optical Depth & Scattering': [
         'optical_depth_scattering'
@@ -115,7 +133,7 @@ var formulas = [
     {
         id: "kepler_third_law",
         name: "Kepler's Third Law",
-        description: "Relates the orbital period to the semi-major axis of an orbit. Fundamental law of planetary motion connecting revolution time, orbital distance, and central mass. Essential for calculating orbital mechanics, binary systems, exoplanet detection, and celestial dynamics. Applies to elliptical orbits, circular orbits, and binary star systems.",
+        description: "Relates orbital period T to semi-major axis a and central mass M. Equivalent forms: T² = 4π²a³/(GM) and T = 2π√(a³/(GM)). Binary total mass: use kepler_third_law_binary with M₁+M₂.",
         equation: "T² = (4π²/GM) × a³",
         solveFor: {
             a: "a = (T^2 * G * M / (4 * pi^2))^(1/3)",
@@ -151,7 +169,7 @@ var formulas = [
             {
                 name: "Earth Orbit",
                 description: "Calculate orbital period for Earth's orbit around the Sun",
-                values: { a: 1.496e11, M: 1.989e30 } // 1 AU, Solar mass
+                values: { a: 149597870700, M: 1.988409870440e30 } // 1 AU (IAU 2012), Solar mass
             },
             {
                 name: "Moon Orbit",
@@ -161,13 +179,13 @@ var formulas = [
             {
                 name: "Jupiter Orbit",
                 description: "Calculate orbital period for Jupiter's orbit around the Sun",
-                values: { a: 7.785e11, M: 1.989e30 } // Jupiter distance, Solar mass
+                values: { a: 7.785e11, M: 1.988409870440e30 } // Jupiter distance, Solar mass
             }
         ],
         relationships: {
             prerequisites: [], // Formulas needed to understand this one
             derivedFrom: [], // Formulas this is derived from
-            relatedTo: ["orbital_velocity", "escape_velocity", "vis_viva", "orbital_energy", "kepler_third_law_binary", "kepler_third_law_solar"], // Related formulas
+            relatedTo: ["orbital_velocity", "escape_velocity", "vis_viva", "orbital_energy", "kepler_third_law_binary", "kepler_third_law_solar", "gravitational_wave_quadrupole_luminosity", "angular_momentum_circular", "flux_from_luminosity"], // Related formulas
             uses: ["orbital_velocity"], // Formulas that use this one
             generalizes: ["kepler_third_law_solar", "kepler_third_law_binary"], // More specific versions
             specializes: [] // More general version
@@ -189,7 +207,7 @@ var formulas = [
     {
         id: "orbital_velocity",
         name: "Orbital Velocity",
-        description: "The velocity of an object in circular orbit around a central body. Calculates the speed required for stable circular motion under gravitational influence. Essential for orbital mechanics, satellite dynamics, binary systems, and exoplanet characterization. Related to centripetal force, angular velocity, and orbital energy.",
+        description: "Circular orbit speed v = √(GM/r). Often used with Kepler III and vis-viva.",
         equation: "v = √(GM/r)",
         solveFor: {
             r: "r = G * M / v^2",
@@ -223,7 +241,7 @@ var formulas = [
         relationships: {
             prerequisites: ["surface_gravity"],
             derivedFrom: ["surface_gravity"],
-            relatedTo: ["kepler_third_law", "orbital_velocity", "surface_gravity", "vis_viva", "orbital_energy"],
+            relatedTo: ["kepler_third_law", "escape_velocity", "escape_orbital_velocity_ratio", "surface_gravity", "vis_viva", "orbital_energy", "angular_momentum_circular", "kepler_third_law_binary", "compact_object_keplerian_breakup_omega"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -246,7 +264,7 @@ var formulas = [
     {
         id: "escape_velocity",
         name: "Escape Velocity",
-        description: "Minimum velocity needed to escape the gravitational pull of a body. Critical speed for breaking free from gravitational binding. Essential for rocket science, space missions, stellar evolution, and compact object physics. Related to surface gravity, orbital velocity, and gravitational potential energy.",
+        description: "Minimum speed to escape from radius r: v_esc = √(2GM/r) (same physics for planets and stars).",
         equation: "v_esc = √(2GM/r)",
         concepts: ["escape velocity", "velocity", "gravity", "gravitational escape", "binding energy", "surface gravity", "orbital velocity", "rocket science", "space missions", "stellar evolution", "compact objects", "black holes", "white dwarfs"],
         keywords: ["escape", "break free", "gravitational field", "binding", "potential energy", "rocket", "launch", "spacecraft", "planet", "star", "black hole"],
@@ -287,13 +305,13 @@ var formulas = [
             {
                 name: "Sun Escape",
                 description: "Calculate escape velocity from Sun's surface",
-                values: { r: 6.957e8, M: 1.989e30 } // Solar radius, Solar mass
+                values: { r: 6.957e8, M: 1.988409870440e30 } // Solar radius, Solar mass
             }
         ],
         relationships: {
             prerequisites: ["surface_gravity"],
             derivedFrom: ["surface_gravity"],
-            relatedTo: ["kepler_third_law", "orbital_velocity", "surface_gravity", "vis_viva", "orbital_energy"],
+            relatedTo: ["kepler_third_law", "orbital_velocity", "escape_orbital_velocity_ratio", "surface_gravity", "vis_viva", "orbital_energy", "schwarzschild_radius", "potential_energy_per_mass", "accretion_luminosity", "bondi_accretion_rate"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -311,6 +329,36 @@ var formulas = [
             "escape gravitational field",
             "launch velocity",
             "rocket escape speed"
+        ]
+    },
+    {
+        id: "escape_orbital_velocity_ratio",
+        name: "Escape vs Circular Orbit Speed (Same Radius)",
+        description: "At the same distance r from a mass M: circular orbit speed v_orb = √(GM/r) and escape speed v_esc = √(2GM/r), so v_esc = √2 × v_orb. Olympiad shortcut when comparing escape to orbit without reusing G and M.",
+        equation: "v_esc = √(2) * v_orb",
+        solveFor: {
+            v_esc: "v_esc = √(2) * v_orb",
+            v_orb: "v_orb = v_esc / √(2)"
+        },
+        concepts: ["escape velocity", "orbital velocity", "circular orbit", "olympiad astronomy", "science olympiad astronomy"],
+        keywords: ["sqrt 2 orbital", "escape twice circular", "v esc v orb", "kepler shortcut"],
+        variables: [
+            { symbol: "v_esc", name: "Escape Speed", unit: "m/s", description: "Escape velocity at radius r" },
+            { symbol: "v_orb", name: "Circular Orbit Speed", unit: "m/s", description: "Circular orbital speed at the same r" }
+        ],
+        relationships: {
+            prerequisites: ["orbital_velocity", "escape_velocity"],
+            derivedFrom: ["orbital_velocity", "escape_velocity"],
+            relatedTo: ["orbital_velocity", "escape_velocity", "vis_viva", "orbital_energy"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "escape velocity sqrt 2 orbital",
+            "v esc versus v orbit",
+            "circular orbit compared to escape",
+            "sqrt 2 times orbital speed"
         ]
     },
     {
@@ -378,7 +426,7 @@ var formulas = [
     {
         id: "luminosity",
         name: "Stellar Luminosity",
-        description: "Relates luminosity to radius and temperature (Stefan-Boltzmann Law). Fundamental stellar physics connecting total energy output, stellar size, and surface temperature. Essential for stellar evolution, HR diagram, mass-luminosity relation, and stellar classification. Applies to blackbody radiation, stellar atmospheres, and radiative transfer.",
+        description: "Stefan–Boltzmann for a sphere: L = 4πR²σT⁴. Relative solar form: stefan_boltzmann_luminosity_ratio.",
         equation: "L = 4πR²σT⁴",
         solveFor: {
             R: "R = sqrt(L / (4 * pi * σ * T^4))",
@@ -407,7 +455,7 @@ var formulas = [
             }
         ],
         constants: {
-            σ: 5.670374419e-8  // Stefan-Boltzmann constant in W/(m²·K⁴)
+            σ: 5.6703744191844294e-8  // SI exact Stefan-Boltzmann constant (W/(m²·K⁴))
         },
         presets: [
             {
@@ -468,6 +516,37 @@ var formulas = [
         ]
     },
     {
+        id: "stefan_boltzmann_luminosity_ratio",
+        name: "Stefan–Boltzmann (Luminosity Ratios vs Solar)",
+        description: "Hierarchy: Stellar atmospheres → Blackbody emission → Stefan–Boltzmann scaling.\n\n(1) Physical meaning: L/L☉ = (R/R☉)² (T/T☉)⁴ expresses total radiative output vs the Sun when both stars are treated as blackbodies — area (∝ R²) times σT⁴.\n\n(2) When to use: HR-diagram reasoning, comparing two stars in solar units, quick luminosity estimates from (R,T) changes.\n\n(3) Intuition: Temperature wins decisively (fourth power); small ΔT can dominate over modest ΔR.\n\n(4) Pairs with luminosity (absolute form) and temperature_from_luminosity_radius_solar.\n\nNote: Ratios are dimensionless — the result unit picker stays in dimensionless form.",
+        equation: "L_ratio = R_ratio^2 * T_ratio^4",
+        solveFor: {
+            L_ratio: "L_ratio = R_ratio^2 * T_ratio^4",
+            R_ratio: "R_ratio = sqrt(L_ratio / T_ratio^4)",
+            T_ratio: "T_ratio = (L_ratio / R_ratio^2)^(1/4)"
+        },
+        concepts: ["stefan-boltzmann", "luminosity", "radius", "temperature", "solar units"],
+        keywords: ["L over L sun", "R R sun T T sun fourth", "stefan boltzmann ratio", "hr diagram luminosity temperature radius"],
+        variables: [
+            { symbol: "L_ratio", name: "L/L☉", unit: "dimensionless", description: "Luminosity relative to Sun" },
+            { symbol: "R_ratio", name: "R/R☉", unit: "dimensionless", description: "Radius relative to Sun" },
+            { symbol: "T_ratio", name: "T/T☉", unit: "dimensionless", description: "Effective temperature relative to Sun (T☉ ≈ 5778 K)" }
+        ],
+        relationships: {
+            prerequisites: ["luminosity"],
+            derivedFrom: ["luminosity"],
+            relatedTo: ["luminosity", "stefan_boltzmann_law", "temperature_from_luminosity_radius_solar", "wiens_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "luminosity ratio radius temperature solar",
+            "L Lsun R Rsun T Tsun",
+            "stefan boltzmann relative solar"
+        ]
+    },
+    {
         id: "hubble_law",
         name: "Hubble's Law",
         description: "Relates recessional velocity to distance in an expanding universe. Fundamental cosmological law connecting galaxy motion, cosmic expansion, and cosmic distance. Essential for cosmology, big bang theory, dark energy, and large-scale structure. Basis for luminosity distance, lookback time, and cosmic age calculations.",
@@ -499,7 +578,7 @@ var formulas = [
             }
         ],
         constants: {
-            "H₀": 69.8  // km/(s·Mpc), common in practice problems
+            "H₀": 69.8  // km/(s·Mpc), common in coursework and labs
         },
         relationships: {
             prerequisites: ["doppler_shift", "redshift_definition"],
@@ -544,7 +623,7 @@ var formulas = [
     {
         id: "surface_gravity",
         name: "Surface Gravity",
-        description: "Gravitational acceleration at the surface of a body. Fundamental planetary and stellar physics connecting mass, radius, and surface gravitational field strength. Essential for planetary science, exoplanet characterization, stellar structure, and compact object physics. Related to escape velocity, orbital velocity, and tidal forces.",
+        description: "Surface gravitational acceleration g = GM/R².",
         equation: "g = GM/r²",
         solveFor: {
             r: "r = sqrt(G * M / g)",
@@ -593,7 +672,7 @@ var formulas = [
     {
         id: "angular_size",
         name: "Angular Size",
-        description: "Relates physical size, distance, and angular diameter. Fundamental geometric relationship connecting linear dimensions, angular measurements, and observer distance. Essential for telescope observations, stellar radius determination, planetary imaging, and angular resolution calculations. Applies to small angle approximation and parallax measurements.",
+        description: "Small-angle approximation: θ = d/D (θ in radians, d = linear size, D = distance).",
         equation: "θ = d / D",
         solveFor: {
             d: "d = θ * D",
@@ -612,13 +691,13 @@ var formulas = [
                 symbol: "d",
                 name: "Physical Diameter",
                 unit: "meters",
-                description: "Actual size of the object, linear diameter, physical size. Related to radius, surface area, and volume. Determines angular size when combined with distance."
+                description: "Actual size of the object, linear diameter, physical size. Related to radius, surface area, and volume. Determines angular size when combined with distance. Formula base is SI metres; AU, pc, ly, etc. convert into metres before solving."
             },
             {
                 symbol: "D",
                 name: "Distance",
                 unit: "meters",
-                description: "Distance to the object, observer distance, stellar distance, planetary distance. Related to parallax, distance modulus, and luminosity distance. Determines angular size and apparent brightness."
+                description: "Distance to the object, observer distance, stellar distance, planetary distance. Related to parallax, distance modulus, and luminosity distance. Formula base is SI metres; use alternate unit fields and values convert before solve."
             }
         ],
         questionPatterns: [
@@ -638,14 +717,14 @@ var formulas = [
     {
         id: "angular_separation_arcsec",
         name: "Angular Separation (Arcseconds)",
-        description: "Angular separation in arcseconds from linear separation and distance. θ_arcsec = 206265 × (linear / distance) with both in same units (e.g. meters). 206265 arcsec/rad. E.g. Mira A–B: 100 AU at 300 ly ⇒ θ ≈ 1.1\".",
+        description: "Angular separation in arcseconds from linear separation and distance. θ_arcsec = 206265 × (linear / distance) with both in the same length unit (formula base: metres). 206265 arcsec/rad. E.g. Mira A–B: 100 AU at 300 ly ⇒ θ ≈ 1.1\".",
         equation: "theta_arcsec = 206265 * (linear / distance)",
         concepts: ["angular separation", "arcseconds", "resolution", "binary", "linear separation", "binary separation"],
         keywords: ["angular separation arcsec", "arcseconds from linear distance", "Mira A Mira B angular", "linear separation and distance", "binary angular separation"],
         variables: [
             { symbol: "theta_arcsec", name: "Angular Separation", unit: "arcsec", description: "θ in arcseconds" },
-            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (e.g. AU × 1.5e11 m/AU)" },
-            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system" }
+            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (e.g. AU × 1.5e11 m/AU). Same length unit as distance after conversion to formula base (m)." },
+            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system. Formula base is metres; other columns convert before solve." }
         ],
         constants: { arcsec_per_rad: 206265 },
         questionPatterns: [
@@ -660,14 +739,14 @@ var formulas = [
     {
         id: "linear_separation_from_angular",
         name: "Linear Separation from Angular (Arcsec)",
-        description: "Physical separation from angular separation in arcseconds and distance. linear = θ_arcsec × distance / 206265 (distance in m gives linear in m). E.g. 0.052\" at 490 ly ⇒ ~7.79 AU.",
+        description: "Physical separation from angular separation in arcseconds and distance. linear = θ_arcsec × distance / 206265 (distance in m gives linear in m; formula base is metres). E.g. 0.052\" at 490 ly ⇒ ~7.79 AU.",
         equation: "linear = theta_arcsec * distance / 206265",
         concepts: ["angular size", "linear separation", "arcsec", "binary separation", "physical separation"],
         keywords: ["linear separation from angular", "distance in AU from arcsec", "Siwarha Betelgeuse separation AU", "physical separation from angular separation"],
         variables: [
-            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (same units as distance)" },
+            { symbol: "linear", name: "Linear Separation", unit: "m", description: "Physical separation (same units as distance after conversion to formula base, metres)." },
             { symbol: "theta_arcsec", name: "Angular Separation", unit: "arcsec", description: "θ in arcseconds" },
-            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system" }
+            { symbol: "distance", name: "Distance", unit: "m", description: "Distance to system. Formula base is metres; other columns convert before solve." }
         ],
         constants: { arcsec_per_rad: 206265 },
         questionPatterns: [
@@ -678,6 +757,82 @@ var formulas = [
             "physical separation from angular separation",
             "physical separation in AU from angular separation"
         ]
+    },
+    {
+        id: "radian_arcsecond_conversion",
+        name: "Radians ↔ Arcseconds",
+        description: "Hierarchy: Plane angle → DMS-style astronomy units.\n\n(1) Physical meaning: Converts between radians and arcseconds using 1 rad = 180/π degrees = 206264.806… arcseconds (often rounded as 206265).\n\n(2) When to use: Parallax, resolution limits, converting small-angle formula outputs (θ=d/D in rad) to arcseconds for comparison with observations.\n\n(3) Intuition: Arcseconds are tiny; large arcsecond counts mean you left radians unsquared or missed a factor.\n\n(4) Sits between angular_size and angular_separation_arcsec.\n\nUnit picker: When the solved variable is in rad, you can switch to deg or arcmin; for arcsec results, switch to rad/deg/arcmin.",
+        equation: "theta_arcsec = theta_rad * 206265",
+        solveFor: {
+            theta_arcsec: "theta_arcsec = theta_rad * 206265",
+            theta_rad: "theta_rad = theta_arcsec / 206265"
+        },
+        concepts: ["radians", "arcseconds", "angular conversion", "small angle"],
+        keywords: ["radian to arcsecond", "206265", "arcsec per radian", "convert small angle radians to arcsec"],
+        variables: [
+            { symbol: "theta_arcsec", name: "Angle (arcseconds)", unit: "arcsec", description: "Angle in arcseconds" },
+            { symbol: "theta_rad", name: "Angle (radians)", unit: "rad", description: "Angle in radians" }
+        ],
+        constants: { arcsec_per_rad: 206265 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["angular_size", "angular_separation_arcsec", "linear_separation_from_angular", "diffraction_limit_rayleigh"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["convert radian to arcsecond", "206265 radians arcseconds", "radians to arcsec"]
+    },
+    {
+        id: "degree_to_arcminute",
+        name: "Degrees to Arcminutes",
+        description: "Hierarchy: Angle subdivision → sexagesimal step 1 of 2.\n\n(1) Physical meaning: 1° = 60′ (arcminutes). Converts between whole-degree style angles and arcminute notation.\n\n(2) When to use: Field-of-view calculations, lunar/solar diameter in deg→′, converting catalog angles.\n\n(3) Intuition: Combine with arcminute_to_arcsecond for full 1° = 3600″.\n\n(4) Chain with radian_arcsecond_conversion when mixing rad and DMS.\n\nUnit picker: deg ↔ rad ↔ arcmin ↔ arcsec when solving for angular variables.",
+        equation: "arcmin = deg * 60",
+        solveFor: {
+            arcmin: "arcmin = deg * 60",
+            deg: "deg = arcmin / 60"
+        },
+        concepts: ["angular units", "degrees", "arcminutes"],
+        keywords: ["degrees to arcminutes", "60 arcmin per degree", "sexagesimal degrees arcminutes"],
+        variables: [
+            { symbol: "deg", name: "Degrees", unit: "deg", description: "Angle in degrees" },
+            { symbol: "arcmin", name: "Arcminutes", unit: "arcmin", description: "Angle in arcminutes" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["arcminute_to_arcsecond", "radian_arcsecond_conversion", "angular_size"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["degrees to arcminutes", "convert degrees arcmin"]
+    },
+    {
+        id: "arcminute_to_arcsecond",
+        name: "Arcminutes to Arcseconds",
+        description: "Hierarchy: Angle subdivision → sexagesimal step 2 of 2.\n\n(1) Physical meaning: 1′ = 60″. Completes the degree–arcminute–arcsecond ladder (1° = 3600″).\n\n(2) When to use: Telescope resolution quoted in arcseconds after starting from arcminutes; double-star separations.\n\n(3) Intuition: Always multiply going to smaller units, divide when climbing the ladder.\n\n(4) Pairs with degree_to_arcminute and radian_arcsecond_conversion.\n\nUnit picker: arcmin ↔ arcsec ↔ deg ↔ rad depending on solved variable.",
+        equation: "arcsec = arcmin * 60",
+        solveFor: {
+            arcsec: "arcsec = arcmin * 60",
+            arcmin: "arcmin = arcsec / 60"
+        },
+        concepts: ["angular units", "arcminutes", "arcseconds"],
+        keywords: ["arcminute to arcsecond", "60 arcsec per arcmin", "arcminutes arcseconds conversion"],
+        variables: [
+            { symbol: "arcmin", name: "Arcminutes", unit: "arcmin", description: "Angle in arcminutes" },
+            { symbol: "arcsec", name: "Arcseconds", unit: "arcsec", description: "Angle in arcseconds" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["degree_to_arcminute", "radian_arcsecond_conversion", "angular_separation_arcsec"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["arcminutes to arcseconds", "convert arcmin arcsec"]
     },
     {
         id: "brightness_ratio_times_brighter",
@@ -718,7 +873,7 @@ var formulas = [
             }
         ],
         constants: {
-            AU: 1.496e11  // 1 Astronomical Unit in meters
+            AU: 149597870700  // IAU 2012 exact astronomical unit (m)
         },
         questionPatterns: [
             "parallax distance radians",
@@ -845,7 +1000,7 @@ var formulas = [
         ],
         constants: {
             e: 1.602176634e-19,  // Elementary charge in Coulombs
-            σT: 6.6524587158e-29  // Thomson cross-section in m²
+            σT: 6.6524587321e-29  // Thomson cross-section in m²
         }
     },
     {
@@ -874,9 +1029,9 @@ var formulas = [
             }
         ],
         constants: {
-            m_e: 9.1093837015e-31,  // Electron mass in kg
+            m_e: 9.1093837139e-31,  // Electron mass in kg
             c: 2.99792458e8,  // Speed of light in m/s
-            σ_T: 6.6524587158e-29  // Thomson cross-section in m²
+            σ_T: 6.6524587321e-29  // Thomson cross-section in m²
         }
     },
     {
@@ -906,7 +1061,7 @@ var formulas = [
         ],
         constants: {
             e: 1.602176634e-19,  // Elementary charge in Coulombs
-            m_e: 9.1093837015e-31,  // Electron mass in kg
+            m_e: 9.1093837139e-31,  // Electron mass in kg
             c: 2.99792458e8  // Speed of light in m/s
         }
     },
@@ -936,9 +1091,9 @@ var formulas = [
             }
         ],
         constants: {
-            m_e: 9.1093837015e-28,  // Electron mass in grams (CGS)
+            m_e: 9.1093837139e-28,  // Electron mass in grams (CGS)
             c: 2.99792458e10,  // Speed of light in cm/s (CGS)
-            σ_T: 6.6524587158e-25  // Thomson cross-section in cm² (CGS)
+            σ_T: 6.6524587321e-25  // Thomson cross-section in cm² (CGS)
         }
     },
     {
@@ -967,7 +1122,7 @@ var formulas = [
             }
         ],
         constants: {
-            σ_T: 6.6524587158e-29,  // Thomson cross-section in m²
+            σ_T: 6.6524587321e-29,  // Thomson cross-section in m²
             c: 2.99792458e8  // Speed of light in m/s
         }
     },
@@ -994,7 +1149,7 @@ var formulas = [
     {
         id: "magnetic_pressure_si",
         name: "Magnetic Pressure (SI)",
-        description: "Magnetic pressure in SI units. In magnetostatic balance, magnetic fields contribute pressure PB = B²/(2μ0). Useful for white dwarf magnetic asymmetry and atmosphere balance problems.",
+        description: "Magnetic pressure in SI units. In magnetostatic balance, magnetic fields contribute pressure PB = B²/(2μ0). Useful for white dwarf magnetic asymmetry and atmosphere balance.",
         equation: "P_B = B^2 / (2 * mu_0)",
         concepts: ["magnetic pressure", "magnetic field", "pressure balance", "white dwarf", "magnetism"],
         keywords: ["magnetic pressure", "B squared over 2 mu0", "pressure from magnetic field", "delta B pressure"],
@@ -1098,7 +1253,7 @@ var formulas = [
             }
         ],
         constants: {
-            "M_☉": 1.989e30  // Solar mass in kg
+            "M_☉": 1.988409870440e30  // Solar mass in kg
         }
     },
     {
@@ -1213,6 +1368,21 @@ var formulas = [
         constants: {
             G: 6.67430e-11
         },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: [
+                "stellar_mass_continuity",
+                "stellar_luminosity_shell",
+                "radiative_transport_temperature_gradient",
+                "central_pressure_approximate",
+                "convection_criterion",
+                "ideal_gas_pressure"
+            ],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
         questionPatterns: [
             "hydrostatic balance",
             "pressure gradient stellar",
@@ -1226,7 +1396,7 @@ var formulas = [
     {
         id: "kepler_third_law_binary",
         name: "Kepler's Third Law (Binary System)",
-        description: "Orbital period for a binary system. Kepler's Third Law applied to binary star systems, where the orbital period depends on the semi-major axis and the combined mass of both stars. Essential for determining masses in binary systems, understanding stellar evolution in close binaries, and characterizing exoplanetary systems. The period increases with orbital separation and decreases with total mass. Critical for binary star analysis, mass determination, and understanding orbital dynamics in multi-body systems. Used extensively in stellar astronomy, exoplanet detection, and gravitational wave astronomy.",
+        description: "Binary form: P² = 4π²a³ / (G(M₁+M₂)). Same as replacing M with total mass in Kepler III. Use with center_of_mass for individual distances.",
         equation: "P² = (4π²a³) / (G(M₁ + M₂))",
         variables: [
             {
@@ -1266,6 +1436,31 @@ var formulas = [
             "period from masses binary",
             "calculate period binary"
         ]
+    },
+    {
+        id: "gravitational_wave_frequency_binary_approx",
+        name: "Gravitational-Wave Frequency (Binary, Order of Magnitude)",
+        description: "Hierarchy: Relativity / compact objects → GW emission → binary quadrupole cartoon.\n\n(1) Physical meaning: For a circular binary, the dominant GW frequency is often quoted as ~2/T because the mass quadrupole moment returns to the same orientation twice per orbit (order-of-magnitude; harmonics and merger dynamics differ).\n\n(2) When to use: Estimating f from orbital period for BBH/BNS binaries, interpreting LIGO-style “chirp” back-of-envelope before merger.\n\n(3) Intuition: Higher orbital frequency (shorter T) → higher GW frequency scaling.\n\n(4) Combine with kepler_third_law_binary for a–M–T links. Not valid for final inspiral/plunge without numerical GR.\n\nUnit picker: Hz ↔ kHz ↔ MHz where applicable.",
+        equation: "f_gw = 2 / T",
+        solveFor: {
+            f_gw: "f_gw = 2 / T",
+            T: "T = 2 / f_gw"
+        },
+        concepts: ["gravitational waves", "binary", "orbital period", "frequency"],
+        keywords: ["gravitational wave frequency", "f equals 2 over T", "GW frequency binary", "ligo order of magnitude frequency"],
+        variables: [
+            { symbol: "f_gw", name: "GW Frequency (approx.)", unit: "Hz", description: "Order-of-magnitude gravitational-wave frequency" },
+            { symbol: "T", name: "Orbital Period", unit: "s", description: "Orbital period of the binary" }
+        ],
+        relationships: {
+            prerequisites: ["kepler_third_law_binary"],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law_binary", "orbital_period_general", "schwarzschild_radius"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["gravitational wave frequency binary", "f gw 2 over T", "GW frequency order of magnitude"]
     },
     {
         id: "kepler_binary_solar_units",
@@ -1619,12 +1814,12 @@ var formulas = [
             }
         ],
         constants: {
-            "σ": 5.670374419e-8  // Stefan-Boltzmann constant in W/(m²·K⁴)
+            "σ": 5.6703744191844294e-8  // SI exact Stefan-Boltzmann constant (W/(m²·K⁴))
         },
         relationships: {
             prerequisites: ["wiens_law", "planck_relation"],
             derivedFrom: ["planck_relation"],
-            relatedTo: ["luminosity", "wiens_law", "planck_relation", "blackbody_radiation", "stellar_lifetime", "hr_color_index", "hr_absolute_magnitude", "planetary_equilibrium_temperature", "flux_from_luminosity", "mass_luminosity_relation"],
+            relatedTo: ["luminosity", "wiens_law", "planck_relation", "blackbody_radiation", "planck_blackbody_nu_frequency", "rayleigh_jeans_B_nu", "energy_density_radiation", "stellar_lifetime", "hr_color_index", "hr_absolute_magnitude", "planetary_equilibrium_temperature", "flux_from_luminosity", "mass_luminosity_relation", "distance_modulus"],
             uses: ["wiens_law", "planck_relation"],
             generalizes: [],
             specializes: []
@@ -1637,7 +1832,7 @@ var formulas = [
                 "Not accounting for surface area when calculating total power",
                 "Mixing up the Stefan-Boltzmann constant value or units"
             ],
-            typicalProblems: [
+            exampleScenarios: [
                 "Calculate the flux from a star given its effective temperature",
                 "Determine the temperature of a planet from its thermal emission",
                 "Compare energy output between stars of different temperatures",
@@ -1829,6 +2024,35 @@ var formulas = [
         }
     },
     {
+        id: "tidal_acceleration_differential",
+        name: "Tidal Acceleration (Differential Gravity, Order of Magnitude)",
+        description: "Hierarchy: Gravity → Tides → Field gradient across extended bodies.\n\n(1) Physical meaning: a_tidal ~ 2GMd_obj/r³ estimates the difference in gravitational acceleration between two sides of an object of extent d_obj at distance r from mass M.\n\n(2) When to use: Ocean tides (conceptually), tidal locking, disruption / spaghettification estimates, Roche-style reasoning when a force scaling is enough.\n\n(3) Intuition: Tides fall off as 1/r³ (force difference), steeper than Newton’s 1/r² monopole.\n\n(4) Order-of-magnitude tidal estimates. Pairs with tidal_force and roche_limit_rigid.\n\nFinal answer unit picker: m/s² ↔ cm/s².",
+        equation: "a_tidal = 2 * G * M * d_obj / r^3",
+        concepts: ["tidal force", "differential gravity", "tidal acceleration", "extended object", "binary"],
+        keywords: ["tidal acceleration", "2GMd over r cubed", "tidal force size d", "differential gravity approximation", "spaghettification order of magnitude"],
+        variables: [
+            { symbol: "a_tidal", name: "Tidal Acceleration Scale", unit: "m/s²", description: "Order-of-magnitude tidal (differential) acceleration" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "Newton's constant" },
+            { symbol: "M", name: "Perturber Mass", unit: "kg", description: "Mass of the body producing the tide" },
+            { symbol: "d_obj", name: "Object Size", unit: "m", description: "Linear extent of the object (e.g. diameter) across the field" },
+            { symbol: "r", name: "Separation", unit: "m", description: "Distance from perturber center to the object (center of mass)" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["newton_gravitational_force"],
+            derivedFrom: [],
+            relatedTo: ["tidal_force", "roche_limit", "roche_limit_rigid", "schwarzschild_radius", "tidal_disruption_radius_scaling"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "tidal acceleration approximation",
+            "tidal force 2GMd r cubed",
+            "differential gravity across object"
+        ]
+    },
+    {
         id: "roche_limit",
         name: "Roche Limit",
         description: "Minimum distance for a rigid body to avoid tidal disruption",
@@ -1866,7 +2090,7 @@ var formulas = [
     {
         id: "roche_limit_rigid",
         name: "Roche Limit (Rigid Body, in Masses)",
-        description: "Minimum distance R from star (mass M) for a rigid planet (mass m, radius r) to avoid tidal disruption. Balance: tidal force = planet gravity on surface. R = r × (2M/m)^(1/3). Use when given M, m, r (e.g. GGSO Roche limit problems).",
+        description: "Minimum distance R from star (mass M) for a rigid planet (mass m, radius r) to avoid tidal disruption. Balance: tidal force = planet gravity on surface. R = r × (2M/m)^(1/3). Use when given M, m, and r.",
         equation: "R = r * (2*M/m)^(1/3)",
         concepts: ["roche limit", "tidal disruption", "rigid body", "tidal force", "planet"],
         keywords: ["roche limit rigid", "minimum R distance", "tidal disruption distance", "planet ripped apart"],
@@ -1887,13 +2111,18 @@ var formulas = [
         id: "periapsis_from_apoapsis",
         name: "Periapsis from Apoapsis and Eccentricity",
         description: "Periapsis distance from apoapsis and eccentricity. r_peri = r_apo × (1−e)/(1+e). Equivalently r_apo = a(1+e), r_peri = a(1−e).",
-        equation: "r_peri = r_apo * (1 - e) / (1 + e)",
+        equation: "r_peri = r_apo * (1 - ecc) / (1 + ecc)",
+        solveFor: {
+            r_peri: "r_peri = r_apo * (1 - ecc) / (1 + ecc)",
+            r_apo: "r_apo = r_peri * (1 + ecc) / (1 - ecc)",
+            ecc: "ecc = (r_apo - r_peri) / (r_apo + r_peri)"
+        },
         concepts: ["periapsis", "apoapsis", "eccentricity", "orbit", "elliptical orbit"],
         keywords: ["periapsis from apoapsis", "apoapsis periapsis eccentricity", "r peri r apo"],
         variables: [
             { symbol: "r_peri", name: "Periapsis Distance", unit: "m or AU", description: "Closest distance to focus" },
             { symbol: "r_apo", name: "Apoapsis Distance", unit: "m or AU", description: "Farthest distance from focus" },
-            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
         ],
         questionPatterns: [
             "periapsis from apoapsis",
@@ -1905,13 +2134,13 @@ var formulas = [
         id: "perihelion_aphelion",
         name: "Perihelion and Aphelion from a and e",
         description: "Perihelion (closest) and aphelion (farthest) distances from semi-major axis a and eccentricity e. r_peri = a(1−e), r_ap = a(1+e). Use same units for a (e.g. AU or m).",
-        equation: "r_peri = a*(1 - e)",
+        equation: "r_peri = a*(1 - ecc)",
         concepts: ["perihelion", "aphelion", "semi-major axis", "eccentricity", "orbit"],
         keywords: ["perihelion aphelion", "rp ra from a e", "closest farthest distance orbit"],
         variables: [
             { symbol: "r_peri", name: "Perihelion Distance", unit: "m or AU", description: "Closest distance to focus" },
             { symbol: "a", name: "Semi-major Axis", unit: "m or AU", description: "Semi-major axis" },
-            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" }
         ],
         questionPatterns: [
             "perihelion aphelion distances",
@@ -1923,13 +2152,13 @@ var formulas = [
         id: "aphelion_distance",
         name: "Aphelion Distance",
         description: "Aphelion (farthest) distance: r_ap = a(1+e).",
-        equation: "r_ap = a*(1 + e)",
+        equation: "r_ap = a*(1 + ecc)",
         concepts: ["aphelion", "semi-major axis", "eccentricity", "orbit"],
         keywords: ["aphelion distance", "farthest distance orbit"],
         variables: [
             { symbol: "r_ap", name: "Aphelion Distance", unit: "m or AU", description: "Farthest distance" },
             { symbol: "a", name: "Semi-major Axis", unit: "m or AU", description: "Semi-major axis" },
-            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Eccentricity" }
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Eccentricity" }
         ],
         questionPatterns: [
             "aphelion distance",
@@ -1979,7 +2208,7 @@ var formulas = [
     {
         id: "orbital_energy",
         name: "Orbital Energy",
-        description: "Total energy of an orbiting body",
+        description: "Bound two-body orbit: total mechanical energy E = −GMm/(2a). Use with K = ½mv² and U = −GMm/r.",
         equation: "E = -GMm / (2a)",
         variables: [
             {
@@ -2026,7 +2255,7 @@ var formulas = [
     {
         id: "vis_viva",
         name: "Vis Viva Equation",
-        description: "Velocity at any point in an elliptical orbit",
+        description: "Speed at distance r on an ellipse: v² = GM(2/r − 1/a). Central to energy and orbit calculations.",
         equation: "v² = GM × ((2/r) - (1/a))",
         variables: [
             {
@@ -2095,8 +2324,8 @@ var formulas = [
     {
         id: "center_of_mass",
         name: "Center of Mass (Binary System)",
-        description: "Center of mass position in a binary star system",
-        equation: "M₁ × r₁ = M₂ × r₂, a = r₁ + r₂",
+        description: "Center of mass position in a binary star system. Standard form: M₁r₁ = M₂r₂ (distances from the barycenter). Often used with separation a = r₁ + r₂ (semi-major axis of relative orbit).",
+        equation: "M1 * r1 = M2 * r2",
         variables: [
             {
                 symbol: "M1",
@@ -2165,7 +2394,7 @@ var formulas = [
             }
         ],
         constants: {
-            "M_sun": 1.989e30,
+            "M_sun": 1.988409870440e30,
             factor: 1e10,
             exponent: 2.5
         },
@@ -2234,7 +2463,7 @@ var formulas = [
         ],
         constants: {
             c: 2.99792458e8,
-            M_sun: 1.989e30,
+            M_sun: 1.988409870440e30,
             L_sun: 3.828e26,
             epsilon_pp_chain: 0.007,
             f_H_sun: 0.7346,
@@ -2435,8 +2664,8 @@ var formulas = [
     {
         id: "schwarzschild_radius",
         name: "Schwarzschild Radius",
-        description: "Event horizon radius of a black hole",
-        equation: "R_s = (2GM) / c²",
+        description: "Non-rotating black hole event horizon: R_s = 2GM/c².",
+        equation: "R_s = 2 * G * M / c^2",
         variables: [
             {
                 symbol: "R_s",
@@ -2612,7 +2841,7 @@ var formulas = [
         id: "blackbody_radiation",
         name: "Blackbody Radiation (Planck's Law)",
         description: "Complete spectral radiance formula for blackbody radiation",
-        equation: "B_λ(T) = (2hc² / λ⁵) × (1 / (e^(hc/(λkT)) - 1))",
+        equation: "B_λ(T) = (2hc² / λ⁵) × (1 / (exp(hc/(λkT)) - 1))",
         primaryUseCase: "full spectrum calculation",
         specificity: 8,
         concepts: ["blackbody radiation", "planck law", "planck distribution", "spectral radiance", "blackbody spectrum", "thermal spectrum"],
@@ -2645,7 +2874,7 @@ var formulas = [
             }
         ],
         constants: {
-            h: 6.626e-34,
+            h: 6.62607015e-34,
             c: 2.998e8,
             k: 1.381e-23,
             factor: 2
@@ -3031,16 +3260,128 @@ var formulas = [
         }
     },
     {
+        id: "angular_momentum_circular",
+        name: "Angular Momentum (Circular Orbit)",
+        description: "Hierarchy: Mechanics → Orbital dynamics → Conserved quantities.\n\n(1) Physical meaning: L = m v r is the rotational momentum of a point mass in circular motion about a focus. It measures how strongly the orbit resists collapsing inward when no external torque acts.\n\n(2) When to use: Planetary/satellite circular orbits, face-on binary components, accretion-disk order-of-magnitude reasoning, comet speed changes (pair with elliptical L for full story).\n\n(3) Intuition: If r increases and L is fixed, v must decrease — same physics as fast motion near perihelion and slow near aphelion (see apsidal_momentum_conservation).\n\n(4) Comparing speeds at different radii, maneuver/accretion reasoning (elliptical form: angular_momentum_elliptical).\n\nUnit note: L is stored as J·s (equivalent to kg·m²/s); use the result unit picker for erg·s if needed.",
+        equation: "L = m * v * r",
+        solveFor: {
+            L: "L = m * v * r",
+            m: "m = L / (v * r)",
+            v: "v = L / (m * r)",
+            r: "r = L / (m * v)"
+        },
+        concepts: ["angular momentum", "circular orbit", "orbital mechanics", "conservation"],
+        keywords: ["L equals mvr", "angular momentum circular", "m v r orbit", "conserved angular momentum circular orbit"],
+        variables: [
+            { symbol: "L", name: "Angular Momentum", unit: "J·s", description: "Magnitude L = mvr; same dimensions as kg·m²/s (joule-second)" },
+            { symbol: "m", name: "Mass", unit: "kg", description: "Mass of the orbiting body (or reduced mass μ for two-body)" },
+            { symbol: "v", name: "Orbital Speed", unit: "m/s", description: "Tangential speed" },
+            { symbol: "r", name: "Orbital Radius", unit: "m", description: "Distance from focus (circular orbit radius)" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["angular_momentum_elliptical", "apsidal_momentum_conservation", "orbital_velocity", "kepler_second_law_area_rate"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["angular momentum circular orbit", "L equals m v r", "find L from m v r"]
+    },
+    {
+        id: "apsidal_momentum_conservation",
+        name: "Periapsis / Apoapsis (r v Product)",
+        description: "Hierarchy: Mechanics → Central-force orbits → Angular momentum conservation at apses.\n\n(1) Physical meaning: At periapsis and apoapsis the position vector is perpendicular to velocity, so L = m r v at each apex. Conservation gives r_peri v_peri = r_apo v_apo (same orbiting mass).\n\n(2) When to use: Elliptical orbits, comets, spacecraft gravity assists, when two of (r_peri, v_peri, r_apo, v_apo) are known.\n\n(3) Intuition: Small r → large v; connects directly to Kepler’s second law (equal areas in equal times).\n\n(4) Velocity at aphelion/perihelion, speed ratios. Chains well with vis_viva and perihelion_aphelion.",
+        equation: "r_peri * v_peri = r_apo * v_apo",
+        solveFor: {
+            v_peri: "v_peri = r_apo * v_apo / r_peri",
+            v_apo: "v_apo = r_peri * v_peri / r_apo",
+            r_peri: "r_peri = r_apo * v_apo / v_peri",
+            r_apo: "r_apo = r_peri * v_peri / v_apo"
+        },
+        concepts: ["angular momentum", "periapsis", "apoapsis", "ellipse", "conservation"],
+        keywords: ["rp vp ra va", "periapsis apoapsis velocity", "r v product orbit", "kepler second law angular momentum"],
+        variables: [
+            { symbol: "r_peri", name: "Periapsis Distance", unit: "m", description: "Radius at closest approach" },
+            { symbol: "v_peri", name: "Speed at Periapsis", unit: "m/s", description: "Instantaneous speed at periapsis" },
+            { symbol: "r_apo", name: "Apoapsis Distance", unit: "m", description: "Radius at farthest point" },
+            { symbol: "v_apo", name: "Speed at Apoapsis", unit: "m/s", description: "Instantaneous speed at apoapsis" }
+        ],
+        relationships: {
+            prerequisites: ["angular_momentum_circular"],
+            derivedFrom: ["angular_momentum_circular"],
+            relatedTo: ["vis_viva", "perihelion_aphelion", "angular_momentum_elliptical", "kepler_second_law_area_rate"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["periapsis apoapsis velocity", "rp vp equals ra va", "speed at aphelion perihelion"]
+    },
+    {
+        id: "orbital_speed_circular",
+        name: "Orbital Speed from Period (Circular)",
+        description: "Hierarchy: Kinematics → Uniform circular motion → Orbit circumference.\n\n(1) Physical meaning: v = 2πr / T is tangential speed from path length divided by period (no dynamics — pure geometry).\n\n(2) When to use: Planets, satellites, circular binary components, pulsars when treated as circular motion at radius r.\n\n(3) Intuition: Shorter T at fixed r means higher v.\n\n(4) v from P and r; compare speeds. Combine with angular_velocity_orbit (ω = 2π/T) via v = ω r, and with orbital_velocity when gravity sets v.",
+        equation: "v = 2 * pi * r / T",
+        solveFor: {
+            v: "v = 2 * pi * r / T",
+            r: "r = v * T / (2 * pi)",
+            T: "T = 2 * pi * r / v"
+        },
+        concepts: ["orbital speed", "binary", "circular orbit", "period"],
+        keywords: ["v equals 2 pi r over T", "orbital speed from period", "binary orbital velocity", "circumference over period orbit"],
+        variables: [
+            { symbol: "v", name: "Orbital Speed", unit: "m/s", description: "Tangential speed" },
+            { symbol: "r", name: "Orbit Radius", unit: "m", description: "Radius of circular path" },
+            { symbol: "T", name: "Orbital Period", unit: "s", description: "Time for one full orbit" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["angular_velocity_orbit", "orbital_velocity", "kepler_third_law", "kepler_third_law_binary", "period_circular"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["orbital velocity 2 pi r over T", "speed from period radius", "binary star speed"]
+    },
+    {
+        id: "angular_velocity_orbit",
+        name: "Angular Velocity (Mean Motion)",
+        description: "Hierarchy: Rotational kinematics → Mean motion n or ω.\n\n(1) Physical meaning: ω = 2π/T is how fast the position angle advances (rad/s) for uniform circular motion.\n\n(2) When to use: Pulsar spin, planetary rotation period, galaxy/pattern speeds when modeled as rigid rotation.\n\n(3) Intuition: Link linear and angular motion with v = ω r (use orbital_speed_circular for v from r and T).\n\n(4) Period ↔ ω. Result unit picker: rad/s ↔ deg/s.\n\nNote: rotational_velocity uses equator v = 2πR/P_rot for a spinning body — same geometry, different symbol set.",
+        equation: "omega = 2 * pi / T",
+        solveFor: {
+            omega: "omega = 2 * pi / T",
+            T: "T = 2 * pi / omega"
+        },
+        concepts: ["angular velocity", "mean motion", "period", "rotation"],
+        keywords: ["omega equals 2 pi over T", "angular frequency orbit", "mean motion", "pulsar rotation omega"],
+        variables: [
+            { symbol: "omega", name: "Angular Velocity", unit: "rad/s", description: "Radians per second (use unit picker for deg/s)" },
+            { symbol: "T", name: "Period", unit: "s", description: "Time for one revolution" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["orbital_speed_circular", "rotational_velocity", "kepler_third_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["angular velocity from period", "omega 2 pi T", "mean motion"]
+    },
+    {
         id: "angular_momentum_elliptical",
         name: "Angular Momentum (Elliptical)",
-        description: "Momentum for elliptical orbit with eccentricity e",
-        equation: "L = m_r × √(GMa(1 - e²))",
+        description: "Hierarchy: Same as angular_momentum_circular, specialized to bound ellipses.\n\nL = μ√(GMa(1−e²)) with reduced mass μ (m_r here). Use with apsidal_momentum_conservation and vis_viva. L reported in J·s (≡ kg·m²/s).",
+        equation: "L = m_r × √(GMa(1 - ecc²))",
         variables: [
             {
                 symbol: "L",
                 name: "Angular Momentum",
-                unit: "kg·m²/s",
-                description: "Angular momentum of the orbit"
+                unit: "J·s",
+                description: "Angular momentum; joule-second ≡ kg·m²/s"
             },
             {
                 symbol: "m_r",
@@ -3061,7 +3402,8 @@ var formulas = [
                 description: "Semi-major axis of the ellipse"
             },
             {
-                symbol: "e",
+                symbol: "ecc",
+                displaySymbol: "e",
                 name: "Eccentricity",
                 unit: "dimensionless",
                 description: "Orbital eccentricity (0 = circle, <1 = ellipse)"
@@ -3094,11 +3436,11 @@ var formulas = [
         id: "eccentricity_from_area_rate",
         name: "Eccentricity from Area Rate (Kepler II)",
         description: "Eccentricity e in terms of area rate C, central mass M, and semi-major axis a. From C = L/(2μ) and L = μ √(GM a (1−e²)).",
-        equation: "e = sqrt(1 - 4*C^2/(G*M*a))",
+        equation: "ecc = sqrt(1 - 4*C^2/(G*M*a))",
         concepts: ["eccentricity", "kepler second law", "area rate", "orbital mechanics"],
         keywords: ["e in terms of C M a", "eccentricity from C", "find e area rate"],
         variables: [
-            { symbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" },
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" },
             { symbol: "C", name: "Area Rate", unit: "m²/s", description: "dA/dt" },
             { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
             { symbol: "M", name: "Central Mass", unit: "kg", description: "Mass of central body" },
@@ -3133,6 +3475,34 @@ var formulas = [
         constants: {
             c: 2.99792458e8
         }
+    },
+    {
+        id: "light_travel_time",
+        name: "Light Travel Time",
+        description: "Hierarchy: Special relativity / observation → Light propagation in vacuum.\n\n(1) Physical meaning: t = d/c is the delay for light to traverse path length d; underpins radar/ranging and “how long ago” we see an event.\n\n(2) When to use: Pulsar timing, binary light-travel delays, solar system light-time (e.g. ~8.3 min Sun–Earth), order-of-magnitude delays in compact binaries.\n\n(3) Intuition: Larger d always means later arrival; c is the conversion between distance and time in vacuum.\n\n(4) Pairs with doppler_wavelength_ratio and lookback_time (cosmological wording).\n\nUnit picker: time in s ↔ min ↔ h ↔ day ↔ yr; distance in m ↔ AU ↔ ly when solving for d.",
+        equation: "t = d / c",
+        solveFor: {
+            t: "t = d / c",
+            d: "d = c * t",
+            c: "c = d / t"
+        },
+        concepts: ["speed of light", "light travel", "time delay", "binary"],
+        keywords: ["light travel time", "d over c", "time for light cross distance", "light time delay binary", "sun to earth light minutes"],
+        variables: [
+            { symbol: "t", name: "Time", unit: "s", description: "Light-crossing time" },
+            { symbol: "d", name: "Distance", unit: "m", description: "Path length in vacuum" },
+            { symbol: "c", name: "Speed of Light", unit: "m/s", description: "c in vacuum" }
+        ],
+        constants: { c: 2.99792458e8 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["lookback_time", "doppler_wavelength_ratio", "doppler_velocity_wavelength", "parallax_distance_arcsec"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["light travel time", "how long light takes", "d over c time"]
     },
     {
         id: "density_parameter",
@@ -3695,7 +4065,7 @@ var formulas = [
             G: 6.67430e-11,
             c: 2.99792458e8,
             m_p: 1.67262192369e-27,
-            σ_T: 6.6524587158e-29
+            σ_T: 6.6524587321e-29
         },
         relationships: {
             prerequisites: ["accretion_efficiency"],
@@ -4028,7 +4398,7 @@ var formulas = [
             }
         ],
         constants: {
-            a: 7.565723e-16  // Radiation constant = 4σ/c
+            a: 7.5657232501369285e-16  // Radiation constant a = 4σ/c (SI exact σ, c)
         },
         relationships: {
             prerequisites: [],
@@ -4723,7 +5093,7 @@ var formulas = [
             }
         ],
         constants: {
-            a: 7.565723e-16,  // Radiation constant = 4σ/c
+            a: 7.5657232501369285e-16,  // Radiation constant a = 4σ/c (SI exact σ, c)
             c: 2.99792458e8,
             π: Math.PI
         },
@@ -4887,7 +5257,7 @@ var formulas = [
     {
         id: "magnitude_variation_pulsation",
         name: "Magnitude Variation for Pulsation (First Order)",
-        description: "First-order magnitude variation for a pulsating star with radius curve R(t). Using ΔM ≈ -(2.5/ln10) ΔL/L and the simplified competition convention used in some keys, ΔM is often written proportional to (4γ - 2) R cos(ωt + φ).",
+        description: "First-order magnitude variation for a pulsating star with radius curve R(t). Using ΔM ≈ -(2.5/ln10) ΔL/L, ΔM is sometimes written proportional to (4γ - 2) R cos(ωt + φ) in simplified treatments.",
         equation: "delta_M = (4 * gamma - 2) * R_amp * cos(omega * t + phi)",
         concepts: ["magnitude variation", "pulsation", "mira", "light curve", "phase"],
         keywords: ["magnitude variation pulsation", "delta MK", "4 gamma minus 2", "light curve phase radius curve"],
@@ -4948,7 +5318,7 @@ var formulas = [
     {
         id: "period_luminosity_cepheid_classical",
         name: "Period-Luminosity (Classical Cepheid, M from P)",
-        description: "Absolute visual magnitude from pulsation period (days): M_V = -2.43(log₁₀(P) - 1) - 4.05. Used for RS Puppis-style problems. Solve for P: log₁₀(P) = 1 - (M_V + 4.05)/2.43.",
+        description: "Absolute visual magnitude from pulsation period (days): M_V = -2.43(log₁₀(P) - 1) - 4.05. Solve for P: log₁₀(P) = 1 - (M_V + 4.05)/2.43.",
         equation: "M_V = -2.43*(log10(P) - 1) - 4.05",
         concepts: ["cepheid", "period luminosity", "RS Puppis", "pulsation period", "absolute magnitude"],
         keywords: ["RS Puppis", "cepheid period from magnitude", "absolute magnitude -5.7 period", "classical cepheid period"],
@@ -5333,7 +5703,7 @@ var formulas = [
         relationships: {
             prerequisites: ["kepler_third_law_binary", "orbital_energy"],
             derivedFrom: [],
-            relatedTo: ["kepler_third_law_binary", "orbital_energy", "white_dwarf_orbital_decay"],
+            relatedTo: ["kepler_third_law_binary", "orbital_energy", "white_dwarf_orbital_decay", "gravitational_wave_quadrupole_luminosity"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -5353,7 +5723,7 @@ var formulas = [
         id: "boltzmann_equation",
         name: "Boltzmann Equation (Level Population Ratio)",
         description: "Ratio of population in two energy levels at thermal equilibrium. Fundamental statistical mechanics relation describing level populations in thermal equilibrium. Essential for spectroscopy, stellar atmospheres, and atomic physics. Describes how atoms distribute among energy levels based on temperature and energy differences.",
-        equation: "N_2 / N_1 = (g_2 / g_1) × e^(-(E_2 - E_1) / kT)",
+        equation: "N_2 / N_1 = (g_2 / g_1) × exp(-(E_2 - E_1) / kT)",
         concepts: ["boltzmann", "level population", "thermal equilibrium", "statistical mechanics", "spectroscopy", "stellar atmosphere", "atomic physics", "energy levels"],
         keywords: ["boltzmann", "level population", "thermal equilibrium", "spectroscopy", "energy levels", "atomic"],
         variables: [
@@ -5428,7 +5798,7 @@ var formulas = [
         id: "saha_equation",
         name: "Saha Equation (Ionization Fraction)",
         description: "Fraction of atoms in ionized state at thermal equilibrium. Fundamental statistical mechanics relation describing ionization equilibrium. Essential for stellar atmospheres, spectroscopy, and plasma physics. Describes how ionization depends on temperature, density, and ionization potential.",
-        equation: "N_ion / N_neutral = (2 / n_e) × (2π m_e k T / h²)^(3/2) × e^(-χ / kT)",
+        equation: "N_ion / N_neutral = (2 / n_e) × (2π m_e k T / h²)^(3/2) × exp(-χ / kT)",
         concepts: ["saha", "ionization", "ionization fraction", "thermal equilibrium", "stellar atmosphere", "spectroscopy", "plasma", "ionization potential"],
         keywords: ["saha", "ionization", "ionization fraction", "stellar atmosphere", "plasma", "ionization potential"],
         variables: [
@@ -5482,7 +5852,7 @@ var formulas = [
             }
         ],
         constants: {
-            m_e: 9.1093837015e-31,
+            m_e: 9.1093837139e-31,
             k: 1.380649e-23,
             h: 6.62607015e-34
         },
@@ -5931,7 +6301,7 @@ var formulas = [
         ],
         constants: {
             e: 1.602176634e-19,
-            m_e: 9.1093837015e-31,
+            m_e: 9.1093837139e-31,
             c: 2.99792458e8,
             π: Math.PI
         },
@@ -6333,7 +6703,7 @@ var formulas = [
         id: "surface_brightness",
         name: "Surface Brightness (Exponential Disk)",
         description: "Surface brightness profile for exponential disk galaxy. Fundamental galactic structure relation describing stellar distribution. Essential for galactic structure, disk galaxies, and surface photometry. Exponential profile is characteristic of disk galaxies.",
-        equation: "I(r) = I_0 e^(-r / h)",
+        equation: "I(r) = I_0 * exp(-r / h)",
         concepts: ["surface brightness", "exponential disk", "galactic structure", "disk galaxy", "stellar distribution", "photometry"],
         keywords: ["surface brightness", "exponential", "disk", "galactic", "structure", "photometry"],
         variables: [
@@ -6971,8 +7341,8 @@ var formulas = [
     {
         id: "newton_gravitational_force",
         name: "Newton's Law of Universal Gravitation",
-        description: "Gravitational force between two masses. Fundamental law describing gravitational attraction. Essential for orbital mechanics, planetary motion, and gravitational physics. Describes force between any two objects with mass.",
-        equation: "F = G(m₁ m₂) / r²",
+        description: "Gravitational force between two masses: F = G m₁ m₂ / r² (same as F = GMm/r² in two-body notation). Core for orbital mechanics.",
+        equation: "F = G * m₁ * m₂ / r^2",
         concepts: ["newton", "gravitational force", "gravity", "universal gravitation", "force", "attraction", "orbital mechanics"],
         keywords: ["newton", "gravitational force", "gravity", "force", "attraction", "universal"],
         variables: [
@@ -7258,6 +7628,33 @@ var formulas = [
             "calculate potential energy",
             "energy in gravitational field"
         ]
+    },
+    {
+        id: "kinetic_energy_translational",
+        name: "Kinetic Energy",
+        description: "Hierarchy: Classical mechanics → Energy accounting → Orbital mechanics.\n\n(1) Physical meaning: K = ½mv² is energy stored in bulk motion (non-relativistic).\n\n(2) When to use: Impact scenarios, linking speeds to energies, splitting orbital energy into K+U, escape-speed derivations.\n\n(3) Intuition: Quadratic in v — doubling speed quadruples K.\n\n(4) Often bundled with U = −GMm/r and E = −GMm/(2a). Use vis_viva when r changes along an orbit.\n\nUnit picker: J ↔ eV ↔ erg for K; m/s ↔ km/s for v; kg ↔ M☉ for m.",
+        equation: "K = 0.5 * m * v^2",
+        solveFor: {
+            K: "K = 0.5 * m * v^2",
+            m: "m = 2 * K / v^2",
+            v: "v = sqrt(2 * K / m)"
+        },
+        concepts: ["kinetic energy", "mechanics", "orbital energy"],
+        keywords: ["kinetic energy", "one half m v squared", "K equals mv2", "orbital kinetic energy"],
+        variables: [
+            { symbol: "K", name: "Kinetic Energy", unit: "J", description: "Translational kinetic energy" },
+            { symbol: "m", name: "Mass", unit: "kg", description: "Mass of the object" },
+            { symbol: "v", name: "Speed", unit: "m/s", description: "Speed magnitude" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["gravitational_potential_energy", "orbital_energy", "orbital_energy_simple", "escape_velocity", "vis_viva"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["kinetic energy", "half m v squared", "calculate K from m and v"]
     },
     {
         id: "orbital_energy_simple",
@@ -7598,8 +7995,8 @@ var formulas = [
     {
         id: "diffraction_limit",
         name: "Diffraction Limit (Angular Resolution)",
-        description: "Angular resolution limit due to diffraction. Minimum angular separation resolvable. Essential for telescope design, imaging, and optical systems. Determines resolution of optical instruments.",
-        equation: "θ ≈ λ / D",
+        description: "Order-of-magnitude diffraction limit θ ~ λ/D. For circular aperture, the Rayleigh criterion is θ ≈ 1.22 λ/D (see diffraction_limit_rayleigh).",
+        equation: "θ = λ / D",
         concepts: ["diffraction limit", "angular resolution", "telescope", "optics", "imaging", "resolution"],
         keywords: ["diffraction limit", "angular resolution", "telescope", "resolution", "optics"],
         variables: [
@@ -7625,7 +8022,7 @@ var formulas = [
         relationships: {
             prerequisites: ["angular_resolution"],
             derivedFrom: ["angular_resolution"],
-            relatedTo: ["angular_resolution", "angular_size"],
+            relatedTo: ["angular_resolution", "angular_size", "diffraction_limit_rayleigh"],
             uses: [],
             generalizes: [],
             specializes: ["angular_resolution"]
@@ -7636,6 +8033,33 @@ var formulas = [
             "telescope resolution",
             "minimum resolvable angle"
         ]
+    },
+    {
+        id: "diffraction_limit_rayleigh",
+        name: "Rayleigh Criterion (Telescope Resolution)",
+        description: "Hierarchy: Wave optics → Diffraction → Telescope performance.\n\n(1) Physical meaning: θ ≈ 1.22 λ/D is the angular radius of the Airy disk for a circular aperture — the classic Rayleigh resolution criterion.\n\n(2) When to use: Comparing telescopes, estimating smallest resolvable separation, converting λ and D to θ then to physical size with angular_size.\n\n(3) Intuition: Bigger D or shorter λ → sharper images (smaller θ).\n\n(4) Compare to diffraction_limit (θ~λ/D) for factor-of-1.22 checks.\n\nUnit picker: θ in rad ↔ deg ↔ arcmin ↔ arcsec; λ in m ↔ nm ↔ Å; D in m ↔ cm.",
+        equation: "theta = 1.22 * lambda / D",
+        solveFor: {
+            theta: "theta = 1.22 * lambda / D",
+            lambda: "lambda = theta * D / 1.22",
+            D: "D = 1.22 * lambda / theta"
+        },
+        concepts: ["diffraction", "rayleigh criterion", "telescope", "angular resolution"],
+        keywords: ["rayleigh criterion", "1.22 lambda over D", "telescope diffraction", "airy disk resolution"],
+        variables: [
+            { symbol: "theta", name: "Angular Resolution", unit: "rad", description: "Minimum resolvable angle" },
+            { symbol: "lambda", name: "Wavelength", unit: "m", description: "Wavelength of light" },
+            { symbol: "D", name: "Aperture Diameter", unit: "m", description: "Telescope diameter" }
+        ],
+        relationships: {
+            prerequisites: ["diffraction_limit"],
+            derivedFrom: ["diffraction_limit"],
+            relatedTo: ["diffraction_limit", "angular_size", "angular_resolution", "radian_arcsecond_conversion"],
+            uses: [],
+            generalizes: [],
+            specializes: ["diffraction_limit"]
+        },
+        questionPatterns: ["rayleigh criterion", "1.22 lambda D", "telescope resolution diffraction"]
     },
     {
         id: "apparent_magnitude_flux",
@@ -8156,7 +8580,7 @@ var formulas = [
     {
         id: "doppler_wavelength_ratio",
         name: "Doppler Shift Wavelength Ratio",
-        description: "Fractional wavelength shift from velocity. Non-relativistic Doppler shift. Essential for spectroscopy, radial velocity measurements, and motion detection. Relates observed wavelength shift to source velocity.",
+        description: "Non-relativistic spectroscopic Doppler: Δλ/λ = v/c. See doppler_velocity_wavelength to solve for v.",
         equation: "Δλ / λ = v / c",
         concepts: ["doppler shift", "wavelength", "redshift", "blueshift", "radial velocity", "spectroscopy"],
         keywords: ["doppler", "wavelength", "redshift", "blueshift", "radial velocity"],
@@ -9030,7 +9454,7 @@ var formulas = [
             }
         ],
         constants: {
-            M_sun: 1.989e30
+            M_sun: 1.988409870440e30
         },
         relationships: {
             prerequisites: ["schwarzschild_radius"],
@@ -9471,7 +9895,7 @@ var formulas = [
         id: "semi_latus_rectum",
         name: "Semi-Latus Rectum (General Conic Section)",
         description: "Semi-latus rectum for elliptical orbits. Parameter describing orbit shape. Essential for orbital mechanics and conic sections. Relates to semi-major axis and eccentricity.",
-        equation: "p = a(1 - e²)",
+        equation: "p = a(1 - ecc²)",
         concepts: ["semi-latus rectum", "orbital mechanics", "conic sections", "eccentricity", "ellipse"],
         keywords: ["semi-latus rectum", "orbital mechanics", "eccentricity", "ellipse"],
         variables: [
@@ -9488,7 +9912,8 @@ var formulas = [
                 description: "Semi-major axis of orbit"
             },
             {
-                symbol: "e",
+                symbol: "ecc",
+                displaySymbol: "e",
                 name: "Eccentricity",
                 unit: "dimensionless",
                 description: "Orbital eccentricity"
@@ -9513,12 +9938,13 @@ var formulas = [
         id: "eccentricity_apoapsis_periapsis",
         name: "Eccentricity (Apoapsis/Periapsis relation)",
         description: "Eccentricity from apoapsis and periapsis distances. Measures orbit elongation. Essential for orbital mechanics and orbit characterization. Eccentricity ranges from 0 (circle) to 1 (parabola).",
-        equation: "e = (r_a - r_p) / (r_a + r_p)",
+        equation: "ecc = (r_a - r_p) / (r_a + r_p)",
         concepts: ["eccentricity", "orbital mechanics", "apoapsis", "periapsis", "orbit shape"],
         keywords: ["eccentricity", "orbital mechanics", "apoapsis", "periapsis", "orbit"],
         variables: [
             {
-                symbol: "e",
+                symbol: "ecc",
+                displaySymbol: "e",
                 name: "Eccentricity",
                 unit: "dimensionless",
                 description: "Orbital eccentricity"
@@ -9815,7 +10241,7 @@ var formulas = [
             }
         ],
         constants: {
-            a: 7.565723e-16
+            a: 7.5657232501369285e-16
         },
         relationships: {
             prerequisites: [],
@@ -9954,6 +10380,525 @@ var formulas = [
             "calculate scattering depth",
             "scattering opacity"
         ]
+    },
+    // --- Reference pack: competition / undergraduate astrophysics (bridges to existing laws) ---
+    {
+        id: "planck_blackbody_nu_frequency",
+        name: "Planck Law (Spectral Radiance B_ν)",
+        description: "Blackbody spectral radiance per unit frequency (W·sr⁻¹·m⁻²·Hz⁻¹). Same physics as wavelength form; use for ν-space problems. Competition trigger: spectral shape, peak frequency, Rayleigh–Jeans vs Wien limits.",
+        equation: "B_nu = (2 * h * nu^3 / c^2) / (exp(h * nu / (k * T)) - 1)",
+        concepts: ["blackbody radiation", "planck law", "spectral radiance", "thermal radiation", "radiation physics", "science olympiad astronomy"],
+        keywords: ["planck B nu", "blackbody frequency", "spectral radiance nu", "thermal spectrum"],
+        variables: [
+            { symbol: "B_nu", name: "Spectral Radiance B_ν", unit: "W/(m²·sr·Hz)", description: "Radiance per unit frequency" },
+            { symbol: "nu", name: "Frequency", unit: "Hz", description: "Electromagnetic frequency" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Blackbody temperature" }
+        ],
+        constants: { h: 6.62607015e-34, c: 2.99792458e8, k: 1.380649e-23 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["blackbody_radiation", "rayleigh_jeans_B_nu", "wiens_law", "stefan_boltzmann_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["planck law frequency", "blackbody B nu", "spectral radiance per hz"]
+    },
+    {
+        id: "rayleigh_jeans_B_nu",
+        name: "Rayleigh–Jeans Law (B_ν, low frequency)",
+        description: "Long-wavelength / low-frequency limit of Planck: B_ν ≈ 2kTν²/c². Trigger: hν ≪ kT, radio / long-λ tails.",
+        equation: "B_nu = 2 * k * T * nu^2 / c^2",
+        concepts: ["rayleigh jeans", "blackbody", "low frequency limit", "thermal radiation", "science olympiad astronomy"],
+        keywords: ["rayleigh jeans", "B nu low frequency", "radio blackbody limit"],
+        variables: [
+            { symbol: "B_nu", name: "Spectral Radiance B_ν", unit: "W/(m²·sr·Hz)", description: "RJ spectral radiance" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Temperature" },
+            { symbol: "nu", name: "Frequency", unit: "Hz", description: "Frequency" }
+        ],
+        constants: { k: 1.380649e-23, c: 2.99792458e8 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["planck_blackbody_nu_frequency", "blackbody_radiation", "wiens_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["rayleigh jeans law", "low frequency blackbody"]
+    },
+    {
+        id: "stellar_mass_continuity",
+        name: "Mass Continuity (Spherical Shell)",
+        description: "Structure equation: mass enclosed increases with shell thickness — dM/dr = 4πr²ρ. Links density profile to enclosed mass M(r).",
+        equation: "dM_dr = 4 * pi * r^2 * rho",
+        concepts: ["stellar structure", "mass continuity", "hydrostatic equilibrium", "shell model", "science olympiad astronomy"],
+        keywords: ["dM dr", "mass continuity", "enclosed mass gradient", "stellar structure equation"],
+        variables: [
+            { symbol: "dM_dr", name: "dM/dr", unit: "kg/m", description: "Mass gradient with radius" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Radial coordinate" },
+            { symbol: "rho", name: "Density", unit: "kg/m³", description: "Mass density at r" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["hydrostatic_balance", "stellar_luminosity_shell", "average_density", "central_pressure_approximate"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["mass continuity star", "dM dr 4 pi r squared rho"]
+    },
+    {
+        id: "stellar_luminosity_shell",
+        name: "Energy Generation (Luminosity Gradient)",
+        description: "Local luminosity from nuclear energy generation ε: dL/dr = 4πr²ρε. Standard stellar structure relation alongside hydrostatic and continuity.",
+        equation: "dL_dr = 4 * pi * r^2 * rho * epsilon_gen",
+        concepts: ["stellar structure", "energy generation", "nuclear burning", "luminosity gradient", "science olympiad astronomy"],
+        keywords: ["dL dr", "luminosity gradient", "epsilon nuclear", "stellar energy generation"],
+        variables: [
+            { symbol: "dL_dr", name: "dL/dr", unit: "W/m", description: "Luminosity gradient with radius" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Radial coordinate" },
+            { symbol: "rho", name: "Density", unit: "kg/m³", description: "Mass density" },
+            { symbol: "epsilon_gen", name: "Energy Generation Rate ε", unit: "W/kg", description: "Power released per unit mass (nuclear)" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["stellar_mass_continuity", "nuclear_energy_generation", "hydrostatic_balance", "radiative_transport_temperature_gradient"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["dL dr stellar", "luminosity shell energy generation"]
+    },
+    {
+        id: "cyclotron_frequency",
+        name: "Cyclotron Angular Frequency",
+        description: "Non-relativistic gyration: ω_c = qB/m. Trigger: charged particle in uniform B, Larmor motion, plasma diagnostics.",
+        equation: "omega_c = q * B / m",
+        concepts: ["cyclotron", "magnetic field", "plasma physics", "larmor", "science olympiad astronomy"],
+        keywords: ["cyclotron frequency", "gyrofrequency", "q B over m", "larmor frequency"],
+        variables: [
+            { symbol: "omega_c", name: "Cyclotron Angular Frequency ω_c", unit: "rad/s", description: "Angular gyration frequency" },
+            { symbol: "q", name: "Charge", unit: "C", description: "Particle charge" },
+            { symbol: "B", name: "Magnetic Field", unit: "Tesla", description: "Magnetic field strength" },
+            { symbol: "m", name: "Mass", unit: "kg", description: "Particle mass" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["zeeman_splitting", "synchrotron_frequency", "magnetic_pressure_si", "alfven_speed"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["cyclotron frequency", "gyrofrequency", "omega c q B m"]
+    },
+    {
+        id: "alfven_speed",
+        name: "Alfvén Speed (SI, ideal MHD)",
+        description: "Characteristic MHD wave speed v_A = B/√(μ₀ρ). Gaussian form B/√(4πρ) is equivalent in cgs units; here SI with μ₀. Trigger: magnetic support in ISM, jets, reconnection scales.",
+        equation: "v_A = B / sqrt(mu_0 * rho)",
+        concepts: ["alfven wave", "MHD", "magnetic field", "plasma", "interstellar medium", "science olympiad astronomy"],
+        keywords: ["alfven speed", "alfven velocity", "MHD wave speed", "B over root mu0 rho"],
+        variables: [
+            { symbol: "v_A", name: "Alfvén Speed", unit: "m/s", description: "Alfvén velocity" },
+            { symbol: "B", name: "Magnetic Field", unit: "Tesla", description: "Field strength" },
+            { symbol: "rho", name: "Mass Density", unit: "kg/m³", description: "Plasma mass density" },
+            { symbol: "mu_0", name: "Vacuum Permeability μ₀", unit: "N/A²", description: "Permeability of free space" }
+        ],
+        constants: { mu_0: 1.25663706212e-6 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["magnetic_pressure_si", "magnetic_energy_density", "sound_speed", "cyclotron_frequency"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["alfven speed", "alfven velocity", "MHD alfven"]
+    },
+    {
+        id: "bondi_accretion_rate",
+        name: "Bondi–Hoyle Accretion Rate (Order-of-Magnitude)",
+        description: "Spherical Bondi capture scaling: Ṁ ∝ G²M²ρ/c_s³ (exact prefactor depends on γ; this is the standard competition form). Use with sound_speed for c_s. Trigger: accretion onto compact object from ambient medium.",
+        equation: "Mdot = 4 * pi * G^2 * M^2 * rho / (c_s^3)",
+        concepts: ["bondi accretion", "accretion", "compact objects", "interstellar medium", "science olympiad astronomy"],
+        keywords: ["bondi accretion", "bondi hoyle", "accretion rate ambient", "M dot bondi"],
+        variables: [
+            { symbol: "Mdot", name: "Accretion Rate Ṁ", unit: "kg/s", description: "Mass accretion rate (order-of-magnitude)" },
+            { symbol: "M", name: "Point Mass", unit: "kg", description: "Accretor mass" },
+            { symbol: "rho", name: "Ambient Density", unit: "kg/m³", description: "Gas density far from accretor" },
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Isothermal sound speed of ambient gas" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["accretion_luminosity", "eddington_luminosity", "sound_speed", "newton_gravitational_force", "schwarzschild_radius"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["bondi accretion", "bondi capture rate", "accretion from ism"]
+    },
+    {
+        id: "gravitational_wave_quadrupole_luminosity",
+        name: "Gravitational-Wave Luminosity (Quadrupole, Leading Order)",
+        description: "Power radiated in GWs for circular binary: P = (32/5)(G⁴/c⁵)(m₁m₂)²(m₁+m₂)/a⁵. Pairs with orbital_decay_gravitational_radiation (da/dt).",
+        equation: "P_GW = (32/5) * (G^4 / c^5) * (M1^2 * M2^2 * (M1 + M2)) / a^5",
+        concepts: ["gravitational waves", "binary systems", "quadrupole radiation", "general relativity", "science olympiad astronomy"],
+        keywords: ["gravitational wave power", "GW luminosity", "binary GW energy loss", "quadrupole formula"],
+        variables: [
+            { symbol: "P_GW", name: "GW Power P", unit: "W", description: "Gravitational-wave luminosity" },
+            { symbol: "M1", name: "Mass m₁", unit: "kg", description: "First component mass" },
+            { symbol: "M2", name: "Mass m₂", unit: "kg", description: "Second component mass" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital separation (circular approx.)" }
+        ],
+        constants: { G: 6.67430e-11, c: 2.99792458e8 },
+        relationships: {
+            prerequisites: ["kepler_third_law_binary"],
+            derivedFrom: [],
+            relatedTo: ["orbital_decay_gravitational_radiation", "white_dwarf_orbital_decay", "white_dwarf_merger_timescale", "kepler_third_law_binary", "orbital_energy"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["gravitational wave luminosity", "GW power binary", "quadrupole gravitational radiation"]
+    },
+    {
+        id: "thermal_doppler_broadening",
+        name: "Thermal Doppler Line Width (Non-relativistic)",
+        description: "Gaussian thermal broadening: Δλ ≈ λ√(2kT/(mc²)). Trigger: spectral line width from thermal motion.",
+        equation: "delta_lambda = lambda * sqrt(2 * k * T / (m * c^2))",
+        concepts: ["spectral line", "thermal broadening", "doppler", "spectroscopy", "science olympiad astronomy"],
+        keywords: ["thermal broadening", "line width temperature", "doppler width", "delta lambda thermal"],
+        variables: [
+            { symbol: "delta_lambda", name: "Δλ", unit: "meters", description: "Line width (FWHM-style scaling)" },
+            { symbol: "lambda", name: "Rest Wavelength λ", unit: "meters", description: "Line center wavelength" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Thermal temperature" },
+            { symbol: "m", name: "Particle Mass", unit: "kg", description: "Emitter mass (e.g. atom)" }
+        ],
+        constants: { k: 1.380649e-23, c: 2.99792458e8 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["doppler_shift", "doppler_shift_approx", "gas_kinetic_temperature", "boltzmann_equation"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["thermal line broadening", "spectral line width temperature", "doppler broadening"]
+    },
+    // --- Olympiad / exam crash-course: neutron stars, tides, MHD, SN Ia (scaling + solvable forms) ---
+    {
+        id: "pulsar_light_cylinder",
+        name: "Pulsar Light Cylinder Radius",
+        description: "Corotation limit: field lines past R_LC cannot close inside the magnetosphere at rigid rotation. R_LC = c/Ω with Ω the spin angular velocity (rad/s). Trigger: pulsar wind, open field lines, polar cap geometry.",
+        equation: "R_LC = c / omega_spin",
+        concepts: ["pulsar", "neutron star", "light cylinder", "magnetosphere", "rotation", "science olympiad astronomy"],
+        keywords: ["light cylinder", "pulsar R_LC", "c over omega", "corotation radius"],
+        variables: [
+            { symbol: "R_LC", name: "Light Cylinder Radius R_LC", unit: "meters", description: "Radius where corotation speed would reach c" },
+            { symbol: "c", name: "Speed of Light", unit: "m/s", description: "Vacuum speed of light" },
+            { symbol: "omega_spin", name: "Spin Angular Velocity Ω", unit: "rad/s", description: "Neutron star rotation rate" }
+        ],
+        constants: { c: 2.99792458e8 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsar_polar_cap_angle", "rotational_velocity", "cyclotron_frequency", "alfven_speed"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["light cylinder pulsar", "R_LC c omega", "pulsar corotation radius"]
+    },
+    {
+        id: "pulsar_polar_cap_angle",
+        name: "Pulsar Polar Cap Angle (Dipole Order-of-Magnitude)",
+        description: "Last closed field lines: polar cap angular size θ_pc ~ √(R_star/R_LC) (radians). Pairs with light cylinder for lighthouse / beam geometry estimates.",
+        equation: "theta_pc = sqrt(R_star / R_LC)",
+        concepts: ["pulsar", "polar cap", "magnetic dipole", "neutron star", "science olympiad astronomy"],
+        keywords: ["polar cap angle", "pulsar theta pc", "dipole light cylinder"],
+        variables: [
+            { symbol: "theta_pc", name: "Polar Cap Angle θ_pc", unit: "rad", description: "Half-opening angle scale (order-of-magnitude)" },
+            { symbol: "R_star", name: "Neutron Star Radius", unit: "meters", description: "Stellar radius" },
+            { symbol: "R_LC", name: "Light Cylinder Radius", unit: "meters", description: "From R_LC = c/Ω" }
+        ],
+        relationships: {
+            prerequisites: ["pulsar_light_cylinder"],
+            derivedFrom: [],
+            relatedTo: ["pulsar_light_cylinder", "magnetic_pressure_si", "synchrotron_power"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["polar cap pulsar", "theta pc sqrt R over R_LC"]
+    },
+    {
+        id: "tidal_disruption_radius_scaling",
+        name: "Tidal Disruption Distance Scaling (Density Form)",
+        description: "When tidal acceleration ~ self-gravity, characteristic distance scales as d ∝ (M/ρ)^(1/3): denser objects survive closer to the same perturber mass M. Order-of-magnitude; omits shape factors. Pairs with tidal_acceleration_differential and Roche limits.",
+        equation: "d = (M / rho)^(1/3)",
+        solveFor: {
+            d: "d = (M / rho)^(1/3)",
+            M: "M = rho * d^3",
+            rho: "rho = M / d^3"
+        },
+        concepts: ["tidal disruption", "tidal force", "neutron star", "black hole", "density", "science olympiad astronomy"],
+        keywords: ["tidal disruption radius", "M over rho one third", "spaghettification scale", "density survival"],
+        variables: [
+            { symbol: "d", name: "Characteristic Distance d", unit: "meters", description: "Disruption / survival distance scale" },
+            { symbol: "M", name: "Perturber Mass M", unit: "kg", description: "Tidal perturber (e.g. SMBH) mass" },
+            { symbol: "rho", name: "Object Average Density ρ", unit: "kg/m³", description: "Mean density of disrupted body" }
+        ],
+        relationships: {
+            prerequisites: ["tidal_acceleration_differential"],
+            derivedFrom: [],
+            relatedTo: ["tidal_acceleration_differential", "roche_limit", "roche_limit_rigid", "surface_gravity"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["tidal disruption density", "M rho one third tidal", "survive closer denser"]
+    },
+    {
+        id: "radiation_force_thomson_luminosity",
+        name: "Radiation Force (Thomson, Spherical Luminosity)",
+        description: "Force on cross-section σ at distance r from isotropic luminosity L: F = Lσ/(4πr²c). Compare to gravity via σ/m (Eddington / line-driving). Trigger: radiation pressure vs gravity.",
+        equation: "F_rad = L * sigma / (4 * pi * r^2 * c)",
+        concepts: ["radiation pressure", "thomson scattering", "eddington", "luminosity", "science olympiad astronomy"],
+        keywords: ["radiation force", "L sigma over r squared c", "thomson force", "radiation vs gravity"],
+        variables: [
+            { symbol: "F_rad", name: "Radiation Force", unit: "N", description: "Force from photon momentum transfer" },
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Isotropic source luminosity" },
+            { symbol: "sigma", name: "Cross Section σ", unit: "m²", description: "Interaction cross section (e.g. Thomson)" },
+            { symbol: "r", name: "Distance", unit: "meters", description: "Radius from source" }
+        ],
+        constants: { c: 2.99792458e8, pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["eddington_luminosity", "momentum_transfer_radiation", "flux_from_luminosity", "accretion_luminosity"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["radiation force luminosity", "thomson force L sigma", "radiation pressure cross section"]
+    },
+    {
+        id: "rayleigh_taylor_growth_rate",
+        name: "Rayleigh–Taylor Growth Rate (Inviscid Scaling)",
+        description: "Interface instability when dense fluid accelerates into lighter fluid: γ_RT ~ √(gk). k = 2π/λ. Large λ → small k → slower growth (exam scaling).",
+        equation: "gamma_RT = sqrt(g * k)",
+        concepts: ["rayleigh taylor", "supernova remnant", "fluid instability", "science olympiad astronomy"],
+        keywords: ["rayleigh taylor growth", "sqrt g k", "SNR instability"],
+        variables: [
+            { symbol: "gamma_RT", name: "Growth Rate γ_RT", unit: "Hz", description: "Instability growth rate (1/s)" },
+            { symbol: "g", name: "Effective Acceleration g", unit: "m/s²", description: "Effective gravity / acceleration at interface" },
+            { symbol: "k", name: "Wavenumber k", unit: "rad/m", description: "Spatial wavenumber (2π/λ)" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["kelvin_helmholtz_growth_rate", "sound_speed", "hydrostatic_balance"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["rayleigh taylor", "RT instability growth", "sqrt g k instability"]
+    },
+    {
+        id: "kelvin_helmholtz_growth_rate",
+        name: "Kelvin–Helmholtz Growth Rate (Shear Scaling)",
+        description: "Shear instability at velocity jump Δv across interface: γ_KH ~ k Δv. Small wavelengths (large k) grow quickly. Compare γ_KH to γ_RT by scale.",
+        equation: "gamma_KH = k * dv",
+        concepts: ["kelvin helmholtz", "shear instability", "nebula", "science olympiad astronomy"],
+        keywords: ["kelvin helmholtz growth", "k delta v", "shear instability"],
+        variables: [
+            { symbol: "gamma_KH", name: "Growth Rate γ_KH", unit: "Hz", description: "Shear instability growth rate" },
+            { symbol: "k", name: "Wavenumber k", unit: "rad/m", description: "Spatial wavenumber" },
+            { symbol: "dv", name: "Velocity Shear Δv", unit: "m/s", description: "Velocity difference across interface" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["rayleigh_taylor_growth_rate", "sound_speed", "alfven_speed"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["kelvin helmholtz", "KH instability", "shear k delta v"]
+    },
+    {
+        id: "alfven_mach_number",
+        name: "Alfvén Mach Number",
+        description: "M_A = v/v_A. M_A < 1: magnetic stresses dominate; M_A > 1: flow dominates. Pairs with alfven_speed.",
+        equation: "M_A = v / v_A",
+        concepts: ["alfven mach", "MHD", "plasma", "science olympiad astronomy"],
+        keywords: ["alfven mach number", "v over v_A", "MHD mach"],
+        variables: [
+            { symbol: "M_A", name: "Alfvén Mach Number", unit: "dimensionless", description: "Flow speed relative to Alfvén speed" },
+            { symbol: "v", name: "Flow Speed", unit: "m/s", description: "Plasma or shock speed" },
+            { symbol: "v_A", name: "Alfvén Speed", unit: "m/s", description: "Characteristic MHD wave speed" }
+        ],
+        relationships: {
+            prerequisites: ["alfven_speed"],
+            derivedFrom: [],
+            relatedTo: ["alfven_speed", "magnetic_pressure_si", "sound_speed"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["alfven mach", "M_A MHD", "v over alfven speed"]
+    },
+    {
+        id: "type_ia_snr_peak_time_diffusion",
+        name: "Type Ia Peak Time (Photon Diffusion Scaling)",
+        description: "Homologous expansion with diffusion: peak when t_diff ~ t_exp. Scaling t_peak ~ √(κM/(cv)) with κ opacity, M ejecta mass, v expansion speed. Trigger: SN Ia light curve width–luminosity context.",
+        equation: "t_peak = sqrt(kappa * M / (c * v))",
+        concepts: ["type Ia supernova", "photon diffusion", "light curve", "opacity", "science olympiad astronomy"],
+        keywords: ["SN Ia peak time", "diffusion time supernova", "kappa M over c v"],
+        variables: [
+            { symbol: "t_peak", name: "Peak Time t_peak", unit: "s", description: "Characteristic rise/peak timescale" },
+            { symbol: "kappa", name: "Opacity κ", unit: "m²/kg", description: "Rosseland-mean or effective opacity" },
+            { symbol: "M", name: "Ejecta Mass", unit: "kg", description: "Ejecta mass scale" },
+            { symbol: "c", name: "Speed of Light", unit: "m/s", description: "c" },
+            { symbol: "v", name: "Expansion Speed", unit: "m/s", description: "Homologous expansion velocity" }
+        ],
+        constants: { c: 2.99792458e8 },
+        relationships: {
+            prerequisites: ["optical_depth"],
+            derivedFrom: [],
+            relatedTo: [
+                "optical_depth",
+                "chandrasekhar_limit",
+                "flux_from_luminosity",
+                "radiation_transport",
+                "photon_diffusion_time_optical_depth",
+                "supernova_luminosity_kinetic_diffusion"
+            ],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["type Ia light curve", "SN Ia diffusion peak", "supernova peak time opacity"]
+    },
+    {
+        id: "stellar_gravity_dynamical_time",
+        name: "Gravity Dynamical Time (ρ scaling)",
+        description: "Order-of-magnitude timescale for self-gravity of uniform-density matter: t_dyn ~ 1/√(Gρ). Compare to diffusion, nuclear, and thermal times in Olympiad ‘which process wins?’ problems. Related to free-fall and pulsation scaling.",
+        equation: "t_dyn = 1 / sqrt(G * rho)",
+        concepts: ["dynamical time", "stellar structure", "gravity", "collapse", "timescale", "science olympiad astronomy"],
+        keywords: ["dynamical time", "one over sqrt G rho", "free fall timescale", "core collapse scale"],
+        variables: [
+            { symbol: "t_dyn", name: "Dynamical Time t_dyn", unit: "s", description: "Characteristic gravitational timescale" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "rho", name: "Density ρ", unit: "kg/m³", description: "Typical or mean density" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["average_density", "hydrostatic_balance", "jeans_mass", "type_ia_snr_peak_time_diffusion", "supernova_luminosity_kinetic_diffusion"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["dynamical time density", "t dyn G rho", "gravity timescale star"]
+    },
+    {
+        id: "adiabatic_gradient_ideal_gas",
+        name: "Adiabatic Gradient (Ideal Gas, ∇_ad)",
+        description: "Logarithmic adiabatic temperature–pressure gradient for an ideal gas: ∇_ad = (γ−1)/γ. Monatomic non-relativistic: γ = 5/3 → ∇_ad = 2/5. Used with Schwarzschild criterion for convection vs radiation (convection_criterion).",
+        equation: "nabla_ad = (gamma_gas - 1) / gamma_gas",
+        concepts: ["adiabatic gradient", "convection", "stellar structure", "ideal gas", "science olympiad astronomy"],
+        keywords: ["nabla ad", "adiabatic gradient ideal gas", "gamma minus one over gamma"],
+        variables: [
+            { symbol: "nabla_ad", name: "∇_ad", unit: "dimensionless", description: "Adiabatic d ln T / d ln P (dimensionless)" },
+            { symbol: "gamma_gas", name: "Adiabatic Index γ", unit: "dimensionless", description: "Ratio of specific heats C_p/C_v" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["convection_criterion", "sound_speed", "ideal_gas_pressure", "radiative_transport_temperature_gradient"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["adiabatic gradient", "nabla ad convection", "gamma ideal gas star"]
+    },
+    {
+        id: "compact_object_keplerian_breakup_omega",
+        name: "Keplerian Breakup Angular Speed (Massive Sphere)",
+        description: "Order-of-magnitude maximum rigid spin before mass shedding: Ω ~ √(GM/R³) (same scaling as orbital angular speed at the equator). Applies to neutron stars / compact bodies in competition estimates.",
+        equation: "omega_k = sqrt(G * M / R^3)",
+        concepts: ["neutron star", "rotation", "breakup", "compact objects", "science olympiad astronomy"],
+        keywords: ["breakup spin", "omega sqrt GM R3", "keplerian spin limit"],
+        variables: [
+            { symbol: "omega_k", name: "Angular Speed Ω", unit: "rad/s", description: "Keplerian / breakup-scale rotation rate" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Mass", unit: "kg", description: "Stellar / remnant mass" },
+            { symbol: "R", name: "Radius", unit: "meters", description: "Equatorial radius" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["surface_gravity"],
+            derivedFrom: [],
+            relatedTo: ["surface_gravity", "orbital_velocity", "pulsar_light_cylinder", "alfven_speed"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["neutron star max spin", "breakup angular velocity", "sqrt GM over R cubed omega"]
+    },
+    {
+        id: "photon_diffusion_time_optical_depth",
+        name: "Photon Diffusion Time (τ, Slab Scale)",
+        description: "Random-walk escape time scaling: t_diff ~ τ R / c for optical depth τ and thickness R. Pairs with optical_depth and Type Ia diffusion arguments.",
+        equation: "t_diff = tau * R / c",
+        concepts: ["photon diffusion", "optical depth", "supernova", "radiative transfer", "science olympiad astronomy"],
+        keywords: ["diffusion time tau R c", "random walk photon", "optical depth diffusion"],
+        variables: [
+            { symbol: "t_diff", name: "Diffusion Time", unit: "s", description: "Photon diffusion timescale" },
+            { symbol: "tau", name: "Optical Depth τ", unit: "dimensionless", description: "Effective optical depth through ejecta" },
+            { symbol: "R", name: "Scale Radius", unit: "meters", description: "Characteristic thickness or radius" }
+        ],
+        constants: { c: 2.99792458e8 },
+        relationships: {
+            prerequisites: ["optical_depth"],
+            derivedFrom: [],
+            relatedTo: ["optical_depth", "type_ia_snr_peak_time_diffusion", "radiation_transport", "supernova_luminosity_kinetic_diffusion"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["photon diffusion time", "tau R over c", "diffusion optical depth"]
+    },
+    {
+        id: "supernova_luminosity_kinetic_diffusion",
+        name: "Supernova Luminosity (Kinetic ÷ Diffusion Scaling)",
+        description: "Order-of-magnitude luminosity when internal energy leaks on diffusion time: L ~ E_kin / t_diff. Useful for comparing SN cooling/diffusion-limited emission scales in exam reasoning.",
+        equation: "L_SN = E_kin / t_diff",
+        concepts: ["supernova", "luminosity", "diffusion", "ejecta", "science olympiad astronomy"],
+        keywords: ["supernova luminosity kinetic", "E kin over t diff", "diffusion limited luminosity"],
+        variables: [
+            { symbol: "L_SN", name: "Luminosity L", unit: "W", description: "Emergent luminosity scale" },
+            { symbol: "E_kin", name: "Kinetic Energy", unit: "J", description: "Ejecta kinetic energy scale" },
+            { symbol: "t_diff", name: "Diffusion Time", unit: "s", description: "Photon escape / diffusion time" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["photon_diffusion_time_optical_depth", "type_ia_snr_peak_time_diffusion", "stellar_gravity_dynamical_time", "luminosity"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["supernova luminosity diffusion", "L Ekin tdiff", "ejecta energy luminosity"]
     }
 ];
 
@@ -9994,7 +10939,26 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     max_gamma_bohm: 68,
     cooling_break_gamma: 70,
     cooling_break_frequency: 74,
-    thermal_time: 80
+    thermal_time: 80,
+    bondi_accretion_rate: 84,
+    rayleigh_jeans_B_nu: 88,
+    stellar_mass_continuity: 94,
+    stellar_luminosity_shell: 90,
+    gravitational_wave_quadrupole_luminosity: 92,
+    escape_orbital_velocity_ratio: 96,
+    pulsar_light_cylinder: 90,
+    pulsar_polar_cap_angle: 70,
+    tidal_disruption_radius_scaling: 68,
+    radiation_force_thomson_luminosity: 88,
+    rayleigh_taylor_growth_rate: 72,
+    kelvin_helmholtz_growth_rate: 72,
+    alfven_mach_number: 90,
+    type_ia_snr_peak_time_diffusion: 74,
+    stellar_gravity_dynamical_time: 72,
+    adiabatic_gradient_ideal_gas: 90,
+    compact_object_keplerian_breakup_omega: 82,
+    photon_diffusion_time_optical_depth: 86,
+    supernova_luminosity_kinetic_diffusion: 70
 };
 
 function inferFormulaConfidenceScore(formula) {

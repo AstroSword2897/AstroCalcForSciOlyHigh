@@ -66,8 +66,8 @@ function generateTestInputs(formula) {
         'L': 3.828e26, 'F': 1361, 'd': 1.5e11, 'D': 1.5e11,
         'λ': 500e-9, 'f': 5e14, 'ν': 5e14, 'E': 1e-19,
         't': 3600, 'θ': 0.1, 'α': 0.3, 'T': 5778,
-        'n': 1e6, 'V': 1e9, 'σ': 5.670374e-8, 'b': 2.897771e-3,
-        'z': 0.1, 'H0': 70e3, 'M_sun': 1.989e30, 'R_sun': 6.96e8
+        'n': 1e6, 'V': 1e9, 'σ': 5.6703744191844294e-8, 'b': 2.897771955e-3,
+        'z': 0.1, 'H0': 70e3, 'M_sun': 1.988409870440e30, 'R_sun': 695700000
     };
     
     // Fill in known values, leave one variable empty for solving
@@ -143,10 +143,10 @@ test.describe('Comprehensive Formula Calculation Tests', () => {
                         c: 2.99792458e8,
                         h: 6.62607015e-34,
                         k: 1.380649e-23,
-                        σ: 5.670374e-8,
-                        b: 2.897771e-3,
-                        M_sun: 1.989e30,
-                        R_sun: 6.96e8,
+                        σ: 5.6703744191844294e-8,
+                        b: 2.897771955e-3,
+                        M_sun: 1.988409870440e30,
+                        R_sun: 695700000,
                         M_earth: 5.97e24,
                         R_earth: 6.37e6
                     }

@@ -130,7 +130,6 @@ class FormulaSearchEngine {
             'parallax luminosity flux': { formulas: ['parallax_distance_arcsec', 'luminosity_absolute_magnitude', 'flux_from_luminosity'], score: 450 },
             'angular distance between': { formulas: ['angular_size'], score: 500 },
             'min max luminosity': { formulas: ['luminosity', 'stefan_boltzmann_law'], score: 450 },
-            // GGSO 2026 Section B
             'roche limit': { formulas: ['roche_limit_rigid', 'roche_limit', 'tidal_force'], score: 550 },
             'periapsis apoapsis': { formulas: ['periapsis_from_apoapsis', 'eccentricity_apoapsis_periapsis'], score: 500 },
             'tidal force balance': { formulas: ['tidal_force', 'roche_limit_rigid'], score: 500 },
@@ -186,6 +185,37 @@ class FormulaSearchEngine {
             'cepheid-based distance H0': { formulas: ['hubble_law'], score: 450 },
             'temperature from luminosity radius': { formulas: ['temperature_from_luminosity_radius_solar', 'luminosity'], score: 500 },
             'radius 2.7 R sun temperature': { formulas: ['temperature_from_luminosity_radius_solar'], score: 550 },
+            // Core astrophysics reference / undergraduate competition bundle
+            'science olympiad astronomy': {
+                formulas: [
+                    'kepler_third_law', 'orbital_velocity', 'escape_velocity', 'vis_viva', 'orbital_energy',
+                    'stefan_boltzmann_law', 'luminosity', 'wiens_law', 'mass_luminosity_relation', 'stellar_lifetime',
+                    'flux_from_luminosity', 'distance_modulus', 'doppler_shift', 'redshift_definition',
+                    'schwarzschild_radius', 'eddington_luminosity', 'gravitational_redshift', 'chandrasekhar_limit',
+                    'total_energy_virial', 'hubble_law', 'critical_density', 'jeans_mass', 'alfven_speed',
+                    'accretion_luminosity', 'planck_blackbody_nu_frequency', 'bondi_accretion_rate',
+                    'gravitational_wave_quadrupole_luminosity', 'thermal_doppler_broadening',
+                    'pulsar_light_cylinder', 'pulsar_polar_cap_angle', 'tidal_disruption_radius_scaling',
+                    'radiation_force_thomson_luminosity', 'rayleigh_taylor_growth_rate', 'kelvin_helmholtz_growth_rate',
+                    'alfven_mach_number', 'type_ia_snr_peak_time_diffusion', 'tidal_acceleration_differential',
+                    'stellar_gravity_dynamical_time', 'adiabatic_gradient_ideal_gas', 'compact_object_keplerian_breakup_omega',
+                    'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion', 'hydrostatic_balance'
+                ],
+                score: 420
+            },
+            'undergraduate astrophysics': {
+                formulas: [
+                    'friedmann_equation', 'critical_density', 'hubble_law', 'hydrostatic_balance',
+                    'stellar_mass_continuity', 'stellar_luminosity_shell', 'radiative_transport_temperature_gradient',
+                    'newton_gravitational_force', 'kepler_third_law_binary', 'cyclotron_frequency'
+                ],
+                score: 400
+            },
+            'bondi accretion': { formulas: ['bondi_accretion_rate', 'accretion_luminosity', 'sound_speed'], score: 520 },
+            'alfven speed': { formulas: ['alfven_speed', 'magnetic_pressure_si', 'sound_speed'], score: 520 },
+            'rayleigh jeans': { formulas: ['rayleigh_jeans_B_nu', 'planck_blackbody_nu_frequency', 'blackbody_radiation'], score: 500 },
+            'thermal broadening': { formulas: ['thermal_doppler_broadening', 'doppler_shift', 'gas_kinetic_temperature'], score: 500 },
+            'gravitational wave luminosity': { formulas: ['gravitational_wave_quadrupole_luminosity', 'orbital_decay_gravitational_radiation'], score: 550 },
             // MIT 2026
             'lyman alpha': { formulas: ['zeeman_splitting'], score: 250 },
             'white dwarf merger time': { formulas: ['white_dwarf_merger_timescale'], score: 550 },
@@ -203,7 +233,56 @@ class FormulaSearchEngine {
             'in phase or out of phase': { formulas: ['magnitude_variation_pulsation'], score: 500 },
             'spectral index': { formulas: ['spectral_index'], score: 500 },
             'synchrotron emission': { formulas: ['spectral_index', 'synchrotron_power'], score: 500 },
-            'blackbody radio spectral index': { formulas: ['spectral_index'], score: 400 }
+            'blackbody radio spectral index': { formulas: ['spectral_index'], score: 400 },
+            'neutron star': { formulas: ['pulsar_light_cylinder', 'surface_gravity', 'escape_velocity', 'chandrasekhar_limit'], score: 520 },
+            'pulsar': { formulas: ['pulsar_light_cylinder', 'pulsar_polar_cap_angle', 'cyclotron_frequency'], score: 520 },
+            'tidal disruption': { formulas: ['tidal_disruption_radius_scaling', 'tidal_acceleration_differential', 'roche_limit'], score: 520 },
+            'rayleigh taylor': { formulas: ['rayleigh_taylor_growth_rate', 'sound_speed'], score: 500 },
+            'kelvin helmholtz': { formulas: ['kelvin_helmholtz_growth_rate', 'sound_speed'], score: 500 },
+            'type ia': { formulas: ['type_ia_snr_peak_time_diffusion', 'chandrasekhar_limit', 'optical_depth'], score: 520 },
+            'supernova light curve': { formulas: ['type_ia_snr_peak_time_diffusion', 'optical_depth', 'stefan_boltzmann_law'], score: 500 },
+            // Core Olympiad “math systems” (binder toolkit): gravity, orbits, stars, photometry, cosmology
+            'olympiad toolkit': {
+                formulas: [
+                    'newton_gravitational_force', 'orbital_velocity', 'escape_velocity', 'escape_orbital_velocity_ratio',
+                    'kepler_third_law', 'kepler_third_law_solar', 'apsidal_momentum_conservation', 'perihelion_aphelion',
+                    'eccentricity_apoapsis_periapsis', 'orbital_energy', 'vis_viva',
+                    'stefan_boltzmann_law', 'stefan_boltzmann_luminosity_ratio', 'flux_from_luminosity',
+                    'distance_modulus', 'flux_ratio_magnitude', 'absolute_magnitude_luminosity',
+                    'parallax_distance_arcsec', 'doppler_shift_approx', 'wiens_law', 'planck_relation',
+                    'hubble_law', 'average_density', 'surface_gravity', 'hill_radius',
+                    'photon_momentum_energy', 'temperature_from_luminosity_radius_solar',
+                    'transit_depth', 'schwarzschild_radius'
+                ],
+                score: 480
+            },
+            'mathematical toolkit astronomy': {
+                formulas: [
+                    'kepler_third_law', 'orbital_velocity', 'escape_velocity', 'escape_orbital_velocity_ratio',
+                    'kepler_third_law_solar', 'stefan_boltzmann_law', 'stefan_boltzmann_luminosity_ratio',
+                    'distance_modulus', 'parallax_distance_arcsec', 'doppler_shift_approx', 'hubble_law'
+                ],
+                score: 460
+            },
+            'problem triggers': {
+                formulas: ['perihelion_aphelion', 'apsidal_momentum_conservation', 'flux_ratio_magnitude', 'wiens_law', 'kepler_third_law_solar'],
+                score: 420
+            },
+            'stellar structure equations': {
+                formulas: [
+                    'stellar_mass_continuity', 'hydrostatic_balance', 'stellar_luminosity_shell',
+                    'radiative_transport_temperature_gradient', 'adiabatic_gradient_ideal_gas', 'convection_criterion',
+                    'central_pressure_approximate', 'mass_luminosity_relation', 'stellar_gravity_dynamical_time'
+                ],
+                score: 500
+            },
+            'supernova diffusion': {
+                formulas: [
+                    'type_ia_snr_peak_time_diffusion', 'photon_diffusion_time_optical_depth',
+                    'supernova_luminosity_kinetic_diffusion', 'stellar_gravity_dynamical_time', 'optical_depth'
+                ],
+                score: 520
+            }
         };
     }
     

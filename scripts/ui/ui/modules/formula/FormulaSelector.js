@@ -20,6 +20,7 @@ export class FormulaSelector {
         this.trackUsage = options.trackUsage;
         this.getCurrentVariableValues = options.getCurrentVariableValues;
         this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? false;
+        this.resolveFormulaForInputs = options.resolveFormulaForInputs;
     }
     /**
      * Select a formula and initialize calculator
@@ -28,6 +29,9 @@ export class FormulaSelector {
         if (!formula) {
             console.error('[FormulaSelector] No formula provided');
             return;
+        }
+        if (typeof this.resolveFormulaForInputs === 'function') {
+            formula = this.resolveFormulaForInputs(formula);
         }
         
         try {
@@ -157,10 +161,15 @@ export class FormulaSelector {
         const formulaNameEl = document.getElementById('formula-name');
         const equationEl = document.getElementById('formula-equation');
         const formulaDescEl = document.getElementById('formula-description');
+        const fd =
+            typeof globalThis !== 'undefined' && globalThis.formulaDisplayUtils
+                ? globalThis.formulaDisplayUtils
+                : null;
+        const eq = fd ? fd.formatEquationForDisplay(formula.equation, formula) : formula.equation;
         if (formulaNameEl)
             formulaNameEl.textContent = formula.name;
         if (equationEl)
-            equationEl.textContent = formula.equation;
+            equationEl.textContent = eq;
         if (formulaDescEl)
             formulaDescEl.textContent = formula.description;
     }

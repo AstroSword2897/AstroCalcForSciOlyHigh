@@ -45,7 +45,7 @@
         // Test 4: M☉ -> kg
         test('convertToBase(2, M☉, kg)', () => {
             const result = UnitConverter.convertToBase(2, 'M☉', 'kg');
-            const expected = 2 * 1.989e30;
+            const expected = 2 * 1.988409870440e30;
             if (Math.abs(result - expected) > 1e20) throw new Error(`Expected ~${expected}, got ${result}`);
             return result;
         });

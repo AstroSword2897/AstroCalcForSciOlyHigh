@@ -99,7 +99,7 @@ function run() {
     });
 
     tests.push(() => {
-        const M = 1.989e30; // Sun mass
+        const M = 1.988409870440e30; // IAU nominal solar mass (kg)
         const v1 = 9.4e4;
         const r1 = 4.7e10;
         const r2 = 6e12;

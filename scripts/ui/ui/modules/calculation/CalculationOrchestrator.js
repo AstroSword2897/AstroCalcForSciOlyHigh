@@ -15,14 +15,7 @@ export class CalculationOrchestrator {
         this.updateGraphIfEnabled = options.updateGraphIfEnabled;
         this.updateGraphInterpretation = options.updateGraphInterpretation;
         this.updateSolveIndicators = options.updateSolveIndicators;
-        this.unitConverter = options.unitConverter || (typeof window !== 'undefined' && window.UnitConverter ? {
-            convertToBase: (value, fromUnit, baseUnit) => window.UnitConverter.convertToBase(value, fromUnit, baseUnit),
-            convert: (value, fromUnit, toUnit) => window.UnitConverter.convert(value, fromUnit, toUnit),
-            getAlternativeUnits: (baseUnit) => window.UnitConverter.getAlternativeUnits(baseUnit),
-            convertAndFormat: (value, unit, opts) => window.UnitConverter.convertAndFormat(value, unit, opts),
-            getCanonical: (unit) => window.UnitConverter.getCanonical(unit),
-            getUnitCategory: (unit) => window.UnitConverter.getUnitCategory(unit)
-        } : null);
+        this.unitConverter = this._makeUnitConverterShim(options.unitConverter);
         this.globalConstants = options.globalConstants || {};
         this.graphUpdatesEnabled = options.graphUpdatesEnabled ?? false;
         
@@ -39,6 +32,84 @@ export class CalculationOrchestrator {
         
         // Configurable error message rules (can be extended)
         this.errorMessageRules = options.errorMessageRules || this._getDefaultErrorMessageRules();
+    }
+
+    _globalUnitConverterClass() {
+        if (typeof globalThis !== 'undefined' && globalThis.UnitConverter) {
+            return globalThis.UnitConverter;
+        }
+        if (typeof window !== 'undefined' && window.UnitConverter) {
+            return window.UnitConverter;
+        }
+        return null;
+    }
+
+    _makeUnitConverterShim(injected) {
+        const UC = this._globalUnitConverterClass();
+        const safeCanon = (u) => String(u == null ? '' : u).trim();
+        if (injected && typeof injected.convertToBase === 'function') {
+            const needPatch =
+                UC &&
+                (typeof injected.getCanonical !== 'function' ||
+                    typeof injected.getAlternativeUnits !== 'function' ||
+                    typeof injected.convert !== 'function' ||
+                    typeof injected.convertAndFormat !== 'function' ||
+                    typeof injected.getUnitCategory !== 'function');
+            if (needPatch) {
+                return {
+                    convertToBase: (v, a, b) => injected.convertToBase(v, a, b),
+                    convert: (v, a, b) =>
+                        typeof injected.convert === 'function'
+                            ? injected.convert(v, a, b)
+                            : UC && typeof UC.convert === 'function'
+                              ? UC.convert(v, a, b)
+                              : null,
+                    getAlternativeUnits: (u) =>
+                        typeof injected.getAlternativeUnits === 'function'
+                            ? injected.getAlternativeUnits(u)
+                            : UC && typeof UC.getAlternativeUnits === 'function'
+                              ? UC.getAlternativeUnits(u)
+                              : [u],
+                    convertAndFormat: (v, u, o) =>
+                        typeof injected.convertAndFormat === 'function'
+                            ? injected.convertAndFormat(v, u, o)
+                            : UC && typeof UC.convertAndFormat === 'function'
+                              ? UC.convertAndFormat(v, u, o)
+                              : { value: v, unit: u },
+                    getCanonical: (u) =>
+                        typeof injected.getCanonical === 'function'
+                            ? injected.getCanonical(u)
+                            : UC && typeof UC.getCanonical === 'function'
+                              ? UC.getCanonical(u)
+                              : safeCanon(u),
+                    getUnitCategory: (u) =>
+                        typeof injected.getUnitCategory === 'function'
+                            ? injected.getUnitCategory(u)
+                            : UC && typeof UC.getUnitCategory === 'function'
+                              ? UC.getUnitCategory(u)
+                              : null
+                };
+            }
+            return injected;
+        }
+        if (!UC || typeof UC.convertToBase !== 'function') {
+            return null;
+        }
+        return {
+            convertToBase: (value, fromUnit, baseUnit) => UC.convertToBase(value, fromUnit, baseUnit),
+            convert: (value, fromUnit, toUnit) => UC.convert(value, fromUnit, toUnit),
+            getAlternativeUnits: (baseUnit) => UC.getAlternativeUnits(baseUnit),
+            convertAndFormat: (value, unit, opts) => UC.convertAndFormat(value, unit, opts),
+            getCanonical: (unit) => UC.getCanonical(unit),
+            getUnitCategory: (unit) => UC.getUnitCategory(unit)
+        };
+    }
+
+    _ensureUnitConverter() {
+        if (this.unitConverter && typeof this.unitConverter.convertToBase === 'function') {
+            return;
+        }
+        this.unitConverter = this._makeUnitConverterShim(null);
     }
     
     /**
@@ -93,6 +164,7 @@ export class CalculationOrchestrator {
         
         this._calculationInProgress = true;
         console.log('[CalculationOrchestrator] ✅ Lock acquired, starting calculation...');
+        this._ensureUnitConverter();
         const startTime = performance.now();
         
         try {
@@ -838,21 +910,35 @@ export class CalculationOrchestrator {
         // This prevents stale values from being used when a user types into a non-base unit
         // and presses "Calculate" before blur handlers have cleared the other unit inputs.
         try {
-            const userEdited = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
+            const scope = document.getElementById('variables-container') || document;
+            const userEdited = Array.from(scope.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
                 .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio')
                 .find(inp => inp.dataset.userEdited === 'true' && inp.value && inp.value.trim());
             if (userEdited) {
-                console.log(`[CalculationOrchestrator] ⭐ Using user-edited input for ${variable.symbol}: ${userEdited.id} (data-unit: ${userEdited.getAttribute('data-unit')})`);
+                const eff = this._effectiveInputUnit(userEdited, variable);
+                console.log(`[CalculationOrchestrator] ⭐ Using user-edited input for ${variable.symbol}: ${userEdited.id} (effective unit: ${eff})`);
                 return userEdited;
             }
         } catch (_) {
             // Ignore and fall back to normal resolution strategies
         }
         
-        // If cached input exists and has a value, use it
+        // If cached input exists and has a value, use it — unless another unit field for this
+        // symbol was edited (avoids using stale base-unit cache after typing in km, etc.).
         if (cachedInput && document.contains(cachedInput) && cachedInput.value && cachedInput.value.trim()) {
-            console.log(`[CalculationOrchestrator] ✅ Using cached input with value: ${cachedInput.id} = "${cachedInput.value}"`);
-            return cachedInput;
+            const siblings = Array.from(document.querySelectorAll(`input[data-symbol="${variable.symbol}"]`))
+                .filter(inp => inp.type !== 'checkbox' && inp.type !== 'radio');
+            const editedOther = siblings.some(
+                inp => inp !== cachedInput && inp.dataset.userEdited === 'true' && inp.value && inp.value.trim()
+            );
+            if (editedOther) {
+                console.log(`[CalculationOrchestrator] 🔄 Skipping cache for ${variable.symbol}: a different unit field was user-edited`);
+                this._inputCache.delete(cacheKey);
+            }
+            else {
+                console.log(`[CalculationOrchestrator] ✅ Using cached input with value: ${cachedInput.id} = "${cachedInput.value}"`);
+                return cachedInput;
+            }
         }
         
         // Clear cache if it's stale or empty
@@ -861,64 +947,48 @@ export class CalculationOrchestrator {
             this._inputCache.delete(cacheKey);
         }
         
-        // Search all strategies, prioritizing inputs with values
-        // CRITICAL: When multiple inputs have values, prefer non-base unit inputs
-        console.log(`[CalculationOrchestrator] 🔍 Searching for inputs with values for ${variable.symbol}...`);
-        const strategies = this._getInputResolutionStrategies(variable);
+        // Rank every matching field inside the calculator container (fixes km vs m mis-picks).
+        console.log(`[CalculationOrchestrator] 🔍 Picking best input in #variables-container for ${variable.symbol}...`);
+        let input = this._pickBestVariableInputFromContainer(variable);
         
-        const baseUnit = variable.unit;
-        let inputWithValue = null;
-        let nonBaseUnitInput = null; // Prefer non-base unit inputs
-        let firstInput = null;
-        
-        for (const strategy of strategies) {
-            const candidate = strategy();
-            if (candidate) {
-                // CRITICAL: Always prefer inputs with values
-                if (candidate.value && candidate.value.trim()) {
-                    const candidateUnit = candidate.getAttribute('data-unit') || baseUnit;
-                    console.log(`[CalculationOrchestrator] ✅ Found input with value: ${candidate.id} = "${candidate.value}" (unit: ${candidateUnit})`);
-                    
-                    // CRITICAL: Prefer non-base unit inputs (they need conversion)
-                    if (candidateUnit !== baseUnit) {
-                        console.log(`[CalculationOrchestrator] ⭐ Preferring non-base unit input: ${candidateUnit} (base: ${baseUnit})`);
-                        nonBaseUnitInput = candidate;
-                    } else if (!inputWithValue) {
-                        // Keep base unit input as fallback if no non-base unit input found
-                        inputWithValue = candidate;
+        if (!input) {
+            console.log(`[CalculationOrchestrator] 🔍 No container inputs; legacy strategies for ${variable.symbol}...`);
+            const strategies = this._getInputResolutionStrategies(variable);
+            const baseUnit = variable.unit;
+            let inputWithValue = null;
+            let nonBaseUnitInput = null;
+            let firstInput = null;
+            for (const strategy of strategies) {
+                const candidate = strategy();
+                if (candidate) {
+                    if (candidate.value && candidate.value.trim()) {
+                        const candidateUnit = this._effectiveInputUnit(candidate, variable);
+                        if (!this._unitsCanonicallyEqual(candidateUnit, baseUnit)) {
+                            nonBaseUnitInput = candidate;
+                        } else if (!inputWithValue) {
+                            inputWithValue = candidate;
+                        }
+                    }
+                    if (!firstInput) {
+                        firstInput = candidate;
                     }
                 }
-                // Keep first input as fallback only
-                if (!firstInput) {
-                    firstInput = candidate;
-                    console.log(`[CalculationOrchestrator] 📝 Found empty input (fallback): ${candidate.id}`);
-                }
             }
+            input = nonBaseUnitInput || inputWithValue || firstInput;
         }
         
-        // Use non-base unit input if found, otherwise use base unit input with value, otherwise use first input found
-        const input = nonBaseUnitInput || inputWithValue || firstInput;
-        
-        // CRITICAL: Verify the selected input has the correct data-unit attribute
         if (input) {
-            const selectedUnit = input.getAttribute('data-unit') || 'not set';
+            const baseUnit = variable.unit;
+            const selectedUnit = this._effectiveInputUnit(input, variable);
             const selectedId = input.id || 'unknown';
             const selectedValue = input.value?.trim() || '';
-            
             console.log(`[CalculationOrchestrator] 📍 Selected input for ${variable.symbol}:`, {
                 id: selectedId,
                 value: selectedValue,
-                dataUnit: selectedUnit,
-                baseUnit: baseUnit,
-                isNonBase: nonBaseUnitInput === input,
-                isBaseUnit: inputWithValue === input && selectedUnit === baseUnit
+                effectiveUnit: selectedUnit,
+                baseUnit,
+                needsConversion: !this._unitsCanonicallyEqual(selectedUnit, baseUnit)
             });
-            
-            // WARNING: If we selected a base unit input but a non-base unit input exists with a value
-            if (input === inputWithValue && selectedUnit === baseUnit && nonBaseUnitInput) {
-                console.warn(`[CalculationOrchestrator] ⚠️⚠️⚠️ WARNING: Selected base unit input (${selectedId}) but non-base unit input exists: ${nonBaseUnitInput.id} (unit: ${nonBaseUnitInput.getAttribute('data-unit')})`);
-                console.warn(`[CalculationOrchestrator] ⚠️ This will cause unit conversion to be skipped!`);
-            }
         }
         
         // Only cache inputs that have values
@@ -957,10 +1027,10 @@ export class CalculationOrchestrator {
                 // 2) any non-base unit field (so conversion happens), then
                 // 3) base unit field.
                 const rank = (inp) => {
-                    const unit = inp.getAttribute('data-unit') || baseUnit;
-                    const isNonBase = unit !== baseUnit;
+                    const unit = this._effectiveInputUnit(inp, variable);
+                    const isNonBase = !this._unitsCanonicallyEqual(unit, baseUnit);
                     const userEdited = inp.dataset && inp.dataset.userEdited === 'true';
-                    return (userEdited ? 100 : 0) + (isNonBase ? 10 : 0);
+                    return (userEdited ? 1000 : 0) + (isNonBase ? 100 : 0);
                 };
 
                 const chosen = (withValue.length > 0
@@ -983,23 +1053,23 @@ export class CalculationOrchestrator {
                     const baseUnit = variable.unit;
                     const inputsWithValues = allInputs.filter(inp => inp.value && inp.value.trim());
                     const nonBaseInputs = inputsWithValues.filter(inp => {
-                        const unit = inp.getAttribute('data-unit') || baseUnit;
-                        return unit !== baseUnit;
+                        const unit = this._effectiveInputUnit(inp, variable);
+                        return !this._unitsCanonicallyEqual(unit, baseUnit);
                     });
                     const baseInputs = inputsWithValues.filter(inp => {
-                        const unit = inp.getAttribute('data-unit') || baseUnit;
-                        return unit === baseUnit;
+                        const unit = this._effectiveInputUnit(inp, variable);
+                        return this._unitsCanonicallyEqual(unit, baseUnit);
                     });
                     
                     // Log all found inputs for debugging
                     allInputs.forEach((inp, idx) => {
-                        const unit = inp.getAttribute('data-unit') || baseUnit;
+                        const unit = this._effectiveInputUnit(inp, variable);
                         console.log(`[CalculationOrchestrator] Input ${idx}:`, {
                             id: inp.id,
                             value: inp.value,
                             hasValue: !!inp.value.trim(),
                             unit: unit,
-                            isBaseUnit: unit === baseUnit,
+                            isBaseUnit: this._unitsCanonicallyEqual(unit, baseUnit),
                             visible: inp.offsetParent !== null
                         });
                     });
@@ -1066,8 +1136,8 @@ export class CalculationOrchestrator {
                 // CRITICAL: Prioritize non-base unit inputs
                 const baseUnit = variable.unit;
                 const nonBaseInput = inputsWithValues.find(inp => {
-                    const unit = inp.getAttribute('data-unit') || baseUnit;
-                    return inp.value && inp.value.trim() && unit !== baseUnit;
+                    const unit = this._effectiveInputUnit(inp, variable);
+                    return inp.value && inp.value.trim() && !this._unitsCanonicallyEqual(unit, baseUnit);
                 });
                 if (nonBaseInput) {
                     console.log(`[CalculationOrchestrator] ✅ Strategy 3: Found non-base unit input with value: ${nonBaseInput.id} = "${nonBaseInput.value}" (unit: ${nonBaseInput.getAttribute('data-unit')})`);
@@ -1120,11 +1190,7 @@ export class CalculationOrchestrator {
             return null;
         }
         
-        // Get the unit from the input if available
-        const inputUnit = input.getAttribute('data-unit') || 
-                         input.getAttribute('data-base-unit') || 
-                         variable.unit;
-        
+        const inputUnit = this._effectiveInputUnit(input, variable);
         const baseUnit = variable.unit;
         
         // CRITICAL: Log which input field was selected
@@ -1132,12 +1198,12 @@ export class CalculationOrchestrator {
         const inputDataUnit = input.getAttribute('data-unit') || 'not set';
         console.log(`[CalculationOrchestrator] parseInputValue for ${variable.symbol}:`, {
             inputId,
-            inputDataUnit,
+            inputDataUnitAttr: inputDataUnit,
             rawValue: value,
             inputUnit,
             baseUnit,
-            needsConversion: inputUnit !== baseUnit,
-            willConvert: inputUnit !== baseUnit && this.unitConverter
+            needsConversion: !this._unitsCanonicallyEqual(inputUnit, baseUnit),
+            willConvert: !this._unitsCanonicallyEqual(inputUnit, baseUnit) && this.unitConverter
         });
         
         // Parse numeric value
@@ -1180,7 +1246,7 @@ export class CalculationOrchestrator {
         // CRITICAL: Always convert to base unit if unitConverter is available
         // This ensures values are in the correct units before being used in formulas
         if (this.unitConverter) {
-            if (inputUnit !== baseUnit) {
+            if (!this._unitsCanonicallyEqual(inputUnit, baseUnit)) {
                 // Convert from input unit to base unit
                 console.log(`[CalculationOrchestrator] 🔄 Converting ${variable.symbol}: ${numericValue} ${inputUnit} → base unit (${baseUnit})`);
                 console.log(`[CalculationOrchestrator] Input field ID: ${inputId}, data-unit: "${inputDataUnit}"`);
@@ -1216,7 +1282,7 @@ export class CalculationOrchestrator {
                 return baseValue;
             } else {
                 // Already in base unit, but verify we're not missing a conversion
-                if (inputDataUnit !== 'not set' && inputDataUnit !== baseUnit) {
+                if (inputDataUnit !== 'not set' && !this._unitsCanonicallyEqual(inputDataUnit, baseUnit)) {
                     console.warn(`[CalculationOrchestrator] ⚠️ WARNING: Input has data-unit="${inputDataUnit}" but inputUnit=${inputUnit} equals baseUnit=${baseUnit}`);
                     console.warn(`[CalculationOrchestrator] ⚠️ This might indicate the wrong input field was selected!`);
                 }
@@ -1239,7 +1305,7 @@ export class CalculationOrchestrator {
             if (value === null || value === undefined || !Number.isFinite(value)) continue;
             const meta = this._lastConversionMetadata[symbol];
             if (!meta) continue;
-            if (meta.inputUnit !== meta.baseUnit && !meta.temperatureAffine) {
+            if (!this._unitsCanonicallyEqual(meta.inputUnit, meta.baseUnit) && !meta.temperatureAffine) {
                 if (!Number.isFinite(meta.expectedFactor)) {
                     throw new Error(`Missing conversion metadata factor for ${symbol} (${meta.inputUnit} → ${meta.baseUnit})`);
                 }
@@ -1255,6 +1321,86 @@ export class CalculationOrchestrator {
      */
     clearInputCache() {
         this._inputCache.clear();
+    }
+
+    /**
+     * Whether two unit strings are the same physical unit (e.g. m vs meters).
+     * Prevents mis-ranking inputs when formula uses "meters" but fields use data-unit "m".
+     */
+    _unitsCanonicallyEqual(a, b) {
+        if (a == null || b == null) {
+            return a === b;
+        }
+        if (!this.unitConverter || typeof this.unitConverter.getCanonical !== 'function') {
+            return String(a) === String(b);
+        }
+        try {
+            return this.unitConverter.getCanonical(a) === this.unitConverter.getCanonical(b);
+        } catch (_) {
+            return String(a) === String(b);
+        }
+    }
+
+    /**
+     * Physical unit for this input: data-unit, else infer from id var-{sym}-{sanitizedUnit}, else formula base.
+     */
+    _effectiveInputUnit(input, variable) {
+        if (!input) {
+            return variable.unit || '';
+        }
+        let u = input.getAttribute('data-unit');
+        if (u != null && String(u).trim() !== '') {
+            return String(u).trim();
+        }
+        // Never use data-base-unit here: it is the same formula base on every column (kg, m, …).
+        // Empty/missing data-unit would wrongly make g, AU, etc. look like the base unit.
+        const id = input.id || '';
+        const prefix = `var-${variable.symbol}-`;
+        if (id.startsWith(prefix) && this.unitConverter && typeof this.unitConverter.getAlternativeUnits === 'function') {
+            const suffix = id.slice(prefix.length);
+            try {
+                const alts = this.unitConverter.getAlternativeUnits(variable.unit);
+                const found = alts.find((unit) => unit.replace(/[^a-zA-Z0-9]/g, '_') === suffix);
+                if (found) {
+                    return found;
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+        return variable.unit || '';
+    }
+
+    /**
+     * Single source of truth: rank all unit fields in the calculator container.
+     * Prefers user-edited, then non–base-unit (so km converts to meters), then DOM order.
+     */
+    _pickBestVariableInputFromContainer(variable) {
+        const container = document.getElementById('variables-container');
+        if (!container) {
+            return null;
+        }
+        const cacheKey = `var-${variable.symbol}`;
+        const baseUnit = variable.unit;
+        const inContainer = Array.from(
+            container.querySelectorAll(
+                `input[data-symbol="${variable.symbol}"], input[id="${cacheKey}"], input[id^="var-${variable.symbol}-"]`
+            )
+        ).filter((inp) => inp.type !== 'checkbox' && inp.type !== 'radio');
+        if (inContainer.length === 0) {
+            return null;
+        }
+        const withValue = inContainer.filter((inp) => inp.value && inp.value.trim());
+        if (withValue.length === 0) {
+            return inContainer[0];
+        }
+        const rank = (inp) => {
+            const unit = this._effectiveInputUnit(inp, variable);
+            const isNonBase = !this._unitsCanonicallyEqual(unit, baseUnit);
+            const userEdited = inp.dataset && inp.dataset.userEdited === 'true';
+            return (userEdited ? 1000 : 0) + (isNonBase ? 100 : 0);
+        };
+        return [...withValue].sort((a, b) => rank(b) - rank(a))[0];
     }
     
     /**
@@ -1321,7 +1467,7 @@ export class CalculationOrchestrator {
             const unitConversions = [];
             
             for (const altUnit of alternativeUnits) {
-                if (altUnit === baseUnit) continue;
+                if (this._unitsCanonicallyEqual(altUnit, baseUnit)) continue;
                 try {
                     const convertedValue = this.unitConverter.convert(baseValue, baseUnit, altUnit);
                     if (convertedValue !== null && Number.isFinite(convertedValue)) {

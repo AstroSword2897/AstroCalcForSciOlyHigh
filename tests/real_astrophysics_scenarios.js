@@ -331,7 +331,7 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
         inputs: {
             R: 6.96e8,  // Solar radius in meters
             T: 5778,    // Solar temperature in Kelvin
-            σ: 5.670374419e-8  // Stefan-Boltzmann constant
+            σ: 5.6703744191844294e-8  // SI exact Stefan-Boltzmann constant
         },
         inputUnits: {
             R: DIM.m,
@@ -349,8 +349,8 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
         formula: "kepler_third_law_solar",
         solveFor: "P",
         inputs: {
-            a: 1.496e11,  // 1 AU in meters (FIXED: was 1.0, now explicit)
-            M_sun: 1.989e30  // Solar mass in kg
+            a: 149597870700,  // 1 AU in meters (FIXED: was 1.0, now explicit)
+            M_sun: 1.988409870440e30  // Solar mass in kg
         },
         inputUnits: {
             a: DIM.m,
@@ -383,7 +383,7 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
         formula: "schwarzschild_radius",
         solveFor: "r_s",
         inputs: {
-            M: 1.989e30,  // Solar mass
+            M: 1.988409870440e30,  // Solar mass
             G: 6.67430e-11,
             c: 2.99792458e8
         },
@@ -446,8 +446,8 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
         solveFor: "M1",  // Solve for M1 explicitly
         inputs: {
             P: 3.15576e7,  // 1 year in seconds
-            a: 1.496e11,   // 1 AU in meters
-            M2: 0.5 * 1.989e30  // Half solar mass
+            a: 149597870700,   // 1 AU in meters
+            M2: 0.5 * 1.988409870440e30  // Half solar mass
         },
         inputUnits: {
             P: DIM.s,
@@ -455,7 +455,7 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
             M2: DIM.kg
         },
         expectedUnit: DIM.kg,
-        expected: 0.5 * 1.989e30,  // M1 should be half solar mass (so M1 + M2 = 1 M☉)
+        expected: 0.5 * 1.988409870440e30,  // M1 should be half solar mass (so M1 + M2 = 1 M☉)
         tolerance: 0.01,  // 1% tolerance - exact formula
         toleranceJustification: "Kepler's third law for binaries is exact; tolerance accounts for numerical precision",
         description: "Solve for M1 in binary system with 1 AU separation, 1 year period (M1 + M2 = 1 M☉)"
@@ -466,8 +466,8 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
         solveFor: "M1",
         inputs: {
             P: 3.15576e7,  // 1 year
-            a: 1.496e11,   // 1 AU
-            M2: 0.5 * 1.989e30
+            a: 149597870700,   // 1 AU
+            M2: 0.5 * 1.988409870440e30
         },
         inputUnits: {
             P: DIM.s,
@@ -475,7 +475,7 @@ const REAL_ASTROPHYSICS_SCENARIOS = [
             M2: DIM.kg
         },
         expectedUnit: DIM.kg,
-        expected: 1.989e30,  // Total mass (M1 + M2) = 1 solar mass
+        expected: 1.988409870440e30,  // Total mass (M1 + M2) = 1 solar mass
         verifyTotal: true,  // Flag to verify M1 + M2 = expected
         tolerance: 0.01,
         toleranceJustification: "Total mass verification; Kepler's law is exact",

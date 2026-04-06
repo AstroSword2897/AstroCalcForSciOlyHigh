@@ -81,8 +81,8 @@ class SafeMathEvaluator {
         'PI': Math.PI,
         'pi': Math.PI,
         'E': Math.E,
-        'π': Math.PI,
-        'e': Math.E
+        'π': Math.PI
+        // Intentionally no bare 'e': clashes with eccentricity e. Use E or exp(...).
     };
     
     /**
@@ -401,7 +401,16 @@ class SafeExpressionParser {
         // Identifier (variable, constant, or function)
         if (this.check(SafeMathEvaluator.TOKEN_TYPES.IDENTIFIER)) {
             const ident = this.advance().value;
-            
+
+            // Variables shadow constants (eccentricity e vs Euler E in CONSTANTS)
+            if (Object.prototype.hasOwnProperty.call(this.variables, ident)) {
+                const v = this.variables[ident];
+                if (typeof v === 'number' && Number.isFinite(v)) {
+                    return v;
+                }
+                throw new CalculationError(`Missing or non-numeric value for variable: ${ident}`);
+            }
+
             // Check if it's a constant
             if (SafeMathEvaluator.CONSTANTS[ident]) {
                 return SafeMathEvaluator.CONSTANTS[ident];
@@ -431,12 +440,7 @@ class SafeExpressionParser {
                 return fn(...args);
             }
             
-            // Variable
-            if (this.variables[ident] !== undefined) {
-                return this.variables[ident];
-            }
-            
-            throw new CalculationError(`Unknown variable: ${ident}`);
+            throw new CalculationError(`Unknown identifier: ${ident}`);
         }
         
         throw new CalculationError('Unexpected token');

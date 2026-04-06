@@ -28,8 +28,8 @@ class SafeExpressionEvaluator {
     static ALLOWED_CONSTANTS = {
         'PI': Math.PI,
         'E': Math.E,
-        'π': Math.PI,
-        'e': Math.E
+        'π': Math.PI
+        // No bare 'e' — conflicts with eccentricity symbol e in orbital formulas. Use E or exp().
     };
     
     /**
@@ -83,25 +83,9 @@ class SafeExpressionEvaluator {
             }
         }
         
-        // Optimized: Single-pass replacement using sorted keys (longest first to avoid partial matches)
+        // Variables first so they shadow constants (e.g. eccentricity e vs Euler).
         const replacements = [];
-        
-        // Add constants (sorted by length descending)
-        const constantEntries = Object.entries(this.ALLOWED_CONSTANTS)
-            .sort(([a], [b]) => b.length - a.length);
-        for (const [key, value] of constantEntries) {
-            const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const isAsciiIdent = /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
-            replacements.push({
-                // \b doesn't work for many unicode symbols (e.g. λmax). Use unicode-aware boundaries when needed.
-                pattern: isAsciiIdent
-                    ? new RegExp(`\\b${escaped}\\b`, 'g')
-                    : new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu'),
-                replacement: String(value)
-            });
-        }
-        
-        // Add variables (sorted by length descending)
+
         const variableEntries = Object.entries(variables)
             .filter(([_, value]) => value !== null && value !== undefined && typeof value === 'number')
             .sort(([a], [b]) => b.length - a.length);
@@ -115,8 +99,20 @@ class SafeExpressionEvaluator {
                 replacement: String(value)
             });
         }
-        
-        // Apply all replacements in single pass
+
+        const constantEntries = Object.entries(this.ALLOWED_CONSTANTS)
+            .sort(([a], [b]) => b.length - a.length);
+        for (const [key, value] of constantEntries) {
+            const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const isAsciiIdent = /^[A-Za-z_][A-Za-z0-9_]*$/.test(key);
+            replacements.push({
+                pattern: isAsciiIdent
+                    ? new RegExp(`\\b${escaped}\\b`, 'g')
+                    : new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'gu'),
+                replacement: String(value)
+            });
+        }
+
         for (const { pattern, replacement } of replacements) {
             expr = expr.replace(pattern, replacement);
         }
