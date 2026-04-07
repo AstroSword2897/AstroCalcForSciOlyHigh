@@ -9,7 +9,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
-    <link rel="stylesheet" href="styles/main.css?v=2.2.9&_t=1736043000" crossorigin="anonymous">
+    <link rel="stylesheet" href="styles/main.css?v=2.3.0&_t=1736043000" crossorigin="anonymous">
     <!-- KaTeX (bundled under libs/katex — works fully offline) -->
     <link rel="stylesheet" href="libs/katex/katex.min.css" crossorigin="anonymous">
     <script defer src="libs/katex/katex.min.js" crossorigin="anonymous"></script>
@@ -155,6 +155,7 @@
                     <button class="main-tab-btn active" data-main-tab="formulas">Formulas</button>
                     <button class="main-tab-btn" data-main-tab="algebraic">Algebraic Solving</button>
                     <button class="main-tab-btn" data-main-tab="unit-converter">Unit Converter</button>
+                    <button class="main-tab-btn" data-main-tab="scientific-calc">Scientific Calc</button>
                     <button class="main-tab-btn" data-main-tab="classification">Classification</button>
                 </div>
             </div>
@@ -168,7 +169,7 @@
                 <details class="usage-instructions-container">
                     <summary>Search &amp; calculate tips</summary>
                     <div class="usage-steps">
-                        <p style="color: #e0e0e0; line-height: 1.55; margin: 0;">Search by formula name or type a question. Select a card, enter known values in SI (or use the unit picker), leave one variable empty to solve for it, then <strong>Calculate</strong>. For ratios and solar-unit forms, check the related formulas linked on each card.</p>
+                        <p style="color: #e0e0e0; line-height: 1.55; margin: 0;">Search by formula name or type a question. Try <strong>cheat sheet</strong> or <strong>quick reference</strong> for a curated bundle (orbits, black holes, relativity, photometry, Doppler/redshift). Select a card, enter known values in SI (or use the unit picker), leave one variable empty to solve for it, then <strong>Calculate</strong>. For ratios and solar-unit forms, check the related formulas linked on each card.</p>
                     </div>
                 </details>
                 <div id="formula-list" class="formula-list">
@@ -294,6 +295,89 @@
                         <summary>📋 Conversion factors (1 unit → base unit)</summary>
                         <div id="uc-factors-table" class="uc-factors-table"></div>
                     </details>
+                </div>
+            </div>
+
+            <!-- Scientific calculator (offline, SafeMathEvaluator) -->
+            <div id="main-scientific-calc-tab" class="main-tab-content">
+                <div class="sci-calc-container">
+                    <h3>Scientific Calculator</h3>
+                    <p class="sci-calc-subtitle">Standard functions and operators — runs entirely in your browser (no network). Trigonometry uses radians; for degrees use <code class="sci-calc-code">30*deg</code> inside <code class="sci-calc-code">sin()</code>, etc. Natural log is <code class="sci-calc-code">log</code>; base-10 is <code class="sci-calc-code">log10</code>.</p>
+                    <label class="sci-calc-label" for="sci-calc-expression">Expression</label>
+                    <input type="text" id="sci-calc-expression" class="sci-calc-input" placeholder="e.g. sin(pi/2) + log(E)" autocomplete="off" spellcheck="false" inputmode="text">
+                    <div id="sci-calc-result" class="sci-calc-result" aria-live="polite"></div>
+                    <div id="sci-calc-keypad" class="sci-calc-keypad">
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-action="clear">AC</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-action="back">⌫</button>
+                            <button type="button" class="sci-calc-btn" data-insert="(">(</button>
+                            <button type="button" class="sci-calc-btn" data-insert=")">)</button>
+                            <button type="button" class="sci-calc-btn" data-insert="/">/</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn" data-insert="7">7</button>
+                            <button type="button" class="sci-calc-btn" data-insert="8">8</button>
+                            <button type="button" class="sci-calc-btn" data-insert="9">9</button>
+                            <button type="button" class="sci-calc-btn" data-insert="*">×</button>
+                            <button type="button" class="sci-calc-btn" data-insert="^">^</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn" data-insert="4">4</button>
+                            <button type="button" class="sci-calc-btn" data-insert="5">5</button>
+                            <button type="button" class="sci-calc-btn" data-insert="6">6</button>
+                            <button type="button" class="sci-calc-btn" data-insert="-">−</button>
+                            <button type="button" class="sci-calc-btn" data-insert="%">%</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn" data-insert="1">1</button>
+                            <button type="button" class="sci-calc-btn" data-insert="2">2</button>
+                            <button type="button" class="sci-calc-btn" data-insert="3">3</button>
+                            <button type="button" class="sci-calc-btn" data-insert="+">+</button>
+                            <button type="button" class="sci-calc-btn sci-calc-eq" data-action="eval">=</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn" data-insert="0">0</button>
+                            <button type="button" class="sci-calc-btn" data-insert=".">.</button>
+                            <button type="button" class="sci-calc-btn" data-insert="pi">π</button>
+                            <button type="button" class="sci-calc-btn" data-insert="E">E</button>
+                            <button type="button" class="sci-calc-btn" data-insert="deg">deg</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="sin(">sin</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="cos(">cos</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="tan(">tan</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="asin(">asin</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="acos(">acos</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="atan(">atan</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="sinh(">sinh</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="cosh(">cosh</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="tanh(">tanh</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="sqrt(">√</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="log(">ln</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="log10(">log10</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="log2(">log2</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="exp(">exp</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="abs(">abs</button>
+                        </div>
+                        <div class="sci-calc-row">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="floor(">floor</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="ceil(">ceil</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="round(">round</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="min(">min</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="max(">max</button>
+                        </div>
+                        <div class="sci-calc-row sci-calc-row-last">
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="atan2(">atan2</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="cbrt(">cbrt</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="sign(">sign</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert="pow(">pow</button>
+                            <button type="button" class="sci-calc-btn sci-calc-fn" data-insert=",">,</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -603,12 +687,13 @@
     </script>
     <!-- Scripts loaded in dependency order (OFFLINE-FIRST: all local, production-safe) -->
     <!-- Core data -->
-    <script src="scripts/concepts.js?v=3.1.5"></script>
+    <script src="scripts/concepts.js?v=3.1.6"></script>
     <script src="scripts/formulas.js?v=2.2.2"></script>
     
     <!-- Core utilities -->
     <script src="scripts/safeExpressionEvaluator.js?v=2.1.5"></script>
-    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.6"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.7"></script>
+    <script src="scripts/scientificCalculatorPanel.js?v=1.0.0"></script>
     <script src="scripts/unitConverter.js?v=2.3.0"></script>
     <script src="scripts/unitParser.js?v=2.1.5"></script>
     <script src="scripts/expressionParser.js?v=2.1.6"></script>
@@ -629,12 +714,12 @@
     <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js?v=1.0.0"></script>
     
     <!-- UI Rendering -->
-    <script src="scripts/ui/rendering/VariableInputs.js?v=2.3.1"></script>
+    <script src="scripts/ui/rendering/VariableInputs.js?v=2.3.2"></script>
     <script src="scripts/ui/rendering/ResultDisplay.js?v=2.3.1"></script>
-    <script src="scripts/algebraicSolver.js?v=2.1.5"></script>
+    <script src="scripts/algebraicSolver.js?v=2.2.0"></script>
     
     <!-- UI (ES Modules) -->
-    <script type="module" src="scripts/ui/ui/init.js?v=2.3.16"></script>
+    <script type="module" src="scripts/ui/ui/init.js?v=2.3.18"></script>
     
     <!-- Force render fix -->
     <script src="force_render_fix.js?v=2.1.8"></script>
@@ -1009,6 +1094,16 @@
                 const calcBtn = document.getElementById('calculate-btn');
                 if (calcBtn) {
                     if (!calcBtn._forceAttached) {
+                        calcBtn.addEventListener('mousedown', function() {
+                            try {
+                                var vc = document.getElementById('variables-container');
+                                var ac = document.activeElement;
+                                if (vc && ac && typeof ac.blur === 'function' && vc.contains(ac) &&
+                                    ac.classList && ac.classList.contains('unit-input-field')) {
+                                    ac.blur();
+                                }
+                            } catch (err) { /* ignore */ }
+                        }, true);
                         calcBtn.addEventListener('click', function(e) {
                             e.preventDefault();
                             e.stopPropagation();
@@ -1499,6 +1594,300 @@
     })();
     </script>
 
+    <!-- Scientific Calculator: self-contained inline init (does not depend on cached ES modules) -->
+    <script>
+    (function () {
+        'use strict';
+
+        function fmtResult(n) {
+            if (typeof n !== 'number' || !isFinite(n)) return String(n);
+            if (Math.abs(n) >= 1e12 || (Math.abs(n) < 1e-8 && n !== 0)) return n.toExponential(8);
+            return String(Number(n.toPrecision(14)));
+        }
+
+        function insertAt(input, text) {
+            var s = input.selectionStart != null ? input.selectionStart : input.value.length;
+            var e = input.selectionEnd   != null ? input.selectionEnd   : input.value.length;
+            input.value = input.value.slice(0, s) + text + input.value.slice(e);
+            input.selectionStart = input.selectionEnd = s + text.length;
+            input.focus();
+        }
+
+        function evalExpr(raw, resultEl) {
+            raw = (raw || '').trim();
+            if (!raw) { resultEl.textContent = ''; resultEl.classList.remove('sci-calc-error'); return; }
+            var SME = window.SafeMathEvaluator;
+            if (!SME || typeof SME.evaluate !== 'function') {
+                resultEl.textContent = 'Calculator engine not ready — try refreshing.';
+                resultEl.classList.add('sci-calc-error');
+                return;
+            }
+            try {
+                var v = SME.evaluate(raw, {});
+                resultEl.textContent = '= ' + fmtResult(v);
+                resultEl.classList.remove('sci-calc-error');
+            } catch (err) {
+                resultEl.textContent = (err && err.message) || String(err);
+                resultEl.classList.add('sci-calc-error');
+            }
+        }
+
+        var sciInited = false;
+        function initSciCalcInline() {
+            if (sciInited) return;
+            var input  = document.getElementById('sci-calc-expression');
+            var result = document.getElementById('sci-calc-result');
+            var keypad = document.getElementById('sci-calc-keypad');
+            if (!input || !result || !keypad) return;
+            sciInited = true;
+
+            keypad.addEventListener('click', function (e) {
+                var btn = e.target.closest('.sci-calc-btn');
+                if (!btn) return;
+                var action = btn.getAttribute('data-action');
+                if (action === 'clear') {
+                    input.value = '';
+                    result.textContent = '';
+                    result.classList.remove('sci-calc-error');
+                    input.focus();
+                    return;
+                }
+                if (action === 'back') {
+                    var s = input.selectionStart != null ? input.selectionStart : input.value.length;
+                    var en = input.selectionEnd  != null ? input.selectionEnd   : input.value.length;
+                    if (s !== en) {
+                        input.value = input.value.slice(0, s) + input.value.slice(en);
+                        input.selectionStart = input.selectionEnd = s;
+                    } else if (s > 0) {
+                        input.value = input.value.slice(0, s - 1) + input.value.slice(s);
+                        input.selectionStart = input.selectionEnd = s - 1;
+                    }
+                    input.focus();
+                    return;
+                }
+                if (action === 'eval') { evalExpr(input.value, result); return; }
+                var ins = btn.getAttribute('data-insert');
+                if (ins != null) insertAt(input, ins);
+            });
+
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); evalExpr(input.value, result); }
+            });
+        }
+
+        // Also expose as window.initScientificCalculator so TabManager can call it
+        window.initScientificCalculator = initSciCalcInline;
+
+        // Direct tab-click fallback — works even if old TabManager doesn't know this tab
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.main-tab-btn');
+            if (!btn) return;
+            var tabName = btn.getAttribute('data-main-tab');
+            if (tabName !== 'scientific-calc') return;
+
+            // Hide all main-tab-content panels
+            document.querySelectorAll('.main-tab-content').forEach(function (el) {
+                el.classList.remove('active');
+                el.style.setProperty('display', 'none', 'important');
+            });
+            // Mark all tab buttons
+            document.querySelectorAll('.main-tab-btn').forEach(function (b) {
+                b.classList.toggle('active', b === btn);
+            });
+            // Show sci-calc panel
+            var panel = document.getElementById('main-scientific-calc-tab');
+            if (panel) {
+                panel.classList.add('active');
+                panel.style.setProperty('display', 'block', 'important');
+                panel.style.setProperty('visibility', 'visible', 'important');
+            }
+            // Init handlers
+            initSciCalcInline();
+        }, false);
+
+        // Also init if the tab was already active when the page loaded
+        document.addEventListener('DOMContentLoaded', function () {
+            var active = document.querySelector('.main-tab-btn.active[data-main-tab="scientific-calc"]');
+            if (active) initSciCalcInline();
+        });
+    })();
+    </script>
+
+    <!-- Algebraic Solver: inline init fallback so old TabManager cache doesn't break it -->
+    <script>
+    (function () {
+        'use strict';
+
+        // Attempt to initialise algebraic-solving UI once AlgebraicSolver is available.
+        // This runs AFTER the regular algebraicSolver.js script tag and is a safety net
+        // in case the ES-module TabManager is stale/cached and didn't attach handlers.
+        function tryInitAlgebraic() {
+            var btn = document.getElementById('algebraic-solve-btn');
+            var input = document.getElementById('algebraic-equation-input');
+            var singleResult = document.getElementById('algebraic-single-result');
+            var multiTabs = document.getElementById('algebraic-multi-tabs');
+            if (!btn || !input) return;
+            // Guard: skip if already initialised by TabManager or this script
+            if (btn.dataset.algInlineInit === '1') return;
+            if (!window.AlgebraicSolver) return;
+            btn.dataset.algInlineInit = '1';
+
+            btn.addEventListener('click', doSolve);
+            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSolve(); });
+
+            function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+            function fmt(n) {
+                if (!isFinite(n)) return String(n);
+                if (Math.abs(n) >= 1e6 || (Math.abs(n) < 1e-4 && n !== 0)) return n.toExponential(4);
+                return Number.isInteger(n) ? String(n) : n.toFixed(6).replace(/\.?0+$/, '');
+            }
+
+            function renderSteps(steps) {
+                if (!Array.isArray(steps) || steps.length === 0) return '';
+                var items = steps.map(function (s) {
+                    return '<li style="padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);margin-bottom:5px;color:rgba(255,255,255,0.9);font-family:monospace;">' + esc(s.text || '') + '</li>';
+                }).join('');
+                return '<details open style="margin-top:10px;"><summary style="cursor:pointer;color:#a8c7ff;font-weight:600;">Steps</summary><ul style="list-style:none;padding:0;margin:8px 0 0 0;">' + items + '</ul></details>';
+            }
+
+            function renderSingle(res) {
+                if (!singleResult) return;
+                if (res.error) {
+                    var sf = res.solvedForm ? '<div style="padding:10px;background:rgba(102,126,234,0.1);border-radius:8px;margin-bottom:8px;font-family:monospace;color:#c7d2fe;">' + esc(res.solvedForm) + '</div>' : '';
+                    singleResult.innerHTML = sf + '<div style="padding:10px;background:rgba(255,107,107,0.14);border-radius:8px;color:#ffd1d1;font-weight:600;">' + esc(res.error) + '</div>' + renderSteps(res.steps);
+                    return;
+                }
+                var answer = (res.variable && res.result != null && isFinite(res.result))
+                    ? '<div style="padding:12px 14px;border-radius:10px;border:1px solid rgba(102,126,234,0.4);background:rgba(102,126,234,0.2);margin-bottom:10px;"><span style="font-weight:700;color:#cfe0ff;text-transform:uppercase;font-size:0.8em;">Answer</span>&nbsp;&nbsp;<span style="font-family:monospace;font-size:1.05em;color:#fff;">' + esc(res.variable + ' = ' + fmt(res.result)) + '</span></div>'
+                    : '';
+                var sf2 = res.solvedForm
+                    ? '<div style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(102,126,234,0.28);border-radius:8px;margin-bottom:8px;font-family:monospace;color:#e2e8f0;">' + esc(res.solvedForm) + '</div>'
+                    : '';
+                singleResult.innerHTML = answer + sf2 + renderSteps(res.steps);
+                singleResult.style.color = '';
+            }
+
+            function doSolve() {
+                var eq = (input.value || '').trim();
+                if (!eq) { if (singleResult) singleResult.textContent = ''; if (multiTabs) multiTabs.style.display = 'none'; return; }
+                try {
+                    var out = window.AlgebraicSolver.solve(eq);
+                    if (out.multiVar && out.variables && out.variables.length > 1) {
+                        if (singleResult) singleResult.textContent = 'Variables: ' + out.variables.join(', ') + '. Use tabs below to solve for each.';
+                        if (multiTabs) {
+                            multiTabs.style.display = 'block';
+                            buildVarTabs(eq, out);
+                        }
+                    } else {
+                        renderSingle(out);
+                        if (multiTabs) multiTabs.style.display = 'none';
+                    }
+                } catch (e) {
+                    if (singleResult) singleResult.innerHTML = '<div style="color:#ffd1d1;font-weight:600;">' + esc(e.message) + '</div>';
+                    if (multiTabs) multiTabs.style.display = 'none';
+                }
+            }
+
+            function buildVarTabs(eq, out) {
+                var varTabsCont = document.getElementById('algebraic-var-tabs');
+                var varPanelsCont = document.getElementById('algebraic-var-panels');
+                if (!varTabsCont || !varPanelsCont) return;
+                varTabsCont.innerHTML = '';
+                varPanelsCont.innerHTML = '';
+                var vars = out.variables;
+                vars.forEach(function (v, idx) {
+                    var tab = document.createElement('button');
+                    tab.type = 'button';
+                    tab.className = 'main-tab-btn algebraic-var-tab' + (idx === 0 ? ' active' : '');
+                    tab.setAttribute('data-algebraic-var', v);
+                    tab.textContent = 'Solve for ' + v;
+                    varTabsCont.appendChild(tab);
+
+                    var panel = document.createElement('div');
+                    panel.className = 'algebraic-var-panel';
+                    panel.setAttribute('data-algebraic-var', v);
+                    panel.style.display = idx === 0 ? 'block' : 'none';
+                    panel.style.padding = '12px 0';
+                    var others = vars.filter(function (x) { return x !== v; });
+                    var sf = out.solvedForms && out.solvedForms[v];
+                    var html = '<div style="margin-bottom:10px;font-weight:700;">Solve for ' + esc(v) + '</div>';
+                    if (sf) html += '<div style="padding:10px;background:rgba(255,255,255,0.06);border:1px solid rgba(102,126,234,0.28);border-radius:8px;margin-bottom:10px;font-family:monospace;color:#e2e8f0;">' + esc(sf) + '</div>';
+                    if (others.length > 0) {
+                        html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">';
+                        others.forEach(function (o) {
+                            html += '<label style="display:flex;align-items:center;gap:6px;">' + esc(o) + ' = <input type="text" data-var="' + esc(o) + '" class="formula-search-input" placeholder="e.g. 9.8" style="width:100px;padding:6px 8px;"></label>';
+                        });
+                        html += '</div>';
+                    }
+                    html += '<button type="button" class="algebraic-solve-for-btn" data-alg-var="' + esc(v) + '" style="background:#667eea;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;margin-bottom:10px;">Solve for ' + esc(v) + '</button>';
+                    html += '<div class="alg-panel-result-inline" style="min-height:50px;"></div>';
+                    panel.innerHTML = html;
+                    varPanelsCont.appendChild(panel);
+                });
+
+                varTabsCont.addEventListener('click', function (e) {
+                    var t = e.target.closest('[data-algebraic-var]');
+                    if (!t) return;
+                    var tv = t.getAttribute('data-algebraic-var');
+                    varTabsCont.querySelectorAll('.algebraic-var-tab').forEach(function (b) { b.classList.toggle('active', b === t); });
+                    varPanelsCont.querySelectorAll('.algebraic-var-panel').forEach(function (p) {
+                        p.style.display = p.getAttribute('data-algebraic-var') === tv ? 'block' : 'none';
+                    });
+                });
+
+                varPanelsCont.addEventListener('click', function (e) {
+                    var sb = e.target.closest('.algebraic-solve-for-btn');
+                    if (!sb) return;
+                    var tv = sb.getAttribute('data-alg-var');
+                    var panel = sb.closest('.algebraic-var-panel');
+                    var rd = panel ? panel.querySelector('.alg-panel-result-inline') : null;
+                    if (!rd) return;
+                    var knownValues = {};
+                    var bad = null;
+                    panel.querySelectorAll('input[data-var]').forEach(function (inp) {
+                        var name = inp.getAttribute('data-var');
+                        var val = (inp.value || '').trim();
+                        if (!val) return;
+                        var num = parseFloat(val);
+                        if (isNaN(num)) { bad = name; return; }
+                        knownValues[name] = num;
+                    });
+                    if (bad) { rd.innerHTML = '<div style="color:#ffd1d1;">Invalid value for ' + esc(bad) + '</div>'; return; }
+                    try {
+                        var res = window.AlgebraicSolver.solveForVariable(eq, tv, knownValues);
+                        if (res.error) {
+                            var sf2 = res.solvedForm ? '<div style="font-family:monospace;padding:8px;background:rgba(102,126,234,0.1);border-radius:6px;margin-bottom:6px;">' + esc(res.solvedForm) + '</div>' : '';
+                            rd.innerHTML = sf2 + '<div style="color:#ffd1d1;font-weight:600;">' + esc(res.error) + '</div>' + renderSteps(res.steps);
+                        } else {
+                            var answer = (res.variable && isFinite(res.result))
+                                ? '<div style="padding:10px 12px;border-radius:8px;background:rgba(102,126,234,0.2);border:1px solid rgba(102,126,234,0.4);margin-bottom:8px;font-family:monospace;color:#fff;font-size:1.05em;">' + esc(res.variable + ' = ' + fmt(res.result)) + '</div>'
+                                : '';
+                            var sf3 = res.solvedForm ? '<div style="padding:8px;background:rgba(255,255,255,0.06);border-radius:6px;margin-bottom:6px;font-family:monospace;color:#e2e8f0;">' + esc(res.solvedForm) + '</div>' : '';
+                            rd.innerHTML = answer + sf3 + renderSteps(res.steps);
+                        }
+                    } catch (ex) {
+                        rd.innerHTML = '<div style="color:#ffd1d1;">' + esc(ex.message) + '</div>';
+                    }
+                });
+            }
+        }
+
+        // Run after scripts load; AlgebraicSolver is a plain <script> so it's ready at DOMContentLoaded
+        document.addEventListener('DOMContentLoaded', function () {
+            // small delay so AlgebraicSolver script has fully executed
+            setTimeout(tryInitAlgebraic, 100);
+        });
+
+        // Also try when the algebraic tab is clicked (handles navigation to it later)
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.main-tab-btn[data-main-tab="algebraic"]');
+            if (!btn) return;
+            setTimeout(tryInitAlgebraic, 50);
+        }, false);
+    })();
+    </script>
+
     <!-- NOTE: Test runner scripts are intentionally NOT loaded in production UI -->
     
     <!-- Debug scripts removed - files don't exist and cause connection errors -->
@@ -1509,7 +1898,7 @@
         // Prevent service worker from caching this HTML
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             // Clear any cached HTML by forcing a reload if this is an old cached version
-            const currentVersion = '3.0.2';
+            const currentVersion = '3.1.0';
             const cachedVersion = sessionStorage.getItem('htmlVersion');
             if (cachedVersion && cachedVersion !== currentVersion) {
                 // Only reload if not accessed via tunnel (tunnel URLs cause false positives)

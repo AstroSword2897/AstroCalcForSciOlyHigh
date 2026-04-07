@@ -154,9 +154,9 @@ class FormulaSearchEngine {
             'orbital velocity km/s': { formulas: ['vis_viva', 'orbital_velocity'], score: 450 },
             'infalling matter': { formulas: ['luminosity_infall', 'gravitational_potential_energy'], score: 500 },
             'rate of infalling matter': { formulas: ['luminosity_infall'], score: 550 },
-            'gravitational contraction': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time'], score: 500 },
-            'kelvin helmholtz': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time'], score: 550 },
-            'sun last gravitational': { formulas: ['kelvin_helmholtz_timescale_exact'], score: 500 },
+            'gravitational contraction': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time', 'kelvin_helmholtz_from_binding_energy'], score: 500 },
+            'kelvin helmholtz': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time', 'kelvin_helmholtz_from_binding_energy'], score: 550 },
+            'sun last gravitational': { formulas: ['kelvin_helmholtz_timescale_exact', 'thermal_time'], score: 500 },
             'mira luminosity': { formulas: ['flux_change_magnitude_difference', 'brightness_ratio_times_brighter', 'luminosity'], score: 450 },
             'mira variable': { formulas: ['flux_change_magnitude_difference', 'brightness_ratio_times_brighter', 'stellar_pulsation_mechanics'], score: 450 },
             'angular separation arcsec': { formulas: ['angular_separation_arcsec', 'linear_separation_from_angular'], score: 500 },
@@ -199,7 +199,10 @@ class FormulaSearchEngine {
                     'radiation_force_thomson_luminosity', 'rayleigh_taylor_growth_rate', 'kelvin_helmholtz_growth_rate',
                     'alfven_mach_number', 'type_ia_snr_peak_time_diffusion', 'tidal_acceleration_differential',
                     'stellar_gravity_dynamical_time', 'adiabatic_gradient_ideal_gas', 'compact_object_keplerian_breakup_omega',
-                    'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion', 'hydrostatic_balance'
+                    'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion', 'hydrostatic_balance',
+                    'shock_post_temperature_adiabatic', 'pulsar_spindown_luminosity', 'pulsation_period_density_relation',
+                    'fusion_luminosity_mass_loss', 'electron_degeneracy_pressure_nonrelativistic', 'kepler_specific_angular_momentum',
+                    'rotational_kinetic_energy', 'magnetic_energy_uniform_sphere', 'metallicity_log_ratio', 'binary_mass_ratio'
                 ],
                 score: 420
             },
@@ -272,7 +275,9 @@ class FormulaSearchEngine {
                 formulas: [
                     'stellar_mass_continuity', 'hydrostatic_balance', 'stellar_luminosity_shell',
                     'radiative_transport_temperature_gradient', 'adiabatic_gradient_ideal_gas', 'convection_criterion',
-                    'central_pressure_approximate', 'mass_luminosity_relation', 'stellar_gravity_dynamical_time'
+                    'central_pressure_approximate', 'mass_luminosity_relation', 'stellar_gravity_dynamical_time',
+                    'shock_post_temperature_adiabatic', 'pulsation_period_density_relation', 'fusion_luminosity_mass_loss',
+                    'electron_degeneracy_pressure_nonrelativistic'
                 ],
                 score: 500
             },
@@ -282,6 +287,21 @@ class FormulaSearchEngine {
                     'supernova_luminosity_kinetic_diffusion', 'stellar_gravity_dynamical_time', 'optical_depth'
                 ],
                 score: 520
+            },
+            'cheat sheet': {
+                formulas: [
+                    'orbital_velocity', 'escape_velocity', 'kepler_third_law_solar', 'schwarzschild_per_solar_mass',
+                    'distance_modulus', 'doppler_shift_approx', 'stefan_boltzmann_law', 'flux_from_luminosity',
+                    'gamma_factor', 'redshift_velocity_relativistic', 'transit_depth'
+                ],
+                score: 500
+            },
+            'quick reference astronomy': {
+                formulas: [
+                    'velocity_ratio_orbital', 'orbital_energy_simple', 'photon_sphere', 'isco',
+                    'apparent_magnitude_flux', 'flux_ratio_magnitude', 'wiens_law', 'hubble_law'
+                ],
+                score: 480
             }
         };
     }

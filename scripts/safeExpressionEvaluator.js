@@ -69,8 +69,15 @@ class SafeExpressionEvaluator {
             return null;
         }
         
-        // Remove whitespace
-        let expr = expression.trim();
+        // Remove whitespace; normalize Unicode √ (tokenzier does not accept U+221A)
+        let expr = String(expression)
+            .trim()
+            .replace(/√\s*\(/g, 'sqrt(')
+            .replace(/√\s*([0-9]+(?:\.[0-9]*)?)(?![0-9.])/g, 'sqrt($1)')
+            .replace(
+                /√\s*([a-zA-Z_π\u0370-\u03FF][a-zA-Z0-9_π\u0370-\u03FF]*)/g,
+                'sqrt($1)'
+            );
         if (expr.length === 0) {
             return null;
         }

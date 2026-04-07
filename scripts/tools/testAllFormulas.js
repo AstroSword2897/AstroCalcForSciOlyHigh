@@ -93,7 +93,17 @@ function generateTestInputs(formula) {
         'f': 0.1, 'D': 0.1, 'θ_min': 1e-6, 'M': 5, 'm': 10,
         'B': 1e-5, 'I': 1e-6, 'N': 1e23, 'ρ': 1e3, 'p': 1e5,
         'V_esc': 11186, 'ω': 7.292e-5, 'τ': 1e6, 'η': 0.1,
-        'Q': 1e6, 'S': 1361, 'ε': 0.9, 'κ': 0.1, 'μ': 1.67e-27
+        'Q': 1e6, 'S': 1361, 'ε': 0.9, 'κ': 0.1, 'μ': 1.67e-27,
+        mu: 1,
+        omega: 7.292e-5,
+        T2_over_T1: 1.0005,
+        m_star: 2.8e30,
+        r_star: 1.2e4,
+        F_net: 0,
+        C: 1e38,
+        phi: 0.25,
+        s: 1.5e11,
+        d_c: 3e6
     };
     
     // Fill in known values, leave one variable empty for solving

@@ -492,24 +492,19 @@ class VariableInputsRenderer {
                         otherInput.dataset.userEdited = otherInput === e.target ? 'true' : 'false';
                     });
 
-                    // CRITICAL: If the user starts typing into one unit field, clear other unit fields
-                    // that were auto-filled by previous calculations. This prevents stale base-unit
-                    // values (e.g., "kg") from overriding the intended non-base input (e.g., "M☉").
+                    // When the user starts typing in one unit field, clear all other unit fields
+                    // for the same variable so stale/synced values don't confuse the calculation.
                     const currentText = (e.target.value || '').trim();
                     if (currentText.length > 0) {
                         elements.forEach(({ input: otherInput }) => {
                             if (!otherInput || otherInput === e.target) return;
-                            if (otherInput.dataset.calculated === 'true' && otherInput.value && otherInput.value.trim()) {
+                            if (otherInput.value && otherInput.value.trim()) {
                                 otherInput.value = '';
                                 otherInput.dataset.calculated = 'false';
                                 otherInput.dataset.userEdited = 'false';
                             }
                         });
                     }
-                    
-                    // CRITICAL FIX: Don't clear other inputs on input event
-                    // This prevents clearing partially typed numbers
-                    // We'll handle clearing in a blur handler instead
                     
                     // Clear the "calculated" flag when user manually edits
                     if (e.target.dataset.calculated === 'true') {
@@ -655,8 +650,22 @@ class VariableInputsRenderer {
                     // If we have N-1 variables filled (where N is total variables), calculate
                     // Or if user explicitly wants to calculate (Enter key), always allow it
                     if (filledSymbols.size >= userVariables.length - 1 || filledSymbols.size > 0) {
-                        if (typeof performCalculation === 'function') {
-                            performCalculation();
+                        // Blur first so delegated blur handler mirrors this field into sibling unit columns
+                        // before the orchestrator reads the DOM. Otherwise Calculate can see stale values
+                        // or empty siblings → false "no inputs" → symbolic / conversion errors.
+                        const target = e.target;
+                        if (typeof target.blur === 'function') {
+                            target.blur();
+                        }
+                        const run = () => {
+                            if (typeof performCalculation === 'function') {
+                                performCalculation();
+                            }
+                        };
+                        if (typeof queueMicrotask === 'function') {
+                            queueMicrotask(run);
+                        } else {
+                            setTimeout(run, 0);
                         }
                     } else {
                         const nextIndex = (index + 1) % allInputs.length;

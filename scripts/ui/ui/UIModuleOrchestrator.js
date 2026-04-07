@@ -4,7 +4,7 @@
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
 import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.16';
-import { TabManager } from './modules/tabs/TabManager.js';
+import { TabManager } from './modules/tabs/TabManager.js?v=2.4.0';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
 import { EventCoordinator } from './modules/events/EventCoordinator.js?v=2.1.9';

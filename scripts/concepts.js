@@ -15,7 +15,7 @@
 (function () {
   'use strict';
 
-  const VERSION = 'concepts-v1.1.4';
+  const VERSION = 'concepts-v1.1.5';
 
   // High-level taxonomy roots (keeps the graph connected)
   const ROOTS = [
@@ -64,7 +64,8 @@
     'olympiad toolkit', 'mathematical toolkit astronomy', 'problem triggers', 'sqrt 2 orbital escape',
     'kepler solar years AU', 'brightness ratio magnitude',     'flux luminosity distance',
     'hydrostatic equilibrium', 'mass continuity star', 'radiative diffusion', 'adiabatic gradient',
-    'neutron star breakup spin', 'core collapse supernova', 'white dwarf degeneracy'
+    'neutron star breakup spin', 'core collapse supernova', 'white dwarf degeneracy',
+    'cheat sheet astronomy', 'quick reference formulas', 'centripetal acceleration orbit'
   ];
 
   const PREFIXES = [

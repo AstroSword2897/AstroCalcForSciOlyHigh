@@ -166,6 +166,9 @@ export class CalculationOrchestrator {
         
         this._calculationInProgress = true;
         console.log('[CalculationOrchestrator] ✅ Lock acquired, starting calculation...');
+        // Fresh DOM resolution every run — stale cached inputs caused wrong unit columns /
+        // empty reads after multi-unit sync, leading to false "no numbers" → symbolic path.
+        this.clearInputCache();
         this._ensureUnitConverter();
         const startTime = performance.now();
         
@@ -707,10 +710,18 @@ export class CalculationOrchestrator {
             console.log('[CalculationOrchestrator] Validating result...');
             if (!this.validateResult(result)) {
                 console.warn('[CalculationOrchestrator] ❌ Result validation failed, result:', result);
-                // If validation fails but we have some known values, try symbolic as fallback
-                const knownCountCheck = Object.values(variableValues).filter(v => v !== null && typeof v === 'number').length;
-                if (knownCountCheck > 0) {
-                    console.log('[CalculationOrchestrator] Result validation failed, attempting symbolic fallback with known values');
+                const knownCountCheck = Object.values(variableValues).filter(
+                    (v) => v !== null && typeof v === 'number' && Number.isFinite(v)
+                ).length;
+                const unknownCountCheck = Object.values(variableValues).filter(
+                    (v) => v === null || v === undefined
+                ).length;
+                // Only fall back to symbolic when the problem is genuinely underdetermined (multiple unknowns).
+                // A failed numeric contract (string result, NaN, etc.) should surface as an error, not symbolic.
+                if (knownCountCheck > 0 && unknownCountCheck > 1) {
+                    console.log(
+                        '[CalculationOrchestrator] Result validation failed, attempting symbolic fallback (multiple unknowns)'
+                    );
                     this.handleSymbolicResult(calculator, formula, variableValues);
                     return; // finally block will reset _calculationInProgress
                 }
@@ -1594,19 +1605,36 @@ export class CalculationOrchestrator {
         
         // Vectorized: Check if any fallback case is in error message
         const matchesFallbackCase = Array.from(fallbackCasesSet).some(caseStr => errorMsg.includes(caseStr));
+
+        // Numeric / evaluation failures should NOT cascade into symbolic (often makes things worse and
+        // surfaces as "Symbolic solving failed" + "unit conversion cannot proceed" from the algebra path).
+        const noSymbolicCascade = [
+            'unit conversion cannot proceed',
+            'calculation failed:',
+            'cannot evaluate',
+            'invalid numeric value',
+            'invalid value for',
+            'non-number',
+            'returned invalid result',
+            'cannot solve for',
+            'division by zero'
+        ];
+        if (noSymbolicCascade.some((phrase) => errorMsg.includes(phrase))) {
+            return false;
+        }
         
         // Vectorized: Count known values efficiently
         const valuesArray = Object.values(variableValues);
         const knownCount = valuesArray.filter(v => v !== null && typeof v === 'number').length;
-        const totalCount = valuesArray.length;
+        const unknownCount = valuesArray.filter((v) => v === null || v === undefined).length;
         
-        // Also check if we have partial information (some known values)
-        // This allows partial numeric evaluation
-        const hasPartialInfo = knownCount > 0 && knownCount < totalCount;
+        // Partial evaluation fallback only when multiple variables are still unknown.
+        // One missing value should stay on the numeric error path (fix inputs / solver).
+        const hasPartialInfo = knownCount > 0 && unknownCount > 1;
         
         // Fallback if:
         // 1. Error matches a known fallback case, OR
-        // 2. We have partial information (can do partial evaluation)
+        // 2. We have partial information with multiple unknowns (partial / symbolic evaluation)
         if (matchesFallbackCase || hasPartialInfo) {
             console.log(`[CalculationOrchestrator] Fallback condition met: ${matchesFallbackCase ? 'error case' : 'partial evaluation'} (${knownCount} known values)`);
             return true;
@@ -1628,7 +1656,17 @@ export class CalculationOrchestrator {
             Object.entries(knownVars).filter(([_, val]) => Number.isFinite(val))
         );
         
-        const result = calculator.solveSymbolically(filteredKnownVars);
+        let result;
+        try {
+            result = calculator.solveSymbolically(filteredKnownVars);
+        } catch (symErr) {
+            const msg = symErr && symErr.message ? symErr.message : String(symErr);
+            console.error('[CalculationOrchestrator] Symbolic solve failed:', symErr);
+            this.displayError(
+                `Could not produce a symbolic result (${msg}). Check inputs and units, or leave exactly one variable empty for a numeric solve.`
+            );
+            return;
+        }
         
         // Enforce contract: symbolic results must have .result and .isSymbolic = true
         if (!result || typeof result.result === 'undefined') {

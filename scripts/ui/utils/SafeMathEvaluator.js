@@ -81,7 +81,9 @@ class SafeMathEvaluator {
         'PI': Math.PI,
         'pi': Math.PI,
         'E': Math.E,
-        'π': Math.PI
+        'π': Math.PI,
+        // deg = π/180 — e.g. sin(30*deg) for sine of 30°
+        'deg': Math.PI / 180
         // Intentionally no bare 'e': clashes with eccentricity e. Use E or exp(...).
     };
     
@@ -213,7 +215,15 @@ class SafeMathEvaluator {
         if (!expression || typeof expression !== 'string') {
             throw new ValidationError('expression', 'Expression must be a non-empty string');
         }
-        
+
+        expression = String(expression)
+            .replace(/√\s*\(/g, 'sqrt(')
+            .replace(/√\s*([0-9]+(?:\.[0-9]*)?)(?![0-9.])/g, 'sqrt($1)')
+            .replace(
+                /√\s*([a-zA-Z_π\u0370-\u03FF][a-zA-Z0-9_π\u0370-\u03FF]*)/g,
+                'sqrt($1)'
+            );
+
         // Validate expression doesn't contain dangerous patterns
         const dangerousPatterns = [
             /eval\s*\(/i,

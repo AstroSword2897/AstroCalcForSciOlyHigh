@@ -66,6 +66,8 @@ export class FormulaScorer {
         metrics.formulaConfidence = formula.formulaConfidence || 85;
         metrics.confidenceTier = formula.confidenceTier || 'approximation';
         metrics.confidenceRationale = formula.confidenceRationale || '';
+        metrics.generalizationScope = formula.generalizationScope || formula.confidence?.generalizationScope || '';
+        metrics.confidenceScoreBreakdown = formula.confidenceScoreBreakdown || null;
         const scores = {
             name: this.scoreNameMatch(formula.name, queryLower, words),
             description: this.scoreDescriptionMatch(formula.description, queryLower, words),

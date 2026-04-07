@@ -217,6 +217,20 @@ export class FormulaSelector {
             if (calcBtn) {
                 const newBtn = calcBtn.cloneNode(true);
                 calcBtn.parentNode?.replaceChild(newBtn, calcBtn);
+                const flushActiveVariableField = () => {
+                    try {
+                        const vc = document.getElementById('variables-container');
+                        const ac = document.activeElement;
+                        if (!vc || !ac || typeof ac.blur !== 'function') return;
+                        if (!vc.contains(ac)) return;
+                        if (!ac.classList || !ac.classList.contains('unit-input-field')) return;
+                        ac.blur();
+                    } catch (_) {
+                        /* ignore */
+                    }
+                };
+                // mousedown fires before focus moves to the button; blur syncs multi-unit rows first
+                newBtn.addEventListener('mousedown', flushActiveVariableField, true);
                 const handler = (e) => {
                     e.preventDefault();
                     e.stopPropagation();

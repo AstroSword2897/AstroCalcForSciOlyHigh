@@ -277,7 +277,21 @@ function calculateConfidenceScore(literalScore, maxCombinedScore, metrics = {}, 
             description: `${formulaConfidence}/100 (${metrics.confidenceTier || 'unclassified'}) - ${metrics.confidenceRationale || 'Formula-specific research weighting'}`
         });
     }
-    
+
+    if (metrics.generalizationScope) {
+        const scopeHint = {
+            narrow: 'Single standard setup or identity — use exactly as stated.',
+            regime: 'Valid in a parameter band — read validity / unit notes.',
+            broad: 'Applies widely when assumptions hold — still verify regime.',
+            scaling: 'Proportional or order-of-magnitude — check numerical factors.'
+        };
+        breakdown.push({
+            label: 'Generalization scope',
+            value: 0,
+            description: scopeHint[metrics.generalizationScope] || String(metrics.generalizationScope)
+        });
+    }
+
     // 7) CALCULATE RAW CONFIDENCE
     let rawConfidence = baseConfidence + boosts + topicContribution + contextContribution + reliabilityAdjustment;
     

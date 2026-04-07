@@ -31,10 +31,18 @@ var formulaCategories = {
         'gravitational_potential_energy', 'orbital_energy_simple', 'potential_energy_per_mass',
         'velocity_ratio_orbital', 'orbital_period_general', 'semi_latus_rectum',
         'eccentricity_apoapsis_periapsis', 'orbital_energy_eccentricity',
+        'semi_major_axis_from_apsides', 'specific_orbital_energy', 'semi_major_axis_from_specific_energy',
+        'semi_major_axis_from_vis_viva_distance', 'eccentricity_from_speed_at_apex',
+        'eccentricity_from_specific_energy_and_h', 'mean_motion_keplerian', 'orbital_period_from_mean_motion',
         'angular_momentum_circular', 'apsidal_momentum_conservation', 'orbital_speed_circular', 'angular_velocity_orbit',
         'tidal_acceleration_differential', 'gravitational_wave_frequency_binary_approx', 'light_travel_time',
         'kinetic_energy_translational',
-        'tidal_disruption_radius_scaling'
+        'kepler_specific_angular_momentum',
+        'rotational_kinetic_energy',
+        'tidal_disruption_radius_scaling',
+        'tidal_force_balance_surface',
+        'tidal_force_balance_interior',
+        'tidal_force_balance_rotating'
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
@@ -51,7 +59,8 @@ var formulaCategories = {
         'brightness_ratio_magnitude', 'brightness_ratio_times_brighter', 'bolometric_magnitude', 'color_index_ub',
         'interstellar_reddening', 'energy_density_radiation', 'photon_number_density',
         'momentum_transfer_radiation',
-        'thermal_doppler_broadening'
+        'thermal_doppler_broadening',
+        'metallicity_log_ratio'
     ],
     'Telescopes & Optics': [
         'angular_size', 'angular_separation_arcsec', 'linear_separation_from_angular', 'radian_arcsecond_conversion',
@@ -88,14 +97,14 @@ var formulaCategories = {
         'synchrotron_cooling_timescale', 'synchrotron_power', 'magnetic_energy_density', 'magnetic_pressure_si',
         'power_law_spectrum', 'spectral_index', 'synchrotron_frequency',
         'cyclotron_frequency', 'alfven_speed', 'gravitational_wave_quadrupole_luminosity',
-        'pulsar_light_cylinder', 'pulsar_polar_cap_angle', 'radiation_force_thomson_luminosity',
+        'pulsar_light_cylinder', 'pulsar_polar_cap_angle', 'pulsar_period_from_energy', 'period_change_fractional_energy', 'energy_from_linear_period', 'radiation_force_thomson_luminosity',
         'alfven_mach_number'
     ],
     'Stellar Structure': [
         'hydrostatic_balance', 'central_pressure_approximate', 'stellar_mass_central_temperature',
         'ideal_gas_pressure', 'radiation_pressure_stellar', 'average_stellar_temperature',
         'nuclear_energy_generation', 'thermal_time', 'convection_criterion', 'opacity_general',
-        'optical_depth', 'scale_height_isothermal', 'photospheric_pressure_optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial', 'virial_temperature_gas', 'virial_velocity_dispersion', 'kelvin_helmholtz_timescale_exact', 'luminosity_infall', 'accretion_luminosity', 'temperature_from_luminosity_radius_solar',
+        'optical_depth', 'scale_height_isothermal', 'photospheric_pressure_optical_depth', 'radiation_transport', 'mass_loss_rate', 'total_energy_virial', 'virial_temperature_gas', 'virial_velocity_dispersion', 'kelvin_helmholtz_timescale_exact', 'kelvin_helmholtz_from_binding_energy', 'luminosity_infall', 'accretion_luminosity', 'temperature_from_luminosity_radius_solar',
         'radiative_transport_temperature_gradient', 'stellar_pulsation_mechanics', 'kappa_mechanism_mira',
         'pulsation_period_scaling', 'luminosity_fractional_amplitude_pulsation', 'magnitude_variation_pulsation', 'period_luminosity_relation_cepheid', 'period_luminosity_cepheid_classical', 'bolometric_correction', 'extinction_correction_rv',
         'binary_mass_ratio_velocity', 'flux_change_magnitude_difference', 'pulsating_star_radius_change',
@@ -103,7 +112,9 @@ var formulaCategories = {
         'stellar_mass_continuity', 'stellar_luminosity_shell', 'bondi_accretion_rate',
         'rayleigh_taylor_growth_rate', 'kelvin_helmholtz_growth_rate', 'type_ia_snr_peak_time_diffusion',
         'stellar_gravity_dynamical_time', 'adiabatic_gradient_ideal_gas', 'compact_object_keplerian_breakup_omega',
-        'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion'
+        'photon_diffusion_time_optical_depth', 'supernova_luminosity_kinetic_diffusion',
+        'shock_post_temperature_adiabatic', 'pulsation_period_density_relation', 'fusion_luminosity_mass_loss',
+        'electron_degeneracy_pressure_nonrelativistic'
     ],
     'Line Radiation & Excitation': [
         'boltzmann_equation', 'saha_equation', 'einstein_coefficient', 'zeeman_splitting', 'extinction_relation',
@@ -122,7 +133,8 @@ var formulaCategories = {
     'Binary Systems & Exoplanets': [
         'mass_function', 'binary_total_mass', 'stellar_activity_index',
         'light_travel_time', 'center_of_mass', 'kepler_third_law_binary', 'orbital_speed_circular',
-        'doppler_wavelength_ratio', 'doppler_velocity_wavelength'
+        'doppler_wavelength_ratio', 'doppler_velocity_wavelength',
+        'binary_mass_ratio'
     ],
     'Optical Depth & Scattering': [
         'optical_depth_scattering'
@@ -266,6 +278,11 @@ var formulas = [
         name: "Escape Velocity",
         description: "Minimum speed to escape from radius r: v_esc = √(2GM/r) (same physics for planets and stars).",
         equation: "v_esc = √(2GM/r)",
+        solveFor: {
+            v_esc: "v_esc = sqrt(2 * G * M / r)",
+            M: "M = v_esc^2 * r / (2 * G)",
+            r: "r = 2 * G * M / v_esc^2"
+        },
         concepts: ["escape velocity", "velocity", "gravity", "gravitational escape", "binding energy", "surface gravity", "orbital velocity", "rocket science", "space missions", "stellar evolution", "compact objects", "black holes", "white dwarfs"],
         keywords: ["escape", "break free", "gravitational field", "binding", "potential energy", "rocket", "launch", "spacecraft", "planet", "star", "black hole"],
         variables: [
@@ -420,7 +437,11 @@ var formulas = [
             "magnitude interstellar extinction",
             "m - M = -5 + 5 log10(d)",
             "distance in pc from apparent and absolute magnitude",
-            "Type Ia supernova distance absolute magnitude -19.3"
+            "Type Ia supernova distance absolute magnitude -19.3",
+            "cepheid apparent magnitude 1 Mpc",
+            "galaxy 1 Mpc cepheid m absolute M minus 5.2",
+            "HP Tauri absolute magnitude 140 pc",
+            "distance modulus cepheid extragalactic"
         ]
     },
     {
@@ -512,7 +533,9 @@ var formulas = [
         questionPatterns: [
             "temperature from luminosity radius solar",
             "radius 2.7 R sun luminosity 46.8 temperature",
-            "stellar temperature from L and R"
+            "stellar temperature from L and R",
+            "Hayashi Henyey radius luminosity 1.5 L sun pre-main-sequence",
+            "protostar radius from luminosity solar units"
         ]
     },
     {
@@ -1103,6 +1126,15 @@ var formulas = [
             c: 2.99792458e8,
             mu_0: 1.25663706212e-6,
             σ_T: 6.6524587321e-29
+        },
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'regime',
+            numericalPrecision: 'fewpercent',
+            unitSystem: {
+                system: 'SI',
+                note: 'B in tesla; m_e, c, σ_T in SI. Older CGS formula with B in gauss is not the same numerical substitution.'
+            }
         }
     },
     {
@@ -1138,13 +1170,13 @@ var formulas = [
     {
         id: "magnetic_energy_density",
         name: "Magnetic Energy Density",
-        description: "Energy density stored in a magnetic field in SI: U_B = B²/(2μ₀) (J/m³). The Gaussian/CGS form B²/(8π) in erg/cm³ is equivalent when using consistent unit systems — do not mix. Pairs with synchrotron_power and magnetic_pressure_si.",
+        description: "SI magnetic energy density U_B = B²/(2μ₀) (J/m³). B in tesla, μ₀ = 4π×10⁻⁷ H/m. Pairs with synchrotron_power and magnetic_pressure_si.",
         equation: "U_B = B^2 / (2 * mu_0)",
         confidence: {
             theoreticalBasis: 'exact',
             domainBreadth: 'universal',
             numericalPrecision: 'exact',
-            unitSystem: { system: 'SI', note: 'B in tesla; do not plug CGS B into SI U_B' }
+            unitSystem: { system: 'SI', note: 'Fully SI — not the Gaussian B²/(8π) form unless using consistent CGS.' }
         },
         variables: [
             {
@@ -1158,10 +1190,21 @@ var formulas = [
                 name: "Magnetic Field Strength",
                 unit: "Tesla",
                 description: "Strength of the magnetic field"
+            },
+            {
+                symbol: "mu_0",
+                name: "Vacuum Permeability μ₀",
+                unit: "N/A²",
+                description: "Permeability of free space (default in constants)"
             }
         ],
         constants: {
             mu_0: 1.25663706212e-6
+        },
+        solveFor: {
+            U_B: "U_B = B^2 / (2 * mu_0)",
+            B: "B = sqrt(2 * mu_0 * U_B)",
+            mu_0: "mu_0 = B^2 / (2 * U_B)"
         }
     },
     {
@@ -1452,7 +1495,10 @@ var formulas = [
             "binary orbital period",
             "kepler binary",
             "period from masses binary",
-            "calculate period binary"
+            "calculate period binary",
+            "WDJ181058 white dwarf binary period 0.016 AU",
+            "two white dwarfs orbital period days",
+            "close binary white dwarf Kepler period"
         ]
     },
     {
@@ -1632,21 +1678,93 @@ var formulas = [
     {
         id: "illuminated_area_phase",
         name: "Illuminated Area vs Orbital Phase",
-        description: "Apparent lit area of a planet (or hemisphere) as seen by observer, as function of normalized orbital phase φ (0 to 1). A = π R² cos(π φ). Phase 0 = planet between star and observer (full lit face).",
+        description: "Apparent sunlit disk area A = πR²cos(πφ) with φ ∈ [0,1]. **Convention here:** φ = 0 = planet on the **far** side of the star from the observer (full illuminated disk toward you); φ = 0.5 = between star and observer (thin crescent from your view); φ = 1 returns to start. For φ = 0 = **dark** (planet between star and observer, night side facing you), use illuminated_area_phase_dark_start (A ∝ sin(πφ)).",
         equation: "A = pi * R^2 * cos(pi * phi)",
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'regime',
+            numericalPrecision: 'exact',
+            unitSystem: { system: 'SI' },
+            validityConditions: [
+                {
+                    variable: 'phi',
+                    condition: 'Phase convention: φ=0 is far side (full lit here), not “new”/dark',
+                    checkable: false,
+                    violationSeverity: 'warning',
+                    violationMessage:
+                        'Confirm phase definition before using cos(πφ). If φ=0 means dark (between star and observer), use illuminated_area_phase_dark_start.'
+                }
+            ]
+        },
         concepts: ["phase", "illuminated area", "orbital phase", "planet", "geometry"],
         keywords: ["illuminated area", "area lit phase", "orbital phase area", "Mr. Brightside"],
         variables: [
-            { symbol: "A", name: "Lit Area", unit: "m²", description: "Apparent illuminated area" },
             { symbol: "R", name: "Planet Radius", unit: "m", description: "Radius of planet" },
-            { symbol: "phi", name: "Orbital Phase", unit: "0 to 1", description: "Normalized phase (0 = between star and observer)" }
+            {
+                symbol: "phi",
+                name: "Orbital Phase",
+                unit: "0 to 1",
+                description: "0 = far side (full lit toward observer) for this cos(πφ) form"
+            },
+            { symbol: "A", name: "Lit Area", unit: "m²", description: "Apparent illuminated area" }
         ],
         constants: { pi: Math.PI },
+        solveFor: {
+            A: "A = pi * R^2 * cos(pi * phi)",
+            R: "R = sqrt(A / (pi * cos(pi * phi)))",
+            phi: "phi = acos(A / (pi * R^2)) / pi"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["illuminated_area_phase_dark_start"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
         questionPatterns: [
             "area that appears lit",
             "illuminated area orbital phase",
             "expression for area lit phase",
             "half lit planet area phase"
+        ]
+    },
+    {
+        id: "illuminated_area_phase_dark_start",
+        name: "Illuminated Area vs Phase (φ = 0 Dark, Between Star and Observer)",
+        description: "Sunlit area when φ = 0 means the planet is **between** star and observer (night side faces you): A = πR²sin(πφ). Then φ = 0 → A = 0; φ = 0.5 → full disk πR²; φ = 1 → A = 0. Matches many exam “phase from conjunction” setups.",
+        equation: "A = pi * R^2 * sin(pi * phi)",
+        concepts: ["phase", "illuminated area", "orbital phase", "planet", "geometry"],
+        keywords: ["illuminated area dark start", "sin pi phi", "Mr Brightside", "phase zero dark"],
+        variables: [
+            { symbol: "R", name: "Planet Radius", unit: "m", description: "Planet radius" },
+            {
+                symbol: "phi",
+                name: "Orbital Phase",
+                unit: "0 to 1",
+                description: "0 = between star and observer (dark toward you); 0.5 = far side (full lit)"
+            },
+            { symbol: "A", name: "Lit Area", unit: "m²", description: "Apparent illuminated area" }
+        ],
+        constants: { pi: Math.PI },
+        solveFor: {
+            A: "A = pi * R^2 * sin(pi * phi)",
+            R: "R = sqrt(A / (pi * sin(pi * phi)))",
+            phi: "phi = asin(A / (pi * R^2)) / pi"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["illuminated_area_phase"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "illuminated area sin pi phi",
+            "phase zero dark side observer",
+            "area lit planet between star and observer",
+            "Mr Brightside sin phase"
         ]
     },
     {
@@ -2376,6 +2494,266 @@ var formulas = [
         ]
     },
     {
+        id: "semi_major_axis_from_apsides",
+        name: "Semi-Major Axis (Periapsis + Apoapsis)",
+        description: "Independent of period: mean of closest and farthest distances. a = (r_p + r_a)/2. Same a as Kepler/vis-viva routes when apsides are the given data.",
+        equation: "a = (r_p + r_a) / 2",
+        solveFor: {
+            a: "a = (r_p + r_a) / 2",
+            r_p: "r_p = 2 * a - r_a",
+            r_a: "r_a = 2 * a - r_p"
+        },
+        concepts: ["semi-major axis", "periapsis", "apoapsis", "orbital mechanics", "ellipse"],
+        keywords: ["a from rp ra", "semi major axis apoapsis periapsis", "orbit size without period"],
+        variables: [
+            { symbol: "a", name: "Semi-Major Axis", unit: "m", description: "Semi-major axis" },
+            { symbol: "r_p", name: "Periapsis Distance", unit: "m", description: "Closest approach distance" },
+            { symbol: "r_a", name: "Apoapsis Distance", unit: "m", description: "Farthest distance" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["eccentricity_apoapsis_periapsis", "perihelion_aphelion", "vis_viva", "kepler_third_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "semi major axis from periapsis apoapsis",
+            "find a without period",
+            "a equals rp plus ra over 2"
+        ]
+    },
+    {
+        id: "specific_orbital_energy",
+        name: "Specific Orbital Energy (Two-Body, m ≪ M)",
+        description: "Specific mechanical energy per unit mass of the orbiter: ε = v²/2 − GM/r (central mass M). Use with semi_major_axis_from_specific_energy or eccentricity_from_specific_energy_and_h. Bound orbits: ε < 0.",
+        equation: "eps = v^2 / 2 - G * M / r",
+        solveFor: {
+            eps: "eps = v^2 / 2 - G * M / r",
+            v: "v = sqrt(2 * (eps + G * M / r))",
+            r: "r = G * M / (v^2 / 2 - eps)",
+            M: "M = (v^2 / 2 - eps) * r / G"
+        },
+        concepts: ["orbital energy", "vis viva", "two-body problem", "specific energy"],
+        keywords: ["specific orbital energy", "epsilon v squared GM r", "mechanical energy per mass orbit"],
+        variables: [
+            { symbol: "eps", name: "Specific Energy ε", unit: "J/kg", description: "Energy per unit mass of orbiting body" },
+            { symbol: "v", name: "Speed", unit: "m/s", description: "Speed at distance r" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Mass of primary" },
+            { symbol: "r", name: "Distance from Primary", unit: "m", description: "Radial distance" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["semi_major_axis_from_specific_energy", "eccentricity_from_specific_energy_and_h", "vis_viva", "orbital_energy_eccentricity"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "specific orbital energy",
+            "epsilon equals v squared over 2 minus GM r",
+            "two body specific energy"
+        ]
+    },
+    {
+        id: "semi_major_axis_from_specific_energy",
+        name: "Semi-Major Axis from Specific Energy",
+        description: "For a bound two-body orbit (m ≪ M): a = −GM/(2ε) with ε = v²/2 − GM/r. Different observables than Kepler III or apsides—same a when consistent.",
+        equation: "a = - G * M / (2 * eps)",
+        solveFor: {
+            a: "a = - G * M / (2 * eps)",
+            eps: "eps = - G * M / (2 * a)",
+            M: "M = - 2 * a * eps / G"
+        },
+        concepts: ["semi-major axis", "orbital energy", "two-body problem"],
+        keywords: ["a from specific energy", "semi major axis epsilon", "a negative GM two epsilon"],
+        variables: [
+            { symbol: "a", name: "Semi-Major Axis", unit: "m", description: "Semi-major axis" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Primary mass" },
+            { symbol: "eps", name: "Specific Energy ε", unit: "J/kg", description: "Negative for bound orbit" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["specific_orbital_energy"],
+            derivedFrom: [],
+            relatedTo: ["specific_orbital_energy", "vis_viva", "kepler_third_law", "semi_major_axis_from_apsides"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "semi major axis from energy",
+            "a from epsilon GM",
+            "find a without period velocity distance"
+        ]
+    },
+    {
+        id: "semi_major_axis_from_vis_viva_distance",
+        name: "Semi-Major Axis from Speed and Distance (Vis-Viva Inversion)",
+        description: "Invert v² = GM(2/r − 1/a) when P is unknown: a = 1 / (2/r − v²/(GM)). Requires 2/r > v²/(GM) for a positive semi-major axis.",
+        equation: "a = 1 / (2 / r - v^2 / (G * M))",
+        solveFor: {
+            a: "a = 1 / (2 / r - v^2 / (G * M))"
+        },
+        concepts: ["semi-major axis", "vis viva", "orbital mechanics"],
+        keywords: ["a from vis viva", "semi major without period", "invert vis viva"],
+        variables: [
+            { symbol: "a", name: "Semi-Major Axis", unit: "m", description: "Semi-major axis" },
+            { symbol: "r", name: "Current Distance", unit: "m", description: "Distance from primary at measurement" },
+            { symbol: "v", name: "Speed at r", unit: "m/s", description: "Orbital speed at that point" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Primary mass" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["vis_viva", "semi_major_axis_from_apsides", "kepler_third_law", "specific_orbital_energy"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "semi major axis from velocity and radius",
+            "find a without orbital period",
+            "vis viva solve for a"
+        ]
+    },
+    {
+        id: "eccentricity_from_speed_at_apex",
+        name: "Eccentricity (Speed at Periapsis or Apoapsis)",
+        description: "At an apsis, e = r v²/(GM) − 1. Use with speed measured at closest or farthest point (not arbitrary r).",
+        equation: "ecc = r * v^2 / (G * M) - 1",
+        solveFor: {
+            ecc: "ecc = r * v^2 / (G * M) - 1",
+            v: "v = sqrt((ecc + 1) * G * M / r)",
+            r: "r = (ecc + 1) * G * M / v^2"
+        },
+        concepts: ["eccentricity", "periapsis", "apoapsis", "orbital mechanics"],
+        keywords: ["eccentricity from speed at periapsis", "e equals rv squared over GM minus 1"],
+        variables: [
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" },
+            { symbol: "r", name: "Apsidal Distance", unit: "m", description: "r at periapsis or apoapsis" },
+            { symbol: "v", name: "Speed at Apsis", unit: "m/s", description: "Speed at that apsis" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Primary mass" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["eccentricity_apoapsis_periapsis", "vis_viva", "semi_major_axis_from_apsides"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "eccentricity from velocity at perihelion",
+            "e from rv squared GM",
+            "apsis speed eccentricity"
+        ]
+    },
+    {
+        id: "eccentricity_from_specific_energy_and_h",
+        name: "Eccentricity (Specific Energy and Specific Angular Momentum)",
+        description: "For m ≪ M: e = √(1 + 2εh²/(G²M²)) with ε specific energy (J/kg) and h = |r×v| magnitude (m²/s) (specific angular momentum). Independent of apsides-only or period-only routes.",
+        equation: "ecc = sqrt(1 + 2 * eps * h^2 / (G^2 * M^2))",
+        solveFor: {
+            ecc: "ecc = sqrt(1 + 2 * eps * h^2 / (G^2 * M^2))"
+        },
+        concepts: ["eccentricity", "orbital energy", "angular momentum", "two-body problem"],
+        keywords: ["eccentricity from energy and angular momentum", "e sqrt one plus two epsilon h squared"],
+        variables: [
+            { symbol: "ecc", displaySymbol: "e", name: "Eccentricity", unit: "dimensionless", description: "Orbital eccentricity" },
+            { symbol: "eps", name: "Specific Energy ε", unit: "J/kg", description: "ε = v²/2 − GM/r" },
+            { symbol: "h", name: "Specific Angular Momentum h", unit: "m²/s", description: "Magnitude r v_perp" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Primary mass" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["specific_orbital_energy"],
+            derivedFrom: [],
+            relatedTo: ["specific_orbital_energy", "eccentricity_apoapsis_periapsis", "angular_momentum_elliptical"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "eccentricity from specific energy angular momentum",
+            "e from epsilon and h",
+            "orbit shape energy and h"
+        ]
+    },
+    {
+        id: "mean_motion_keplerian",
+        name: "Mean Motion (Keplerian)",
+        description: "Mean motion n = √(GM/a³) (rad/s). Same information as Kepler III; use when n is given or required.",
+        equation: "n = sqrt(G * M / a^3)",
+        solveFor: {
+            n: "n = sqrt(G * M / a^3)",
+            a: "a = (G * M / n^2)^(1/3)",
+            M: "M = n^2 * a^3 / G"
+        },
+        concepts: ["mean motion", "kepler", "orbital period", "orbital mechanics"],
+        keywords: ["mean motion", "n sqrt GM a cubed", "keplerian n"],
+        variables: [
+            { symbol: "n", name: "Mean Motion", unit: "rad/s", description: "Average angular rate" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "G" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Primary mass" },
+            { symbol: "a", name: "Semi-Major Axis", unit: "m", description: "Semi-major axis" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law", "orbital_period_from_mean_motion", "vis_viva"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "mean motion kepler",
+            "n from semi major axis",
+            "sqrt GM over a cubed"
+        ]
+    },
+    {
+        id: "orbital_period_from_mean_motion",
+        name: "Orbital Period from Mean Motion",
+        description: "P = 2π/n. Algebraically same period as Kepler III when n = √(GM/a³); different input if n is measured directly.",
+        equation: "P = 2 * pi / n",
+        solveFor: {
+            P: "P = 2 * pi / n",
+            n: "n = 2 * pi / P"
+        },
+        concepts: ["orbital period", "mean motion", "kepler"],
+        keywords: ["period from mean motion", "P two pi over n"],
+        variables: [
+            { symbol: "P", name: "Orbital Period", unit: "s", description: "One full orbit" },
+            { symbol: "n", name: "Mean Motion", unit: "rad/s", description: "Keplerian mean motion" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["mean_motion_keplerian", "kepler_third_law", "period_circular"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "orbital period from mean motion",
+            "P equals 2 pi over n",
+            "period n rad per sec"
+        ]
+    },
+    {
         id: "center_of_mass",
         name: "Center of Mass (Binary System)",
         description: "Barycenter distances: M₁r₁ = M₂r₂ (each distance measured from the center of mass). If you also know separation d = r₁ + r₂, combine with r₁ = d M₂/(M₁+M₂) (not encoded here—use a second formula or solve the pair).",
@@ -2466,7 +2844,10 @@ var formulas = [
             "stellar age",
             "star age",
             "lifetime of star",
-            "calculate stellar lifetime"
+            "calculate stellar lifetime",
+            "Orion cluster 12 million years maximum main sequence mass",
+            "turnoff mass age cluster",
+            "tau proportional M to minus 2.5"
         ]
     },
     {
@@ -2564,15 +2945,19 @@ var formulas = [
             validityConditions: [
                 {
                     variable: 'M',
-                    condition: 'Roughly main sequence (~0.1–100 M☉ in solar units)',
+                    condition: 'Roughly main sequence (0.1–100 M☉ in solar units, or same range in kg)',
                     checkable: true,
                     violationSeverity: 'warning',
                     violationMessage:
                         'Mass–luminosity is empirical and only loosely valid outside roughly main-sequence masses.',
-                    check: function (vars) {
+                    check: function (vars, gc) {
                         var M = vars.M;
                         if (M == null || !isFinite(M) || M <= 0) return true;
-                        return M >= 0.08 && M <= 100;
+                        var M_sun = (gc && typeof gc.M_sun === 'number' && gc.M_sun > 0) ? gc.M_sun : 1.988409870440e30;
+                        if (M > 1e28) {
+                            return M >= 0.1 * M_sun && M <= 100 * M_sun;
+                        }
+                        return M >= 0.1 && M <= 100;
                     }
                 }
             ]
@@ -3163,7 +3548,12 @@ var formulas = [
             "Jeans mass temperature density",
             "minimum mass for cloud to collapse",
             "how does Jeans mass depend on T and rho",
-            "M_J T^(3/2) rho^(-1/2)"
+            "M_J T^(3/2) rho^(-1/2)",
+            "molecular cloud Jeans mass 15 K",
+            "clump density 5e-20 kg m3 Jeans",
+            "mean molecular weight 2.3 Jeans mass",
+            "thermal pressure gravity star formation cold cloud",
+            "why colder molecular cloud collapse Jeans"
         ]
     },
     {
@@ -4633,9 +5023,15 @@ var formulas = [
     },
     {
         id: "thermal_time",
-        name: "Thermal Time (Kelvin-Helmholtz Timescale)",
-        description: "Timescale for star to radiate away its gravitational potential energy. Fundamental stellar evolution timescale describing how long a star can shine from gravitational contraction. Essential for pre-main-sequence evolution, stellar formation, and energy budget. Also called Kelvin-Helmholtz timescale.",
-        equation: "t_KH ∝ G M² / (R L)",
+        name: "Thermal Time (Kelvin-Helmholtz, general scaling)",
+        description: "General Kelvin–Helmholtz (gravitational) timescale without a baked-in virial or polytrope prefactor: t_KH = G M² / (R L). Dimensional form of “gravitational energy scale ÷ luminosity.” Model-specific factors (e.g. 3/10 from a chosen E_grav ≈ (3/10) GM²/R) are applied outside this card when your problem states them. For τ = |U_bind|/L use kelvin_helmholtz_from_binding_energy.",
+        equation: "t_KH = G * M^2 / (R * L)",
+        solveFor: {
+            t_KH: "t_KH = G * M^2 / (R * L)",
+            M: "M = sqrt(t_KH * R * L / G)",
+            R: "R = G * M^2 / (t_KH * L)",
+            L: "L = G * M^2 / (R * t_KH)"
+        },
         concepts: ["thermal time", "kelvin-helmholtz", "timescale", "stellar evolution", "gravitational contraction", "pre-main-sequence", "energy timescale"],
         keywords: ["thermal time", "kelvin-helmholtz", "timescale", "stellar evolution", "contraction", "energy"],
         variables: [
@@ -4676,7 +5072,7 @@ var formulas = [
         relationships: {
             prerequisites: ["luminosity"],
             derivedFrom: [],
-            relatedTo: ["luminosity", "stellar_lifetime", "nuclear_energy_generation"],
+            relatedTo: ["luminosity", "stellar_lifetime", "nuclear_energy_generation", "kelvin_helmholtz_timescale_exact", "kelvin_helmholtz_from_binding_energy"],
             uses: [],
             generalizes: [],
             specializes: []
@@ -4685,14 +5081,22 @@ var formulas = [
             "thermal time",
             "kelvin-helmholtz timescale",
             "contraction timescale",
-            "gravitational energy timescale"
+            "gravitational energy timescale",
+            "kelvin helmholtz without three tenths",
+            "KH timescale GM squared RL"
         ]
     },
     {
         id: "kelvin_helmholtz_timescale_exact",
-        name: "Kelvin–Helmholtz Timescale (Exact)",
-        description: "Time for a star to radiate its gravitational binding energy at current luminosity. t = 3 G M² / (10 R L). Same as thermal time with factor 3/10 from virial (E = |U| = 3GM²/(10R)). Sun: ~9 million years.",
-        equation: "t = 3 * G * M^2 / (10 * R * L)",
+        name: "Kelvin–Helmholtz Timescale (general G M² / R L)",
+        description: "Same general scaling as thermal_time: t = G M² / (R L). No numerical prefactor (no 3/10) in the calculator—apply structure factors from your stated model (virial, polytrope, uniform sphere |U|=3GM²/5R, etc.) separately if the problem requires them.",
+        equation: "t = G * M^2 / (R * L)",
+        solveFor: {
+            t: "t = G * M^2 / (R * L)",
+            M: "M = sqrt(t * R * L / G)",
+            R: "R = G * M^2 / (t * L)",
+            L: "L = G * M^2 / (R * t)"
+        },
         concepts: ["kelvin-helmholtz", "gravitational contraction", "stellar evolution", "protostar", "thermal time"],
         keywords: ["kelvin helmholtz years", "sun last gravitational contraction", "how many years gravitational contraction"],
         variables: [
@@ -4703,10 +5107,50 @@ var formulas = [
             { symbol: "L", name: "Luminosity", unit: "W", description: "Luminosity" }
         ],
         constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["thermal_time", "kelvin_helmholtz_from_binding_energy", "total_energy_virial"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
         questionPatterns: [
             "how many years sun last gravitational contraction",
             "kelvin helmholtz exact",
-            "sun gravitational contraction years"
+            "sun gravitational contraction years",
+            "kelvin helmholtz general formula"
+        ]
+    },
+    {
+        id: "kelvin_helmholtz_from_binding_energy",
+        name: "Kelvin–Helmholtz Time from Binding Energy",
+        description: "Most general energy-budget form: radiative timescale τ = U_bind / L where U_bind is the gravitational binding energy magnitude (joules) you use from the problem (e.g. from a stated model). Independent of the G M² / (R L) rearrangement.",
+        equation: "t = U_bind / L",
+        solveFor: {
+            t: "t = U_bind / L",
+            U_bind: "U_bind = t * L",
+            L: "L = U_bind / t"
+        },
+        concepts: ["kelvin-helmholtz", "thermal time", "stellar evolution", "binding energy"],
+        keywords: ["KH time binding energy", "thermal time U over L", "grav energy luminosity timescale"],
+        variables: [
+            { symbol: "t", name: "Timescale", unit: "s", description: "KH / thermal time" },
+            { symbol: "U_bind", name: "Binding Energy Magnitude", unit: "J", description: "|E_grav| or model-specific binding energy (positive)" },
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Power radiated" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["thermal_time", "kelvin_helmholtz_timescale_exact", "total_energy_virial"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "kelvin helmholtz binding energy",
+            "thermal timescale gravitational energy over luminosity",
+            "U bind over L stellar"
         ]
     },
     {
@@ -8827,8 +9271,33 @@ var formulas = [
     {
         id: "redshift_velocity_low",
         name: "Redshift to Velocity (Low z Approximation)",
-        description: "Velocity from redshift for low redshifts. Non-relativistic approximation. Essential for nearby objects and low-redshift cosmology. Valid when z << 1.",
-        equation: "v ≈ cz",
+        description: "Non-relativistic Hubble-style limit v = cz for z ≪ 1. For z ≳ 0.1 use redshift_velocity_relativistic.",
+        equation: "v = c * z",
+        confidence: {
+            theoreticalBasis: 'derived',
+            domainBreadth: 'approximate',
+            numericalPrecision: 'fewpercent',
+            unitSystem: { system: 'SI' },
+            validityConditions: [
+                {
+                    variable: 'z',
+                    condition: 'z < 0.1 (classical v ≈ cz)',
+                    checkable: true,
+                    violationSeverity: 'warning',
+                    violationMessage: 'z > 0.1 — use redshift_velocity_relativistic for better accuracy.',
+                    check: function (vars) {
+                        var z = vars.z;
+                        if (z == null || !isFinite(z)) return true;
+                        return Math.abs(z) < 0.1;
+                    }
+                }
+            ]
+        },
+        solveFor: {
+            v: "v = c * z",
+            z: "z = v / c",
+            c: "c = v / z"
+        },
         concepts: ["redshift", "velocity", "low redshift", "non-relativistic", "cosmology"],
         keywords: ["redshift", "velocity", "low redshift", "non-relativistic"],
         variables: [
@@ -10784,6 +11253,187 @@ var formulas = [
         questionPatterns: ["polar cap pulsar", "theta pc sqrt R over R_LC"]
     },
     {
+        id: "pulsar_period_from_energy",
+        name: "Pulsar Period from Rotational vs Internal Energy",
+        description: "Solid sphere I = (2/5) m r², rotational KE K = ½Iω² = 4π² m r²/(5 T²). Setting K = E (internal energy) gives T = 2π r √(m/(5E)). Bracket (5*E) in the denominator when typing.",
+        equation: "T = 2 * pi * r_star * sqrt(m_star / (5 * E))",
+        solveFor: {
+            T: "T = 2 * pi * r_star * sqrt(m_star / (5 * E))",
+            E: "E = 4 * pi^2 * m_star * r_star^2 / (5 * T^2)",
+            m_star: "m_star = 5 * E * T^2 / (4 * pi^2 * r_star^2)",
+            r_star: "r_star = sqrt(5 * E * T^2 / (4 * pi^2 * m_star))"
+        },
+        concepts: ["pulsar", "neutron star", "period", "internal energy", "rotational kinetic energy", "science olympiad astronomy"],
+        keywords: ["pulsar period energy", "neutron star T from E", "rotational KE internal energy"],
+        variables: [
+            { symbol: "T", name: "Rotation Period", unit: "s", description: "Spin period" },
+            { symbol: "m_star", name: "Neutron Star Mass", unit: "kg", description: "Stellar mass" },
+            { symbol: "r_star", name: "Neutron Star Radius", unit: "m", description: "Stellar radius" },
+            { symbol: "E", name: "Internal Energy", unit: "J", description: "Energy equated to rotational KE in the problem setup" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["energy_from_linear_period", "period_change_fractional_energy", "compact_object_keplerian_breakup_omega", "pulsar_light_cylinder"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["pulsar period from internal energy", "T from E neutron star", "rotational KE equals internal energy"]
+    },
+    {
+        id: "period_change_fractional_energy",
+        name: "Period Ratio from Energy Ratio (T ∝ E⁻¹/²)",
+        description: "If E scales by factor f (E₂ = f E₁) with same m and r, then T ∝ E⁻¹/² so T₂/T₁ = f⁻¹/². Type as f^(-0.5) or f^(-1/2) depending on the calculator.",
+        equation: "T2_over_T1 = f^(-0.5)",
+        solveFor: {
+            T2_over_T1: "T2_over_T1 = f^(-0.5)",
+            f: "f = T2_over_T1^(-2)"
+        },
+        concepts: ["pulsar", "period change", "energy scaling", "science olympiad astronomy"],
+        keywords: ["period energy scaling", "T proportional E minus half", "fractional period change"],
+        variables: [
+            { symbol: "T2_over_T1", name: "Period Ratio T₂/T₁", unit: "dimensionless", description: "Ratio of periods after/before" },
+            {
+                symbol: "f",
+                name: "Energy Ratio E₂/E₁",
+                unit: "dimensionless",
+                description: "e.g. 0.999 if energy drops by 0.1%"
+            }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsar_period_from_energy", "energy_from_linear_period"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["period change energy change pulsar", "energy drops period increases", "T2 over T1 from f"]
+    },
+    {
+        id: "energy_from_linear_period",
+        name: "Internal Energy from Linear Period Growth",
+        description: "If T = α t (linear in time through the origin), then E ∝ T⁻² ∝ t⁻², so E(t) = C/t² with C set by stellar parameters and α.",
+        equation: "E = C / t^2",
+        solveFor: {
+            E: "E = C / t^2",
+            C: "C = E * t^2",
+            t: "t = sqrt(C / E)"
+        },
+        concepts: ["pulsar", "internal energy", "period evolution", "science olympiad astronomy"],
+        keywords: ["energy t squared inverse", "linear period energy", "E proportional one over t squared"],
+        variables: [
+            { symbol: "E", name: "Internal Energy", unit: "J", description: "Energy at time t" },
+            {
+                symbol: "C",
+                name: "Constant C",
+                unit: "J·s²",
+                description: "C = 4π² m_star r_star²/(5α²) when T = α t and E = 4π² m_star r_star²/(5 T²)"
+            },
+            { symbol: "t", name: "Time", unit: "s", description: "Time since linear period law reference" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsar_period_from_energy", "period_change_fractional_energy"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["energy as function of time linear period", "E if period proportional to time", "C over t squared energy"]
+    },
+    {
+        id: "tidal_force_balance_surface",
+        name: "Tidal Force Balance (Surface Parcel, Full Form)",
+        description: "Net radial acceleration × μ on a test mass at the planet surface (toward the star): star tide minus reference frame minus planet gravity. At equilibrium F_net = 0. Roche limit uses 1/(s−r)² ≈ (1/s²)(1+2r/s) ⇒ s ≈ r(2M/m)^(1/3). Here s is star–planet separation, r planet radius, M star mass, m planet mass.",
+        equation: "F_net = G * M * mu / (s - r)^2 - G * M * mu / s^2 - G * m * mu / r^2",
+        solveFor: {
+            F_net: "F_net = G * M * mu / (s - r)^2 - G * M * mu / s^2 - G * m * mu / r^2"
+        },
+        concepts: ["roche limit", "tidal force", "surface parcel", "science olympiad astronomy"],
+        keywords: ["tidal balance surface", "three term tidal", "roche derivation"],
+        variables: [
+            { symbol: "s", name: "Star–Planet Separation", unit: "m", description: "Center-to-center distance" },
+            { symbol: "r", name: "Planet Radius", unit: "m", description: "Planet radius" },
+            { symbol: "M", name: "Star Mass", unit: "kg", description: "Primary mass" },
+            { symbol: "m", name: "Planet Mass", unit: "kg", description: "Secondary mass" },
+            { symbol: "mu", name: "Parcel Mass", unit: "kg", description: "Cancels when setting acceleration to zero" },
+            { symbol: "F_net", name: "Net Radial Force", unit: "N", description: "Should be 0 at equilibrium" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["tidal_force", "newton_gravitational_force"],
+            derivedFrom: [],
+            relatedTo: ["roche_limit", "tidal_force", "tidal_force_balance_interior", "tidal_force_balance_rotating", "tidal_disruption_radius_scaling"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["balance tidal forces surface parcel", "three terms tidal roche", "GM over R minus r squared minus"]
+    },
+    {
+        id: "tidal_force_balance_interior",
+        name: "Tidal Force Balance (Interior Parcel, Uniform Density)",
+        description: "Same tide and reference terms as the surface case, but planet gravity on a parcel at depth d_c from the center uses enclosed mass m (d_c/r)³: F_g = G m μ d_c / r³. Uniform-density approximation.",
+        equation: "F_net = G * M * mu / (s - d_c)^2 - G * M * mu / s^2 - G * m * mu * d_c / r^3",
+        solveFor: {
+            F_net: "F_net = G * M * mu / (s - d_c)^2 - G * M * mu / s^2 - G * m * mu * d_c / r^3"
+        },
+        concepts: ["roche limit", "tidal force", "interior", "uniform density", "science olympiad astronomy"],
+        keywords: ["interior tidal balance", "depth d tidal", "enclosed mass tide"],
+        variables: [
+            { symbol: "s", name: "Star–Planet Separation", unit: "m", description: "Center-to-center distance" },
+            { symbol: "d_c", name: "Depth from Planet Center", unit: "m", description: "Distance of parcel from planet center" },
+            { symbol: "r", name: "Planet Radius", unit: "m", description: "Planet radius" },
+            { symbol: "M", name: "Star Mass", unit: "kg", description: "Star mass" },
+            { symbol: "m", name: "Planet Mass", unit: "kg", description: "Planet mass" },
+            { symbol: "mu", name: "Parcel Mass", unit: "kg", description: "Test mass" },
+            { symbol: "F_net", name: "Net Radial Force", unit: "N", description: "Zero at equilibrium" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["tidal_force_balance_surface"],
+            derivedFrom: [],
+            relatedTo: ["tidal_force_balance_surface", "tidal_force_balance_rotating", "roche_limit"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["interior parcel tidal", "tidal balance depth uniform density", "Gm d over r cubed tide"]
+    },
+    {
+        id: "tidal_force_balance_rotating",
+        name: "Tidal Force Balance with Rotation (Centrifugal Term)",
+        description: "Surface balance with an extra term +μ ω² r from corotation at the substellar point (rotation aids disruption). Set F_net = 0 for equilibrium.",
+        equation: "F_net = G * M * mu / (s - r)^2 - G * M * mu / s^2 + mu * omega^2 * r - G * m * mu / r^2",
+        solveFor: {
+            F_net: "F_net = G * M * mu / (s - r)^2 - G * M * mu / s^2 + mu * omega^2 * r - G * m * mu / r^2"
+        },
+        concepts: ["roche limit", "tidal force", "rotation", "centrifugal", "science olympiad astronomy"],
+        keywords: ["rotating roche", "centrifugal tidal", "omega squared r tide"],
+        variables: [
+            { symbol: "s", name: "Star–Planet Separation", unit: "m", description: "Center-to-center distance" },
+            { symbol: "r", name: "Planet Radius", unit: "m", description: "Planet radius" },
+            { symbol: "M", name: "Star Mass", unit: "kg", description: "Star mass" },
+            { symbol: "m", name: "Planet Mass", unit: "kg", description: "Planet mass" },
+            { symbol: "omega", name: "Angular Velocity ω", unit: "rad/s", description: "Planet spin rate (problem-dependent assumption)" },
+            { symbol: "mu", name: "Parcel Mass", unit: "kg", description: "Test mass" },
+            { symbol: "F_net", name: "Net Radial Force", unit: "N", description: "Zero at equilibrium" }
+        ],
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: ["tidal_force_balance_surface"],
+            derivedFrom: [],
+            relatedTo: ["tidal_force_balance_surface", "tidal_force_balance_interior", "compact_object_keplerian_breakup_omega"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: ["rotating planet roche", "centrifugal tidal balance", "spinning planet disruption"]
+    },
+    {
         id: "tidal_disruption_radius_scaling",
         name: "Tidal Disruption Distance Scaling (Density Form)",
         description: "When tidal acceleration ~ self-gravity, characteristic distance scales as d ∝ (M/ρ)^(1/3): denser objects survive closer to the same perturber mass M. Order-of-magnitude; omits shape factors. Pairs with tidal_acceleration_differential and Roche limits.",
@@ -10953,7 +11603,328 @@ var formulas = [
             generalizes: [],
             specializes: []
         },
-        questionPatterns: ["dynamical time density", "t dyn G rho", "gravity timescale star"]
+        questionPatterns: [
+            "dynamical time density",
+            "t dyn G rho",
+            "gravity timescale star",
+            "nebula collapse timescale 1e4 particles per cm3",
+            "free fall time molecular cloud density",
+            "gravitational collapse timescale uniform sphere"
+        ]
+    },
+    {
+        id: "shock_post_temperature_adiabatic",
+        name: "Post-Shock Temperature (Strong Adiabatic, γ = 5/3)",
+        description: "Order-of-magnitude post-shock temperature for a strong shock into ideal gas: T ≈ (3/16) μ m_H v_s² / k_B with shock speed v_s (m/s). Used for Orion-style ~20 km/s shocks; detailed Rankine–Hugoniot jumps need Mach number and pre-shock conditions.",
+        equation: "T = 3 * mu * m_H * v_s^2 / (16 * k_B)",
+        concepts: ["shock", "molecular cloud", "Orion", "ISM", "Rankine-Hugoniot", "science olympiad astronomy"],
+        keywords: ["post shock temperature", "shock 20 km/s temperature", "adiabatic shock ISM"],
+        variables: [
+            { symbol: "T", name: "Post-shock Temperature", unit: "K", description: "Approximate immediate post-shock T" },
+            { symbol: "mu", name: "Mean Molecular Weight", unit: "dimensionless", description: "e.g. ~2.3 for molecular gas" },
+            { symbol: "v_s", name: "Shock Speed", unit: "m/s", description: "Shock velocity in lab/frame of cold gas" },
+            { symbol: "m_H", name: "Hydrogen Mass Scale", unit: "kg", description: "Use proton mass ~ m_H" },
+            { symbol: "k_B", name: "Boltzmann Constant", unit: "J/K", description: "k" }
+        ],
+        constants: { m_H: 1.6735575e-27, k_B: 1.380649e-23 },
+        solveFor: {
+            T: "T = 3 * mu * m_H * v_s^2 / (16 * k_B)",
+            v_s: "v_s = sqrt(16 * k_B * T / (3 * mu * m_H))",
+            mu: "mu = 16 * k_B * T / (3 * m_H * v_s^2)"
+        },
+        relationships: {
+            prerequisites: ["sound_speed"],
+            derivedFrom: [],
+            relatedTo: ["sound_speed", "virial_temperature_gas", "jeans_mass"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "shock temperature 20 km per s",
+            "post shock temperature molecular cloud",
+            "Orion shock band temperature",
+            "Rankine Hugoniot temperature estimate"
+        ]
+    },
+    {
+        id: "pulsar_spindown_luminosity",
+        name: "Pulsar Spindown Luminosity (Newtonian)",
+        description: "Rotational energy loss rate if moment of inertia I is constant: L_sd ≈ I ω |ω̇|. Enter ω = 2π/P and ω_dot = |dω/dt| (positive number, magnitude of spin-down rate in rad/s²). Crab-style spindown power estimates.",
+        equation: "L_sd = I * omega * omega_dot",
+        concepts: ["pulsar", "spindown", "Crab nebula", "neutron star", "rotation", "science olympiad astronomy"],
+        keywords: ["spindown luminosity", "pulsar energy loss", "I omega omega dot"],
+        variables: [
+            { symbol: "L_sd", name: "Spindown Luminosity", unit: "W", description: "Mechanical spin-down power" },
+            { symbol: "I", name: "Moment of Inertia", unit: "kg·m²", description: "e.g. ~10⁴⁵ kg·m² order-of-magnitude NS" },
+            { symbol: "omega", name: "Angular Speed ω", unit: "rad/s", description: "ω = 2π/P_spin" },
+            { symbol: "omega_dot", name: "|dω/dt|", unit: "rad/s²", description: "Positive magnitude of spin-down" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsar_light_cylinder", "rotational_velocity", "pulsar_period_from_energy"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "Crab pulsar spindown luminosity",
+            "pulsar spin down power watts",
+            "rotational energy loss neutron star",
+            "M1 pulsar 33 ms luminosity spindown"
+        ]
+    },
+    {
+        id: "pulsation_period_density_relation",
+        name: "Pulsation Period vs Mean Density (P ∝ ρ⁻¹/²)",
+        description: "Dimensional relation often used in exams: fundamental radial-mode period scales as P ∝ ρ⁻¹/² (same scaling family as dynamical time). Write P = K ρ^(-1/2); calibrate K from one model or treat as unknown. For Mira vs RR Lyrae, lower mean ρ ⇒ longer P.",
+        equation: "P = K * rho^(-0.5)",
+        solveFor: {
+            P: "P = K * rho^(-0.5)",
+            rho: "rho = (K / P)^2",
+            K: "K = P * sqrt(rho)"
+        },
+        concepts: ["Mira", "pulsation", "mean density", "RR Lyrae", "variable star", "science olympiad astronomy"],
+        keywords: ["Mira period density", "P proportional rho minus half", "330 day Mira density"],
+        variables: [
+            { symbol: "P", name: "Pulsation Period", unit: "s", description: "Convert days to seconds for SI" },
+            { symbol: "rho", name: "Mean Density ρ", unit: "kg/m³", description: "Average stellar density" },
+            { symbol: "K", name: "Calibration Constant K", unit: "s·kg^(1/2)/m^(3/2)", description: "Problem-specific or from model" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsation_period_scaling", "stellar_gravity_dynamical_time", "average_density"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "Mira period 330 days average density",
+            "period density relation variable star",
+            "P proportional rho to minus one half"
+        ]
+    },
+    {
+        id: "fusion_luminosity_mass_loss",
+        name: "Luminosity from Fusion Mass-Loss Rate",
+        description: "Power released if mass Δm/Δt is converted with efficiency ε (fraction of rest mass): L ≈ ε c² ṁ. Triple-alpha / core helium burning back-of-envelope when given fused mass per year.",
+        equation: "L = epsilon * c^2 * m_dot",
+        concepts: ["triple alpha", "helium fusion", "red giant", "nuclear energy", "science olympiad astronomy"],
+        keywords: ["fusion luminosity mass rate", "epsilon m dot c squared", "helium fusion power"],
+        variables: [
+            { symbol: "L", name: "Luminosity", unit: "W", description: "Power output" },
+            { symbol: "epsilon", name: "Efficiency ε", unit: "dimensionless", description: "Fraction of mass defect to energy (~0.007 for H→He order-of-magnitude; use problem value)" },
+            { symbol: "c", name: "Speed of Light", unit: "m/s", description: "c" },
+            { symbol: "m_dot", name: "Mass Fusion Rate", unit: "kg/s", description: "dm/dt fused" }
+        ],
+        constants: { c: 2.99792458e8 },
+        solveFor: {
+            L: "L = epsilon * c^2 * m_dot",
+            m_dot: "m_dot = L / (epsilon * c^2)",
+            epsilon: "epsilon = L / (c^2 * m_dot)"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["nuclear_fusion_mass_defect", "luminosity", "stefan_boltzmann_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "triple alpha energy per second",
+            "red giant helium fusion luminosity mass per year",
+            "10 minus 3 solar masses helium fused one year power"
+        ]
+    },
+    {
+        id: "electron_degeneracy_pressure_nonrelativistic",
+        name: "Non-Relativistic Degeneracy Pressure Scaling (P ∝ ρ⁵/³)",
+        description: "Non-relativistic electron-degeneracy pressure scales as P ∝ ρ⁵/³. Use P = K_nr ρ^(5/3) with K_nr a composite constant (depends on μ_e, h, m_e) or treat K_nr as given/calibrated. Compare thermal pressure in brown dwarfs vs degenerate WD cores.",
+        equation: "P = K_nr * rho^(5/3)",
+        solveFor: {
+            P: "P = K_nr * rho^(5/3)",
+            rho: "rho = (P / K_nr)^(3/5)",
+            K_nr: "K_nr = P / rho^(5/3)"
+        },
+        concepts: ["white dwarf", "brown dwarf", "degeneracy pressure", "equation of state", "science olympiad astronomy"],
+        keywords: ["degeneracy pressure rho five thirds", "white dwarf central pressure", "nonrelativistic degenerate gas"],
+        variables: [
+            { symbol: "P", name: "Pressure", unit: "Pa", description: "Degeneracy pressure" },
+            { symbol: "rho", name: "Density ρ", unit: "kg/m³", description: "Mass density" },
+            { symbol: "K_nr", name: "Constant K_nr", unit: "SI composite", description: "Problem-specific or from textbook" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["chandrasekhar_limit", "white_dwarf_mass_radius", "ideal_gas_pressure"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "white dwarf pressure center rho 5/3",
+            "electron degeneracy pressure formula",
+            "compare white dwarf brown dwarf pressure"
+        ]
+    },
+    {
+        id: "kepler_specific_angular_momentum",
+        name: "Specific Angular Momentum (Circular Keplerian Orbit)",
+        description: "For a circular orbit at radius r: h = √(GMr). Accretion adds ṁ h to spin angular momentum order-of-magnitude (millisecond pulsar spin-up estimates).",
+        equation: "h = sqrt(G * M * r)",
+        concepts: ["accretion", "angular momentum", "Kepler", "pulsar", "binary", "science olympiad astronomy"],
+        keywords: ["specific angular momentum", "sqrt G M r", "accretion spin up"],
+        variables: [
+            { symbol: "h", name: "Specific Angular Momentum h", unit: "m²/s", description: "Per unit mass" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Accretor mass" },
+            { symbol: "r", name: "Circular Orbit Radius", unit: "m", description: "Disk radius or magnetospheric radius (problem-defined)" }
+        ],
+        solveFor: {
+            h: "h = sqrt(G * M * r)",
+            r: "r = h^2 / (G * M)",
+            M: "M = h^2 / (G * r)"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["orbital_velocity", "accretion_luminosity", "pulsar_light_cylinder"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "accretion angular momentum millisecond pulsar",
+            "spin up from accreted mass angular momentum",
+            "0.01 solar masses accreted angular momentum keplerian"
+        ]
+    },
+    {
+        id: "rotational_kinetic_energy",
+        name: "Rotational Kinetic Energy",
+        description: "Rigid body: K_rot = ½ I ω² with ω = 2π/P if given period. Compare to magnetic energy U_B in magnetar problems.",
+        equation: "K_rot = 0.5 * I * omega^2",
+        concepts: ["rotation", "neutron star", "magnetar", "energy", "science olympiad astronomy"],
+        keywords: ["rotational kinetic energy", "one half I omega squared"],
+        variables: [
+            { symbol: "K_rot", name: "Rotational Energy", unit: "J", description: "Kinetic energy of rotation" },
+            { symbol: "I", name: "Moment of Inertia", unit: "kg·m²", description: "About spin axis" },
+            { symbol: "omega", name: "Angular Speed ω", unit: "rad/s", description: "ω = 2π/P" }
+        ],
+        solveFor: {
+            K_rot: "K_rot = 0.5 * I * omega^2",
+            I: "I = 2 * K_rot / omega^2",
+            omega: "omega = sqrt(2 * K_rot / I)"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["pulsar_spindown_luminosity", "magnetic_energy_density", "compact_object_keplerian_breakup_omega"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "rotational kinetic energy neutron star",
+            "compare magnetic energy rotational energy magnetar",
+            "K rot I omega pulsar"
+        ]
+    },
+    {
+        id: "magnetic_energy_uniform_sphere",
+        name: "Magnetic Energy (Uniform B Inside Sphere)",
+        description: "Order-of-magnitude magnetic energy stored if field B is uniform inside radius R: U_B = V U_vol with U_vol = B²/(2μ₀) and V = (4π/3)R³. Magnetar energy budget vs rotation.",
+        equation: "U_B = (4 * pi / 3) * R^3 * B^2 / (2 * mu_0)",
+        concepts: ["magnetar", "magnetic field", "energy", "neutron star", "science olympiad astronomy"],
+        keywords: ["magnetic energy sphere", "B squared volume over mu0"],
+        variables: [
+            { symbol: "U_B", name: "Magnetic Energy", unit: "J", description: "Total in sphere (model)" },
+            { symbol: "R", name: "Radius", unit: "m", description: "Star / magnetosphere volume used" },
+            { symbol: "B", name: "Magnetic Field B", unit: "T", description: "Typical internal field (model)" },
+            { symbol: "mu_0", name: "Vacuum Permeability", unit: "H/m", description: "μ₀" }
+        ],
+        constants: { pi: Math.PI, mu_0: 1.25663706212e-6 },
+        solveFor: {
+            U_B: "U_B = (4 * pi / 3) * R^3 * B^2 / (2 * mu_0)",
+            B: "B = sqrt(2 * mu_0 * U_B / ((4 * pi / 3) * R^3))"
+        },
+        relationships: {
+            prerequisites: ["magnetic_energy_density"],
+            derivedFrom: [],
+            relatedTo: ["magnetic_energy_density", "rotational_kinetic_energy", "cyclotron_frequency"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "magnetar magnetic energy 1e15 gauss",
+            "magnetic energy stored neutron star field",
+            "compare B energy to rotational energy"
+        ]
+    },
+    {
+        id: "metallicity_log_ratio",
+        name: "Metallicity Ratio (log₁₀ of Mass Fractions)",
+        description: "If Z₁ and Z₂ are metal mass fractions, log₁₀(Z₁/Z₂) estimates the step in [Fe/H]-style arguments (exact [Fe/H] needs solar reference and H normalization). Pop I vs Pop II exam comparisons.",
+        equation: "log_ratio = log10(Z1 / Z2)",
+        concepts: ["metallicity", "population I", "population II", "globular cluster", "open cluster", "science olympiad astronomy"],
+        keywords: ["metallicity difference log", "Z population I II"],
+        variables: [
+            { symbol: "log_ratio", name: "log₁₀(Z₁/Z₂)", unit: "dimensionless", description: "Log of ratio of metal mass fractions" },
+            { symbol: "Z1", name: "Metal Fraction Z₁", unit: "dimensionless", description: "e.g. 0.02" },
+            { symbol: "Z2", name: "Metal Fraction Z₂", unit: "dimensionless", description: "e.g. 0.0002" }
+        ],
+        solveFor: {
+            log_ratio: "log_ratio = log10(Z1 / Z2)",
+            Z1: "Z1 = Z2 * 10^log_ratio",
+            Z2: "Z2 = Z1 / 10^log_ratio"
+        },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["distance_modulus", "stellar_lifetime"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "population I population II metallicity difference",
+            "open cluster globular Fe H Z 0.02 0.0002",
+            "log metallicity ratio"
+        ]
+    },
+    {
+        id: "binary_mass_ratio",
+        name: "Binary Mass Ratio q = M₁/M₂",
+        description: "Mass ratio for binary components. WDJ181058-style problems; relates to Roche geometry and mass transfer.",
+        equation: "q = M1 / M2",
+        solveFor: {
+            q: "q = M1 / M2",
+            M1: "M1 = q * M2",
+            M2: "M2 = M1 / q"
+        },
+        concepts: ["binary", "white dwarf", "mass ratio", "science olympiad astronomy"],
+        keywords: ["mass ratio binary", "q equals M1 over M2"],
+        variables: [
+            { symbol: "q", name: "Mass Ratio q", unit: "dimensionless", description: "M₁/M₂" },
+            { symbol: "M1", name: "Primary Mass", unit: "kg", description: "Often more massive WD" },
+            { symbol: "M2", name: "Secondary Mass", unit: "kg", description: "Companion mass" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law_binary", "center_of_mass", "white_dwarf_merger_timescale"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "white dwarf binary mass ratio",
+            "WDJ181058 mass ratio",
+            "M1 over M2 binary"
+        ]
     },
     {
         id: "adiabatic_gradient_ideal_gas",
@@ -11066,6 +12037,15 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     stellar_lifetime: 74,
     solar_lifetime_efficiency: 78,
     kelvin_helmholtz_timescale_exact: 80,
+    kelvin_helmholtz_from_binding_energy: 82,
+    semi_major_axis_from_apsides: 88,
+    specific_orbital_energy: 84,
+    semi_major_axis_from_specific_energy: 82,
+    semi_major_axis_from_vis_viva_distance: 80,
+    eccentricity_from_speed_at_apex: 78,
+    eccentricity_from_specific_energy_and_h: 76,
+    mean_motion_keplerian: 90,
+    orbital_period_from_mean_motion: 92,
     luminosity_infall: 80,
     accretion_luminosity: 88,
     virial_temperature_gas: 82,
@@ -11093,6 +12073,13 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     escape_orbital_velocity_ratio: 96,
     pulsar_light_cylinder: 90,
     pulsar_polar_cap_angle: 70,
+    pulsar_period_from_energy: 86,
+    period_change_fractional_energy: 84,
+    energy_from_linear_period: 82,
+    tidal_force_balance_surface: 78,
+    tidal_force_balance_interior: 76,
+    tidal_force_balance_rotating: 76,
+    illuminated_area_phase_dark_start: 80,
     tidal_disruption_radius_scaling: 68,
     radiation_force_thomson_luminosity: 88,
     rayleigh_taylor_growth_rate: 72,
@@ -11106,7 +12093,17 @@ const FORMULA_CONFIDENCE_OVERRIDES = {
     adiabatic_gradient_ideal_gas: 90,
     compact_object_keplerian_breakup_omega: 82,
     photon_diffusion_time_optical_depth: 86,
-    supernova_luminosity_kinetic_diffusion: 70
+    supernova_luminosity_kinetic_diffusion: 70,
+    shock_post_temperature_adiabatic: 78,
+    pulsar_spindown_luminosity: 82,
+    pulsation_period_density_relation: 76,
+    fusion_luminosity_mass_loss: 80,
+    electron_degeneracy_pressure_nonrelativistic: 74,
+    kepler_specific_angular_momentum: 88,
+    rotational_kinetic_energy: 90,
+    magnetic_energy_uniform_sphere: 76,
+    metallicity_log_ratio: 82,
+    binary_mass_ratio: 95
 };
 
 /**
@@ -11173,6 +12170,25 @@ function axesFromLegacyScore(score) {
     return { theoreticalBasis: 'heuristic', domainBreadth: 'orderOfMagnitude', numericalPrecision: 'orderOfMagnitude' };
 }
 
+/**
+ * How broadly a formula generalizes (orthogonal to theoreticalBasis).
+ * - narrow: single identity / one standard setup (e.g. central transit)
+ * - regime: valid in a stated physical band (approximation, empirical fits)
+ * - broad: same relation across many systems when assumptions hold (exact SI identities)
+ * - scaling: proportional, order-of-magnitude, or scaling-law only
+ */
+function inferGeneralizationScope(confidence) {
+    const g = confidence.generalizationScope;
+    if (g === 'narrow' || g === 'regime' || g === 'broad' || g === 'scaling') return g;
+    const d = confidence.domainBreadth;
+    const t = confidence.theoreticalBasis;
+    if (d === 'orderOfMagnitude' || t === 'heuristic') return 'scaling';
+    if (d === 'approximate' || t === 'empirical') return 'regime';
+    if (d === 'universal' && (t === 'exact' || t === 'derived')) return 'broad';
+    if (d === 'regime') return 'regime';
+    return 'narrow';
+}
+
 function inferFormulaConfidenceTier(score) {
     if (score >= 94) return 'exact';
     if (score >= 80) return 'approximation';
@@ -11202,16 +12218,30 @@ function computeFormulaSearchWeight(score) {
  * @returns {{ score: number, breakdown: object }}
  */
 function computeAuditableConfidenceParts(confidence, formula) {
-    const basisMap = { exact: 40, derived: 35, empirical: 25, heuristic: 15 };
-    const breadthMap = { universal: 30, regime: 25, approximate: 15, orderOfMagnitude: 5 };
-    const precMap = { exact: 30, subpercent: 25, fewpercent: 15, orderOfMagnitude: 5 };
+    const basisMap = { exact: 38, derived: 33, empirical: 24, heuristic: 14 };
+    const breadthMap = { universal: 28, regime: 24, approximate: 14, orderOfMagnitude: 5 };
+    const precMap = { exact: 28, subpercent: 23, fewpercent: 14, orderOfMagnitude: 5 };
 
-    const tb = basisMap[confidence.theoreticalBasis] ?? 25;
-    const db = breadthMap[confidence.domainBreadth] ?? 15;
-    const np = precMap[confidence.numericalPrecision] ?? 15;
+    const tb = basisMap[confidence.theoreticalBasis] ?? 22;
+    const db = breadthMap[confidence.domainBreadth] ?? 14;
+    const np = precMap[confidence.numericalPrecision] ?? 14;
 
-    const hasSolveFor =
-        formula.solveFor && typeof formula.solveFor === 'object' && Object.keys(formula.solveFor).length > 0;
+    const genScope = inferGeneralizationScope(confidence);
+    const genMap = { narrow: 4, regime: 3, broad: 2, scaling: 1 };
+    const genPoints = genMap[genScope] ?? 2;
+
+    const rel = formula.relationships && typeof formula.relationships === 'object' ? formula.relationships : {};
+    const relCount = ['prerequisites', 'derivedFrom', 'relatedTo', 'uses', 'generalizes', 'specializes'].reduce(
+        (n, k) => n + (Array.isArray(rel[k]) ? rel[k].length : 0),
+        0
+    );
+    const graphBonus = Math.min(3, Math.floor(relCount / 4));
+
+    const solveKeys =
+        formula.solveFor && typeof formula.solveFor === 'object' ? Object.keys(formula.solveFor).length : 0;
+    const solveDepthBonus = solveKeys >= 3 ? 2 : solveKeys === 2 ? 1 : 0;
+
+    const hasSolveFor = solveKeys > 0;
     const solvePenalty = hasSolveFor ? 0 : -2;
 
     const weakAxis =
@@ -11225,7 +12255,7 @@ function computeAuditableConfidenceParts(confidence, formula) {
     const unitSys = confidence.unitSystem && confidence.unitSystem.system;
     const unitPenalty = unitSys === 'mixed' ? -5 : 0;
 
-    const raw = tb + db + np + solvePenalty + conditionPenalty + unitPenalty;
+    const raw = tb + db + np + genPoints + graphBonus + solveDepthBonus + solvePenalty + conditionPenalty + unitPenalty;
     const score = Math.min(100, Math.max(12, Math.round(raw)));
 
     return {
@@ -11234,12 +12264,17 @@ function computeAuditableConfidenceParts(confidence, formula) {
             theoreticalBasisPoints: tb,
             domainBreadthPoints: db,
             numericalPrecisionPoints: np,
+            generalizationScope: genScope,
+            generalizationPoints: genPoints,
+            relationshipGraphBonus: graphBonus,
+            solveDepthBonus,
             solvePenalty,
             conditionPenalty,
             unitPenalty,
             hasSolveFor,
             hasValidityConditions: hasConditions,
-            weakAxisExpectedConditions: weakAxis
+            weakAxisExpectedConditions: weakAxis,
+            relationshipEdgeCount: relCount
         }
     };
 }
@@ -11248,13 +12283,19 @@ function buildConfidenceRationale(confidence, parts, legacyScore) {
     const b = confidence.theoreticalBasis;
     const d = confidence.domainBreadth;
     const n = confidence.numericalPrecision;
-    const partsStr = `basis +${parts.breakdown.theoreticalBasisPoints}, domain +${parts.breakdown.domainBreadthPoints}, precision +${parts.breakdown.numericalPrecisionPoints}`;
+    const gs = parts.breakdown.generalizationScope || inferGeneralizationScope(confidence);
+    const partsStr = `basis +${parts.breakdown.theoreticalBasisPoints}, domain +${parts.breakdown.domainBreadthPoints}, precision +${parts.breakdown.numericalPrecisionPoints}, scope +${parts.breakdown.generalizationPoints}`;
+    const extra = [];
+    if (parts.breakdown.relationshipGraphBonus)
+        extra.push(`graph +${parts.breakdown.relationshipGraphBonus}`);
+    if (parts.breakdown.solveDepthBonus) extra.push(`solveDepth +${parts.breakdown.solveDepthBonus}`);
+    const extraStr = extra.length ? `, ${extra.join(', ')}` : '';
     const pen = [];
     if (parts.breakdown.solvePenalty) pen.push(`solveFor ${parts.breakdown.solvePenalty}`);
     if (parts.breakdown.conditionPenalty) pen.push(`conditions ${parts.breakdown.conditionPenalty}`);
     if (parts.breakdown.unitPenalty) pen.push(`units ${parts.breakdown.unitPenalty}`);
     const penStr = pen.length ? `; penalties: ${pen.join(', ')}` : '';
-    return `${b} / ${d} / ${n}. Auditable score ${parts.score} (${partsStr}${penStr}). Legacy seed ${legacyScore}.`;
+    return `${b} / ${d} / ${n}; generalization ${gs}. Auditable score ${parts.score} (${partsStr}${extraStr}${penStr}). Legacy seed ${legacyScore}.`;
 }
 
 function applyFormulaConfidenceResearch(formula) {
@@ -11271,6 +12312,12 @@ function applyFormulaConfidenceResearch(formula) {
             existing.unitSystem && typeof existing.unitSystem === 'object' ? existing.unitSystem : undefined
     };
 
+    const allowedScopes = new Set(['narrow', 'regime', 'broad', 'scaling']);
+    confidence.generalizationScope =
+        existing.generalizationScope && allowedScopes.has(existing.generalizationScope)
+            ? existing.generalizationScope
+            : inferGeneralizationScope(confidence);
+
     const parts = computeAuditableConfidenceParts(confidence, formula);
     formula.confidence = confidence;
     formula.confidenceAuditableScore = parts.score;
@@ -11280,6 +12327,7 @@ function applyFormulaConfidenceResearch(formula) {
     formula.confidenceTier = inferFormulaConfidenceTier(formula.formulaConfidence);
     formula.confidenceRationale = buildConfidenceRationale(confidence, parts, legacyScore);
     formula.searchWeight = computeFormulaSearchWeight(formula.formulaConfidence);
+    formula.generalizationScope = confidence.generalizationScope;
 
     return formula;
 }

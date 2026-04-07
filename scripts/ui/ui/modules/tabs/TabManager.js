@@ -118,6 +118,9 @@ export class TabManager {
         else if (tabName === 'unit-converter') {
             this.activateUnitConverterTab();
         }
+        else if (tabName === 'scientific-calc') {
+            this.activateScientificCalcTab();
+        }
         else if (tabName === 'classification') {
             this.activateClassificationMainTab();
         }
@@ -372,11 +375,19 @@ export class TabManager {
             });
         };
 
+        const fmtAnswer = (n) => {
+            if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+            // Use up to 8 significant figures; strip trailing zeros
+            if (Math.abs(n) >= 1e10 || (Math.abs(n) < 1e-6 && n !== 0)) return n.toExponential(6).replace(/\.?0+e/, 'e');
+            const s = n.toPrecision(8).replace(/\.?0+$/, '');
+            return s;
+        };
+
         const renderPrettyResultHTML = (res) => {
             const solvedForm = res?.solvedForm ? String(res.solvedForm) : null;
             const steps = Array.isArray(res?.steps) ? res.steps : [];
             const answerVar = res?.variable ? String(res.variable) : null;
-            const answerVal = typeof res?.result === 'number' && Number.isFinite(res.result) ? String(res.result) : null;
+            const answerVal = typeof res?.result === 'number' && Number.isFinite(res.result) ? fmtAnswer(res.result) : null;
 
             const answerLine = (answerVar && answerVal)
                 ? `<div class="alg-answer"><span class="alg-answer__label">Answer</span><span class="alg-answer__expr">${latexSpan(toLatex(`${answerVar} = ${answerVal}`), false)}</span></div>`
@@ -536,6 +547,7 @@ export class TabManager {
             }
         };
 
+        btn.dataset.algInlineInit = '1'; // Prevent inline fallback from double-attaching
         btn.addEventListener('click', parseAndShow);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') parseAndShow(); });
         this._algebraicHandlersInit = true;
@@ -578,6 +590,21 @@ export class TabManager {
         }
         else {
             console.error('[TabManager] ❌ main-unit-converter-tab not found!');
+        }
+    }
+    activateScientificCalcTab() {
+        const tab = document.getElementById('main-scientific-calc-tab');
+        if (tab) {
+            tab.classList.add('active');
+            tab.style.setProperty('display', 'block', 'important');
+            tab.style.setProperty('visibility', 'visible', 'important');
+            console.log('[TabManager] ✅ Scientific calculator tab activated');
+            if (typeof window !== 'undefined' && typeof window.initScientificCalculator === 'function') {
+                window.initScientificCalculator();
+            }
+        }
+        else {
+            console.error('[TabManager] ❌ main-scientific-calc-tab not found!');
         }
     }
     activateCalculatorTab() {

@@ -7,7 +7,7 @@
 
     const SafeMathEvaluator = global.SafeMathEvaluator;
     const TOKEN_TYPES = SafeMathEvaluator?.TOKEN_TYPES || { IDENTIFIER: 'IDENTIFIER' };
-    const CONSTANTS = new Set(['pi', 'e', 'π', 'PI', 'E']);
+    const CONSTANTS = new Set(['pi', 'e', 'π', 'PI', 'E', 'deg']);
     const RESERVED_IDENTIFIERS = new Set([
         ...CONSTANTS,
         ...Object.keys(SafeMathEvaluator?.FUNCTIONS || {})
@@ -20,8 +20,10 @@
 
     function formatNum(n) {
         if (typeof n !== 'number' || !Number.isFinite(n)) return String(n);
-        if (Math.abs(n) >= 1e6 || (Math.abs(n) < 1e-4 && n !== 0)) return n.toExponential(4);
-        return Number.isInteger(n) ? String(n) : n.toFixed(6).replace(/\.?0+$/, '');
+        if (Math.abs(n) >= 1e8 || (Math.abs(n) < 1e-5 && n !== 0)) return n.toExponential(5).replace(/\.?0+e/, 'e');
+        if (Number.isInteger(n)) return String(n);
+        // Up to 8 significant figures, strip trailing zeros
+        return n.toPrecision(8).replace(/\.?0+$/, '');
     }
 
     function approxEqual(a, b, eps = EPS) {
@@ -286,9 +288,56 @@
             return expr.replace(pattern, String(value));
         };
 
-        const f0Expr = replaceTarget(fExpr, 0);
+        // After replacing targetVar with 0/1, prune trivial arithmetic patterns
+        // so the symbolic form stays readable (e.g. "2*0 + y" → "y").
+        // Simplify trivial arithmetic produced by textual variable substitution.
+        const pruneZero = (s) => {
+            let out = String(s);
+            for (let i = 0; i < 8; i++) {
+                const prev = out;
+                out = out
+                    // N*0 and 0*N → 0
+                    .replace(/\b(\d+(?:\.\d+)?)\s*\*\s*0\b/g, '0')
+                    .replace(/\b0\s*\*\s*(\d+(?:\.\d+)?)\b/g, '0')
+                    // 0 + expr and expr + 0 → expr (inside parens)
+                    .replace(/\(\s*0\s*\+\s*([^()]+?)\s*\)/g, '($1)')
+                    .replace(/\(\s*([^()]+?)\s*\+\s*0\s*\)/g, '($1)')
+                    // expr - 0 → expr (inside parens)
+                    .replace(/\(\s*([^()]+?)\s*-\s*0\s*\)/g, '($1)')
+                    // 0 - expr → -expr (inside parens)
+                    .replace(/\(\s*0\s*-\s*([^()]+?)\s*\)/g, '(-$1)')
+                    // strip redundant parens around plain atoms (variable or number)
+                    .replace(/\(\s*([A-Za-z_\u0370-\u03FF][A-Za-z0-9_\u0370-\u03FF]*)\s*\)/g, '$1')
+                    .replace(/\(\s*(\d+(?:\.\d+)?)\s*\)/g, '$1')
+                    // collapse double negatives
+                    .replace(/--/g, '')
+                    .replace(/\(-(-[^()]+)\)/g, '($1)')
+                    .replace(/\s{2,}/g, ' ');
+                if (out === prev) break;
+            }
+            return out.trim();
+        };
+
+        // Build the expression for: x = -f0 / denom
+        // When denom is negative, flip both signs so the denominator is positive.
+        const buildTargetExpr = (numerator, denom) => {
+            if (approxEqual(Math.abs(denom), 1, EPS)) {
+                // denom = ±1: just return ∓numerator
+                return denom > 0 ? `-${numerator}` : numerator;
+            }
+            if (denom < 0) {
+                // -numerator / negative_denom = numerator / positive_denom
+                return `${numerator} / ${formatNum(-denom)}`;
+            }
+            // denom > 0: standard form
+            return `-${numerator} / ${formatNum(denom)}`;
+        };
+
+        const f0Expr = pruneZero(replaceTarget(fExpr, 0));
         const f1Expr = replaceTarget(fExpr, 1);
-        const denomExpr = `(${f1Expr}) - (${f0Expr})`;
+        const denomExpr = `(${f1Expr}) - (${pruneZero(replaceTarget(fExpr, 0))})`;
+
+        const otherVars = parsed.variables.filter(s => s !== targetVar);
 
         // If the denominator is a constant (independent of other variables),
         // simplify the solved form substantially.
@@ -312,13 +361,35 @@
             // ignore
         }
 
+        // When the equation has no other variables, f0Expr is a pure constant.
+        // Compute the numeric solved value directly so the solved form shows a clean
+        // number (e.g. x = -1.666667) instead of a raw substitution expression.
+        if (otherVars.length === 0 && Number.isFinite(denomConstant) && Math.abs(denomConstant) > EPS) {
+            try {
+                const f0Value = SafeMathEvaluator.evaluate(f0Expr, {});
+                if (Number.isFinite(f0Value)) {
+                    const val = -f0Value / denomConstant;
+                    if (Number.isFinite(val)) {
+                        const cleanExpr = formatNum(val);
+                        return {
+                            targetVar,
+                            expression: cleanExpr,
+                            equation: `${targetVar} = ${cleanExpr}`,
+                            linear: true
+                        };
+                    }
+                }
+            } catch (_) { /* fall through to symbolic form */ }
+        }
+
+        const _f0 = `(${f0Expr})`;
+
         const targetExpr = (Number.isFinite(denomConstant) && Math.abs(denomConstant) > EPS)
-            ? (approxEqual(denomConstant, 1) ? `-(${f0Expr})` : (approxEqual(denomConstant, -1) ? `(${f0Expr})` : `(${f0Expr}) / ${formatNum(-denomConstant)}`))
-            : `-(${f0Expr}) / (${denomExpr})`;
+            ? buildTargetExpr(_f0, denomConstant)
+            : `-${_f0} / (${denomExpr})`;
 
         // Verify numerically that f is affine (linear) in targetVar:
         // f(2) == f(0) + 2*(f(1)-f(0)) for several assignments of other vars.
-        const otherVars = parsed.variables.filter(s => s !== targetVar);
         const combos = [];
 
         // All others = 0
@@ -392,44 +463,41 @@
             }
         }
 
-        const samples = [-1e12, -1e9, -1e6, -1e3, -100, -10, -1, 0, 1, 10, 100, 1e3, 1e6, 1e9, 1e12];
-        let previousX = null;
-        let previousY = null;
-
-        for (const x of samples) {
-            const y = f(x);
-            if (!Number.isFinite(y)) continue;
-
-            if (Math.abs(y) < 1e-10) {
-                return x;
+        // Two scan passes: positive values first (most physical quantities > 0),
+        // then negative. Each pass is monotonic so sign-change detection works.
+        // Wide logarithmic coverage ensures roots from sub-atomic to cosmic scales.
+        const positiveSamples = [0, 1e-12, 1e-9, 1e-6, 1e-3, 1e-1, 1, 10, 100,
+            1e3, 1e5, 1e7, 1e9, 1e12, 1e14, 1e16, 1e18, 1e20, 1e22, 1e24, 1e26, 1e30];
+        const negativeSamples = [-1e-1, -1, -10, -100, -1e3, -1e6, -1e9,
+            -1e12, -1e16, -1e20, -1e24, -1e30];
+        // Scan monotonic sample lists for sign changes, bisect to find root.
+        // Positive pass runs first — most physical quantities are > 0.
+        const bisect = (lo, hi, flo) => {
+            for (let iter = 0; iter < 200; iter++) {
+                const mid = (lo + hi) / 2;
+                const fmid = f(mid);
+                if (!Number.isFinite(fmid)) break;
+                if (Math.abs(hi - lo) <= Math.abs(mid) * 2e-14 + 1e-300) return mid;
+                if (Math.sign(fmid) === Math.sign(flo)) { lo = mid; flo = fmid; }
+                else { hi = mid; }
             }
+            return (lo + hi) / 2;
+        };
 
-            if (previousX !== null && Number.isFinite(previousY) && Math.sign(y) !== Math.sign(previousY)) {
-                let lo = previousX;
-                let hi = x;
-                let flo = previousY;
-                let fhi = y;
-
-                for (let iter = 0; iter < 160; iter++) {
-                    const mid = (lo + hi) / 2;
-                    const fmid = f(mid);
-                    if (!Number.isFinite(fmid)) break;
-                    if (Math.abs(fmid) < 1e-10) return mid;
-                    if (Math.sign(fmid) === Math.sign(flo)) {
-                        lo = mid;
-                        flo = fmid;
-                    } else {
-                        hi = mid;
-                        fhi = fmid;
-                    }
+        const scanSamples = (sampleList) => {
+            let prevX = null, prevY = null;
+            for (const x of sampleList) {
+                const y = f(x);
+                if (!Number.isFinite(y)) { prevX = null; prevY = null; continue; }
+                if (prevX !== null && Number.isFinite(prevY) && Math.sign(y) !== Math.sign(prevY)) {
+                    return bisect(prevX, x, prevY);
                 }
+                prevX = x; prevY = y;
             }
+            return null;
+        };
 
-            previousX = x;
-            previousY = y;
-        }
-
-        return null;
+        return scanSamples(positiveSamples) ?? scanSamples(negativeSamples);
     }
 
     function solveForVariable(equation, targetVar, knownValues = {}) {

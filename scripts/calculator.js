@@ -102,7 +102,23 @@ class FormulaCalculator {
 
     /** Normalize Unicode operators to ASCII for parsing. */
     _normalizeEquationString(s) {
-        return String(s).replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=');
+        return this._normalizeUnicodeSqrtForEval(
+            String(s).replace(/×/g, '*').replace(/÷/g, '/').replace(/≈/g, '=')
+        );
+    }
+
+    /**
+     * Unicode square root → ASCII sqrt(…) for evaluators (matches algebraicSolver.normalizeExpression).
+     * Safe to call repeatedly; √( is only converted once.
+     */
+    _normalizeUnicodeSqrtForEval(s) {
+        return String(s)
+            .replace(/√\s*\(/g, 'sqrt(')
+            .replace(/√\s*([0-9]+(?:\.[0-9]*)?)(?![0-9.])/g, 'sqrt($1)')
+            .replace(
+                /√\s*([a-zA-Z_π\u0370-\u03FF][a-zA-Z0-9_π\u0370-\u03FF]*)/g,
+                'sqrt($1)'
+            );
     }
 
     /**
@@ -727,27 +743,8 @@ class FormulaCalculator {
         // GM, kT, etc.: \bG\b does not match G inside "GM" — expand implicit * first
         expression = this._expandForDisplay(expression, knownVars);
         
-        // Format values for better readability in symbolic expressions
-        // Convert to appropriate units if unitConverter is available
-        const formatValue = (val, symbol) => {
-            // Try to convert to a more readable unit
-            if (this.unitConverter && typeof this.unitConverter.convertAndFormat === 'function') {
-                const varDef = this.formula.variables.find(v => v.symbol === symbol);
-                if (varDef && varDef.unit) {
-                    try {
-                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit, { formulaUnit: true });
-                        if (converted && converted.value !== null && Number.isFinite(converted.value)) {
-                            const formatted = this._formatNumber(converted.value);
-                            return `${formatted} ${converted.unit}`;
-                        }
-                    } catch (e) {
-                        // If conversion fails, use original value
-                    }
-                }
-            }
-            // Fallback: use scientific notation for very large/small numbers
-            return this._formatNumber(val);
-        };
+        // Substitute plain numbers only: suffixes like "m/s" inside the equation break evaluateExpression()
+        // and confuse the display. The "Known values:" line (solveSymbolically) still shows base units.
         
         // CRITICAL: First substitute constants with their computed numeric values
         // This ensures constants like G, π, etc. are shown as numbers, not symbols
@@ -773,7 +770,7 @@ class FormulaCalculator {
         for (const [symbol, value] of sortedKnownVars) {
             const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
-            const formattedValue = formatValue(value, symbol);
+            const formattedValue = this._formatNumber(value);
             expression = expression.replace(regex, formattedValue);
             console.log(`[FormulaCalculator] Substituted variable ${symbol} = ${formattedValue} in expression`);
         }
@@ -809,13 +806,26 @@ class FormulaCalculator {
                 return `${unknownVar} = ${numericResult}`;
             }
             
-            // Try algebraic solver as fallback
-            const algebraicResult = this._solveAlgebraically(unknownVar, knownVars);
-            if (algebraicResult !== null && typeof algebraicResult === 'number' && Number.isFinite(algebraicResult) && !isNaN(algebraicResult)) {
-                console.log(`[FormulaCalculator] ✅ Algebraic solve succeeded in generateMultiVariableExpression: ${unknownVar} = ${algebraicResult}`);
-                return `${unknownVar} = ${algebraicResult}`;
+            try {
+                const algebraicResult = this._solveAlgebraically(unknownVar, knownVars);
+                if (
+                    algebraicResult !== null &&
+                    typeof algebraicResult === 'number' &&
+                    Number.isFinite(algebraicResult) &&
+                    !isNaN(algebraicResult)
+                ) {
+                    console.log(
+                        `[FormulaCalculator] ✅ Algebraic solve succeeded in generateMultiVariableExpression: ${unknownVar} = ${algebraicResult}`
+                    );
+                    return `${unknownVar} = ${algebraicResult}`;
+                }
+            } catch (algErr) {
+                console.log(
+                    `[FormulaCalculator] Algebraic path threw in generateMultiVariableExpression (non-fatal):`,
+                    algErr?.message || algErr
+                );
             }
-            
+
             console.log(`[FormulaCalculator] Numeric solve failed in generateMultiVariableExpression, using symbolic`);
         }
         
@@ -823,26 +833,7 @@ class FormulaCalculator {
         let expression = this.formula.equation;
         expression = this._expandForDisplay(expression, knownVars);
         
-        // Format values for better readability with unit conversion
-        const formatValue = (val, symbol) => {
-            // Try to convert to a more readable unit if unitConverter is available
-            if (this.unitConverter && typeof this.unitConverter.convertAndFormat === 'function') {
-                const varDef = this.formula.variables.find(v => v.symbol === symbol);
-                if (varDef && varDef.unit) {
-                    try {
-                        const converted = this.unitConverter.convertAndFormat(val, varDef.unit, { formulaUnit: true });
-                        if (converted && converted.value !== null && Number.isFinite(converted.value)) {
-                            const formatted = this._formatNumber(converted.value);
-                            return `${formatted} ${converted.unit}`;
-                        }
-                    } catch (e) {
-                        // If conversion fails, use original value
-                    }
-                }
-            }
-            // Fallback: use scientific notation for very large/small numbers
-            return this._formatNumber(val);
-        };
+        // Plain numeric substitution only (see generateSymbolicExpression).
         
         // CRITICAL: First substitute constants with their computed numeric values
         // This ensures constants like G, π, etc. are shown as numbers, not symbols
@@ -868,7 +859,7 @@ class FormulaCalculator {
         for (const [symbol, value] of sortedKnownVars) {
             const escapedSymbol = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const regex = new RegExp(`\\b${escapedSymbol}\\b`, 'g');
-            const formattedValue = formatValue(value, symbol);
+            const formattedValue = this._formatNumber(value);
             expression = expression.replace(regex, formattedValue);
             console.log(`[FormulaCalculator] generateMultiVariableExpression: Substituted variable ${symbol} = ${formattedValue}`);
         }
@@ -876,10 +867,21 @@ class FormulaCalculator {
         // Try to evaluate the expression if all variables are known
         if (unknownVars.length === 1) {
             const unknownVar = unknownVars[0];
-            // Try to solve algebraically (returns number or null, never throws)
-            const numericResult = this._solveAlgebraically(unknownVar, knownVars);
-            if (numericResult !== null && typeof numericResult === 'number' && Number.isFinite(numericResult) && !isNaN(numericResult)) {
-                return `${unknownVar} = ${numericResult}`;
+            try {
+                const numericResult = this._solveAlgebraically(unknownVar, knownVars);
+                if (
+                    numericResult !== null &&
+                    typeof numericResult === 'number' &&
+                    Number.isFinite(numericResult) &&
+                    !isNaN(numericResult)
+                ) {
+                    return `${unknownVar} = ${numericResult}`;
+                }
+            } catch (algErr2) {
+                console.log(
+                    `[FormulaCalculator] Algebraic solve threw in multi-unknown branch (non-fatal):`,
+                    algErr2?.message || algErr2
+                );
             }
             return this._formatSymbolicSingleUnknownDisplay(unknownVar, expression);
         } else {
@@ -953,11 +955,13 @@ class FormulaCalculator {
         // - safeExpr: compatible with SafeMathEvaluator / SafeExpressionEvaluator (no "Math.", uses "^")
         // - jsExpr: compatible with JS fallback (uses "Math.*" and "**")
         const raw = String(expression);
-        const normalizeOperators = (s) => String(s)
-            .replace(/×/g, '*')
-            .replace(/÷/g, '/')
-            .replace(/log₁₀/g, 'log10')
-            .replace(/√\s*\(/g, 'sqrt(');
+        const normalizeOperators = (s) =>
+            this._normalizeUnicodeSqrtForEval(
+                String(s)
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/log₁₀/g, 'log10')
+            );
 
         let safeExpr = normalizeOperators(raw)
             // Normalize common function names (no Math.*)
@@ -1226,7 +1230,16 @@ class FormulaCalculator {
         result = result.replace(/([\)\]}])([A-Za-z_][A-Za-z0-9_]*)/g, '$1*$2');
         
         // Pattern 5: Handle variable followed by opening paren - e.g., "G(" -> "G*("
-        result = result.replace(/([A-Za-z_][A-Za-z0-9_]*)(\()/g, '$1*$2');
+        // Do not split math function names: cos(pi) must stay cos(, not cos*(.
+        const implicitMulFnSkip = new Set([
+            'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'sinh', 'cosh', 'tanh',
+            'sqrt', 'cbrt', 'exp', 'log', 'log10', 'log2', 'pow', 'abs', 'floor', 'ceil',
+            'round', 'min', 'max', 'sign', 'hypot'
+        ]);
+        result = result.replace(/([A-Za-z_][A-Za-z0-9_]*)(\()/g, (m, id, open) => {
+            if (implicitMulFnSkip.has(String(id).toLowerCase())) return m;
+            return `${id}*${open}`;
+        });
         
         // Pattern 6: Normalize Unicode characters to ASCII equivalents for evaluation
         // Replace π with pi (if pi is in constants/variables)
@@ -1350,7 +1363,24 @@ class FormulaCalculator {
         } catch (algebraicError) {
             console.log(`[FormulaCalculator] Algebraic solve failed for ${targetVar}, trying direct evaluation:`, algebraicError.message);
         }
-        
+
+        // Shared module solver (Unicode √ normalization + rearrange + numeric fallback)
+        if (typeof AlgebraicSolver !== 'undefined' && typeof AlgebraicSolver.solveForVariable === 'function') {
+            try {
+                const merged = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
+                const out = AlgebraicSolver.solveForVariable(this.formula.equation, targetVar, merged);
+                if (out && out.solved === true && typeof out.result === 'number' && Number.isFinite(out.result)) {
+                    console.log(`[FormulaCalculator] ✅ AlgebraicSolver.solveForVariable succeeded for ${targetVar}: ${out.result}`);
+                    return out.result;
+                }
+            } catch (asErr) {
+                console.log(
+                    `[FormulaCalculator] AlgebraicSolver.solveForVariable error for ${targetVar}:`,
+                    asErr?.message || asErr
+                );
+            }
+        }
+
         // FALLBACK 1: Universal Scientific Calculator - Direct expression evaluation
         // This handles cases like "M_V = -2.76 * log10(P) - 1.4" where we can directly evaluate
         // Use formula.solveFor[targetVar] when defined so we can solve for each variable genuinely
@@ -1358,7 +1388,9 @@ class FormulaCalculator {
             const allKnown = { ...this.constants, ...(this.formula.constants || {}), ...knownVars };
             let equation = this._normalizeEquationString(this.formula.equation);
             if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
-                equation = this.formula.solveFor[targetVar].replace(/×/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi');
+                equation = this._normalizeUnicodeSqrtForEval(
+                    this.formula.solveFor[targetVar].replace(/×/g, '*').replace(/÷/g, '/').replace(/π/g, 'pi')
+                );
             }
             // Check if equation is in form "targetVar = expression"
             const escapedTargetVar = this._escapeRegex(targetVar);
@@ -1517,10 +1549,12 @@ class FormulaCalculator {
         // If formula defines an alternate equation for this variable (so we can solve for each variable genuinely), use it
         let equation = this._normalizeEquationString(this.formula.equation);
         if (this.formula.solveFor && typeof this.formula.solveFor[targetVar] === 'string') {
-            equation = this.formula.solveFor[targetVar]
-                .replace(/×/g, '*')
-                .replace(/÷/g, '/')
-                .replace(/π/g, 'pi');
+            equation = this._normalizeUnicodeSqrtForEval(
+                this.formula.solveFor[targetVar]
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/π/g, 'pi')
+            );
             console.log(`[FormulaCalculator] Using formula.solveFor for "${targetVar}": ${equation}`);
         }
         console.log(`[FormulaCalculator] Equation: ${equation}`);
@@ -1569,7 +1603,7 @@ class FormulaCalculator {
                     return result;
                 } catch (e) {
                     console.error(`[FormulaCalculator] Failed to evaluate expression inside sqrt:`, e);
-                    throw new Error(`Cannot evaluate expression inside square root: ${expression}. ${e.message}`);
+                    continue;
                 }
             }
         }
@@ -1594,7 +1628,7 @@ class FormulaCalculator {
                 return result;
             } catch (e) {
                 console.error(`[FormulaCalculator] Failed to evaluate direct expression:`, e);
-                throw new Error(`Cannot evaluate expression: ${expression}. ${e.message}`);
+                return null;
             }
         }
         
@@ -1617,7 +1651,7 @@ class FormulaCalculator {
                 return result;
             } catch (e) {
                 console.error(`[FormulaCalculator] Failed to evaluate reverse expression:`, e);
-                throw new Error(`Cannot evaluate expression: ${expression}. ${e.message}`);
+                return null;
             }
         }
         
