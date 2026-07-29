@@ -3,14 +3,14 @@
  * Better dependency injection, error handling, and initialization
  */
 import { SearchEngine } from './modules/search/SearchEngine.js';
-import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js?v=2.3.16';
-import { TabManager } from './modules/tabs/TabManager.js?v=2.4.0';
+import { CalculationOrchestrator } from './modules/calculation/CalculationOrchestrator.js';
+import { TabManager } from './modules/tabs/TabManager.js';
 import { GraphCoordinator } from './modules/graph/GraphCoordinator.js';
 import { FormulaSelector } from './modules/formula/FormulaSelector.js';
-import { EventCoordinator } from './modules/events/EventCoordinator.js?v=2.1.9';
+import { EventCoordinator } from './modules/events/EventCoordinator.js';
 import { CalculationUtils } from './modules/utils/CalculationUtils.js';
 import { FormattingUtils } from './modules/utils/FormattingUtils.js';
-import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js?v=2.1.9';
+import { FormulaRenderer } from './modules/rendering/FormulaRenderer.js';
 import { debounceSearch } from './utils/debounce.js';
 import { validateCalculator, validateFormula } from './contracts.js';
 import { AstrophysicsExpertSystem } from './modules/expert/ExpertSystem.js';

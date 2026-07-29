@@ -1612,7 +1612,7 @@ header h1 {
 }
 
 .formula-card h3 {
-    color: #667eea;
+    color: #667eea !important;
     margin: 0;
     font-size: 1.4em;
     font-weight: 700;
@@ -1650,7 +1650,7 @@ header h1 {
 
 /* FormulaRenderer CSS Classes - Optimized for performance */
 .formula-card-title {
-    color: #667eea;
+    color: #667eea !important;
     margin: 0 0 12px 0;
     font-size: 1.4em;
     font-weight: 700;
@@ -2455,6 +2455,9 @@ input.unit-input-field {
     transition: all 0.3s;
     position: relative;
     top: 2px;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 .main-tab-btn:hover {

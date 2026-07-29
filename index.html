@@ -9,124 +9,12 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>AstroCalc - Science Olympiad Astronomy Calculator</title>
-    <link rel="stylesheet" href="styles/main.css?v=2.3.0&_t=1736043000" crossorigin="anonymous">
+    <link rel="stylesheet" href="styles/main.css" crossorigin="anonymous">
     <!-- KaTeX (bundled under libs/katex — works fully offline) -->
     <link rel="stylesheet" href="libs/katex/katex.min.css" crossorigin="anonymous">
     <script defer src="libs/katex/katex.min.js" crossorigin="anonymous"></script>
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23667eea'/%3E%3Ctext x='50' y='65' font-size='50' text-anchor='middle' fill='white'%3E🌌%3C/text%3E%3C/svg%3E">
-    <style>
-        /* FORCE BLUE BORDERS - MUST BE LAST IN HEAD TO OVERRIDE EVERYTHING */
-        .formula-card {
-            border: 2px solid rgba(102, 126, 234, 0.5) !important;
-            border-color: rgba(102, 126, 234, 0.5) !important;
-        }
-        .formula-card-title {
-            color: #667eea !important;
-        }
-        .main-tabs {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-        .main-tab-container {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-        }
-    </style>
-    <script>
-        // FORCE BLUE STYLES IMMEDIATELY - Run before any other scripts
-        (function() {
-            function forceBlueStyles() {
-                console.log('[Style Force] Applying blue styles...');
-                const style = document.createElement('style');
-                style.id = 'force-blue-styles';
-                style.textContent = `
-                    .formula-card {
-                        border: 2px solid rgba(102, 126, 234, 0.5) !important;
-                        border-color: rgba(102, 126, 234, 0.5) !important;
-                    }
-                    .formula-card-title, .formula-card h3 {
-                        color: #667eea !important;
-                    }
-                    .main-tabs {
-                        display: flex !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                    }
-                    .main-tab-container {
-                        display: block !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                    }
-                    .main-tab-btn {
-                        display: inline-block !important;
-                        visibility: visible !important;
-                        opacity: 1 !important;
-                    }
-                `;
-                document.head.appendChild(style);
-                
-                // Also force styles on existing elements
-                const cards = document.querySelectorAll('.formula-card');
-                const titles = document.querySelectorAll('.formula-card-title, .formula-card h3');
-                console.log(`[Style Force] Found ${cards.length} cards and ${titles.length} titles to style`);
-                cards.forEach(card => {
-                    card.style.border = '2px solid rgba(102, 126, 234, 0.5)';
-                    card.style.borderColor = 'rgba(102, 126, 234, 0.5)';
-                });
-                titles.forEach(title => {
-                    title.style.color = '#667eea';
-                });
-            }
-            
-            // Run immediately
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', forceBlueStyles);
-            } else {
-                forceBlueStyles();
-            }
-            
-            // Also run after a short delay to catch dynamically added elements
-            setTimeout(forceBlueStyles, 100);
-            setTimeout(forceBlueStyles, 500);
-            setTimeout(forceBlueStyles, 1000);
-            
-            // Use MutationObserver to catch dynamically added formula cards
-            const observer = new MutationObserver((mutations) => {
-                let shouldForce = false;
-                mutations.forEach((mutation) => {
-                    mutation.addedNodes.forEach((node) => {
-                        if (node.nodeType === 1) { // Element node
-                            if (node.classList && node.classList.contains('formula-card')) {
-                                shouldForce = true;
-                            }
-                            // Also check children
-                            if (node.querySelector && node.querySelector('.formula-card')) {
-                                shouldForce = true;
-                            }
-                        }
-                    });
-                });
-                if (shouldForce) {
-                    forceBlueStyles();
-                }
-            });
-            
-            // Start observing when DOM is ready
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    observer.observe(document.body, { childList: true, subtree: true });
-                });
-            } else {
-                observer.observe(document.body, { childList: true, subtree: true });
-            }
-        })();
-    </script>
-
-    <!-- FORCE BLUE STYLES - Load immediately -->
-    <script src="force_blue_now.js"></script>
 </head>
 <body>
     <div class="container">
@@ -687,42 +575,40 @@
     </script>
     <!-- Scripts loaded in dependency order (OFFLINE-FIRST: all local, production-safe) -->
     <!-- Core data -->
-    <script src="scripts/concepts.js?v=3.1.6"></script>
-    <script src="scripts/formulas.js?v=2.2.2"></script>
+    <script src="scripts/concepts.js"></script>
+    <script src="scripts/formulas.js"></script>
     
     <!-- Core utilities -->
-    <script src="scripts/safeExpressionEvaluator.js?v=2.1.5"></script>
-    <script src="scripts/ui/utils/SafeMathEvaluator.js?v=2.1.7"></script>
-    <script src="scripts/scientificCalculatorPanel.js?v=1.0.0"></script>
-    <script src="scripts/unitConverter.js?v=2.3.0"></script>
-    <script src="scripts/unitParser.js?v=2.1.5"></script>
-    <script src="scripts/expressionParser.js?v=2.1.6"></script>
-    <script src="scripts/variableValueParsing.js?v=1.0.1"></script>
-    <script src="scripts/formulaDisplayUtils.js?v=1.0.0"></script>
-    <script src="scripts/precisionCalculator.js?v=2.1.5"></script>
-    <script src="scripts/performanceOptimizer.js?v=2.1.5"></script>
+    <script src="scripts/safeExpressionEvaluator.js"></script>
+    <script src="scripts/ui/utils/SafeMathEvaluator.js"></script>
+    <script src="scripts/scientificCalculatorPanel.js"></script>
+    <script src="scripts/unitConverter.js"></script>
+    <script src="scripts/unitParser.js"></script>
+    <script src="scripts/expressionParser.js"></script>
+    <script src="scripts/variableValueParsing.js"></script>
+    <script src="scripts/formulaDisplayUtils.js"></script>
+    <script src="scripts/precisionCalculator.js"></script>
+    <script src="scripts/performanceOptimizer.js"></script>
     
     <!-- Core calculation engine -->
-    <script src="scripts/calculator.js?v=2.9.3"></script>
+    <script src="scripts/calculator.js"></script>
     
     <!-- Feature modules -->
-    <script src="scripts/classification.js?v=2.1.5"></script>
-    <script src="scripts/frqSupport.js?v=2.1.5"></script>
-    <script src="scripts/quickNav.js?v=2.1.5"></script>
-    <script src="scripts/formulaKnowledgeGraph.js?v=3.1.2"></script>
+    <script src="scripts/classification.js"></script>
+    <script src="scripts/frqSupport.js"></script>
+    <script src="scripts/quickNav.js"></script>
+    <script src="scripts/formulaKnowledgeGraph.js"></script>
     <!-- Expert System (deterministic question→formula) -->
-    <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js?v=1.0.0"></script>
+    <script type="module" src="scripts/ui/ui/modules/expert/ExpertSystem.js"></script>
     
     <!-- UI Rendering -->
-    <script src="scripts/ui/rendering/VariableInputs.js?v=2.3.2"></script>
-    <script src="scripts/ui/rendering/ResultDisplay.js?v=2.3.1"></script>
-    <script src="scripts/algebraicSolver.js?v=2.2.0"></script>
+    <script src="scripts/ui/rendering/VariableInputs.js"></script>
+    <script src="scripts/ui/rendering/ResultDisplay.js"></script>
+    <script src="scripts/algebraicSolver.js"></script>
     
     <!-- UI (ES Modules) -->
-    <script type="module" src="scripts/ui/ui/init.js?v=2.3.18"></script>
+    <script type="module" src="scripts/ui/ui/init.js"></script>
     
-    <!-- Force render fix -->
-    <script src="force_render_fix.js?v=2.1.8"></script>
     
     <!-- 8. Diagnostic tools (inline to ensure they're always available) -->
     <script>
@@ -1259,7 +1145,7 @@
                 // Wait a bit for any unregistration to complete
                 setTimeout(() => {
                     console.log('[Service Worker] Registering service worker...');
-                    navigator.serviceWorker.register('./sw.js?v=4.0.0')
+                    navigator.serviceWorker.register('./sw.js')
                         .then((registration) => {
                             console.log('[Service Worker] Registered successfully:', registration.scope);
                             

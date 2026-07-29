@@ -1,11 +1,14 @@
 /**
  * AstroCalc service worker — offline-first (v4)
- * - Precaches shell + scripts + KaTeX + MathJax entry without cache-busting queries
+ * - Precaches shell + scripts + KaTeX + MathJax entry (paths without query strings)
  * - Navigation: cache-first (refresh works offline); updates cache when online
  * - Static assets: cache match with ignoreSearch, then network → runtime cache
+ * - Cache busting: bump CACHE_VERSION only (query params on URLs are ignored)
+ * - install: skipWaiting() so the new worker activates promptly; activate: clients.claim()
+ * - message SKIP_WAITING remains for clients that request a controlled update
  */
 
-const CACHE_VERSION = 'v4.0.13';
+const CACHE_VERSION = 'v4.2.0';
 const CACHE_NAME = `astrocalc-shell-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `astrocalc-runtime-${CACHE_VERSION}`;
 
@@ -14,8 +17,6 @@ const PRECACHE_RESOURCES = [
     './index.html',
     './manifest.json',
     './styles/main.css',
-    './force_blue_now.js',
-    './force_render_fix.js',
 
     './scripts/concepts.js',
     './scripts/formulas.js',
@@ -219,15 +220,6 @@ async function putRuntime(request, response) {
 
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
-
-    if (
-        url.pathname.includes('clear_everything') ||
-        url.pathname.includes('unregister_sw') ||
-        url.pathname.includes('debug') ||
-        url.pathname.includes('test_')
-    ) {
-        return;
-    }
 
     if (url.origin !== self.location.origin) {
         return;

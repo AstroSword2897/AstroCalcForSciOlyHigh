@@ -1,58 +1,29 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    
-    /* Paths */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["scripts/*"],
-      "@ui/*": ["scripts/ui/*"],
-      "@types/*": ["scripts/types/*"]
-    },
-    
-    /* Type checking */
-    "types": ["node", "@playwright/test"],
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "outDir": "./dist",
-    "rootDir": "./",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "@playwright/test"]
   },
   "include": [
-    "scripts/**/*.ts",
-    "scripts/**/*.tsx",
     "tests/**/*.ts",
-    "index.html"
+    "playwright.config.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "**/*.js",
     "libs/**/*"
-  ],
-  "ts-node": {
-    "esm": true,
-    "experimentalSpecifierResolution": "node"
-  }
+  ]
 }

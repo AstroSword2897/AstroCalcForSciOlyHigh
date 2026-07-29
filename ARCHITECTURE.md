@@ -1,5 +1,7 @@
 # AstroCalc Architecture - Multi-Step Solver
 
+> **Status note:** The layered design below (`SolveContext` / `MultiStepSolver`) describes the intended multi-step orchestration. The current production hot path is `FormulaCalculator` in `scripts/calculator.js` plus the modular UI under `scripts/ui/ui/`. Keep this document as the design contract when wiring multi-step plans; do not assume those classes are loaded by `index.html` today.
+
 ## Core Principle
 
 > **Do NOT make FormulaCalculator smarter. Make something above it smarter.**

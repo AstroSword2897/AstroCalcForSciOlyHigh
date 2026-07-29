@@ -1,88 +1,60 @@
 #!/bin/bash
-# Expose local server to the internet using tunneling services
+# Expose the local AstroCalc static server to the internet.
 # Usage: ./expose_server.sh [ngrok|localtunnel|cloudflared]
+#
+# Starts ./start_server.sh on port 8000 if needed, then opens a tunnel.
+# Prefer cloudflared for a quick free URL with no signup.
+
+set -euo pipefail
 
 PORT=8000
-METHOD=${1:-ngrok}
+METHOD=${1:-cloudflared}
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
 
-# Check if server is running
-if ! lsof -ti:$PORT > /dev/null 2>&1; then
-    echo "⚠️  Server not running on port $PORT"
-    echo ""
-    echo "Starting server first..."
+if ! lsof -ti:"$PORT" > /dev/null 2>&1; then
+    echo "Server not running on port $PORT — starting..."
     ./start_server.sh
     sleep 2
-    echo ""
 fi
 
-echo "🌐 Exposing server on port $PORT to the internet..."
-echo "   Method: $METHOD"
-echo "   Full calculator functionality will be available"
+echo "Exposing http://localhost:$PORT via $METHOD"
+echo "Press Ctrl+C to stop the tunnel."
 echo ""
 
-case $METHOD in
+case "$METHOD" in
     ngrok)
         if ! command -v ngrok >/dev/null 2>&1; then
-            echo "❌ ngrok is not installed"
-            echo ""
-            echo "Install ngrok:"
+            echo "ngrok is not installed."
             echo "  macOS: brew install ngrok/ngrok/ngrok"
-            echo "  Or download from: https://ngrok.com/download"
-            echo ""
-            echo "After installation, sign up at https://dashboard.ngrok.com"
-            echo "Then run: ngrok config add-authtoken YOUR_AUTH_TOKEN"
+            echo "  Then:  ngrok config add-authtoken YOUR_AUTH_TOKEN"
             exit 1
         fi
-        echo "🚀 Starting ngrok tunnel..."
-        echo "   Public URL will be shown below"
-        echo "   Press Ctrl+C to stop"
-        echo ""
-        ngrok http $PORT
+        # Print any active tunnel password page if ngrok shows one in the browser UI.
+        echo "Public URL appears in the ngrok terminal UI (and http://127.0.0.1:4040)."
+        ngrok http "$PORT"
         ;;
-    
+
     localtunnel)
         if ! command -v lt >/dev/null 2>&1; then
-            echo "❌ localtunnel is not installed"
-            echo ""
-            echo "Install localtunnel:"
-            echo "  npm install -g localtunnel"
-            echo ""
+            echo "localtunnel is not installed. Install with: npm install -g localtunnel"
             exit 1
         fi
-        echo "🚀 Starting localtunnel..."
-        echo "   Public URL will be shown below"
-        echo "   Press Ctrl+C to stop"
-        echo ""
-        lt --port $PORT
+        lt --port "$PORT"
         ;;
-    
+
     cloudflared)
         if ! command -v cloudflared >/dev/null 2>&1; then
-            echo "❌ cloudflared is not installed"
-            echo ""
-            echo "Install cloudflared:"
+            echo "cloudflared is not installed."
             echo "  macOS: brew install cloudflare/cloudflare/cloudflared"
-            echo "  Or download from: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/"
-            echo ""
             exit 1
         fi
-        echo "🚀 Starting Cloudflare tunnel..."
-        echo "   Public URL will be shown below"
-        echo "   Press Ctrl+C to stop"
-        echo ""
-        cloudflared tunnel --url http://localhost:$PORT
+        cloudflared tunnel --url "http://localhost:$PORT"
         ;;
-    
+
     *)
-        echo "❌ Unknown method: $METHOD"
-        echo ""
-        echo "Available methods:"
-        echo "  ngrok        - Most popular, requires signup"
-        echo "  localtunnel  - Free, no signup required"
-        echo "  cloudflared  - Free from Cloudflare"
-        echo ""
+        echo "Unknown method: $METHOD"
         echo "Usage: ./expose_server.sh [ngrok|localtunnel|cloudflared]"
         exit 1
         ;;
 esac
-

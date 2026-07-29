@@ -42,7 +42,9 @@ var formulaCategories = {
         'tidal_disruption_radius_scaling',
         'tidal_force_balance_surface',
         'tidal_force_balance_interior',
-        'tidal_force_balance_rotating'
+        'tidal_force_balance_rotating',
+        'mutual_hill_radius', 'hill_stability_separation', 'mean_motion_resonance_location',
+        'keplerian_orbital_frequency'
     ],
     'Radiation & Stellar Properties': [
         'luminosity', 'flux_from_luminosity', 'inverse_square_law_brightness', 'wiens_law',
@@ -90,7 +92,27 @@ var formulaCategories = {
     'Planetary Science & Exoplanets': [
         'surface_gravity', 'average_density', 'planetary_equilibrium_temperature',
         'greenhouse_effect', 'albedo', 'transit_depth', 'radial_velocity_amplitude',
-        'planet_density'
+        'planet_density',
+        'equilibrium_temperature_luminosity', 'atmospheric_scale_height',
+        'jeans_escape_parameter', 'jeans_escape_flux', 'energy_limited_escape',
+        'rocky_mass_radius', 'crater_diameter_scaling', 'crater_counting_age',
+        'magnetopause_standoff', 'dynamo_field_scaling',
+        'habitable_zone_inner', 'habitable_zone_outer'
+    ],
+    'Planet Formation': [
+        'mmsn_surface_density', 'keplerian_orbital_frequency', 'disk_scale_height',
+        'disk_aspect_ratio', 'sound_speed_isothermal', 'steady_disk_accretion_rate',
+        'viscous_heating_rate', 'alpha_viscosity', 'viscous_timescale',
+        'toomre_q_keplerian', 'passive_disk_temperature',
+        'gravitational_focusing_factor', 'planetesimal_growth_rate', 'isolation_mass',
+        'stokes_number', 'radial_drift_velocity',
+        'type_I_migration_timescale', 'type_II_migration_timescale',
+        'gap_opening_thermal', 'gap_opening_viscous',
+        'core_accretion_timescale', 'pebble_accretion_2d', 'pebble_accretion_3d',
+        'critical_core_mass',
+        'mutual_hill_radius', 'hill_stability_separation',
+        'tidal_circularization_timescale', 'photoevaporation_mass_loss',
+        'gravitational_radius', 'mean_motion_resonance_location'
     ],
     'High Energy Astrophysics': [
         'max_gamma_bohm', 'cooling_break_gamma', 'cooling_break_frequency',
@@ -2220,44 +2242,53 @@ var formulas = [
     },
     {
         id: "roche_limit",
-        name: "Roche Limit",
-        description: "Minimum distance for a rigid body to avoid tidal disruption",
-        equation: "d = R × (2 × (ρ_M / ρ_m))^(1/3)",
+        name: "Roche Limit (Fluid Satellite)",
+        description: "Minimum orbital distance before tidal disruption of a fluid satellite: d ≈ 2.44 R_p (ρ_p/ρ_s)^(1/3). Explains rings inside ~2.44 R_p for equal-density bodies. Rigid-body Roche uses a smaller coefficient (~1.26).",
+        equation: "d = 2.44 * R_p * (rho_p / rho_s)^(1/3)",
+        solveFor: {
+            d: "d = 2.44 * R_p * (rho_p / rho_s)^(1/3)",
+            R_p: "R_p = d / (2.44 * (rho_p / rho_s)^(1/3))",
+            rho_p: "rho_p = rho_s * (d / (2.44 * R_p))^3",
+            rho_s: "rho_s = rho_p / (d / (2.44 * R_p))^3"
+        },
+        concepts: ["roche limit", "tidal disruption", "planetary rings", "satellites", "fluid body"],
+        keywords: ["roche", "tidal breakup", "ring limit", "fluid satellite", "2.44"],
         variables: [
-            {
-                symbol: "d",
-                name: "Roche Limit",
-                unit: "meters",
-                description: "Minimum safe distance"
-            },
-            {
-                symbol: "R",
-                name: "Primary Radius",
-                unit: "meters",
-                description: "Radius of primary body"
-            },
-            {
-                symbol: "ρ_M",
-                name: "Primary Density",
-                unit: "kg/m³",
-                description: "Density of primary body"
-            },
-            {
-                symbol: "ρ_m",
-                name: "Secondary Density",
-                unit: "kg/m³",
-                description: "Density of secondary body"
-            }
+            { symbol: "d", name: "Roche Limit", unit: "meters", description: "Minimum center-to-center distance before disruption" },
+            { symbol: "R_p", name: "Primary Radius", unit: "meters", description: "Radius of the primary (planet)" },
+            { symbol: "rho_p", name: "Primary Density", unit: "kg/m³", description: "Mean density of the primary" },
+            { symbol: "rho_s", name: "Satellite Density", unit: "kg/m³", description: "Mean density of the satellite" }
         ],
-        constants: {
-            factor: 2
-        }
+        constants: { factor: 2.44 },
+        presets: [
+            { name: "Equal density", description: "Fluid satellite same density as primary", values: { R_p: 6.9911e7, rho_p: 1326, rho_s: 1326 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["roche_limit_rigid", "hill_radius", "tidal_force", "tidal_disruption_radius_scaling"],
+            uses: [],
+            generalizes: [],
+            specializes: ["roche_limit_rigid"]
+        },
+        questionPatterns: [
+            "roche limit fluid",
+            "tidal disruption distance",
+            "why planetary rings",
+            "2.44 planetary radii"
+        ]
     },
     {
         id: "roche_limit_rigid",
         name: "Roche Limit (Rigid Body, in Masses)",
-        description: "Minimum distance R from star (mass M) for a rigid planet (mass m, radius r) to avoid tidal disruption. Balance: tidal force = planet gravity on surface. R = r × (2M/m)^(1/3). Use when given M, m, and r.",
+        description: "Minimum distance R from star (mass M) for a rigid planet (mass m, radius r) to avoid tidal disruption. Balance: tidal force = planet gravity on surface. R = r × (2M/m)^(1/3). Use when given M, m, and r. Fluid Roche uses density form ≈ 2.44 R_p (ρ_p/ρ_s)^(1/3).",
         equation: "R = r * (2*M/m)^(1/3)",
+        solveFor: {
+            R: "R = r * (2*M/m)^(1/3)",
+            r: "r = R / (2*M/m)^(1/3)",
+            M: "M = m * (R/r)^3 / 2",
+            m: "m = 2 * M / (R/r)^3"
+        },
         concepts: ["roche limit", "tidal disruption", "rigid body", "tidal force", "planet"],
         keywords: ["roche limit rigid", "minimum R distance", "tidal disruption distance", "planet ripped apart"],
         variables: [
@@ -2266,6 +2297,14 @@ var formulas = [
             { symbol: "M", name: "Star Mass", unit: "kg", description: "Mass of the star" },
             { symbol: "m", name: "Planet Mass", unit: "kg", description: "Mass of the planet" }
         ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["roche_limit", "hill_radius", "tidal_force"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
         questionPatterns: [
             "minimum R distance tidal",
             "roche limit in terms of M m r",
@@ -3216,40 +3255,41 @@ var formulas = [
     {
         id: "planetary_equilibrium_temperature",
         name: "Planetary Equilibrium Temperature",
-        description: "Equilibrium temperature of a planet",
-        equation: "T_eq = T_star × √(R_star / (2a)) × (1 - A)^(1/4)",
+        description: "No-atmosphere blackbody balance: T_eq = T_* √(R_*/(2a)) (1−A)^(1/4). Earth ≈ 255 K (vs ~288 K surface with greenhouse). Absorbed over πR_p², radiated over 4πR_p².",
+        equation: "T_eq = T_star * sqrt(R_star / (2*a)) * (1 - A)^(1/4)",
+        solveFor: {
+            T_eq: "T_eq = T_star * sqrt(R_star / (2*a)) * (1 - A)^(0.25)",
+            T_star: "T_star = T_eq / (sqrt(R_star / (2*a)) * (1 - A)^(0.25))",
+            R_star: "R_star = 2 * a * (T_eq / (T_star * (1 - A)^(0.25)))^2",
+            a: "a = R_star / (2 * (T_eq / (T_star * (1 - A)^(0.25)))^2)",
+            A: "A = 1 - (T_eq / (T_star * sqrt(R_star / (2*a))))^4"
+        },
+        concepts: ["equilibrium temperature", "albedo", "habitable zone", "exoplanets", "planetary science", "blackbody"],
+        keywords: ["Teq", "planet temperature", "bond albedo", "no greenhouse", "effective temperature planet"],
         variables: [
-            {
-                symbol: "T_eq",
-                name: "Equilibrium Temperature",
-                unit: "Kelvin",
-                description: "Planetary equilibrium temperature"
-            },
-            {
-                symbol: "T_star",
-                name: "Star Temperature",
-                unit: "Kelvin",
-                description: "Effective temperature of star"
-            },
-            {
-                symbol: "R_star",
-                name: "Star Radius",
-                unit: "meters",
-                description: "Radius of the star"
-            },
-            {
-                symbol: "a",
-                name: "Orbital Distance",
-                unit: "meters",
-                description: "Distance from star to planet"
-            },
-            {
-                symbol: "A",
-                name: "Albedo",
-                unit: "dimensionless",
-                description: "Planetary albedo (0-1)"
-            }
+            { symbol: "T_eq", name: "Equilibrium Temperature", unit: "Kelvin", description: "Effective radiating temperature without atmosphere" },
+            { symbol: "T_star", name: "Star Temperature", unit: "Kelvin", description: "Stellar effective temperature" },
+            { symbol: "R_star", name: "Star Radius", unit: "meters", description: "Stellar radius" },
+            { symbol: "a", name: "Orbital Distance", unit: "meters", description: "Semi-major axis / star–planet distance" },
+            { symbol: "A", name: "Bond Albedo", unit: "dimensionless", description: "Fraction of incident light reflected (0–1)" }
         ],
+        presets: [
+            { name: "Earth", description: "Sun-like star, Earth orbit, A=0.3", values: { T_star: 5780, R_star: 6.957e8, a: 1.495978707e11, A: 0.3 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["equilibrium_temperature_luminosity", "habitable_zone_inner", "habitable_zone_outer", "greenhouse_effect", "albedo", "stefan_boltzmann_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "equilibrium temperature planet",
+            "planet temperature no atmosphere",
+            "Teq from stellar temperature",
+            "bond albedo temperature"
+        ]
     },
     {
         id: "greenhouse_effect",
@@ -3447,37 +3487,41 @@ var formulas = [
     {
         id: "hill_radius",
         name: "Hill Radius",
-        description: "Sphere of gravitational influence of planet in orbit",
-        equation: "R_H = a × (m / (3M))^(1/3)",
+        description: "Region around a planet where its gravity dominates the star's: R_H = a (M_p/(3M_*))^(1/3). Sets feeding-zone width (~several R_H) and stable satellite orbits. Earth at 1 AU: R_H ≈ 0.01 AU.",
+        equation: "R_H = a * (m / (3*M))^(1/3)",
+        solveFor: {
+            R_H: "R_H = a * (m / (3*M))^(1/3)",
+            a: "a = R_H / (m / (3*M))^(1/3)",
+            m: "m = 3 * M * (R_H / a)^3",
+            M: "M = m / (3 * (R_H / a)^3)"
+        },
+        concepts: ["hill radius", "sphere of influence", "planet formation", "feeding zone", "satellites", "orbital mechanics"],
+        keywords: ["hill sphere", "roche lobe hill", "gravitational influence", "feeding zone", "mutual hill"],
         variables: [
-            {
-                symbol: "R_H",
-                name: "Hill Radius",
-                unit: "meters",
-                description: "Radius of gravitational influence"
-            },
-            {
-                symbol: "a",
-                name: "Semi-major Axis",
-                unit: "meters",
-                description: "Orbital distance"
-            },
-            {
-                symbol: "m",
-                name: "Planet Mass",
-                unit: "kg",
-                description: "Mass of the planet"
-            },
-            {
-                symbol: "M",
-                name: "Central Mass",
-                unit: "kg",
-                description: "Mass of the central body (e.g., star)"
-            }
+            { symbol: "R_H", name: "Hill Radius", unit: "meters", description: "Radius of gravitational influence around the planet" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital distance from the star" },
+            { symbol: "m", name: "Planet Mass", unit: "kg", description: "Mass of the planet (M_p)" },
+            { symbol: "M", name: "Central Mass", unit: "kg", description: "Mass of the central star (M_*)" }
         ],
-        constants: {
-            factor: 1/3
-        }
+        constants: { G: 6.67430e-11 },
+        presets: [
+            { name: "Earth at 1 AU", description: "Earth orbiting the Sun", values: { a: 1.495978707e11, m: 5.972e24, M: 1.988409870440e30 } },
+            { name: "Jupiter at 5.2 AU", description: "Jupiter orbiting the Sun", values: { a: 7.783e11, m: 1.898e27, M: 1.988409870440e30 } }
+        ],
+        relationships: {
+            prerequisites: ["kepler_third_law"],
+            derivedFrom: [],
+            relatedTo: ["roche_limit", "isolation_mass", "mutual_hill_radius", "planetesimal_growth_rate", "pebble_accretion_2d"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "hill radius",
+            "sphere of influence planet",
+            "feeding zone width",
+            "gravitational influence planet star"
+        ]
     },
     {
         id: "synodic_period",
@@ -3680,56 +3724,40 @@ var formulas = [
     {
         id: "tidal_locking_timescale",
         name: "Tidal Locking Timescale",
-        description: "Approximate rotational synchronization (rough estimate)",
-        equation: "t_lock ∝ (ωa⁶IQ) / (3Gm_p²R⁵)",
+        description: "Approximate spin–orbit synchronization time: t_lock ≈ (ω Q / k2) (a/R_p)^6 (M_p/M_*^2) / C with C absorbed into constants form t_lock = (2/3) * (Q/k2) * (a/R_p)^6 * (M_p/(G*M_star^2)) * omega * R_p^3 using I~(2/5)M R^2 scaling folded into the prefactor below. Strong a^6 dependence — hot Jupiters and close-in M-dwarf planets lock quickly.",
+        equation: "t_lock = (omega * Q / k2) * (a / R_p)^6 * (M_p / M_star^2) * R_p^3 / (G)",
+        solveFor: {
+            t_lock: "t_lock = (omega * Q / k2) * (a / R_p)^6 * (M_p / M_star^2) * R_p^3 / G",
+            omega: "omega = t_lock * k2 * G * M_star^2 / (Q * (a / R_p)^6 * M_p * R_p^3)",
+            a: "a = R_p * (t_lock * k2 * G * M_star^2 / (omega * Q * M_p * R_p^3))^(1/6)",
+            Q: "Q = t_lock * k2 * G * M_star^2 / (omega * (a / R_p)^6 * M_p * R_p^3)"
+        },
+        concepts: ["tidal locking", "spin orbit synchronization", "tides", "exoplanets", "hot jupiter"],
+        keywords: ["tidally locked", "synchronization", "permanent day night", "tidal locking time"],
         variables: [
-            {
-                symbol: "t_lock",
-                name: "Tidal Locking Timescale",
-                unit: "seconds",
-                description: "Time to achieve tidal locking"
-            },
-            {
-                symbol: "ω",
-                name: "Angular Velocity",
-                unit: "rad/s",
-                description: "Initial angular velocity"
-            },
-            {
-                symbol: "a",
-                name: "Orbital Distance",
-                unit: "meters",
-                description: "Semi-major axis"
-            },
-            {
-                symbol: "I",
-                name: "Moment of Inertia",
-                unit: "kg·m²",
-                description: "Moment of inertia of the body"
-            },
-            {
-                symbol: "Q",
-                name: "Tidal Quality Factor",
-                unit: "dimensionless",
-                description: "Tidal dissipation factor"
-            },
-            {
-                symbol: "m_p",
-                name: "Planet Mass",
-                unit: "kg",
-                description: "Mass of the planet"
-            },
-            {
-                symbol: "R",
-                name: "Planet Radius",
-                unit: "meters",
-                description: "Radius of the planet"
-            }
+            { symbol: "t_lock", name: "Tidal Locking Timescale", unit: "seconds", description: "Time to achieve spin–orbit synchronization" },
+            { symbol: "omega", name: "Initial Spin Rate", unit: "rad/s", description: "Initial planetary angular velocity" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital distance" },
+            { symbol: "R_p", name: "Planet Radius", unit: "meters", description: "Planetary radius" },
+            { symbol: "Q", name: "Tidal Quality Factor", unit: "dimensionless", description: "Larger Q → less dissipation → longer t_lock" },
+            { symbol: "k2", name: "Love Number", unit: "dimensionless", description: "Degree-2 Love number (~0.3 for gas giants)" },
+            { symbol: "M_p", name: "Planet Mass", unit: "kg", description: "Planet mass" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" }
         ],
-        constants: {
-            G: 6.67430e-11,
-            factor: 1/3
-        }
+        constants: { G: 6.67430e-11 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["tidal_circularization_timescale", "tidal_force", "kepler_third_law"],
+            uses: [],
+            generalizes: [],
+            specializes: []
+        },
+        questionPatterns: [
+            "tidal locking timescale",
+            "how long to tidally lock",
+            "spin orbit synchronization time"
+        ]
     },
     {
         id: "angular_momentum_circular",
@@ -6638,65 +6666,45 @@ var formulas = [
     {
         id: "sound_speed",
         name: "Sound Speed in a Gas",
-        description: "Speed of sound waves in a gas. Fundamental property describing wave propagation and pressure support. Essential for ISM physics, cloud dynamics, and star formation. Sound speed determines pressure support against gravitational collapse.",
-        equation: "c_s = √(γ k T / μ m_H)",
-        concepts: ["sound speed", "sound waves", "ISM", "pressure support", "cloud dynamics", "star formation", "wave propagation"],
-        keywords: ["sound speed", "sound", "ISM", "pressure", "waves", "dynamics"],
+        description: "Adiabatic sound speed c_s = √(γ k T / μ m_H). Sets pressure support, Mach numbers, and (with Ω) disk scale height H = c_s/Ω. For isothermal molecular disks use γ≈1 (or sound_speed_isothermal) with μ≈2.3; at T=100 K, c_s ≈ 0.6 km/s.",
+        equation: "c_s = sqrt(gamma * k * T / (mu * m_H))",
+        solveFor: {
+            c_s: "c_s = sqrt(gamma * k * T / (mu * m_H))",
+            T: "T = c_s^2 * mu * m_H / (gamma * k)",
+            mu: "mu = gamma * k * T / (c_s^2 * m_H)",
+            gamma: "gamma = c_s^2 * mu * m_H / (k * T)"
+        },
+        concepts: ["sound speed", "sound waves", "ISM", "pressure support", "cloud dynamics", "star formation", "wave propagation", "protoplanetary disk"],
+        keywords: ["sound speed", "sound", "ISM", "pressure", "waves", "dynamics", "isothermal"],
         variables: [
-            {
-                symbol: "c_s",
-                name: "Sound Speed",
-                unit: "m/s",
-                description: "Speed of sound in the gas"
-            },
-            {
-                symbol: "γ",
-                name: "Adiabatic Index",
-                unit: "dimensionless",
-                description: "Ratio of specific heats, adiabatic index"
-            },
-            {
-                symbol: "k",
-                name: "Boltzmann Constant",
-                unit: "J/K",
-                description: "Boltzmann constant"
-            },
-            {
-                symbol: "T",
-                name: "Temperature",
-                unit: "Kelvin",
-                description: "Temperature of the gas"
-            },
-            {
-                symbol: "μ",
-                name: "Mean Molecular Weight",
-                unit: "dimensionless",
-                description: "Average mass per particle in units of hydrogen mass"
-            },
-            {
-                symbol: "m_H",
-                name: "Hydrogen Mass",
-                unit: "kg",
-                description: "Mass of hydrogen atom"
-            }
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Speed of sound in the gas" },
+            { symbol: "gamma", name: "Adiabatic Index", unit: "dimensionless", description: "Ratio of specific heats (γ=1 isothermal; ~1.4 diatomic)" },
+            { symbol: "k", name: "Boltzmann Constant", unit: "J/K", description: "Boltzmann constant" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Gas temperature" },
+            { symbol: "mu", name: "Mean Molecular Weight", unit: "dimensionless", description: "Mean mass per particle in units of m_H (~2.3 molecular H₂/He)" },
+            { symbol: "m_H", name: "Hydrogen Mass", unit: "kg", description: "Proton / hydrogen atom mass" }
         ],
         constants: {
             k: 1.380649e-23,
             m_H: 1.6735575e-27
         },
+        presets: [
+            { name: "Molecular disk 100 K", description: "Isothermal-like μ=2.3, γ=1", values: { gamma: 1, T: 100, mu: 2.3 } }
+        ],
         relationships: {
             prerequisites: [],
             derivedFrom: [],
-            relatedTo: ["thermal_energy_cloud", "jeans_length"],
+            relatedTo: ["thermal_energy_cloud", "jeans_length", "sound_speed_isothermal", "disk_scale_height", "alpha_viscosity"],
             uses: [],
             generalizes: [],
-            specializes: []
+            specializes: ["sound_speed_isothermal"]
         },
         questionPatterns: [
             "sound speed",
             "calculate sound speed",
             "gas sound speed",
-            "ISM sound speed"
+            "ISM sound speed",
+            "disk sound speed"
         ]
     },
     {
@@ -7821,59 +7829,41 @@ var formulas = [
     {
         id: "toomre_q_criterion",
         name: "Toomre Q Criterion (Disk Stability, simplified)",
-        description: "Criterion for gravitational stability of rotating disk. Fundamental stability condition for galactic disks and protoplanetary disks. Essential for disk stability, star formation, and planet formation. Q > 1 means disk is stable against axisymmetric perturbations.",
-        equation: "Q = (σ_R κ) / (π G Σ)",
-        concepts: ["toomre Q", "disk stability", "galactic disk", "protoplanetary disk", "gravitational stability", "epicyclic frequency"],
-        keywords: ["toomre", "Q criterion", "disk stability", "galactic", "protoplanetary", "stability"],
+        description: "Gravitational stability of a rotating disk: Q = (σ_R κ)/(π G Σ). Q > 1 is stable against axisymmetric collapse. In a Keplerian protoplanetary disk, κ ≈ Ω and σ_R ≈ c_s, so Q ≈ c_s Ω/(π G Σ) (see toomre_q_keplerian).",
+        equation: "Q = (sigma_R * kappa) / (pi * G * Sigma)",
+        solveFor: {
+            Q: "Q = (sigma_R * kappa) / (pi * G * Sigma)",
+            Sigma: "Sigma = (sigma_R * kappa) / (pi * G * Q)",
+            sigma_R: "sigma_R = Q * pi * G * Sigma / kappa",
+            kappa: "kappa = Q * pi * G * Sigma / sigma_R"
+        },
+        concepts: ["toomre Q", "disk stability", "galactic disk", "protoplanetary disk", "gravitational stability", "epicyclic frequency", "planet formation"],
+        keywords: ["toomre", "Q criterion", "disk stability", "galactic", "protoplanetary", "stability", "fragmentation"],
         variables: [
-            {
-                symbol: "Q",
-                name: "Toomre Q Parameter",
-                unit: "dimensionless",
-                description: "Stability parameter, Q > 1 is stable"
-            },
-            {
-                symbol: "σ_R",
-                name: "Radial Velocity Dispersion",
-                unit: "m/s",
-                description: "Velocity dispersion in radial direction"
-            },
-            {
-                symbol: "κ",
-                name: "Epicyclic Frequency",
-                unit: "rad/s",
-                description: "Epicyclic frequency, orbital frequency"
-            },
-            {
-                symbol: "Σ",
-                name: "Surface Density",
-                unit: "kg/m²",
-                description: "Surface mass density of disk"
-            },
-            {
-                symbol: "G",
-                name: "Gravitational Constant",
-                unit: "m³/(kg·s²)",
-                description: "Newton's gravitational constant"
-            }
+            { symbol: "Q", name: "Toomre Q Parameter", unit: "dimensionless", description: "Stability parameter; Q > 1 is stable" },
+            { symbol: "sigma_R", name: "Radial Velocity Dispersion", unit: "m/s", description: "Radial velocity dispersion (≈ c_s in cold disks)" },
+            { symbol: "kappa", name: "Epicyclic Frequency", unit: "rad/s", description: "Epicyclic frequency (≈ Ω for Keplerian disks)" },
+            { symbol: "Sigma", name: "Surface Density", unit: "kg/m²", description: "Disk surface mass density" },
+            { symbol: "G", name: "Gravitational Constant", unit: "m³/(kg·s²)", description: "Newton's gravitational constant" }
         ],
         constants: {
             G: 6.67430e-11,
-            π: Math.PI
+            pi: Math.PI
         },
         relationships: {
             prerequisites: [],
             derivedFrom: [],
-            relatedTo: ["jeans_length", "galaxy_rotation_velocity"],
+            relatedTo: ["jeans_length", "toomre_q_keplerian", "keplerian_orbital_frequency", "disk_scale_height", "mmsn_surface_density"],
             uses: [],
             generalizes: [],
-            specializes: []
+            specializes: ["toomre_q_keplerian"]
         },
         questionPatterns: [
             "toomre Q",
             "disk stability",
             "Q criterion",
-            "galactic disk stability"
+            "galactic disk stability",
+            "protoplanetary disk fragment"
         ]
     },
     // ============================================================
@@ -12015,7 +12005,1227 @@ var formulas = [
             specializes: []
         },
         questionPatterns: ["supernova luminosity diffusion", "L Ekin tdiff", "ejecta energy luminosity"]
+    },
+
+    // ============================================================
+    // ARMITAGE — Planet Formation / Protoplanetary Disks (SI)
+    // ============================================================
+    {
+        id: "mmsn_surface_density",
+        name: "Minimum Mass Solar Nebula (MMSN) Surface Density",
+        description: "Power-law reconstruction of minimum disk solids/gas: Σ(r) = Σ₀ (r/AU)^(-3/2). Gas MMSN Σ₀ ≈ 1.7e4 kg/m² (1700 g/cm²) at 1 AU; solids alone ≈ 100 kg/m² (10 g/cm²). Lower bound assuming efficient planet assembly.",
+        equation: "Sigma = Sigma_0 * (r / AU)^(-1.5)",
+        solveFor: {
+            Sigma: "Sigma = Sigma_0 * (r / AU)^(-1.5)",
+            Sigma_0: "Sigma_0 = Sigma / (r / AU)^(-1.5)",
+            r: "r = AU * (Sigma / Sigma_0)^(-2/3)"
+        },
+        concepts: ["MMSN", "surface density", "protoplanetary disk", "planet formation", "minimum mass solar nebula"],
+        keywords: ["mmsn", "disk surface density", "sigma0", "power law disk"],
+        variables: [
+            { symbol: "Sigma", name: "Surface Density", unit: "kg/m²", description: "Disk surface density at radius r" },
+            { symbol: "Sigma_0", name: "Normalization Σ₀", unit: "kg/m²", description: "Surface density at 1 AU" },
+            { symbol: "r", name: "Orbital Radius", unit: "meters", description: "Heliocentric distance" }
+        ],
+        constants: { AU: 149597870700 },
+        presets: [
+            { name: "Gas MMSN at 1 AU", description: "Σ₀ = 1700 g/cm²", values: { Sigma_0: 17000, r: 149597870700 } },
+            { name: "Solids MMSN at 5 AU", description: "Σ₀ solids ~10 g/cm²", values: { Sigma_0: 100, r: 7.479893535e11 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["isolation_mass", "toomre_q_keplerian", "planetesimal_growth_rate", "steady_disk_accretion_rate"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["MMSN surface density", "minimum mass solar nebula", "disk surface density power law"]
+    },
+    {
+        id: "keplerian_orbital_frequency",
+        name: "Keplerian Orbital Frequency",
+        description: "Angular frequency of a circular Keplerian orbit: Ω = √(GM_*/r³). Sets dynamical timescales (P = 2π/Ω). At 1 AU around 1 M☉, Ω ≈ 2×10⁻⁷ rad/s.",
+        equation: "Omega = sqrt(G * M_star / r^3)",
+        solveFor: {
+            Omega: "Omega = sqrt(G * M_star / r^3)",
+            M_star: "M_star = Omega^2 * r^3 / G",
+            r: "r = (G * M_star / Omega^2)^(1/3)"
+        },
+        concepts: ["keplerian frequency", "orbital frequency", "protoplanetary disk", "orbital mechanics"],
+        keywords: ["omega kepler", "angular frequency orbit", "mean motion"],
+        variables: [
+            { symbol: "Omega", name: "Orbital Frequency Ω", unit: "rad/s", description: "Keplerian angular frequency" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central mass" },
+            { symbol: "r", name: "Orbital Radius", unit: "meters", description: "Orbital distance" }
+        ],
+        constants: { G: 6.67430e-11 },
+        presets: [
+            { name: "1 AU solar", description: "Earth orbit", values: { M_star: 1.988409870440e30, r: 149597870700 } }
+        ],
+        relationships: {
+            prerequisites: ["kepler_third_law"],
+            derivedFrom: ["kepler_third_law"],
+            relatedTo: ["disk_scale_height", "mean_motion_keplerian", "orbital_velocity", "viscous_timescale"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["keplerian frequency", "orbital angular frequency", "Omega sqrt GM r3"]
+    },
+    {
+        id: "disk_scale_height",
+        name: "Protoplanetary Disk Scale Height",
+        description: "Vertical hydrostatic thickness H = c_s/Ω. Hotter disks are thicker; faster orbits are thinner. Typical H/r ≈ 0.03–0.1. Distinct from atmospheric scale height kT/(mg).",
+        equation: "H = c_s / Omega",
+        solveFor: {
+            H: "H = c_s / Omega",
+            c_s: "c_s = H * Omega",
+            Omega: "Omega = c_s / H"
+        },
+        concepts: ["disk scale height", "protoplanetary disk", "sound speed", "vertical structure", "planet formation"],
+        keywords: ["disk thickness", "H over r", "vertical hydrostatic"],
+        variables: [
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Vertical e-folding thickness" },
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Isothermal sound speed" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital angular frequency" }
+        ],
+        presets: [
+            { name: "H/r=0.05 at 1 AU", description: "c_s from Ω and H=0.05 AU", values: { c_s: 1481, Omega: 1.990986e-7 } }
+        ],
+        relationships: {
+            prerequisites: ["keplerian_orbital_frequency", "sound_speed"],
+            derivedFrom: [],
+            relatedTo: ["disk_aspect_ratio", "alpha_viscosity", "type_I_migration_timescale", "atmospheric_scale_height"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["disk scale height", "protoplanetary disk thickness", "H equals cs over Omega"]
+    },
+    {
+        id: "disk_aspect_ratio",
+        name: "Disk Aspect Ratio H/r",
+        description: "Dimensionless disk thickness h = H/r = c_s/v_K. Controls planet–disk torques and spectral energy distributions. Passive flared disks have H/r increasing slowly with r.",
+        equation: "h = H / r",
+        solveFor: {
+            h: "h = H / r",
+            H: "H = h * r",
+            r: "r = H / h"
+        },
+        concepts: ["aspect ratio", "disk geometry", "protoplanetary disk", "planet migration"],
+        keywords: ["H/r", "disk flaring", "thin disk"],
+        variables: [
+            { symbol: "h", name: "Aspect Ratio", unit: "dimensionless", description: "H/r" },
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Vertical scale height" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Cylindrical / orbital radius" }
+        ],
+        relationships: {
+            prerequisites: ["disk_scale_height"],
+            derivedFrom: ["disk_scale_height"],
+            relatedTo: ["type_I_migration_timescale", "gap_opening_thermal", "passive_disk_temperature"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["disk aspect ratio", "H over r", "how thin is the disk"]
+    },
+    {
+        id: "sound_speed_isothermal",
+        name: "Isothermal Sound Speed (Disk Gas)",
+        description: "c_s = √(kT/(μ m_p)) for isothermal molecular gas. Use μ≈2.3 for H₂/He. Preferred for protoplanetary-disk estimates vs adiabatic sound_speed.",
+        equation: "c_s = sqrt(k * T / (mu * m_p))",
+        solveFor: {
+            c_s: "c_s = sqrt(k * T / (mu * m_p))",
+            T: "T = c_s^2 * mu * m_p / k",
+            mu: "mu = k * T / (c_s^2 * m_p)"
+        },
+        concepts: ["sound speed", "isothermal", "protoplanetary disk", "molecular gas"],
+        keywords: ["isothermal sound speed", "disk temperature sound"],
+        variables: [
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Isothermal sound speed" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Gas temperature" },
+            { symbol: "mu", name: "Mean Molecular Weight", unit: "dimensionless", description: "≈2.3 for molecular disk gas" },
+            { symbol: "m_p", name: "Proton Mass", unit: "kg", description: "Proton mass" },
+            { symbol: "k", name: "Boltzmann Constant", unit: "J/K", description: "Boltzmann constant" }
+        ],
+        constants: { k: 1.380649e-23, m_p: 1.67262192369e-27 },
+        presets: [
+            { name: "100 K molecular", description: "μ=2.3", values: { T: 100, mu: 2.3 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: ["sound_speed"],
+            relatedTo: ["sound_speed", "disk_scale_height", "toomre_q_keplerian"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["isothermal sound speed", "molecular disk sound speed"]
+    },
+    {
+        id: "steady_disk_accretion_rate",
+        name: "Steady Disk Accretion Rate",
+        description: "In a steady viscous disk, Ṁ = 3π ν Σ links observed accretion rate to viscosity and surface density.",
+        equation: "Mdot = 3 * pi * nu * Sigma",
+        solveFor: {
+            Mdot: "Mdot = 3 * pi * nu * Sigma",
+            nu: "nu = Mdot / (3 * pi * Sigma)",
+            Sigma: "Sigma = Mdot / (3 * pi * nu)"
+        },
+        concepts: ["accretion rate", "viscous disk", "protoplanetary disk", "alpha disk"],
+        keywords: ["steady accretion", "3 pi nu Sigma", "mass accretion disk"],
+        variables: [
+            { symbol: "Mdot", name: "Accretion Rate Ṁ", unit: "kg/s", description: "Mass accretion rate through the disk" },
+            { symbol: "nu", name: "Kinematic Viscosity", unit: "m²/s", description: "Effective viscosity" },
+            { symbol: "Sigma", name: "Surface Density", unit: "kg/m²", description: "Gas surface density" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: ["alpha_viscosity"],
+            derivedFrom: [],
+            relatedTo: ["alpha_viscosity", "viscous_heating_rate", "viscous_timescale", "accretion_luminosity"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["steady accretion rate", "Mdot 3 pi nu Sigma", "disk mass accretion"]
+    },
+    {
+        id: "viscous_heating_rate",
+        name: "Viscous Heating Rate (Disk)",
+        description: "Energy dissipation per unit area from viscous stresses: Q⁺ = (9/4) ν Σ Ω². Combined with cooling, sets midplane temperature in actively accreting disks.",
+        equation: "Q_plus = (9/4) * nu * Sigma * Omega^2",
+        solveFor: {
+            Q_plus: "Q_plus = (9/4) * nu * Sigma * Omega^2",
+            nu: "nu = Q_plus / ((9/4) * Sigma * Omega^2)",
+            Sigma: "Sigma = Q_plus / ((9/4) * nu * Omega^2)",
+            Omega: "Omega = sqrt(Q_plus / ((9/4) * nu * Sigma))"
+        },
+        concepts: ["viscous heating", "accretion disk", "disk temperature", "protoplanetary disk"],
+        keywords: ["viscous dissipation", "Q plus", "disk heating"],
+        variables: [
+            { symbol: "Q_plus", name: "Heating Rate Q⁺", unit: "W/m²", description: "Energy dissipation per unit area" },
+            { symbol: "nu", name: "Kinematic Viscosity", unit: "m²/s", description: "Effective viscosity" },
+            { symbol: "Sigma", name: "Surface Density", unit: "kg/m²", description: "Gas surface density" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" }
+        ],
+        relationships: {
+            prerequisites: ["alpha_viscosity", "keplerian_orbital_frequency"],
+            derivedFrom: [],
+            relatedTo: ["steady_disk_accretion_rate", "passive_disk_temperature"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["viscous heating", "disk dissipation rate", "Q plus viscosity"]
+    },
+    {
+        id: "alpha_viscosity",
+        name: "Alpha Viscosity Prescription",
+        description: "Shakura–Sunyaev parametrization ν = α c_s H. α ~ 10⁻⁴–10⁻² in protoplanetary disks encapsulates turbulent transport efficiency (e.g. MRI).",
+        equation: "nu = alpha * c_s * H",
+        solveFor: {
+            nu: "nu = alpha * c_s * H",
+            alpha: "alpha = nu / (c_s * H)",
+            c_s: "c_s = nu / (alpha * H)",
+            H: "H = nu / (alpha * c_s)"
+        },
+        concepts: ["alpha viscosity", "Shakura Sunyaev", "turbulence", "protoplanetary disk", "angular momentum transport"],
+        keywords: ["alpha disk", "kinematic viscosity", "MRI turbulence"],
+        variables: [
+            { symbol: "nu", name: "Kinematic Viscosity", unit: "m²/s", description: "Effective viscosity" },
+            { symbol: "alpha", name: "Alpha Parameter", unit: "dimensionless", description: "Turbulent efficiency (typically 1e-4 to 1e-2)" },
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Gas sound speed" },
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Disk vertical scale height" }
+        ],
+        presets: [
+            { name: "α=1e-3, H/r=0.05 @1AU", description: "Typical disk", values: { alpha: 0.001, c_s: 1481, H: 7.48e9 } }
+        ],
+        relationships: {
+            prerequisites: ["disk_scale_height"],
+            derivedFrom: [],
+            relatedTo: ["viscous_timescale", "steady_disk_accretion_rate", "type_II_migration_timescale", "gap_opening_viscous"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["alpha viscosity", "Shakura Sunyaev", "nu alpha cs H"]
+    },
+    {
+        id: "viscous_timescale",
+        name: "Viscous Evolution Timescale",
+        description: "Diffusion time t_ν ~ r²/ν for disk material to spread or drain. At 1 AU with α=10⁻³ and H/r=0.05, t_ν ~ 10⁵–10⁶ yr — sets disk lifetime and planet-formation window.",
+        equation: "t_nu = r^2 / nu",
+        solveFor: {
+            t_nu: "t_nu = r^2 / nu",
+            nu: "nu = r^2 / t_nu",
+            r: "r = sqrt(t_nu * nu)"
+        },
+        concepts: ["viscous timescale", "disk lifetime", "protoplanetary disk", "planet formation"],
+        keywords: ["disk evolution time", "viscous diffusion", "disk lifetime"],
+        variables: [
+            { symbol: "t_nu", name: "Viscous Timescale", unit: "seconds", description: "Characteristic viscous evolution time" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Orbital radius" },
+            { symbol: "nu", name: "Kinematic Viscosity", unit: "m²/s", description: "Effective viscosity" }
+        ],
+        relationships: {
+            prerequisites: ["alpha_viscosity"],
+            derivedFrom: [],
+            relatedTo: ["type_II_migration_timescale", "steady_disk_accretion_rate", "core_accretion_timescale"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["viscous timescale", "disk lifetime viscosity", "r squared over nu"]
+    },
+    {
+        id: "toomre_q_keplerian",
+        name: "Toomre Q (Keplerian Disk)",
+        description: "For a Keplerian protoplanetary disk (κ≈Ω, σ≈c_s): Q = c_s Ω / (π G Σ). Q < 1 allows gravitational fragmentation into bound clumps.",
+        equation: "Q = c_s * Omega / (pi * G * Sigma)",
+        solveFor: {
+            Q: "Q = c_s * Omega / (pi * G * Sigma)",
+            Sigma: "Sigma = c_s * Omega / (pi * G * Q)",
+            c_s: "c_s = Q * pi * G * Sigma / Omega",
+            Omega: "Omega = Q * pi * G * Sigma / c_s"
+        },
+        concepts: ["toomre Q", "gravitational instability", "protoplanetary disk", "planet formation"],
+        keywords: ["keplerian toomre", "disk fragmentation", "Q less than 1"],
+        variables: [
+            { symbol: "Q", name: "Toomre Q", unit: "dimensionless", description: "Stability parameter" },
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Gas sound speed" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" },
+            { symbol: "Sigma", name: "Surface Density", unit: "kg/m²", description: "Disk surface density" }
+        ],
+        constants: { G: 6.67430e-11, pi: Math.PI },
+        relationships: {
+            prerequisites: ["toomre_q_criterion", "keplerian_orbital_frequency"],
+            derivedFrom: ["toomre_q_criterion"],
+            relatedTo: ["mmsn_surface_density", "disk_scale_height", "jeans_length"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["toomre Q keplerian", "disk gravitational instability", "protoplanetary Q"]
+    },
+    {
+        id: "passive_disk_temperature",
+        name: "Passive Disk Temperature (Chiang–Goldreich)",
+        description: "Irradiated flared-disk midplane temperature: T = T₀ (r/r₀)^(-3/7). Shallower than flat-disk cooling; implies H/r ∝ r^(2/7) flaring.",
+        equation: "T = T_0 * (r / r_0)^(-3/7)",
+        solveFor: {
+            T: "T = T_0 * (r / r_0)^(-3/7)",
+            T_0: "T_0 = T / (r / r_0)^(-3/7)",
+            r: "r = r_0 * (T / T_0)^(-7/3)",
+            r_0: "r_0 = r / (T / T_0)^(-7/3)"
+        },
+        concepts: ["passive disk", "irradiation", "disk temperature", "flared disk", "planet formation"],
+        keywords: ["Chiang Goldreich", "T r -3/7", "irradiated disk"],
+        variables: [
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Midplane / disk temperature at r" },
+            { symbol: "T_0", name: "Reference Temperature", unit: "Kelvin", description: "Temperature at reference radius r₀" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Orbital radius" },
+            { symbol: "r_0", name: "Reference Radius", unit: "meters", description: "Normalization radius" }
+        ],
+        presets: [
+            { name: "T0=280 K at 1 AU", description: "Typical passive disk normalization", values: { T_0: 280, r_0: 149597870700, r: 7.479893535e11 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["disk_aspect_ratio", "sound_speed_isothermal", "viscous_heating_rate"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["passive disk temperature", "Chiang Goldreich", "temperature r to the -3/7"]
+    },
+
+    // ============================================================
+    // ARMITAGE — Growth, Drift, Migration
+    // ============================================================
+    {
+        id: "gravitational_focusing_factor",
+        name: "Gravitational Focusing Factor",
+        description: "Enhancement of collisional cross-section: F_g = 1 + (v_esc/v_rel)². When v_esc ≫ v_rel, focusing is large and runaway growth accelerates.",
+        equation: "F_g = 1 + (v_esc / v_rel)^2",
+        solveFor: {
+            F_g: "F_g = 1 + (v_esc / v_rel)^2",
+            v_esc: "v_esc = v_rel * sqrt(F_g - 1)",
+            v_rel: "v_rel = v_esc / sqrt(F_g - 1)"
+        },
+        concepts: ["gravitational focusing", "runaway growth", "planetesimals", "planet formation"],
+        keywords: ["focusing factor", "collision cross section", "vesc vrel"],
+        variables: [
+            { symbol: "F_g", name: "Focusing Factor", unit: "dimensionless", description: "Cross-section enhancement" },
+            { symbol: "v_esc", name: "Escape Velocity", unit: "m/s", description: "Escape speed from the larger body" },
+            { symbol: "v_rel", name: "Relative Velocity", unit: "m/s", description: "Encounter relative speed" }
+        ],
+        relationships: {
+            prerequisites: ["escape_velocity"],
+            derivedFrom: [],
+            relatedTo: ["planetesimal_growth_rate", "escape_velocity", "isolation_mass"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["gravitational focusing", "focusing factor collisions", "runaway growth focusing"]
+    },
+    {
+        id: "planetesimal_growth_rate",
+        name: "Planetesimal Accretion Growth Rate",
+        description: "Mass growth rate dM/dt = π R² Σ Ω F_g. Proportional to geometric cross-section, solids surface density, encounter rate Ω, and gravitational focusing.",
+        equation: "dM_dt = pi * R^2 * Sigma * Omega * F_g",
+        solveFor: {
+            dM_dt: "dM_dt = pi * R^2 * Sigma * Omega * F_g",
+            Sigma: "Sigma = dM_dt / (pi * R^2 * Omega * F_g)",
+            R: "R = sqrt(dM_dt / (pi * Sigma * Omega * F_g))",
+            F_g: "F_g = dM_dt / (pi * R^2 * Sigma * Omega)",
+            Omega: "Omega = dM_dt / (pi * R^2 * Sigma * F_g)"
+        },
+        concepts: ["planetesimal accretion", "growth rate", "oligarchic growth", "planet formation"],
+        keywords: ["accretion rate embryo", "dM/dt planetesimal"],
+        variables: [
+            { symbol: "dM_dt", name: "Growth Rate dM/dt", unit: "kg/s", description: "Mass accretion rate onto protoplanet" },
+            { symbol: "R", name: "Protoplanet Radius", unit: "meters", description: "Physical radius" },
+            { symbol: "Sigma", name: "Solids Surface Density", unit: "kg/m²", description: "Planetesimal (or pebble) surface density" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" },
+            { symbol: "F_g", name: "Focusing Factor", unit: "dimensionless", description: "Gravitational focusing enhancement" }
+        ],
+        constants: { pi: Math.PI },
+        relationships: {
+            prerequisites: ["gravitational_focusing_factor", "keplerian_orbital_frequency"],
+            derivedFrom: [],
+            relatedTo: ["isolation_mass", "core_accretion_timescale", "pebble_accretion_2d"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["planetesimal growth rate", "embryo accretion rate", "dM/dt pi R2 Sigma"]
+    },
+    {
+        id: "isolation_mass",
+        name: "Isolation Mass",
+        description: "Mass after depleting a feeding zone of width Δa: M_iso = (2π Σ a Δa)^(3/2) / √M_*. Often Δa ~ 10 R_H. Scales roughly ∝ Σ^(3/2) a³ — larger in outer, denser disks.",
+        equation: "M_iso = (2 * pi * Sigma * a * Delta_a)^(1.5) / sqrt(M_star)",
+        solveFor: {
+            M_iso: "M_iso = (2 * pi * Sigma * a * Delta_a)^(1.5) / sqrt(M_star)",
+            Sigma: "Sigma = ((M_iso * sqrt(M_star))^(2/3)) / (2 * pi * a * Delta_a)",
+            a: "a = ((M_iso * sqrt(M_star))^(2/3)) / (2 * pi * Sigma * Delta_a)",
+            Delta_a: "Delta_a = ((M_iso * sqrt(M_star))^(2/3)) / (2 * pi * Sigma * a)",
+            M_star: "M_star = ((2 * pi * Sigma * a * Delta_a)^(1.5) / M_iso)^2"
+        },
+        concepts: ["isolation mass", "oligarchic growth", "feeding zone", "planet formation", "core accretion"],
+        keywords: ["Miso", "feeding zone mass", "oligarch isolation"],
+        variables: [
+            { symbol: "M_iso", name: "Isolation Mass", unit: "kg", description: "Maximum oligarch mass in feeding zone" },
+            { symbol: "Sigma", name: "Solids Surface Density", unit: "kg/m²", description: "Solid surface density" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital radius" },
+            { symbol: "Delta_a", name: "Feeding Zone Width", unit: "meters", description: "Annulus width (often ~10 R_H)" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" }
+        ],
+        constants: { pi: Math.PI },
+        presets: [
+            { name: "5 AU solids MMSN-ish", description: "Σ=100 kg/m², Δa=0.5 AU", values: { Sigma: 100, a: 7.479893535e11, Delta_a: 7.48e10, M_star: 1.988409870440e30 } }
+        ],
+        relationships: {
+            prerequisites: ["hill_radius", "mmsn_surface_density"],
+            derivedFrom: [],
+            relatedTo: ["hill_radius", "critical_core_mass", "planetesimal_growth_rate"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["isolation mass", "feeding zone mass", "oligarchic isolation"]
+    },
+    {
+        id: "stokes_number",
+        name: "Stokes Number",
+        description: "Dimensionless stopping time St = t_stop Ω. St ≪ 1: tightly coupled to gas; St ≫ 1: decoupled; St ~ 1: strongest radial drift.",
+        equation: "St = t_stop * Omega",
+        solveFor: {
+            St: "St = t_stop * Omega",
+            t_stop: "t_stop = St / Omega",
+            Omega: "Omega = St / t_stop"
+        },
+        concepts: ["Stokes number", "dust dynamics", "radial drift", "pebble accretion", "planet formation"],
+        keywords: ["stopping time", "St", "particle coupling"],
+        variables: [
+            { symbol: "St", name: "Stokes Number", unit: "dimensionless", description: "t_stop × Ω" },
+            { symbol: "t_stop", name: "Stopping Time", unit: "seconds", description: "Gas-drag stopping time" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" }
+        ],
+        relationships: {
+            prerequisites: ["keplerian_orbital_frequency"],
+            derivedFrom: [],
+            relatedTo: ["radial_drift_velocity", "pebble_accretion_3d", "disk_scale_height"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Stokes number", "stopping time Omega", "dust coupling St"]
+    },
+    {
+        id: "radial_drift_velocity",
+        name: "Radial Drift Velocity (Dust)",
+        description: "Approximate inward drift v_r ≈ −2 η v_K / (St + 1/St). Fastest at St ~ 1. η ~ (H/r)² ~ 10⁻³ measures pressure support. Meter-size bodies at 1 AU can spiral in in ~100 yr.",
+        equation: "v_r = -2 * eta * v_K / (St + 1/St)",
+        solveFor: {
+            v_r: "v_r = -2 * eta * v_K / (St + 1/St)",
+            eta: "eta = -v_r * (St + 1/St) / (2 * v_K)",
+            v_K: "v_K = -v_r * (St + 1/St) / (2 * eta)"
+        },
+        concepts: ["radial drift", "dust", "meter size barrier", "planet formation", "Stokes number"],
+        keywords: ["headwind drift", "pressure support eta", "dust spiral"],
+        variables: [
+            { symbol: "v_r", name: "Radial Drift Velocity", unit: "m/s", description: "Radial velocity (negative = inward)" },
+            { symbol: "eta", name: "Pressure Support η", unit: "dimensionless", description: "≈ (H/r)², typically ~1e-3" },
+            { symbol: "v_K", name: "Keplerian Velocity", unit: "m/s", description: "Circular orbital speed" },
+            { symbol: "St", name: "Stokes Number", unit: "dimensionless", description: "Dimensionless stopping time" }
+        ],
+        presets: [
+            { name: "St=1, η=1e-3, 1 AU", description: "Peak drift case", values: { eta: 0.001, v_K: 29780, St: 1 } }
+        ],
+        relationships: {
+            prerequisites: ["stokes_number", "orbital_velocity"],
+            derivedFrom: [],
+            relatedTo: ["stokes_number", "pebble_accretion_2d", "disk_aspect_ratio"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["radial drift velocity", "dust drift St", "meter size barrier"]
+    },
+    {
+        id: "type_I_migration_timescale",
+        name: "Type I Migration Timescale",
+        description: "Order-of-magnitude Type I (low-mass) migration time t_I = (M_*/M_p)(M_*/(Σ a²))(H/a)² / Ω (omits O(1) torque coefficients). Earth-mass at 1 AU in MMSN can migrate in 10⁵–10⁶ yr — often faster than disk lifetime.",
+        equation: "t_I = (M_star / M_p) * (M_star / (Sigma * a^2)) * (H / a)^2 / Omega",
+        solveFor: {
+            t_I: "t_I = (M_star / M_p) * (M_star / (Sigma * a^2)) * (H / a)^2 / Omega",
+            M_p: "M_p = (M_star / t_I) * (M_star / (Sigma * a^2)) * (H / a)^2 / Omega",
+            Sigma: "Sigma = (M_star / M_p) * M_star * (H / a)^2 / (t_I * Omega * a^2)",
+            Omega: "Omega = (M_star / M_p) * (M_star / (Sigma * a^2)) * (H / a)^2 / t_I"
+        },
+        concepts: ["Type I migration", "planet migration", "disk torques", "planet formation"],
+        keywords: ["Type I migration", "type 1 migration", "type I", "spiral density waves", "low mass migration"],
+        variables: [
+            { symbol: "t_I", name: "Type I Timescale", unit: "seconds", description: "Characteristic migration time" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" },
+            { symbol: "M_p", name: "Planet Mass", unit: "kg", description: "Planet mass" },
+            { symbol: "Sigma", name: "Gas Surface Density", unit: "kg/m²", description: "Disk gas surface density" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital radius" },
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Disk scale height" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" }
+        ],
+        relationships: {
+            prerequisites: ["disk_scale_height", "keplerian_orbital_frequency"],
+            derivedFrom: [],
+            relatedTo: ["type_II_migration_timescale", "gap_opening_thermal", "disk_aspect_ratio"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Type I migration", "low mass planet migration time", "density wave torque timescale"]
+    },
+    {
+        id: "type_II_migration_timescale",
+        name: "Type II Migration Timescale",
+        description: "Gap-opening planets lock to disk viscous evolution: t_II ~ r²/ν = t_ν. Can deliver giants from beyond the snow line to hot-Jupiter orbits on 10⁵–10⁶ yr timescales.",
+        equation: "t_II = r^2 / nu",
+        solveFor: {
+            t_II: "t_II = r^2 / nu",
+            nu: "nu = r^2 / t_II",
+            r: "r = sqrt(t_II * nu)"
+        },
+        concepts: ["Type II migration", "gap opening", "giant planets", "planet formation"],
+        keywords: ["type 2 migration", "viscous migration", "hot jupiter migration"],
+        variables: [
+            { symbol: "t_II", name: "Type II Timescale", unit: "seconds", description: "Migration timescale after gap opening" },
+            { symbol: "r", name: "Orbital Radius", unit: "meters", description: "≈ semi-major axis" },
+            { symbol: "nu", name: "Kinematic Viscosity", unit: "m²/s", description: "Disk viscosity" }
+        ],
+        relationships: {
+            prerequisites: ["viscous_timescale", "gap_opening_thermal"],
+            derivedFrom: ["viscous_timescale"],
+            relatedTo: ["type_I_migration_timescale", "alpha_viscosity", "gap_opening_viscous"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Type II migration", "gap planet migration", "viscous migration timescale"]
+    },
+    {
+        id: "gap_opening_thermal",
+        name: "Gap Opening Mass (Thermal Criterion)",
+        description: "Thermal gap-opening threshold: M_p/M_* > (H/r)³, so M_p,min = M_* (H/r)³. Ensures planet gravity overcomes pressure that would refill the gap.",
+        equation: "M_p_min = M_star * (H / r)^3",
+        solveFor: {
+            M_p_min: "M_p_min = M_star * (H / r)^3",
+            M_star: "M_star = M_p_min / (H / r)^3",
+            H: "H = r * (M_p_min / M_star)^(1/3)",
+            r: "r = H / (M_p_min / M_star)^(1/3)"
+        },
+        concepts: ["gap opening", "Type II migration", "thermal criterion", "planet formation"],
+        keywords: ["gap thermal", "Hill radius vs scale height", "Saturn mass gap"],
+        variables: [
+            { symbol: "M_p_min", name: "Minimum Planet Mass", unit: "kg", description: "Mass needed to open a gap (thermal)" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" },
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Disk scale height" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Orbital radius" }
+        ],
+        relationships: {
+            prerequisites: ["disk_aspect_ratio"],
+            derivedFrom: [],
+            relatedTo: ["gap_opening_viscous", "type_II_migration_timescale", "hill_radius"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["gap opening thermal", "mass to open gap H/r", "thermal gap criterion"]
+    },
+    {
+        id: "gap_opening_viscous",
+        name: "Gap Opening Mass (Viscous Criterion)",
+        description: "Viscous gap-opening threshold: M_p/M_* > 40 α / (r/H)², so M_p,min = M_* × 40 α / (r/H)². Ensures tidal torques beat viscous smoothing. With H/r=0.05 and α=10⁻³, roughly Saturn-mass or larger.",
+        equation: "M_p_min = M_star * 40 * alpha / (r / H)^2",
+        solveFor: {
+            M_p_min: "M_p_min = M_star * 40 * alpha / (r / H)^2",
+            alpha: "alpha = M_p_min * (r / H)^2 / (40 * M_star)",
+            M_star: "M_star = M_p_min * (r / H)^2 / (40 * alpha)",
+            H: "H = r / sqrt(M_p_min / (M_star * 40 * alpha))",
+            r: "r = H * sqrt(M_p_min / (M_star * 40 * alpha))"
+        },
+        concepts: ["gap opening", "viscous criterion", "alpha disk", "planet formation"],
+        keywords: ["gap viscous", "40 alpha", "torque vs viscosity"],
+        variables: [
+            { symbol: "M_p_min", name: "Minimum Planet Mass", unit: "kg", description: "Mass needed to open a gap (viscous)" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" },
+            { symbol: "alpha", name: "Alpha Parameter", unit: "dimensionless", description: "Disk turbulence parameter" },
+            { symbol: "r", name: "Radius", unit: "meters", description: "Orbital radius" },
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Disk scale height" }
+        ],
+        relationships: {
+            prerequisites: ["alpha_viscosity", "gap_opening_thermal"],
+            derivedFrom: [],
+            relatedTo: ["gap_opening_thermal", "type_II_migration_timescale"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["gap opening viscous", "40 alpha gap", "viscous gap criterion"]
+    },
+    {
+        id: "core_accretion_timescale",
+        name: "Core Accretion Timescale (Planetesimal)",
+        description: "Order-of-magnitude time to ~10 M⊕ critical core: t_core ≈ 10⁶ yr × (Σ/10 g cm⁻²)⁻¹ × (a/5 AU)^(1/2). In SI: Σ_ref = 100 kg/m² (10 g/cm²). Must be shorter than disk lifetime for gas giants.",
+        equation: "t_core = 1e6 * yr * (Sigma_ref / Sigma) * sqrt(a / a_ref)",
+        solveFor: {
+            t_core: "t_core = 1e6 * yr * (Sigma_ref / Sigma) * sqrt(a / a_ref)",
+            Sigma: "Sigma = 1e6 * yr * Sigma_ref * sqrt(a / a_ref) / t_core",
+            a: "a = a_ref * (t_core * Sigma / (1e6 * yr * Sigma_ref))^2"
+        },
+        concepts: ["core accretion", "giant planet formation", "timescale", "snow line"],
+        keywords: ["core growth time", "critical core time", "gas giant formation time"],
+        variables: [
+            { symbol: "t_core", name: "Core Timescale", unit: "seconds", description: "Time to grow critical core" },
+            { symbol: "Sigma", name: "Solids Surface Density", unit: "kg/m²", description: "Solid surface density" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Formation location" }
+        ],
+        constants: {
+            yr: 31557600,
+            Sigma_ref: 100,
+            a_ref: 7.479893535e11
+        },
+        relationships: {
+            prerequisites: ["planetesimal_growth_rate"],
+            derivedFrom: [],
+            relatedTo: ["critical_core_mass", "isolation_mass", "pebble_accretion_2d", "viscous_timescale"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["core accretion timescale", "time to grow giant planet core", "planetesimal core growth"]
+    },
+    {
+        id: "pebble_accretion_2d",
+        name: "Pebble Accretion Rate (2D / Hill)",
+        description: "2D pebble accretion: dM/dt ~ 2 Σ_peb v_H r_H with v_H = r_H Ω. Gas drag enables efficient capture; can grow cores in ≲10⁵ yr.",
+        equation: "dM_dt = 2 * Sigma_peb * (r_H * Omega) * r_H",
+        solveFor: {
+            dM_dt: "dM_dt = 2 * Sigma_peb * Omega * r_H^2",
+            Sigma_peb: "Sigma_peb = dM_dt / (2 * Omega * r_H^2)",
+            r_H: "r_H = sqrt(dM_dt / (2 * Sigma_peb * Omega))",
+            Omega: "Omega = dM_dt / (2 * Sigma_peb * r_H^2)"
+        },
+        concepts: ["pebble accretion", "Hill regime", "planet formation", "core growth"],
+        keywords: ["2D pebble", "Hill accretion pebbles"],
+        variables: [
+            { symbol: "dM_dt", name: "Accretion Rate", unit: "kg/s", description: "Mass growth rate" },
+            { symbol: "Sigma_peb", name: "Pebble Surface Density", unit: "kg/m²", description: "Pebble surface density" },
+            { symbol: "r_H", name: "Hill Radius", unit: "meters", description: "Planet Hill radius" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" }
+        ],
+        relationships: {
+            prerequisites: ["hill_radius"],
+            derivedFrom: [],
+            relatedTo: ["pebble_accretion_3d", "stokes_number", "critical_core_mass", "planetesimal_growth_rate"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["pebble accretion 2D", "Hill pebble accretion", "fast core growth pebbles"]
+    },
+    {
+        id: "pebble_accretion_3d",
+        name: "Pebble Accretion Rate (3D / Settling)",
+        description: "3D settling regime: dM/dt ~ Σ_peb Ω r_H² √(St/α). Depends on pebble Stokes number and turbulence α.",
+        equation: "dM_dt = Sigma_peb * Omega * r_H^2 * sqrt(St / alpha)",
+        solveFor: {
+            dM_dt: "dM_dt = Sigma_peb * Omega * r_H^2 * sqrt(St / alpha)",
+            Sigma_peb: "Sigma_peb = dM_dt / (Omega * r_H^2 * sqrt(St / alpha))",
+            r_H: "r_H = sqrt(dM_dt / (Sigma_peb * Omega * sqrt(St / alpha)))",
+            St: "St = alpha * (dM_dt / (Sigma_peb * Omega * r_H^2))^2",
+            alpha: "alpha = St / (dM_dt / (Sigma_peb * Omega * r_H^2))^2"
+        },
+        concepts: ["pebble accretion", "settling regime", "Stokes number", "planet formation"],
+        keywords: ["3D pebble", "turbulent pebble accretion"],
+        variables: [
+            { symbol: "dM_dt", name: "Accretion Rate", unit: "kg/s", description: "Mass growth rate" },
+            { symbol: "Sigma_peb", name: "Pebble Surface Density", unit: "kg/m²", description: "Pebble surface density" },
+            { symbol: "Omega", name: "Keplerian Frequency", unit: "rad/s", description: "Orbital frequency" },
+            { symbol: "r_H", name: "Hill Radius", unit: "meters", description: "Planet Hill radius" },
+            { symbol: "St", name: "Stokes Number", unit: "dimensionless", description: "Pebble Stokes number" },
+            { symbol: "alpha", name: "Alpha Parameter", unit: "dimensionless", description: "Turbulence parameter" }
+        ],
+        relationships: {
+            prerequisites: ["stokes_number", "hill_radius", "alpha_viscosity"],
+            derivedFrom: [],
+            relatedTo: ["pebble_accretion_2d", "radial_drift_velocity", "critical_core_mass"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["pebble accretion 3D", "settling pebble accretion", "St alpha pebble"]
+    },
+    {
+        id: "critical_core_mass",
+        name: "Critical Core Mass for Runaway Gas Accretion",
+        description: "Core mass for runaway envelope accretion scales M_crit ∝ Ṁ_core^(1/4) κ^(1/4). Normalized form: M_crit = M_crit0 (Ṁ/Ṁ₀)^(1/4) (κ/κ₀)^(1/4). Typical M_crit0 ≈ 10 M⊕ for fiducial rates/opacities.",
+        equation: "M_crit = M_crit0 * (Mdot_core / Mdot0)^(0.25) * (kappa / kappa0)^(0.25)",
+        solveFor: {
+            M_crit: "M_crit = M_crit0 * (Mdot_core / Mdot0)^(0.25) * (kappa / kappa0)^(0.25)",
+            Mdot_core: "Mdot_core = Mdot0 * (M_crit / M_crit0)^4 / (kappa / kappa0)",
+            kappa: "kappa = kappa0 * (M_crit / M_crit0)^4 / (Mdot_core / Mdot0)"
+        },
+        concepts: ["critical core mass", "runaway gas accretion", "core accretion", "giant planets"],
+        keywords: ["Mcrit", "10 earth masses", "envelope runaway"],
+        variables: [
+            { symbol: "M_crit", name: "Critical Core Mass", unit: "kg", description: "Mass triggering runaway gas accretion" },
+            { symbol: "Mdot_core", name: "Solid Accretion Rate", unit: "kg/s", description: "Planetesimal/pebble accretion rate onto core" },
+            { symbol: "kappa", name: "Envelope Opacity", unit: "m²/kg", description: "Envelope opacity" },
+            { symbol: "M_crit0", name: "Reference Critical Mass", unit: "kg", description: "Fiducial critical mass (~10 M⊕)" },
+            { symbol: "Mdot0", name: "Reference Accretion Rate", unit: "kg/s", description: "Fiducial solid accretion rate" },
+            { symbol: "kappa0", name: "Reference Opacity", unit: "m²/kg", description: "Fiducial opacity" }
+        ],
+        constants: {
+            M_crit0: 5.972e25,
+            Mdot0: 1e-5,
+            kappa0: 0.01
+        },
+        presets: [
+            { name: "Fiducial 10 M⊕", description: "At reference Ṁ and κ", values: { Mdot_core: 1e-5, kappa: 0.01 } }
+        ],
+        relationships: {
+            prerequisites: ["core_accretion_timescale"],
+            derivedFrom: [],
+            relatedTo: ["isolation_mass", "pebble_accretion_2d", "planetesimal_growth_rate"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["critical core mass", "runaway gas accretion mass", "10 earth mass core"]
+    },
+
+    // ============================================================
+    // ARMITAGE Ch.4 — System Evolution
+    // ============================================================
+    {
+        id: "mutual_hill_radius",
+        name: "Mutual Hill Radius",
+        description: "Combined gravitational scale for two planets: r_H,m = ((a1+a2)/2) ((m1+m2)/(3M_*))^(1/3). Used in packing and Hill stability criteria.",
+        equation: "r_Hm = 0.5 * (a1 + a2) * ((m1 + m2) / (3 * M_star))^(1/3)",
+        solveFor: {
+            r_Hm: "r_Hm = 0.5 * (a1 + a2) * ((m1 + m2) / (3 * M_star))^(1/3)",
+            M_star: "M_star = (m1 + m2) / (3 * (2 * r_Hm / (a1 + a2))^3)",
+            m1: "m1 = 3 * M_star * (2 * r_Hm / (a1 + a2))^3 - m2"
+        },
+        concepts: ["mutual hill radius", "multiplanet", "stability", "planet packing"],
+        keywords: ["mutual Hill", "two planet Hill sphere"],
+        variables: [
+            { symbol: "r_Hm", name: "Mutual Hill Radius", unit: "meters", description: "Mutual Hill radius" },
+            { symbol: "a1", name: "Inner Semi-major Axis", unit: "meters", description: "Inner planet semi-major axis" },
+            { symbol: "a2", name: "Outer Semi-major Axis", unit: "meters", description: "Outer planet semi-major axis" },
+            { symbol: "m1", name: "Inner Planet Mass", unit: "kg", description: "Inner planet mass" },
+            { symbol: "m2", name: "Outer Planet Mass", unit: "kg", description: "Outer planet mass" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" }
+        ],
+        relationships: {
+            prerequisites: ["hill_radius"],
+            derivedFrom: ["hill_radius"],
+            relatedTo: ["hill_stability_separation", "hill_radius"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["mutual hill radius", "two planet hill radius"]
+    },
+    {
+        id: "hill_stability_separation",
+        name: "Hill Stability Separation",
+        description: "Sufficient condition that two planets never cross: Δa > 2√3 r_H,mutual ≈ 3.46 mutual Hill radii. Compact systems like TRAPPIST-1 often sit near ~10–20 mutual Hill radii.",
+        equation: "Delta_a_min = 2 * sqrt(3) * r_Hm",
+        solveFor: {
+            Delta_a_min: "Delta_a_min = 2 * sqrt(3) * r_Hm",
+            r_Hm: "r_Hm = Delta_a_min / (2 * sqrt(3))"
+        },
+        concepts: ["Hill stability", "orbital stability", "multiplanet systems", "planet packing"],
+        keywords: ["2 sqrt 3", "crossing orbits", "stable separation"],
+        variables: [
+            { symbol: "Delta_a_min", name: "Minimum Separation", unit: "meters", description: "Minimum a2−a1 for Hill stability" },
+            { symbol: "r_Hm", name: "Mutual Hill Radius", unit: "meters", description: "Mutual Hill radius" }
+        ],
+        relationships: {
+            prerequisites: ["mutual_hill_radius"],
+            derivedFrom: [],
+            relatedTo: ["mutual_hill_radius", "mean_motion_resonance_location"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Hill stability", "minimum planet separation", "2 sqrt 3 mutual hill"]
+    },
+    {
+        id: "tidal_circularization_timescale",
+        name: "Tidal Circularization Timescale",
+        description: "Eccentricity damping: 1/t_circ = (21/2)(k2/Q)(M_*/M_p)(R_p/a)^5 n. Strong (a/R)^5 dependence — only close-in planets circularize quickly.",
+        equation: "t_circ = 1 / ((21/2) * (k2 / Q) * (M_star / M_p) * (R_p / a)^5 * n)",
+        solveFor: {
+            t_circ: "t_circ = 1 / ((21/2) * (k2 / Q) * (M_star / M_p) * (R_p / a)^5 * n)",
+            Q: "Q = (21/2) * k2 * (M_star / M_p) * (R_p / a)^5 * n * t_circ",
+            n: "n = 1 / ((21/2) * (k2 / Q) * (M_star / M_p) * (R_p / a)^5 * t_circ)",
+            a: "a = R_p / ((1 / ((21/2) * (k2 / Q) * (M_star / M_p) * n * t_circ))^(1/5))"
+        },
+        concepts: ["tidal circularization", "eccentricity damping", "tides", "hot jupiter"],
+        keywords: ["circularization time", "tidal Q", "Love number k2"],
+        variables: [
+            { symbol: "t_circ", name: "Circularization Timescale", unit: "seconds", description: "e-folding time for eccentricity" },
+            { symbol: "k2", name: "Love Number", unit: "dimensionless", description: "Degree-2 Love number" },
+            { symbol: "Q", name: "Tidal Quality Factor", unit: "dimensionless", description: "Tidal dissipation quality factor" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Star mass" },
+            { symbol: "M_p", name: "Planet Mass", unit: "kg", description: "Planet mass" },
+            { symbol: "R_p", name: "Planet Radius", unit: "meters", description: "Planet radius" },
+            { symbol: "a", name: "Semi-major Axis", unit: "meters", description: "Orbital distance" },
+            { symbol: "n", name: "Mean Motion", unit: "rad/s", description: "Orbital mean motion 2π/P" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["tidal_locking_timescale", "kepler_third_law", "mean_motion_keplerian"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["tidal circularization", "eccentricity damping time", "hot jupiter circularize"]
+    },
+    {
+        id: "gravitational_radius",
+        name: "Gravitational Radius (Photoevaporation)",
+        description: "Radius where heated gas sound speed equals escape speed scale: r_g = GM_*/c_s². Sets the launch region for thermal disk winds.",
+        equation: "r_g = G * M_star / c_s^2",
+        solveFor: {
+            r_g: "r_g = G * M_star / c_s^2",
+            M_star: "M_star = r_g * c_s^2 / G",
+            c_s: "c_s = sqrt(G * M_star / r_g)"
+        },
+        concepts: ["photoevaporation", "gravitational radius", "disk wind", "disk dispersal"],
+        keywords: ["rg photoevaporation", "sonic radius wind"],
+        variables: [
+            { symbol: "r_g", name: "Gravitational Radius", unit: "meters", description: "GM_*/c_s²" },
+            { symbol: "M_star", name: "Stellar Mass", unit: "kg", description: "Central star mass" },
+            { symbol: "c_s", name: "Sound Speed", unit: "m/s", description: "Sound speed in photoionized gas (~10 km/s at 10⁴ K)" }
+        ],
+        constants: { G: 6.67430e-11 },
+        presets: [
+            { name: "Solar, 10 km/s", description: "Ionized wind", values: { M_star: 1.988409870440e30, c_s: 10000 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["photoevaporation_mass_loss", "sound_speed_isothermal", "escape_velocity"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["gravitational radius photoevaporation", "rg GM cs2"]
+    },
+    {
+        id: "photoevaporation_mass_loss",
+        name: "Photoevaporation Mass-Loss Rate",
+        description: "Order-of-magnitude EUV-driven disk wind: Ṁ_wind ≈ 1e-10 M☉/yr × (Φ_EUV/1e41 s⁻¹)^(1/2) × (r_g/10 AU)^(1/2). Important late when Ṁ_wind ~ Ṁ_acc, opening transition disks.",
+        equation: "Mdot_wind = Mdot0 * sqrt(Phi_EUV / Phi0) * sqrt(r_g / r_g0)",
+        solveFor: {
+            Mdot_wind: "Mdot_wind = Mdot0 * sqrt(Phi_EUV / Phi0) * sqrt(r_g / r_g0)",
+            Phi_EUV: "Phi_EUV = Phi0 * (Mdot_wind / Mdot0)^2 / (r_g / r_g0)",
+            r_g: "r_g = r_g0 * (Mdot_wind / Mdot0)^2 / (Phi_EUV / Phi0)"
+        },
+        concepts: ["photoevaporation", "disk dispersal", "EUV", "transition disk"],
+        keywords: ["disk wind mass loss", "EUV photoevaporation"],
+        variables: [
+            { symbol: "Mdot_wind", name: "Wind Mass-Loss Rate", unit: "kg/s", description: "Photoevaporative mass-loss rate" },
+            { symbol: "Phi_EUV", name: "EUV Photon Rate", unit: "1/s", description: "Ionizing photon luminosity Φ_EUV" },
+            { symbol: "r_g", name: "Gravitational Radius", unit: "meters", description: "GM_*/c_s²" }
+        ],
+        constants: {
+            Mdot0: 6.3e12,
+            Phi0: 1e41,
+            r_g0: 1.495978707e12
+        },
+        relationships: {
+            prerequisites: ["gravitational_radius"],
+            derivedFrom: [],
+            relatedTo: ["gravitational_radius", "steady_disk_accretion_rate", "viscous_timescale"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["photoevaporation mass loss", "EUV disk wind", "disk dispersal rate"]
+    },
+    {
+        id: "mean_motion_resonance_location",
+        name: "Mean-Motion Resonance Location",
+        description: "Interior (p+1):p resonance location a_res = a_p (p/(p+1))^(2/3). Example: Jupiter 2:1 at ≈0.63 a_J; Neptune 3:2 (Pluto) at ≈0.76 a_N.",
+        equation: "a_res = a_p * (p / (p + 1))^(2/3)",
+        solveFor: {
+            a_res: "a_res = a_p * (p / (p + 1))^(2/3)",
+            a_p: "a_p = a_res / (p / (p + 1))^(2/3)",
+            p: "p = 1 / ((a_p / a_res)^(3/2) - 1)"
+        },
+        concepts: ["mean motion resonance", "orbital resonance", "Kirkwood gaps", "resonant locking"],
+        keywords: ["2:1 resonance", "3:2 resonance", "MMR location"],
+        variables: [
+            { symbol: "a_res", name: "Resonance Semi-major Axis", unit: "meters", description: "Semi-major axis of resonant orbit" },
+            { symbol: "a_p", name: "Perturber Semi-major Axis", unit: "meters", description: "Semi-major axis of the perturbing planet" },
+            { symbol: "p", name: "Resonance Integer p", unit: "dimensionless", description: "Integer for (p+1):p resonance (p=1 → 2:1)" }
+        ],
+        presets: [
+            { name: "Jupiter 2:1", description: "p=1, a_J=5.2 AU", values: { a_p: 7.783e11, p: 1 } }
+        ],
+        relationships: {
+            prerequisites: ["kepler_third_law"],
+            derivedFrom: [],
+            relatedTo: ["kepler_third_law", "hill_stability_separation", "synodic_period"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["mean motion resonance location", "2:1 resonance distance", "where is the resonance"]
+    },
+
+    // ============================================================
+    // LISSAUER — Planetary Science / Atmospheres / Habitability
+    // ============================================================
+    {
+        id: "equilibrium_temperature_luminosity",
+        name: "Equilibrium Temperature (from Luminosity)",
+        description: "T_eq = [L_*(1−A)/(16π σ a²)]^(1/4). Equivalent to T_* form when L_* = 4π R_*^2 σ T_*^4. Useful when luminosity is given directly.",
+        equation: "T_eq = (L_star * (1 - A) / (16 * pi * sigma * a^2))^(0.25)",
+        solveFor: {
+            T_eq: "T_eq = (L_star * (1 - A) / (16 * pi * sigma * a^2))^(0.25)",
+            L_star: "L_star = 16 * pi * sigma * a^2 * T_eq^4 / (1 - A)",
+            a: "a = sqrt(L_star * (1 - A) / (16 * pi * sigma * T_eq^4))",
+            A: "A = 1 - 16 * pi * sigma * a^2 * T_eq^4 / L_star"
+        },
+        concepts: ["equilibrium temperature", "stellar luminosity", "albedo", "habitable zone"],
+        keywords: ["Teq luminosity", "stefan boltzmann planet"],
+        variables: [
+            { symbol: "T_eq", name: "Equilibrium Temperature", unit: "Kelvin", description: "No-atmosphere equilibrium temperature" },
+            { symbol: "L_star", name: "Stellar Luminosity", unit: "W", description: "Bolometric stellar luminosity" },
+            { symbol: "A", name: "Bond Albedo", unit: "dimensionless", description: "Reflected fraction 0–1" },
+            { symbol: "a", name: "Orbital Distance", unit: "meters", description: "Semi-major axis" },
+            { symbol: "sigma", name: "Stefan–Boltzmann Constant", unit: "W/(m²·K⁴)", description: "σ" }
+        ],
+        constants: { pi: Math.PI, sigma: 5.670374419e-8 },
+        presets: [
+            { name: "Earth", description: "Solar L, A=0.3, 1 AU", values: { L_star: 3.828e26, A: 0.3, a: 149597870700 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["planetary_equilibrium_temperature", "habitable_zone_inner", "stefan_boltzmann_law"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["equilibrium temperature luminosity", "Teq from L star", "planet temperature luminosity"]
+    },
+    {
+        id: "atmospheric_scale_height",
+        name: "Atmospheric Scale Height",
+        description: "H = kT/(m g) = RT/(μ g). Distance over which pressure drops by e. Earth troposphere ~8 km. Distinct from disk H = c_s/Ω.",
+        equation: "H = k * T / (m * g)",
+        solveFor: {
+            H: "H = k * T / (m * g)",
+            T: "T = H * m * g / k",
+            m: "m = k * T / (H * g)",
+            g: "g = k * T / (H * m)"
+        },
+        concepts: ["scale height", "atmosphere", "hydrostatic", "planetary science"],
+        keywords: ["atmospheric thickness", "pressure e-folding", "puffy atmosphere"],
+        variables: [
+            { symbol: "H", name: "Scale Height", unit: "meters", description: "Atmospheric pressure scale height" },
+            { symbol: "T", name: "Temperature", unit: "Kelvin", description: "Atmospheric temperature" },
+            { symbol: "m", name: "Mean Particle Mass", unit: "kg", description: "Mean molecular mass per particle" },
+            { symbol: "g", name: "Surface Gravity", unit: "m/s²", description: "Gravitational acceleration" },
+            { symbol: "k", name: "Boltzmann Constant", unit: "J/K", description: "Boltzmann constant" }
+        ],
+        constants: { k: 1.380649e-23 },
+        presets: [
+            { name: "Earth N2-ish", description: "T=250 K, μ≈28 u, g=9.8", values: { T: 250, m: 4.65e-26, g: 9.8 } }
+        ],
+        relationships: {
+            prerequisites: ["surface_gravity"],
+            derivedFrom: [],
+            relatedTo: ["surface_gravity", "scale_height_isothermal", "jeans_escape_parameter", "disk_scale_height"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["atmospheric scale height", "pressure scale height planet", "how thick atmosphere"]
+    },
+    {
+        id: "jeans_escape_parameter",
+        name: "Jeans Escape Parameter",
+        description: "λ = GMm/(kT r) = v_esc²/(2 c_s²). λ ≫ 1: thermal escape negligible; λ ≲ 10: significant Jeans escape; λ ≲ 2–3: blow-off. Retention over Gyr typically needs λ ≳ 15–20.",
+        equation: "lambda = G * M * m / (k * T * r)",
+        solveFor: {
+            lambda: "lambda = G * M * m / (k * T * r)",
+            T: "T = G * M * m / (k * lambda * r)",
+            M: "M = lambda * k * T * r / (G * m)",
+            m: "m = lambda * k * T * r / (G * M)",
+            r: "r = G * M * m / (k * T * lambda)"
+        },
+        concepts: ["Jeans escape", "atmospheric escape", "exobase", "planetary science"],
+        keywords: ["Jeans parameter", "thermal escape", "atmosphere retention"],
+        variables: [
+            { symbol: "lambda", name: "Jeans Parameter λ", unit: "dimensionless", description: "Gravitational / thermal energy ratio" },
+            { symbol: "M", name: "Planet Mass", unit: "kg", description: "Planetary mass" },
+            { symbol: "m", name: "Particle Mass", unit: "kg", description: "Mass of escaping species" },
+            { symbol: "T", name: "Exobase Temperature", unit: "Kelvin", description: "Temperature at exobase" },
+            { symbol: "r", name: "Exobase Radius", unit: "meters", description: "Radial distance of exobase" }
+        ],
+        constants: { G: 6.67430e-11, k: 1.380649e-23 },
+        relationships: {
+            prerequisites: ["escape_velocity"],
+            derivedFrom: [],
+            relatedTo: ["jeans_escape_flux", "energy_limited_escape", "atmospheric_scale_height", "escape_velocity"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Jeans parameter", "can planet keep atmosphere", "thermal escape lambda"]
+    },
+    {
+        id: "jeans_escape_flux",
+        name: "Jeans Escape Flux (Thermal)",
+        description: "Particle escape flux Φ ∝ n_exo c_s (1+λ) e^(-λ). Exponential sensitivity to λ — small T or g changes cause huge rate changes. Prefactor here is order-unity (exact geometric factor omitted).",
+        equation: "Phi = n_exo * c_s * (1 + lambda) * exp(-lambda)",
+        solveFor: {
+            Phi: "Phi = n_exo * c_s * (1 + lambda) * exp(-lambda)",
+            n_exo: "n_exo = Phi / (c_s * (1 + lambda) * exp(-lambda))",
+            c_s: "c_s = Phi / (n_exo * (1 + lambda) * exp(-lambda))"
+        },
+        concepts: ["Jeans escape", "escape flux", "exobase", "atmospheric loss"],
+        keywords: ["thermal escape flux", "Jeans flux"],
+        variables: [
+            { symbol: "Phi", name: "Escape Flux", unit: "1/(m²·s)", description: "Escaping particles per area per time" },
+            { symbol: "n_exo", name: "Exobase Number Density", unit: "1/m³", description: "Number density at exobase" },
+            { symbol: "c_s", name: "Thermal Speed", unit: "m/s", description: "Characteristic thermal speed" },
+            { symbol: "lambda", name: "Jeans Parameter", unit: "dimensionless", description: "Escape parameter λ" }
+        ],
+        relationships: {
+            prerequisites: ["jeans_escape_parameter"],
+            derivedFrom: [],
+            relatedTo: ["jeans_escape_parameter", "energy_limited_escape"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["Jeans escape flux", "thermal escape rate", "exobase escape"]
+    },
+    {
+        id: "energy_limited_escape",
+        name: "Energy-Limited Hydrodynamic Escape",
+        description: "XUV-driven mass loss Ṁ_esc = ε π R_p³ F_XUV / (G M_p K). Important for close-in planets and early terrestrial atmospheres; can strip mini-Neptune envelopes.",
+        equation: "Mdot_esc = epsilon * pi * R_p^3 * F_XUV / (G * M_p * K)",
+        solveFor: {
+            Mdot_esc: "Mdot_esc = epsilon * pi * R_p^3 * F_XUV / (G * M_p * K)",
+            F_XUV: "F_XUV = Mdot_esc * G * M_p * K / (epsilon * pi * R_p^3)",
+            M_p: "M_p = epsilon * pi * R_p^3 * F_XUV / (G * Mdot_esc * K)",
+            R_p: "R_p = (Mdot_esc * G * M_p * K / (epsilon * pi * F_XUV))^(1/3)",
+            epsilon: "epsilon = Mdot_esc * G * M_p * K / (pi * R_p^3 * F_XUV)"
+        },
+        concepts: ["hydrodynamic escape", "XUV", "atmospheric stripping", "exoplanets"],
+        keywords: ["energy limited escape", "photoevaporation planet", "envelope stripping"],
+        variables: [
+            { symbol: "Mdot_esc", name: "Mass-Loss Rate", unit: "kg/s", description: "Atmospheric mass-loss rate" },
+            { symbol: "epsilon", name: "Efficiency ε", unit: "dimensionless", description: "Heating efficiency (typically 0.1–0.3)" },
+            { symbol: "R_p", name: "Planet Radius", unit: "meters", description: "Planetary radius" },
+            { symbol: "F_XUV", name: "XUV Flux", unit: "W/m²", description: "Incident X-ray/EUV flux" },
+            { symbol: "M_p", name: "Planet Mass", unit: "kg", description: "Planetary mass" },
+            { symbol: "K", name: "Tidal Correction K", unit: "dimensionless", description: "Tidal enhancement factor (~1)" }
+        ],
+        constants: { G: 6.67430e-11, pi: Math.PI },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["jeans_escape_parameter", "photoevaporation_mass_loss", "rocky_mass_radius"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["energy limited escape", "XUV mass loss planet", "hydrodynamic escape rate"]
+    },
+    {
+        id: "rocky_mass_radius",
+        name: "Rocky Planet Mass–Radius Relation",
+        description: "Approximate Earth-like composition: R/R⊕ = (M/M⊕)^0.27. Compression weakens R∝M growth; 10 M⊕ rocky ≈ 1.8 R⊕. Larger radii imply volatiles/H–He envelopes.",
+        equation: "R = R_earth * (M / M_earth)^0.27",
+        solveFor: {
+            R: "R = R_earth * (M / M_earth)^0.27",
+            M: "M = M_earth * (R / R_earth)^(1/0.27)"
+        },
+        concepts: ["mass radius relation", "rocky planets", "exoplanet composition", "super Earth"],
+        keywords: ["R proportional M 0.27", "Earth composition radius"],
+        variables: [
+            { symbol: "R", name: "Planet Radius", unit: "meters", description: "Planetary radius" },
+            { symbol: "M", name: "Planet Mass", unit: "kg", description: "Planetary mass" }
+        ],
+        constants: {
+            R_earth: 6.371e6,
+            M_earth: 5.972e24
+        },
+        presets: [
+            { name: "1 M⊕", description: "Earth", values: { M: 5.972e24 } },
+            { name: "10 M⊕ rocky", description: "Massive rocky", values: { M: 5.972e25 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["average_density", "surface_gravity", "planet_density", "white_dwarf_mass_radius"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["rocky mass radius", "Earth composition radius from mass", "super Earth radius"]
+    },
+    {
+        id: "crater_diameter_scaling",
+        name: "Crater Diameter (Energy Scaling)",
+        description: "Simple energy scaling D = C E^(1/3). C absorbs density, gravity, and impact-angle factors; use calibrated C for order-of-magnitude impactor energy estimates.",
+        equation: "D = C * E^(1/3)",
+        solveFor: {
+            D: "D = C * E^(1/3)",
+            E: "E = (D / C)^3",
+            C: "C = D / E^(1/3)"
+        },
+        concepts: ["craters", "impact", "planetary surfaces", "scaling laws"],
+        keywords: ["crater size energy", "impact crater diameter"],
+        variables: [
+            { symbol: "D", name: "Crater Diameter", unit: "meters", description: "Crater diameter" },
+            { symbol: "E", name: "Impact Energy", unit: "J", description: "Kinetic energy of impact" },
+            { symbol: "C", name: "Scaling Constant", unit: "m/J^(1/3)", description: "Empirical/prefactor constant" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["crater_counting_age", "kinetic_energy_translational"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["crater diameter energy", "impact energy from crater size"]
+    },
+    {
+        id: "crater_counting_age",
+        name: "Crater Counting Age",
+        description: "Cumulative crater density N(>D) = k D^(-b) t. Older surfaces accumulate more craters; calibrated k from lunar samples gives absolute ages.",
+        equation: "N = k * D^(-b) * t",
+        solveFor: {
+            N: "N = k * D^(-b) * t",
+            t: "t = N / (k * D^(-b))",
+            k: "k = N / (D^(-b) * t)",
+            D: "D = (N / (k * t))^(-1/b)"
+        },
+        concepts: ["crater counting", "surface age", "chronology", "planetary geology"],
+        keywords: ["crater age dating", "N greater than D", "production function"],
+        variables: [
+            { symbol: "N", name: "Cumulative Crater Density", unit: "1/m²", description: "Number of craters larger than D per area" },
+            { symbol: "k", name: "Production Constant", unit: "varies", description: "Impactor flux normalization" },
+            { symbol: "D", name: "Crater Diameter", unit: "meters", description: "Minimum crater diameter counted" },
+            { symbol: "b", name: "Power-law Index", unit: "dimensionless", description: "Slope (typically ~2–3)" },
+            { symbol: "t", name: "Surface Age", unit: "seconds", description: "Exposure age" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["crater_diameter_scaling"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["crater counting age", "surface age from craters", "crater density age"]
+    },
+    {
+        id: "magnetopause_standoff",
+        name: "Magnetopause Standoff Distance",
+        description: "Dayside magnetopause where magnetic pressure balances solar-wind dynamic pressure: R_mp = R_p (B₀² / (2 μ₀ ρ_sw v_sw²))^(1/6). Earth typically ~10 R⊕.",
+        equation: "R_mp = R_p * (B0^2 / (2 * mu0 * rho_sw * v_sw^2))^(1/6)",
+        solveFor: {
+            R_mp: "R_mp = R_p * (B0^2 / (2 * mu0 * rho_sw * v_sw^2))^(1/6)",
+            B0: "B0 = sqrt(2 * mu0 * rho_sw * v_sw^2 * (R_mp / R_p)^6)",
+            rho_sw: "rho_sw = B0^2 / (2 * mu0 * v_sw^2 * (R_mp / R_p)^6)",
+            v_sw: "v_sw = sqrt(B0^2 / (2 * mu0 * rho_sw * (R_mp / R_p)^6))",
+            R_p: "R_p = R_mp / (B0^2 / (2 * mu0 * rho_sw * v_sw^2))^(1/6)"
+        },
+        concepts: ["magnetosphere", "solar wind", "magnetopause", "planetary magnetism"],
+        keywords: ["standoff distance", "magnetic pressure", "solar wind pressure"],
+        variables: [
+            { symbol: "R_mp", name: "Magnetopause Distance", unit: "meters", description: "Subsolar magnetopause radius" },
+            { symbol: "R_p", name: "Planet Radius", unit: "meters", description: "Planetary radius" },
+            { symbol: "B0", name: "Surface Field", unit: "Tesla", description: "Equatorial surface magnetic field" },
+            { symbol: "rho_sw", name: "Solar Wind Density", unit: "kg/m³", description: "Solar wind mass density" },
+            { symbol: "v_sw", name: "Solar Wind Speed", unit: "m/s", description: "Solar wind velocity" },
+            { symbol: "mu0", name: "Vacuum Permeability", unit: "N/A²", description: "μ₀" }
+        ],
+        constants: { mu0: 1.25663706212e-6 },
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["dynamo_field_scaling", "magnetic_pressure_si"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["magnetopause distance", "standoff distance", "solar wind magnetosphere"]
+    },
+    {
+        id: "dynamo_field_scaling",
+        name: "Dynamo Magnetic Field Scaling",
+        description: "Order-of-magnitude dynamo scaling B = C √ρ √Ω F_conv^(1/3). Faster rotation and stronger convective flux yield stronger fields. C is a dimensionless calibration constant.",
+        equation: "B = C * sqrt(rho) * sqrt(Omega) * F_conv^(1/3)",
+        solveFor: {
+            B: "B = C * sqrt(rho) * sqrt(Omega) * F_conv^(1/3)",
+            C: "C = B / (sqrt(rho) * sqrt(Omega) * F_conv^(1/3))",
+            rho: "rho = (B / (C * sqrt(Omega) * F_conv^(1/3)))^2",
+            Omega: "Omega = (B / (C * sqrt(rho) * F_conv^(1/3)))^2",
+            F_conv: "F_conv = (B / (C * sqrt(rho) * sqrt(Omega)))^3"
+        },
+        concepts: ["dynamo", "magnetic field", "convection", "planetary interiors"],
+        keywords: ["dynamo scaling", "planetary magnetic field strength"],
+        variables: [
+            { symbol: "B", name: "Magnetic Field", unit: "Tesla", description: "Characteristic field strength" },
+            { symbol: "C", name: "Calibration Constant", unit: "dimensionless", description: "Order-unity / fitted prefactor" },
+            { symbol: "rho", name: "Fluid Density", unit: "kg/m³", description: "Density of conducting fluid" },
+            { symbol: "Omega", name: "Rotation Rate", unit: "rad/s", description: "Planetary spin rate" },
+            { symbol: "F_conv", name: "Convective Heat Flux", unit: "W/m²", description: "Convective energy flux" }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["magnetopause_standoff", "magnetic_energy_density"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["dynamo field scaling", "magnetic field from rotation convection"]
+    },
+    {
+        id: "habitable_zone_inner",
+        name: "Habitable Zone Inner Edge",
+        description: "Approximate runaway-greenhouse inner HZ: a_inner ≈ √(L_*/L☉) × 0.95 AU. Rough Earth-like atmosphere estimate; real boundaries depend on clouds and composition.",
+        equation: "a_inner = sqrt(L_star / L_sun) * 0.95 * AU",
+        solveFor: {
+            a_inner: "a_inner = sqrt(L_star / L_sun) * 0.95 * AU",
+            L_star: "L_star = L_sun * (a_inner / (0.95 * AU))^2"
+        },
+        concepts: ["habitable zone", "runaway greenhouse", "exoplanets", "liquid water"],
+        keywords: ["HZ inner", "0.95 AU", "habitable zone start"],
+        variables: [
+            { symbol: "a_inner", name: "Inner HZ Edge", unit: "meters", description: "Inner edge semi-major axis" },
+            { symbol: "L_star", name: "Stellar Luminosity", unit: "W", description: "Stellar luminosity" }
+        ],
+        constants: { L_sun: 3.828e26, AU: 149597870700 },
+        presets: [
+            { name: "Sun", description: "Solar luminosity", values: { L_star: 3.828e26 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["habitable_zone_outer", "planetary_equilibrium_temperature", "equilibrium_temperature_luminosity"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["habitable zone inner edge", "runaway greenhouse distance", "HZ inner"]
+    },
+    {
+        id: "habitable_zone_outer",
+        name: "Habitable Zone Outer Edge",
+        description: "Approximate maximum-greenhouse outer HZ: a_outer ≈ √(L_*/L☉) × 1.67 AU. Beyond this, even thick CO₂ may not prevent permanent freezing (Earth-like assumptions).",
+        equation: "a_outer = sqrt(L_star / L_sun) * 1.67 * AU",
+        solveFor: {
+            a_outer: "a_outer = sqrt(L_star / L_sun) * 1.67 * AU",
+            L_star: "L_star = L_sun * (a_outer / (1.67 * AU))^2"
+        },
+        concepts: ["habitable zone", "maximum greenhouse", "exoplanets", "liquid water"],
+        keywords: ["HZ outer", "1.67 AU", "habitable zone end"],
+        variables: [
+            { symbol: "a_outer", name: "Outer HZ Edge", unit: "meters", description: "Outer edge semi-major axis" },
+            { symbol: "L_star", name: "Stellar Luminosity", unit: "W", description: "Stellar luminosity" }
+        ],
+        constants: { L_sun: 3.828e26, AU: 149597870700 },
+        presets: [
+            { name: "Sun", description: "Solar luminosity", values: { L_star: 3.828e26 } }
+        ],
+        relationships: {
+            prerequisites: [],
+            derivedFrom: [],
+            relatedTo: ["habitable_zone_inner", "planetary_equilibrium_temperature", "equilibrium_temperature_luminosity"],
+            uses: [], generalizes: [], specializes: []
+        },
+        questionPatterns: ["habitable zone outer edge", "maximum greenhouse distance", "HZ outer"]
     }
+
 ];
 
 // Formula confidence: orthogonal axes (theoretical basis, domain, numerical precision),
